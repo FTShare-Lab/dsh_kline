@@ -1,0 +1,39 @@
+{
+  "name": "@ftshare-lab/dsh-kline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSeek Harness integration for ft-kline-view.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FTShare-Lab/dsh_kline.git"
+  },
+  "bugs": {
+    "url": "https://github.com/FTShare-Lab/dsh_kline/issues"
+  },
+  "homepage": "https://github.com/FTShare-Lab/dsh_kline#readme",
+  "keywords": [
+    "deepseek",
+    "dsh",
+    "mcp",
+    "kline",
+    "ftshare"
+  ],
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dsh": "dsh",
+    "dsh:version": "dsh --version",
+    "dsh:dump": "dsh --profile web --patch ./config/ft-kline-view.patch.yml --dump-config",
+    "dsh:dump:ftshare": "dsh --profile web --patch ./config/ft-kline-view-with-ftshare.patch.yml --dump-config",
+    "dsh:web": "dsh --profile web --patch ./config/ft-kline-view.patch.yml",
+    "dsh:web:ftshare": "dsh --profile web --patch ./config/ft-kline-view-with-ftshare.patch.yml",
+    "smoke:mcp": "bash ./scripts/smoke-mcp.sh"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6"
+  }
+}
