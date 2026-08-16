@@ -1,16 +1,16 @@
 - insert:
-    - id: mcp-ft-kline-view
+    - id: mcp-dsh-kline
       name: '@deepseek-ai/dsh-mcp-client'
       config:
-        serverName: ft-kline-view
+        serverName: dsh-kline
         transport: stdio
         command: /bin/bash
         args:
-          - scripts/run-ft-kline-view.sh
+          - scripts/run-dsh-kline.sh
         cwd: !!js process.cwd()
         env:
-          FT_KLINE_VIEW_ROOT: !!js process.env.FT_KLINE_VIEW_ROOT || ''
-          FT_KLINE_VIEW_PYTHON: !!js process.env.FT_KLINE_VIEW_PYTHON || ''
+          DSH_KLINE_PYTHON: !!js process.env.DSH_KLINE_PYTHON || ''
+          FTSHARE_SDK_SRC: !!js process.env.FTSHARE_SDK_SRC || ''
         toolCallTimeoutMs: 120000
         failOnStartupError: true
         reconnect:

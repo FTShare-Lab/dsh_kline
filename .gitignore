@@ -2,6 +2,11 @@ node_modules/
 .DS_Store
 dist/
 coverage/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 .env
 .env.*
 !.env.example

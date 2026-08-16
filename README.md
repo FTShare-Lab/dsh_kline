@@ -1,254 +1,217 @@
 # dsh_kline
 
-Connect [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-to the [ft-kline-view](https://github.com/FTShare-Lab/ft-kline-view) MCP
-server.
+Standalone K-line MCP for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness),
+powered by the FTShare Python SDK.
 
-The default integration gives a DeepSeek agent a small, chart-focused tool
-surface. The agent can retrieve FTShare-backed candles through
-`ft-kline-view.fetch_candles`, calculate deterministic indicators, and invoke
-the K-line renderer without separately orchestrating the full FTShare-MCP tool
-catalog.
+`dsh_kline` is one repository and one MCP process. It contains its own FTShare
+adapter, OHLCV normalization, deterministic indicator calculations, tests, and
+DeepSeek Harness profile. It does not call or require another MCP server.
 
 ## Status
 
-This repository targets DeepSeek Harness `0.1.0-rc.6`, which is a developer
-preview and may introduce breaking changes.
+Developer preview. The repository pins DeepSeek Harness `0.1.0-rc.6`, which may
+introduce breaking changes.
 
-Verified on 2026-08-15 with:
+Verified locally on 2026-08-16 with:
 
-| Component | Verified version |
+| Component | Version |
 | --- | --- |
 | DeepSeek Harness | `0.1.0-rc.6` |
-| ft-kline-view | `0.1.55` |
 | Node.js | `26.7.0` |
 | pnpm | `11.7.0` |
 | Python | `3.12.13` |
 | MCP Python SDK | `1.28.1` |
 | FTShare Python distribution | `0.1.1` |
 
-The current dsh MCP client bridges MCP tools, but it does not render the
-`ui://ft-kline-view/...` MCP App resource. `draw_kline` succeeds and returns
-structured chart commands; the interactive chart still requires an
-MCP Apps-capable host or a future dsh UI adapter.
-
 ## Architecture
-
-Default path:
 
 ```text
 DeepSeek model
   -> DeepSeek Harness
   -> @deepseek-ai/dsh-mcp-client
-  -> ft-kline-view over stdio MCP
-  -> FTShare Python SDK through fetch_candles
-  -> calc_metrics / draw_kline
+  -> this repository's server.py over stdio
+       -> FTShare Python SDK
+       -> canonical OHLCV normalization
+       -> deterministic indicators
+       -> compact model-facing summary + structured chart data
 ```
 
-An opt-in profile can also expose the public FTShare-MCP server for broader
-finance-data workflows. It is not required for the default K-line flow.
+There is no FTShare-MCP connection and no external K-line MCP process.
+
+## Tools
+
+| Tool | Purpose |
+| --- | --- |
+| `analyze_kline` | Preferred single call: fetch, calculate indicators, and build chart data from one FTShare row set |
+| `fetch_candles` | Fetch canonical OHLCV rows directly through the FTShare SDK |
+| `calc_metrics` | Calculate deterministic summaries for caller-supplied canonical rows |
+| `health` | Report Python and FTShare SDK readiness |
+
+Use `analyze_kline` for normal DeepSeek tasks. DeepSeek Harness `0.1.0-rc.6`
+retains MCP text blocks in model history but does not let the model reliably
+relay `structuredContent.rows` between calls. The single-call workflow avoids
+provider switching and model-generated market rows.
 
 ## Prerequisites
 
 - Node.js `>=22.19.0`
 - pnpm `11.7.0`
-- a local `ft-kline-view` checkout
-- a Python environment that can start `ft-kline-view`
-- the optional FTShare Python SDK installed in that same Python environment
+- Python `>=3.10`
+- Git access to the FTShare Python SDK repository
 - a DeepSeek API key for natural-language agent tasks
 
-Tool discovery and configuration checks do not require a DeepSeek API key.
+Tool discovery, unit tests, and MCP protocol checks do not require a DeepSeek
+API key. A live market-data test requires network access to FTShare.
 
 ## Install
-
-Clone this repository next to `ft-kline-view` when possible:
 
 ```bash
 git clone https://github.com/FTShare-Lab/dsh_kline.git
 cd dsh_kline
-pnpm install
+pnpm install --frozen-lockfile
+./scripts/bootstrap.sh
 ```
 
-Set the ft-kline-view checkout and interpreter explicitly:
+`bootstrap.sh` creates `.venv` and installs the pinned MCP runtime plus a pinned
+FTShare SDK source archive. No sibling repository or Git credential is needed.
+
+To use a different interpreter, set:
 
 ```bash
-export FT_KLINE_VIEW_ROOT="$(cd ../ft-kline-view && pwd)"
-export FT_KLINE_VIEW_PYTHON=/absolute/path/to/ft-kline-view-python
+export DSH_KLINE_PYTHON=/absolute/path/to/python
 ```
 
-The verified local interpreter was:
-
-```text
-/opt/homebrew/Caskroom/miniforge/base/envs/ft-kline-view/bin/python
-```
-
-Verify that the selected interpreter can import the server and FTShare SDK:
-
-```bash
-"$FT_KLINE_VIEW_PYTHON" "$FT_KLINE_VIEW_ROOT/scripts/doctor.py"
-```
-
-## Configure DeepSeek
-
-Natural-language agent tasks require `DEEPSEEK_API_KEY`. Provide it through
-your local environment or the dsh credential store. Never commit it to this
-repository.
-
-```bash
-export DEEPSEEK_API_KEY=your_key_here
-```
-
-The included `.env.example` documents supported environment variables, but
-dsh does not require a repository-local secret file.
+The interpreter must have `mcp`, `pydantic`, and `ftshare` installed.
 
 ## Verify
 
-Discover the local MCP tools without calling a model or live market endpoint:
-
 ```bash
+pnpm dsh:version
 pnpm smoke:mcp
+.venv/bin/python -m pytest -q
+pnpm smoke:live
 ```
 
-The smoke test must discover at least:
+The smoke test must discover exactly:
 
 ```text
-fetch_candles
+analyze_kline
 calc_metrics
-draw_kline
-doctor_view
+fetch_candles
+health
 ```
 
 Inspect the composed dsh profile:
 
 ```bash
-pnpm dsh:version
 pnpm dsh:dump
 ```
 
-The default dump should contain one MCP server named `ft-kline-view` and no
-`mcp-ftshare` entry.
+It should contain one MCP server named `dsh-kline` and no external MCP URL.
+
+`pnpm smoke:live` calls `analyze_kline` through the real stdio protocol and
+requires FTShare data, exactly 60 bars, RSI, and MACD.
+
+## Configure DeepSeek
+
+Start the Web UI, open **Settings -> Models**, enter a DeepSeek API key, and
+save it. The key belongs in dsh's local credential store, never in Git.
+
+You may also provide the key through your local environment:
+
+```bash
+export DEEPSEEK_API_KEY=your_key_here
+```
 
 ## Run
-
-Start the dsh Web UI:
 
 ```bash
 pnpm dsh:web
 ```
 
-The default address is `http://127.0.0.1:3080`.
-
-Run one headless agent task:
-
-```bash
-pnpm exec dsh --profile headless \
-  --patch ./config/ft-kline-view.patch.yml \
-  "Use ft-kline-view tools to fetch 60 daily candles for 00700.HK, calculate RSI, and invoke draw_kline with MA, volume, and MACD."
-```
-
-The expected tool sequence is:
+Open [http://127.0.0.1:3080](http://127.0.0.1:3080), choose the `dsh_kline`
+workspace, and send:
 
 ```text
-mcp__ft-kline-view__fetch_candles
-mcp__ft-kline-view__calc_metrics
-mcp__ft-kline-view__draw_kline
+Use dsh-kline analyze_kline exactly once for 00700.HK with interval day,
+limit 60, indicators [ma, vol, macd, rsi], and metrics [rsi]. Report the
+source, latest close, RSI, and MACD values in Chinese. Do not use another
+provider or reconstruct rows.
 ```
 
-## Optional FTShare-MCP Profile
-
-Use the dual-MCP profile only when the agent needs FTShare tools outside the
-chart server's built-in data workflow:
-
-```bash
-pnpm dsh:dump:ftshare
-pnpm dsh:web:ftshare
-```
-
-This profile connects to the public Streamable HTTP endpoint:
+The expected tool is:
 
 ```text
-https://market.ft.tech/gateway/mcp
+mcp__dsh-kline__analyze_kline
 ```
 
-The default profile intentionally omits this catalog to reduce tool-schema
-overhead and model routing ambiguity.
+## Data Contract
+
+Canonical rows use Unix seconds and this shape:
+
+```json
+{
+  "time": 1786636800,
+  "open": 436.0,
+  "high": 445.0,
+  "low": 436.0,
+  "close": 440.0,
+  "volume": 30601060.0
+}
+```
+
+Supported chart indicators are MA, volume MA, MACD, BOLL, RSI, ATR, and VWAP.
+Summary metrics additionally include maximum drawdown, support/resistance,
+MA crosses, volume breakout, Bollinger state, RSI, and ATR.
 
 ## Verified Behavior
 
-The local release checks completed successfully:
+The standalone release checks completed successfully:
 
-- dsh discovered all 15 ft-kline-view tools;
-- DeepSeek headless mode autonomously invoked `fetch_candles`,
-  `calc_metrics`, and `draw_kline` through the default profile;
-- the SDK path returned 70 recent `00700.HK` daily candles;
-- A-share daily, forward-adjusted daily, and 5-minute candles succeeded;
-- U.S. daily candles succeeded;
-- `draw_kline` returned `ui://ft-kline-view/kline-v0.1.55`;
-- ft-kline-view passed 98 tests and its local doctor/probe checks.
+- 42 provider, normalization, indicator, and MCP server tests passed;
+- stdio discovery exposed exactly four local tools;
+- a clean directory with no `ft-kline-view` sibling installed all Node and
+  Python dependencies from pinned inputs;
+- the clean directory completed a real FTShare `00700.HK` analysis with 60
+  bars, close `440.0`, RSI(14) `40.444`, MACD DIF `0.597986`, DEA `4.929754`,
+  and histogram `-8.663534`;
+- the dsh Web UI called only `mcp__dsh-kline__analyze_kline` and produced the
+  corresponding Chinese summary without Bash, Web, or another provider.
 
-Current provider boundary: the installed FTShare SDK has no verified Hong Kong
-minute-candle endpoint. `ft-kline-view` returns a structured
-`intraday_provider_unavailable` error instead of treating that capability gap
-as empty market data.
+## Current Boundaries
 
-## Troubleshooting
-
-### `ftshare_not_installed`
-
-Install the FTShare Python SDK into the exact interpreter configured by
-`FT_KLINE_VIEW_PYTHON`, then rerun:
-
-```bash
-"$FT_KLINE_VIEW_PYTHON" "$FT_KLINE_VIEW_ROOT/scripts/doctor.py"
-```
-
-### MCP server exits during startup
-
-Check that both paths are absolute and that the Python interpreter is
-executable:
-
-```bash
-test -f "$FT_KLINE_VIEW_ROOT/server.py"
-test -x "$FT_KLINE_VIEW_PYTHON"
-pnpm smoke:mcp
-```
-
-### Native Node module or macOS signing errors
-
-Use a regular Homebrew Node installation rather than an application-bundled
-Node runtime. The verified local runtime is Homebrew Node `26.7.0`.
-
-### `draw_kline` succeeds but no interactive chart appears
-
-This is an expected limitation of the current dsh MCP client. It bridges MCP
-tools but does not yet consume and render MCP App resources.
-
-### Hong Kong minute candles fail
-
-Use daily-or-larger Hong Kong candles, or provide verified minute rows from
-another data provider. The default SDK path fails explicitly for this
-unsupported capability.
+- DeepSeek Harness `0.1.0-rc.6` bridges MCP tools but does not render MCP Apps.
+- `analyze_kline` returns provider-neutral structured chart data for a future
+  dsh-native UI, while the current Web UI shows the textual analysis.
+- The installed FTShare SDK has no verified Hong Kong minute-candle endpoint;
+  use daily-or-larger Hong Kong intervals.
+- A-share broad-index K-lines fail closed where the installed SDK has no
+  verified index-history endpoint.
 
 ## Repository Layout
 
 ```text
-config/
-  ft-kline-view.patch.yml                 default, ft-kline-view only
-  ft-kline-view-with-ftshare.patch.yml    optional dual-MCP profile
-scripts/
-  run-ft-kline-view.sh                    stdio server launcher
-  smoke-mcp.sh                            keyless discovery entrypoint
-  smoke-mcp.py                            MCP protocol smoke test
-docs/
-  ARCHITECTURE.md                         integration boundaries and risks
+server.py                 standalone MCP server
+core/                     OHLCV normalization and indicators
+tools/                    FTShare adapter and calculation wrapper
+config/dsh-kline.patch.yml
+scripts/bootstrap.sh      Python environment setup
+scripts/run-dsh-kline.sh  stdio launcher used by dsh
+scripts/smoke-mcp.py      MCP protocol discovery check
+tests/                    provider, indicator, and server tests
 ```
 
 ## Security
 
-- Never commit `DEEPSEEK_API_KEY` or other credentials.
-- Keep local `.env` files ignored.
-- Do not publish dsh credential files or session logs.
-- Rotate any key that has been pasted into chat, issues, or terminal logs.
+- Never commit API keys, credential files, dsh sessions, or generated market data.
+- Rotate any key pasted into chat, issues, or terminal logs.
+- `DSH_KLINE_CACHE_DIR` may contain provider metadata; do not publish it.
+
+## Provenance
+
+The deterministic OHLCV and indicator implementation was adapted from the
+MIT-licensed `ft-kline-view` codebase. See [docs/PROVENANCE.md](docs/PROVENANCE.md).
+That project is source provenance only and is not a runtime dependency.
 
 ## License
 

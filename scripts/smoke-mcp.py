@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Discover ft-kline-view through the MCP client protocol."""
+"""Discover the standalone dsh_kline MCP server through stdio."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-from pathlib import Path
-
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -14,14 +12,11 @@ from mcp.client.stdio import stdio_client
 async def main_async() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--python", required=True)
-    parser.add_argument("--root", required=True)
     args = parser.parse_args()
 
-    root = Path(args.root).resolve()
     server = StdioServerParameters(
         command=args.python,
-        args=[str(root / "server.py")],
-        cwd=str(root),
+        args=["server.py"],
     )
 
     async with stdio_client(server) as (read, write):
@@ -30,13 +25,13 @@ async def main_async() -> None:
             result = await session.list_tools()
             names = {tool.name for tool in result.tools}
 
-    required = {"fetch_candles", "calc_metrics", "draw_kline", "doctor_view"}
+    required = {"analyze_kline", "fetch_candles", "calc_metrics", "health"}
     missing = sorted(required - names)
     if missing:
         raise SystemExit(f"missing required MCP tools: {', '.join(missing)}")
 
     print(
-        "ft-kline-view MCP discovery OK: "
+        "standalone dsh_kline MCP discovery OK: "
         f"{len(names)} tools; required={', '.join(sorted(required))}"
     )
 

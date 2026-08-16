@@ -1,59 +1,42 @@
 # Architecture
 
-`dsh_kline` is an integration layer between DeepSeek Harness and the existing
-`ft-kline-view` MCP server. It does not copy or fork the chart, indicator, or
-watchlist implementation.
+`dsh_kline` is a standalone MCP server and DeepSeek Harness profile. The
+repository owns its complete runtime tool path.
 
-## Data flow
-
-```text
-DeepSeek model
-  -> DeepSeek Harness agent loop
-  -> @deepseek-ai/dsh-mcp-client
-  -> ft-kline-view over stdio MCP
-  -> FTShare Python SDK inside ft-kline-view (fetch_candles)
-  -> calc_metrics / draw_kline
-```
-
-The MCP bridge exposes tools under names such as:
+## Runtime
 
 ```text
-mcp__ft-kline-view__calc_metrics
-mcp__ft-kline-view__draw_kline
-mcp__ft-kline-view__doctor_view
+dsh agent loop
+  -> dsh MCP client
+  -> local stdio server (`server.py`)
+       -> installed FTShare Python SDK
+       -> `tools.fetch.fetch_candles`
+       -> `core.rows` normalization
+       -> `core.calc` deterministic calculations
+       -> compact text result and structured chart data
 ```
 
-The opt-in `ft-kline-view-with-ftshare.patch.yml` profile additionally mounts
-the public FTShare-MCP Streamable HTTP server for finance-data workflows that
-are outside the chart server's built-in provider.
+The process does not connect to FTShare-MCP, spawn another MCP process, import
+another repository, or discover sibling project directories. `FTSHARE_SDK_SRC`
+is an optional library-development override; normal installations use the SDK
+installed in `.venv`.
 
-The default chart path keeps the data-provider decision inside
-`ft-kline-view`: its `fetch_candles` tool calls the FTShare Python SDK and
-returns canonical rows. This keeps dsh's tool surface small and avoids making
-the model orchestrate a data call followed by a chart call.
+## Tool Design
 
-## Current boundary
+`analyze_kline` is the model-facing product path. It overfetches a calendar
+window, keeps the requested latest bars, computes all requested values against
+that exact row set, and returns:
 
-The first integration milestone bridges MCP tools only. DeepSeek Harness
-`0.1.0-rc.6` does not consume MCP resources or prompts through its MCP client.
-Consequently, tool discovery and structured results can be verified now, but
-the existing MCP App resource returned by `draw_kline` is not expected to render
-inside the dsh Web UI.
+- compact JSON in the MCP text block for the model;
+- canonical rows and a provider-neutral chart specification in
+  `structuredContent` for future UI consumers.
 
-Chart presentation will be handled as a separate milestone after the tool-call
-path is stable. Candidate approaches are:
+`fetch_candles` and `calc_metrics` remain available for debugging and capable
+MCP hosts, but current dsh prompts should not chain them because dsh does not
+retain structured results for model composition.
 
-1. add a native dsh client plugin that renders the existing chart commands;
-2. publish a standalone chart URL/artifact from `ft-kline-view`;
-3. extend the dsh MCP bridge if upstream adds MCP resource support.
+## Version Policy
 
-## Version policy
-
-DeepSeek Harness is pinned exactly because it is in developer preview and may
-introduce breaking changes. Upgrades require:
-
-1. lockfile update;
-2. profile dump comparison;
-3. MCP discovery smoke test;
-4. keyless tool-call contract tests;
-5. one real-API end-to-end task when a development API key is available.
+DeepSeek Harness is pinned while it remains in developer preview. Upgrades
+require a lockfile update, profile-dump comparison, unit tests, stdio discovery,
+one live FTShare call, and one real dsh Web task.
