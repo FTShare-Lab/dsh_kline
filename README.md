@@ -20,47 +20,10 @@ K 线分析工具。一次 `analyze_kline` 调用即可完成行情获取、技�
 “新闻”和“简况”页签可查看数据源返回的资讯、公司资料和基本面摘要；数据缺失时会
 显示明确的空状态。移动端保留指标切换、缩放、拖动、十字线和时间范围控制。
 
-## 环境要求
-
-- Node.js `>=22.19.0`
-- pnpm `11.7.0`
-- Python `>=3.10`
-- 可用的 DeepSeek Harness 模型配置
-
-## 安装
-
-```bash
-git clone https://github.com/FTShare-Lab/dsh_kline.git
-cd dsh_kline
-pnpm install --frozen-lockfile
-./scripts/bootstrap.sh
-```
-
-`bootstrap.sh` 会创建 `.venv`，安装 Python 依赖，以及默认推荐的
-[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)。
-
-## 启动
-
-```bash
-pnpm dsh:web
-```
-
-该命令会构建并注册 DSH 原生侧栏，然后由 Harness 自动启动 `dsh_kline` MCP。
-无需另开终端启动 MCP 或图表服务。按终端输出的地址进入 dsh Web，并在设置中完成
-模型配置即可使用。
-
-也可以通过本机环境变量提供 DeepSeek API Key：
-
-```bash
-export DEEPSEEK_API_KEY='your_key_here'
-pnpm dsh:web
-```
-
-不要把 API Key 写入代码或提交到 Git。
-
 ## 使用
 
-在 dsh Web 中直接输入：
+本项目面向 [DeepSeek Harness 官方版本](https://github.com/deepseek-ai/deepseek-harness)。
+在 Harness 中直接输入：
 
 ```text
 分析 00700.HK 最近 60 根日 K，显示 MA、成交量、MACD、RSI、BOLL、ATR 和 VWAP，
@@ -88,9 +51,9 @@ mcp__dsh-kline__analyze_kline
 
 ## 数据源
 
-[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk) 是默认安装并
-推荐的数据源。`dsh_kline` 已针对其港股、美股、A 股代码、复权参数、历史分页和多
-市场结构做了原生适配。
+[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk) 是推荐的
+可选数据源。`dsh_kline` 已针对其港股、美股、A 股代码、复权参数、历史分页和多市场
+结构做了原生适配。
 
 指标与图表层不绑定 FTShare。`calc_metrics` 可直接接收其他数据源的标准 OHLCV：
 
