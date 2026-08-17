@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 import server  # noqa: E402
 
 
-def _demo_rows(count: int = 180) -> list[dict[str, float | int]]:
+def _demo_rows(count: int = 620) -> list[dict[str, float | int]]:
     rows: list[dict[str, float | int]] = []
     for index in range(count):
         trend = 300 + index * 0.35
@@ -56,9 +56,9 @@ async def _publish(symbol: str, *, demo: bool) -> str:
         try:
             result = await server.analyze_kline(
                 symbol,
-                limit=160,
+                limit=600,
                 indicators=["ma", "vol", "macd", "rsi", "boll", "atr", "vwap"],
-                metrics=["rsi", "atr"],
+                metrics=["rsi", "atr", "support_resistance"],
             )
         finally:
             server.fetch_candles = original_fetch
@@ -67,7 +67,7 @@ async def _publish(symbol: str, *, demo: bool) -> str:
             symbol,
             limit=220,
             indicators=["ma", "vol", "macd", "rsi", "boll", "atr", "vwap"],
-            metrics=["rsi", "atr"],
+            metrics=["rsi", "atr", "support_resistance"],
         )
     if result.isError:
         raise RuntimeError(result.content[0].text)

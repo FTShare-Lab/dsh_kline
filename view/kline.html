@@ -4762,6 +4762,7 @@ async function openSymbol(symbol, name, options = {}) {
     return false;
   }
   const requestId = ++symbolOpenRequestId;
+  const previousSymbol = String(currentSymbol || "").trim().toUpperCase();
   openingSymbol = true;
   closeSearchResults();
   setChartStatus(t("loading"));
@@ -4799,8 +4800,11 @@ async function openSymbol(symbol, name, options = {}) {
     currentSymbol = fetched.symbol || symbol;
     currentName = fetched.name || name || symbol;
     applyMarketPalette(currentSymbol);
-    lastMarks = [];
-    lastLines = [];
+    const nextSymbol = String(currentSymbol || "").trim().toUpperCase();
+    if (!previousSymbol || previousSymbol !== nextSymbol) {
+      lastMarks = [];
+      lastLines = [];
+    }
     await renderCurrentViewLocally({ fitToData: true });
     clearDataFetchError();
     if (requestId === symbolOpenRequestId && options.showLoading !== false) {

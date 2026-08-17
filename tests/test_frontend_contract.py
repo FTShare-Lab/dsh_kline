@@ -69,6 +69,7 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert 'percentAxis: "Change %"' in html
     assert 'legend.style.display = "flex"' not in html
     assert 'kchart.createIndicator({ name: "MA", calcParams: maPeriods }' in html
+    assert 'if (!previousSymbol || previousSymbol !== nextSymbol)' in html
 
 
 def test_frontend_uses_only_supported_same_origin_chart_actions() -> None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from typing import Annotated, Any, Literal
 
 from mcp import types
@@ -49,7 +50,9 @@ mcp = FastMCP(
         "symbol or interval, explain that error and stop; do not probe other symbols "
         "or substitute another interval unless the user explicitly asks. Use "
         "fetch_candles only when raw OHLCV rows are explicitly requested, and use "
-        "calc_metrics only for caller-supplied rows."
+        "calc_metrics only for caller-supplied rows. When support or resistance "
+        "analysis is requested, include support_resistance in analyze_kline metrics; "
+        "that same call adds the calculated levels to the chart as annotations."
     ),
     json_response=True,
 )
@@ -120,11 +123,51 @@ def _indicator_last(
     return result
 
 
+def _support_resistance_marks(metrics: dict[str, Any]) -> list[dict[str, Any]]:
+    levels = metrics.get("support_resistance")
+    if not isinstance(levels, dict):
+        return []
+
+    marks: list[dict[str, Any]] = []
+    for kind, label, color in (
+        ("support", "支撑", "success"),
+        ("resistance", "压力", "danger"),
+    ):
+        candidates = levels.get(kind)
+        if not isinstance(candidates, list):
+            continue
+        for index, level in enumerate(candidates[:5]):
+            if not isinstance(level, dict):
+                continue
+            try:
+                price = float(level["price"])
+                timestamp = int(level["last_time"])
+                touches = max(0, int(level.get("touches") or 0))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not math.isfinite(price) or timestamp <= 0:
+                continue
+            text = f"{label} {price:.2f}"
+            if touches:
+                text += f" · 触及{touches}次"
+            marks.append(
+                {
+                    "id": f"{kind}:{timestamp}:{index}",
+                    "time": timestamp,
+                    "price": price,
+                    "text": text,
+                    "color": color,
+                }
+            )
+    return marks
+
+
 def _chart_spec(
     rows: list[dict[str, Any]],
     indicators: list[str],
     ma_periods: list[int],
     interval: str,
+    marks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return provider-neutral chart data for future dsh-native UI support."""
     return {
@@ -133,6 +176,7 @@ def _chart_spec(
         "rows": rows,
         "indicators": indicators,
         "ma_periods": ma_periods,
+        "marks": list(marks or []),
         "range": {"start": int(rows[0]["time"]), "end": int(rows[-1]["time"])},
     }
 
@@ -208,7 +252,7 @@ async def analyze_kline(
     limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式")] = "none",
     indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
-    metrics: Annotated[list[str] | None, Field(description="指标摘要子集")] = None,
+    metrics: Annotated[list[str] | None, Field(description="指标摘要子集，可选：" + ", ".join(AVAILABLE_METRICS))] = None,
     ma_periods: Annotated[list[int] | None, Field(description=f"MA 周期，默认 {DEFAULT_MA_PERIODS}")] = None,
     rsi_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_RSI_PERIOD,
     boll_period: Annotated[int, Field(ge=2, le=200)] = DEFAULT_BOLL_PERIOD,
@@ -251,6 +295,7 @@ async def analyze_kline(
         volume_ma=volume_ma,
         ma_periods=periods,
     )
+    analysis_marks = _support_resistance_marks(metric_data)
     previous = float(rows[-2]["close"])
     latest = dict(rows[-1])
     latest["change"] = round(float(latest["close"]) - previous, 6)
@@ -259,6 +304,7 @@ async def analyze_kline(
         rows,
         indicators=active_indicators,
         ma_periods=periods,
+        marks=analysis_marks,
         symbol=str(fetched.get("symbol") or symbol),
         name=str(fetched.get("name") or symbol),
         data_source=str(fetched.get("source") or "ftshare"),
@@ -269,7 +315,7 @@ async def analyze_kline(
         rsi_period=rsi_period,
         atr_period=atr_period,
     )
-    chart = _chart_spec(rows, active_indicators, periods, interval)
+    chart = _chart_spec(rows, active_indicators, periods, interval, analysis_marks)
     chart_session: str | None = None
     chart_url: str | None = None
     chart_service_status: dict[str, Any]

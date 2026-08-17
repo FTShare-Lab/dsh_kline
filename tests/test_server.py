@@ -37,6 +37,7 @@ def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_error
     assert "call analyze_kline exactly once" in server.mcp.instructions
     assert "Do not call health or fetch_candles first" in server.mcp.instructions
     assert "explain that error and stop" in server.mcp.instructions
+    assert "same call adds the calculated levels" in server.mcp.instructions
 
 
 def test_health_reports_installed_sdk(monkeypatch) -> None:
@@ -112,6 +113,58 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert summary["count"] == 60
     assert "chart" not in summary
     assert summary["chart_url"] == data["chart_url"]
+
+
+def test_analyze_kline_adds_support_and_resistance_marks_to_chart(monkeypatch) -> None:
+    rows = _rows()
+    monkeypatch.setattr(
+        server,
+        "fetch_candles",
+        lambda symbol, **_kwargs: {
+            "ok": True,
+            "symbol": symbol,
+            "name": "Test Security",
+            "interval": "day",
+            "adjust": "none",
+            "rows": rows,
+            "source": "ftshare",
+            "status": "fresh",
+            "as_of": rows[-1]["time"],
+        },
+    )
+    monkeypatch.setattr(
+        server,
+        "run_calc_metrics",
+        lambda *_args, **_kwargs: {
+            "metrics_computed": ["support_resistance"],
+            "support_resistance": {
+                "support": [{"price": 101.25, "touches": 3, "last_time": rows[20]["time"]}],
+                "resistance": [{"price": 128.75, "touches": 2, "last_time": rows[50]["time"]}],
+            },
+        },
+    )
+    published: dict[str, object] = {}
+
+    def fake_publish(payload):
+        published["payload"] = payload
+        return "session-levels", "http://127.0.0.1:8765/chart/session-levels"
+
+    monkeypatch.setattr(server, "publish_chart", fake_publish)
+    result = asyncio.run(server.analyze_kline("TEST.HK", metrics=["support_resistance"]))
+
+    assert result.isError is False
+    marks = result.structuredContent["chart"]["marks"]
+    assert [mark["text"] for mark in marks] == ["支撑 101.25 · 触及3次", "压力 128.75 · 触及2次"]
+    assert [mark["color"] for mark in marks] == ["success", "danger"]
+    commands = [
+        command
+        for command in published["payload"]["chartCommands"]
+        if command["type"] == "TEXT_MARKER"
+    ]
+    assert [(command["price"], command["text"]) for command in commands] == [
+        (101.25, "支撑 101.25 · 触及3次"),
+        (128.75, "压力 128.75 · 触及2次"),
+    ]
 
 
 def test_analyze_kline_propagates_provider_error(monkeypatch) -> None:
