@@ -4,42 +4,6 @@ import json
 import time
 
 import chart_service
-from tools.draw import draw_kline
-
-
-def _rows(count: int = 80) -> list[dict[str, float | int]]:
-    return [
-        {
-            "time": 1_700_000_000 + index * 86_400,
-            "open": 100 + index,
-            "high": 102 + index,
-            "low": 99 + index,
-            "close": 101 + index,
-            "volume": 1_000_000 + index * 2_000,
-        }
-        for index in range(count)
-    ]
-
-
-def test_render_chart_html_is_standalone_and_embeds_session() -> None:
-    payload = draw_kline(
-        _rows(),
-        symbol="00700.HK",
-        name="Tencent",
-        indicators=["ma", "vol", "macd", "rsi", "boll", "atr", "vwap"],
-    )
-
-    html = chart_service.render_chart_html(payload).decode("utf-8")
-
-    assert "/*__KLINECHARTS_VENDOR_JS__*/" not in html
-    assert "/*__FTV_VIEW_META__*/" not in html
-    assert "__FTV_LOGO_DATA__" not in html
-    assert "window.__DSH_CHART_SESSION__=" in html
-    assert '"symbol":"00700.HK"' in html
-    assert "window.klinecharts" in html
-    assert "postMessage" not in html
-    assert "window.openai" not in html
-    assert "MCP Apps" not in html
 
 
 def test_chart_session_store_expires_and_evicts() -> None:
@@ -71,7 +35,7 @@ def test_runtime_session_manifest_is_atomic_and_bounded(tmp_path, monkeypatch) -
 
     chart_service._write_runtime_session(
         "session-test",
-        "http://127.0.0.1:8765/chart/session-test",
+        "http://127.0.0.1:8765",
         {"symbol": "00700.HK", "name": "腾讯控股", "rows": [{"close": 440.0}]},
     )
 
@@ -79,7 +43,7 @@ def test_runtime_session_manifest_is_atomic_and_bounded(tmp_path, monkeypatch) -
     assert manifest["ok"] is True
     assert manifest["process_id"] > 0
     assert manifest["session"] == "session-test"
-    assert manifest["chart_url"] == "http://127.0.0.1:8765/chart/session-test"
+    assert manifest["service_url"] == "http://127.0.0.1:8765"
     assert manifest["symbol"] == "00700.HK"
     assert manifest["name"] == "腾讯控股"
     assert isinstance(manifest["published_at"], int)

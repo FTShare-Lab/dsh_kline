@@ -19,15 +19,15 @@ dsh web
        -> `core.rows` normalization
        -> `core.calc` deterministic calculations
        -> compact text result and structured chart data
-       -> `chart_service` session store and loopback chart URL
+       -> `chart_service` loopback session API
 
 The client build generates a scoped module from the vendored `view/kline.html`
 workspace and mounts it directly into a Shadow DOM inside the native, resizable
-sidebar. It does not create an iframe and does not read `chart_url`. The Harness
+sidebar. It does not create an iframe. The Harness
 web server exposes the latest in-memory payload, KLineCharts vendor asset, and
 same-origin `/dsh-kline/api/tools/*` proxy used for range changes, symbol search,
-comparisons, news, and company data. `chart_url` remains structured compatibility
-data for hosts without the DSH client plugin.
+comparisons, news, and company data. The loopback service is an internal bridge;
+users interact only with the native sidebar.
 ```
 
 The process does not connect to FTShare-MCP, spawn another MCP process, import
@@ -49,7 +49,7 @@ that exact row set, and returns:
 - compact JSON in the MCP text block for the model;
 - canonical rows and a provider-neutral chart specification in
   `structuredContent`;
-- `chart_session` for the native sidebar, plus `chart_url` for non-DSH host fallback.
+- `chart_session` for the native sidebar.
 
 `fetch_candles` and `calc_metrics` remain available for debugging and capable
 MCP hosts, but current dsh prompts should not chain them because dsh does not

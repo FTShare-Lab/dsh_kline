@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from urllib.parse import urlparse
+from pathlib import Path
+from urllib.parse import quote, urlparse
 from urllib.request import urlopen
 
 from mcp import ClientSession, StdioServerParameters
@@ -39,13 +40,18 @@ async def main_async() -> None:
             if result.isError or data.get("ok") is False:
                 detail = result.content[0].text if result.content else data.get("message") or data.get("error")
                 raise SystemExit(f"analyze_kline failed: {detail}")
-            chart_url = str(data.get("chart_url") or "")
-            if urlparse(chart_url).scheme != "http" or urlparse(chart_url).hostname not in {"127.0.0.1", "localhost"}:
-                raise SystemExit(f"missing loopback chart URL: {chart_url}")
-            with urlopen(chart_url, timeout=5) as response:  # noqa: S310
-                chart_html = response.read().decode("utf-8")
-            if response.status != 200 or "window.__DSH_CHART_SESSION__=" not in chart_html:
-                raise SystemExit("chart session did not return standalone HTML")
+            manifest = json.loads(Path(".runtime/chart-session.json").read_text(encoding="utf-8"))
+            service_url = str(manifest.get("service_url") or "")
+            parsed_service = urlparse(service_url)
+            if parsed_service.scheme != "http" or parsed_service.hostname not in {"127.0.0.1", "localhost"}:
+                raise SystemExit("missing loopback chart session service")
+            if manifest.get("session") != data.get("chart_session"):
+                raise SystemExit("runtime chart session does not match MCP result")
+            session_url = f"{service_url}/api/session/{quote(str(data['chart_session']))}"
+            with urlopen(session_url, timeout=5) as response:  # noqa: S310
+                chart_session = json.loads(response.read().decode("utf-8"))
+            if response.status != 200 or chart_session.get("ok") is not True:
+                raise SystemExit("native chart session API is unavailable")
 
     if data.get("source") != "ftshare":
         raise SystemExit(f"unexpected source: {data.get('source')}")
@@ -67,7 +73,7 @@ async def main_async() -> None:
                 "as_of": data.get("as_of"),
                 "latest": data.get("latest"),
                 "indicator_last": indicator_last,
-                "chart_url": data.get("chart_url"),
+                "chart_session": data.get("chart_session"),
             },
             ensure_ascii=False,
         )

@@ -5,35 +5,15 @@ import json
 import re
 from pathlib import Path
 
-from chart_service import CHART_API_ACTIONS, render_chart_html
-from tools.draw import draw_kline
+from chart_service import CHART_API_ACTIONS
 
 
 ROOT = Path(__file__).resolve().parents[1]
 VIEW_FILE = ROOT / "view" / "kline.html"
 
 
-def _rows(count: int = 100) -> list[dict[str, float | int]]:
-    return [
-        {
-            "time": 1_700_000_000 + index * 86_400,
-            "open": 100 + index * 0.2,
-            "high": 102 + index * 0.2,
-            "low": 99 + index * 0.2,
-            "close": 101 + index * 0.2,
-            "volume": 1_000_000 + index * 10_000,
-        }
-        for index in range(count)
-    ]
-
-
 def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
-    payload = draw_kline(
-        _rows(),
-        symbol="00700.HK",
-        indicators=["ma", "vol", "macd", "rsi", "boll", "atr", "vwap"],
-    )
-    html = render_chart_html(payload).decode("utf-8")
+    html = VIEW_FILE.read_text(encoding="utf-8")
 
     for control_id in (
         "maBtn",
@@ -123,9 +103,7 @@ def test_frontend_has_no_mcp_app_or_original_host_runtime_dependency() -> None:
         "ft-kline-view",
     ):
         assert forbidden not in html
-    assert "window.__DSH_CHART_SESSION__" in render_chart_html(
-        draw_kline(_rows(), symbol="NVDA.US")
-    ).decode("utf-8")
+    assert "window.__DSH_CHART_SESSION__" in html
 
 
 def test_vendored_visual_assets_match_the_verified_source_checkout() -> None:

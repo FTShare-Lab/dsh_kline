@@ -38,7 +38,7 @@ def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_error
     assert "Do not call health or fetch_candles first" in server.mcp.instructions
     assert "explain that error and stop" in server.mcp.instructions
     assert "same call adds the calculated levels" in server.mcp.instructions
-    assert "do not print chart_url" in server.mcp.instructions
+    assert "interactive chart is open in the right sidebar" in server.mcp.instructions
 
 
 def test_health_reports_installed_sdk(monkeypatch) -> None:
@@ -75,7 +75,7 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
 
     def fake_publish(payload):
         published["payload"] = payload
-        return "session-test", "http://127.0.0.1:8765/chart/session-test"
+        return "session-test", "http://127.0.0.1:8765"
 
     monkeypatch.setattr(server, "publish_chart", fake_publish)
     result = asyncio.run(
@@ -102,8 +102,8 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert data["fetched_count"] == 80
     assert data["chart"]["rows"] == source_rows[-60:]
     assert data["chart_session"] == "session-test"
-    assert data["chart_url"] == "http://127.0.0.1:8765/chart/session-test"
-    assert data["chart"]["url"] == data["chart_url"]
+    assert "chart_url" not in data
+    assert "url" not in data["chart"]
     assert published["payload"]["chartCommands"][0]["type"] == "SET_CANDLES"
     assert published["payload"]["chartCommands"][0]["rows"] == source_rows[-60:]
     assert data["metrics"]["rsi"]["last"]["value"] == data["indicator_last"]["rsi"]
@@ -148,7 +148,7 @@ def test_analyze_kline_adds_support_and_resistance_marks_to_chart(monkeypatch) -
 
     def fake_publish(payload):
         published["payload"] = payload
-        return "session-levels", "http://127.0.0.1:8765/chart/session-levels"
+        return "session-levels", "http://127.0.0.1:8765"
 
     monkeypatch.setattr(server, "publish_chart", fake_publish)
     result = asyncio.run(server.analyze_kline("TEST.HK", metrics=["support_resistance"]))
@@ -209,10 +209,9 @@ def test_analyze_kline_keeps_text_analysis_when_chart_service_fails(monkeypatch)
 
     assert result.isError is False
     assert result.structuredContent["count"] == 60
-    assert result.structuredContent["chart_url"] is None
+    assert "chart_url" not in result.structuredContent
     assert result.structuredContent["chart_service"] == {
         "ok": False,
         "error": "chart_service_unavailable",
         "message": "port unavailable",
     }
-    assert "chart_url" not in json.loads(result.content[0].text.split(" · ", 1)[1])

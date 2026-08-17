@@ -48,12 +48,12 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       return
     }
     if (pathname === '/dsh-kline/session' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const { chart_url: _chartUrl, ...publicSession } = session
+      const { service_url: _serviceUrl, ...publicSession } = session
       sendJson(response, 200, publicSession, request.method === 'HEAD')
       return
     }
     if (pathname === '/dsh-kline/data' && (request.method === 'GET' || request.method === 'HEAD')) {
-      await proxyJson(response, `${chartOrigin(session)}/api/session/${encodeURIComponent(session.session)}`, {
+      await proxyJson(response, `${serviceOrigin(session)}/api/session/${encodeURIComponent(session.session)}`, {
         method: request.method,
       })
       return
@@ -75,7 +75,7 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
         return
       }
       const body = await readRequestBody(request)
-      await proxyJson(response, `${chartOrigin(session)}/api/tools/${encodeURIComponent(action)}`, {
+      await proxyJson(response, `${serviceOrigin(session)}/api/tools/${encodeURIComponent(action)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body.toString('utf8'),
@@ -105,7 +105,7 @@ interface RuntimeSession extends Record<string, unknown> {
   ok: true
   process_id: number
   session: string
-  chart_url: string
+  service_url: string
   published_at: number
 }
 
@@ -114,8 +114,8 @@ async function readLiveSession(): Promise<RuntimeSession | undefined> {
   return isLiveSession(payload) ? payload as RuntimeSession : undefined
 }
 
-function chartOrigin(session: RuntimeSession): string {
-  return new URL(session.chart_url).origin
+function serviceOrigin(session: RuntimeSession): string {
+  return new URL(session.service_url).origin
 }
 
 async function proxyJson(response: ServerResponse, url: string, init: RequestInit): Promise<void> {
@@ -146,7 +146,7 @@ function isLiveSession(value: unknown): boolean {
   if (
     candidate.ok !== true
     || typeof candidate.session !== 'string'
-    || typeof candidate.chart_url !== 'string'
+    || typeof candidate.service_url !== 'string'
     || typeof candidate.process_id !== 'number'
     || typeof candidate.published_at !== 'number'
     || !Number.isSafeInteger(candidate.process_id)
@@ -156,8 +156,8 @@ function isLiveSession(value: unknown): boolean {
     || Math.abs(Date.now() / 1000 - candidate.published_at) > MAX_SESSION_AGE_SECONDS
   ) return false
   try {
-    const chartUrl = new URL(candidate.chart_url)
-    if (chartUrl.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(chartUrl.hostname)) return false
+    const serviceUrl = new URL(candidate.service_url)
+    if (serviceUrl.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(serviceUrl.hostname)) return false
   } catch {
     return false
   }

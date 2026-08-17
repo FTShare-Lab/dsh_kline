@@ -57,7 +57,6 @@
     "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts",
     "dsh:dump": "bash ./scripts/run-dsh-web.sh --dump-config",
     "dsh:web": "bash ./scripts/run-dsh-web.sh",
-    "chart:preview": ".venv/bin/python ./scripts/preview-chart.py",
     "smoke:mcp": "bash ./scripts/smoke-mcp.sh",
     "smoke:live": "bash ./scripts/live-smoke.sh",
     "smoke:markets": ".venv/bin/python ./scripts/smoke-markets.py"

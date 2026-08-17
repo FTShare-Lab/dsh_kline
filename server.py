@@ -54,8 +54,7 @@ mcp = FastMCP(
         "analysis is requested, include support_resistance in analyze_kline metrics; "
         "that same call adds the calculated levels to the chart as annotations."
         " In DeepSeek Harness, say that the interactive chart is open in the right "
-        "sidebar and do not print chart_url in the ordinary answer. chart_url remains "
-        "structured compatibility data for hosts without the native sidebar."
+        "sidebar."
     ),
     json_response=True,
 )
@@ -320,11 +319,10 @@ async def analyze_kline(
     )
     chart = _chart_spec(rows, active_indicators, periods, interval, analysis_marks)
     chart_session: str | None = None
-    chart_url: str | None = None
     chart_service_status: dict[str, Any]
     try:
-        chart_session, chart_url = publish_chart(chart_payload)
-        chart.update({"session_id": chart_session, "url": chart_url})
+        chart_session, _service_url = publish_chart(chart_payload)
+        chart["session_id"] = chart_session
         chart_service_status = {"ok": True}
     except Exception as exc:  # noqa: BLE001
         chart_service_status = {
@@ -346,7 +344,6 @@ async def analyze_kline(
         "as_of": fetched.get("as_of"),
         "freshness": fetched.get("freshness"),
         "chart_session": chart_session,
-        "chart_url": chart_url,
         "chart_service": chart_service_status,
         "latest": latest,
         "indicator_last": _indicator_last(

@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 lib/
+src/client/generated-view.ts
 .DS_Store
 dist/
 coverage/
@@ -12,5 +13,4 @@ __pycache__/
 .runtime/
 .env
 .env.*
-!.env.example
 INITIAL_PLAN.md

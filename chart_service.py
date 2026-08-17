@@ -7,7 +7,6 @@ to disk.
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import secrets
@@ -34,9 +33,6 @@ from tools.fetch import (
 
 
 ROOT = Path(__file__).resolve().parent
-VIEW_FILE = ROOT / "view" / "kline.html"
-VENDOR_FILE = ROOT / "view" / "vendor" / "klinecharts.min.js"
-LOGO_FILE = ROOT / "view" / "ft-logo.jpg"
 RUNTIME_DIR = ROOT / ".runtime"
 RUNTIME_SESSION_FILE = RUNTIME_DIR / "chart-session.json"
 SERVER_VERSION = "0.1.0"
@@ -97,29 +93,6 @@ class ChartSessionStore:
             self._items.pop(key, None)
 
 
-def _json_script(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-
-
-def render_chart_html(payload: dict[str, Any]) -> bytes:
-    template = VIEW_FILE.read_text(encoding="utf-8")
-    vendor = VENDOR_FILE.read_text(encoding="utf-8")
-    logo = base64.b64encode(LOGO_FILE.read_bytes()).decode("ascii")
-    metadata = {
-        "serverVersion": SERVER_VERSION,
-        "transport": "loopback-http",
-        "generatedAt": int(time.time()),
-    }
-    bootstrap = (
-        f"window.__FTV_VIEW_META__={_json_script(metadata)};"
-        f"window.__DSH_CHART_SESSION__={_json_script(payload)};"
-    )
-    html = template.replace("/*__KLINECHARTS_VENDOR_JS__*/", vendor)
-    html = html.replace("/*__FTV_VIEW_META__*/", bootstrap)
-    html = html.replace("__FTV_LOGO_DATA__", f"data:image/jpeg;base64,{logo}")
-    return html.encode("utf-8")
-
-
 def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "symbol_directory":
         return symbol_directory(force_refresh=bool(args.get("refresh") or args.get("force_refresh")))
@@ -153,17 +126,6 @@ class ChartRequestHandler(BaseHTTPRequestHandler):
         path = unquote(urlparse(self.path).path)
         if path == "/healthz":
             self._send_json({"ok": True, "service": "dsh_kline_chart", "version": SERVER_VERSION})
-            return
-        if path.startswith("/chart/"):
-            token = path.removeprefix("/chart/").strip("/")
-            payload = self.session_store.get(token)
-            if payload is None:
-                self._send_json(
-                    {"ok": False, "error": "chart_session_not_found", "message": "Chart session expired or does not exist."},
-                    status=HTTPStatus.NOT_FOUND,
-                )
-                return
-            self._send_bytes(render_chart_html(payload), "text/html; charset=utf-8")
             return
         if path.startswith("/api/session/"):
             token = path.removeprefix("/api/session/").strip("/")
@@ -246,18 +208,18 @@ class ChartService:
 
     def publish(self, payload: dict[str, Any]) -> tuple[str, str]:
         token = self.store.create(payload)
-        chart_url = f"http://{self.host}:{self.port}/chart/{token}"
-        _write_runtime_session(token, chart_url, payload)
-        return token, chart_url
+        service_url = f"http://{self.host}:{self.port}"
+        _write_runtime_session(token, service_url, payload)
+        return token, service_url
 
 
-def _write_runtime_session(token: str, chart_url: str, payload: dict[str, Any]) -> None:
+def _write_runtime_session(token: str, service_url: str, payload: dict[str, Any]) -> None:
     RUNTIME_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     document = {
         "ok": True,
         "process_id": os.getpid(),
         "session": token,
-        "chart_url": chart_url,
+        "service_url": service_url,
         "symbol": str(payload.get("symbol") or ""),
         "name": str(payload.get("name") or ""),
         "published_at": int(time.time()),
