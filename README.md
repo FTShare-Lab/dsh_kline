@@ -33,7 +33,10 @@ FTShare-MCP、`ft-kline-view` 或其他外部 K 线 MCP 服务。
 - Python `>=3.10`
 - DeepSeek API Key
 
-## 安装
+## 首次本地部署
+
+DeepSeek Harness 会调用并自动启动 `dsh_kline`，但不会替用户下载 MCP 服务端代码
+或安装 FTShare SDK。因此首次使用需要完成一次本地部署：
 
 ```bash
 git clone https://github.com/FTShare-Lab/dsh_kline.git
@@ -42,13 +45,17 @@ pnpm install --frozen-lockfile
 ./scripts/bootstrap.sh
 ```
 
-`bootstrap.sh` 会创建 `.venv` 并安装固定版本的 Python 依赖和 FTShare SDK。
+`pnpm install` 安装固定版本的 DeepSeek Harness；`bootstrap.sh` 创建 `.venv`，并
+安装 `dsh_kline` 所需的 Python 依赖和 FTShare SDK。
 
 ## 启动
 
 ```bash
 pnpm dsh:web
 ```
+
+无需单独启动 MCP。上述命令会启动 dsh Web，并由 Harness 通过 `stdio` 自动启动
+`dsh_kline`。后续使用通常只需要运行这一条命令。
 
 按终端输出的地址打开 dsh Web，进入 **Settings -> Models** 配置 DeepSeek API
 Key，然后选择 `dsh_kline` workspace。
