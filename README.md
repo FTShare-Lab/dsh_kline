@@ -8,6 +8,15 @@
 一次 `analyze_kline` 调用即可完成数据获取、指标计算和图表生成。项目不依赖
 FTShare-MCP、`ft-kline-view` 或其他外部 K 线 MCP 服务。
 
+## 界面预览
+
+![桌面版交互式 K 线图](docs/images/chart-desktop.jpg)
+
+![移动版交互式 K 线图](docs/images/chart-mobile.jpg)
+
+以上截图展示图表、成交量、MA、MACD、BOLL、缩放和响应式布局。截图中的行情
+仅用于展示界面，实际数据由配置的数据源实时获取。
+
 ## 功能
 
 - 支持港股、美股和 A 股日线分析
