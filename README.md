@@ -1,30 +1,41 @@
 # dsh_kline
 
 `dsh_kline` 是面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-的独立 K 线分析 MCP。项目默认接入
+的 K 线分析 MCP。项目推荐使用
 [FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)，并针对其
-市场代码、历史行情限制和多市场数据结构进行了适配。
+市场代码、历史行情限制和多市场数据结构做了原生适配；也支持接入其他符合统一
+OHLCV 结构的数据源。
 
-一次 `analyze_kline` 调用即可完成数据获取、指标计算和图表生成。项目不依赖
-FTShare-MCP、`ft-kline-view` 或其他外部 K 线 MCP 服务。
+一次 `analyze_kline` 调用即可完成数据获取、指标计算和图表生成。
 
 ## 界面预览
 
 ![桌面版交互式 K 线图](docs/images/chart-desktop.jpg)
 
-![移动版交互式 K 线图](docs/images/chart-mobile.jpg)
-
-以上截图展示图表、成交量、MA、MACD、BOLL、缩放和响应式布局。截图中的行情
-仅用于展示界面，实际数据由配置的数据源实时获取。
+主图使用 FTShare 数据展示 K 线、技术指标和时间范围切换。
 
 ## 功能
 
 - 支持港股、美股和 A 股日线分析
 - 提供 MA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP
+- 自动计算支撑位和压力位，并在对应 K 线上标注价位与触及次数
 - 提供缩放、拖动、十字线和响应式交互式图表
 - 图表可切换 10D、30D、YTD、1Y、5Y 等范围
 - 通过本机临时 URL 查看图表，数据只保存在内存中
 - 指标计算采用统一 OHLCV 数据结构，可接入自有数据源
+
+### 支撑位、压力位与标注
+
+![支撑位和压力位标注](docs/images/chart-support-resistance.jpg)
+
+`analyze_kline` 可在一次调用中计算支撑位和压力位，并把价位与触及次数标到对应
+K 线上。图中使用确定性预览数据，仅用于展示标注效果。
+
+### 响应式布局
+
+<img src="docs/images/chart-mobile.jpg" alt="移动端交互式 K 线图" width="390">
+
+移动端保留指标切换、缩放、拖动、十字线和时间范围控制。
 
 ## 环境要求
 
@@ -46,7 +57,7 @@ pnpm install --frozen-lockfile
 ```
 
 `pnpm install` 安装固定版本的 DeepSeek Harness；`bootstrap.sh` 创建 `.venv`，并
-安装 `dsh_kline` 所需的 Python 依赖和 FTShare SDK。
+安装 `dsh_kline` 所需的 Python 依赖及推荐的 FTShare SDK 数据源。
 
 ## 启动
 
@@ -75,8 +86,13 @@ API Key 只能保存在本机，不要提交到 Git。
 
 ```text
 分析 00700.HK 最近 60 根日 K，显示 MA、成交量、MACD、RSI、BOLL、ATR 和 VWAP，
-用中文总结趋势并提供交互式图表链接。
+分析并标注支撑位和压力位，用中文总结趋势并提供交互式图表链接。
 ```
+
+![DeepSeek Harness 单次调用 analyze_kline](docs/images/harness-analyze-kline.jpg)
+
+上图展示 DeepSeek Harness 通过一次 `analyze_kline` 调用返回行情摘要和数据来源；
+完整结果同时包含 `chart_url`。截图不包含 API Key 或其他凭据。
 
 推荐始终使用单次调用工具：
 
@@ -100,11 +116,12 @@ dsh 进程退出后失效。
 
 ## 数据源
 
-默认数据源是 [FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)。
+[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk) 是可选的
+数据源依赖，也是本项目默认安装并推荐的方案。
 `fetch_candles` 和 `analyze_kline` 已针对 FTShare 的港股、美股、A 股代码规范、
-复权参数和历史数据分页进行了优化。
+复权参数和历史数据分页进行了优化；FTShare SDK 不是指标与图表层的强制依赖。
 
-指标层不绑定 FTShare。`calc_metrics` 可以直接接收其他数据源生成的标准 OHLCV：
+`calc_metrics` 可以直接接收其他数据源生成的标准 OHLCV：
 
 ```json
 {
@@ -117,9 +134,10 @@ dsh 进程退出后失效。
 }
 ```
 
-`time` 使用 Unix 秒，其余字段为数值。要让 `analyze_kline` 自动从自有数据源取数
-并支持图表范围切换，可在 `tools/fetch.py` 中扩展适配器，只需继续输出相同的标准
-OHLCV 结构，无需增加另一个 MCP 服务。
+`time` 使用 Unix 秒，其余字段为数值。不安装 FTShare SDK 时，外部数据仍可用于
+`calc_metrics`；默认的 `fetch_candles` 和 `analyze_kline` 取数会返回明确的数据源
+不可用错误。要让 `analyze_kline` 自动从自有数据源取数并支持图表范围切换，可在
+`tools/fetch.py` 中扩展适配器，只需继续输出相同的标准 OHLCV 结构。
 
 ## 验证
 
@@ -149,7 +167,7 @@ pnpm smoke:markets
 
 ## 来源与许可证
 
-指标实现和交互式前端基于 MIT 许可的 `ft-kline-view` 改造，但本项目运行时不依赖
-该仓库。详细来源见 [docs/PROVENANCE.md](docs/PROVENANCE.md)。
+指标实现和交互式前端参考了 MIT 许可的 `ft-kline-view`，详细来源见
+[docs/PROVENANCE.md](docs/PROVENANCE.md)。
 
 本项目采用 MIT 许可证，见 [LICENSE](LICENSE)。
