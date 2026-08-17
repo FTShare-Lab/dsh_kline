@@ -53,6 +53,9 @@ mcp = FastMCP(
         "calc_metrics only for caller-supplied rows. When support or resistance "
         "analysis is requested, include support_resistance in analyze_kline metrics; "
         "that same call adds the calculated levels to the chart as annotations."
+        " In DeepSeek Harness, say that the interactive chart is open in the right "
+        "sidebar and do not print chart_url in the ordinary answer. chart_url remains "
+        "structured compatibility data for hosts without the native sidebar."
     ),
     json_response=True,
 )
@@ -372,7 +375,6 @@ async def analyze_kline(
             "latest",
             "indicator_last",
             "metrics",
-            "chart_url",
         )
     }
     return _result(data, "analyze_kline ok · " + json.dumps(summary, ensure_ascii=False, separators=(",", ":")))

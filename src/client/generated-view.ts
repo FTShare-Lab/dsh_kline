@@ -1,732 +1,24 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>dsh_kline Chart</title>
-<!-- The local chart server injects the vendored library and session payload. -->
-<script id="klinecharts-vendor">/*__KLINECHARTS_VENDOR_JS__*/</script>
-<script id="ftv-view-meta">/*__FTV_VIEW_META__*/</script>
-<style>
-  :root {
-    --bg: #ffffff;
-    --bg-soft: #f7f9fb;
-    --border: #e7ebef;
-    --text: #20242b;
-    --text-soft: #7a828c;
-    --accent: #ff6b00;
-    /* A-share convention: red = up, green = down. Foreign symbols switch
-       these two variables through data-market="foreign" below. */
-    --up: #f04462;
-    --down: #00b578;
-    --warn: #ff7a00;
-    --info: #00a5ef;
-    --danger: #f04462;
-    --success: #00b578;
-    --shadow: 0 2px 10px rgba(24, 32, 45, 0.08);
-  }
-  html[data-theme="dark"] {
-    --bg: #15191f;
-    --bg-soft: #20262e;
-    --border: #303842;
-    --text: #f5f7fa;
-    --text-soft: #aeb7c2;
-    --up: #ff6179;
-    --down: #20c997;
-    --warn: #fbbf24;
-    --info: #60a5fa;
-    --danger: #ff6670;
-    --success: #20c997;
-    --shadow: 0 1px 2px rgba(0,0,0,0.2);
-  }
-  html[data-market="foreign"] {
-    --up: #00b578;
-    --down: #f04462;
-  }
-  html[data-theme="dark"][data-market="foreign"] {
-    --up: #20c997;
-    --down: #ff6179;
-  }
-  html, body {
-    margin: 0; padding: 0; overflow: hidden;
-    background: var(--bg); color: var(--text);
-    font-family: -apple-system, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
-    font-size: 13px; line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  body { display: flex; flex-direction: column; min-height: auto; }
-  #viewShell {
-    position: relative; display: flex; flex-direction: column;
-    width: 100%; height: min(1120px, 100vh); min-height: 500px; max-height: 1120px;
-    overflow: hidden; background: var(--bg);
-  }
-  #viewShell.is-fullscreen, #viewShell.is-local-expanded {
-    width: 100vw; height: 100dvh; min-height: 100dvh; max-height: none; border-radius: 0;
-  }
-  #viewScroll {
-    flex: 1 1 auto; min-height: 0; width: 100%; padding-right: 16px;
-    overflow-x: auto; overflow-y: auto; scrollbar-width: none;
-  }
-  /* KLineChart must never be resized below its usable drawing width. */
-  #viewContent { min-width: 340px; min-height: 100%; }
-  #viewShell.watchlist-rail-open #viewScroll { padding-left: 236px; }
-  #viewScroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
-  #viewScrollbar {
-    position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; width: 16px;
-    background: var(--bg-soft); border-left: 1px solid var(--border);
-    cursor: pointer; touch-action: none; user-select: none;
-  }
-  #viewScrollbar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  #viewScrollbarThumb {
-    position: absolute; top: 0; left: 3px; right: 3px; height: 40px;
-    border-radius: 999px; background: var(--text-soft); cursor: grab;
-    will-change: transform;
-  }
-  #viewScrollbarThumb:hover { background: var(--text); }
-  #viewScrollbarThumb.dragging { background: var(--accent); cursor: grabbing; }
-  * { box-sizing: border-box; }
-  .row { display: flex; align-items: center; gap: 8px; }
-  .muted { color: var(--text-soft); }
-  .chip {
-    display: inline-block; padding: 2px 7px; border-radius: 4px;
-    background: var(--bg-soft); border: 1px solid var(--border);
-    color: var(--text-soft); font-size: 11px;
-  }
-  header.bar, .bar {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 9px 12px; border-bottom: 1px solid var(--border);
-  }
-  .title { font-weight: 700; font-size: 15px; }
-  .quote { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; min-width: 0; }
-  .close { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .close.up { color: var(--up); }
-  .close.down { color: var(--down); }
-  .change { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .change.up { color: var(--up); }
-  .change.down { color: var(--down); }
-  .quote-meta { color: var(--text-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .btn {
-    min-height: 28px; padding: 4px 9px; border-radius: 4px; border: 1px solid var(--border);
-    background: var(--bg-soft); color: var(--text); cursor: pointer; font-size: 12px; white-space: nowrap;
-  }
-  .btn:hover { border-color: #cfd6de; background: #eef2f6; }
-  html[data-theme="dark"] .btn:hover { background: #2a323c; border-color: #465260; }
-  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  #selectionAnalyzeBtn, #contextAnalyzeBtn { display: none; }
-  .btn.data-unavailable:not(.active) { opacity: .58; border-style: dashed; }
-  .icon-btn { width: 28px; min-width: 28px; padding: 0; display: inline-grid; place-items: center; font-size: 16px; line-height: 1; }
-  .workspace-bar {
-    display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 6px 12px;
-    border-bottom: 1px solid var(--border); background: var(--bg-soft);
-  }
-  .brand { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; min-width: 132px; color: var(--text); }
-  .brand-logo { width: 25px; height: 25px; object-fit: contain; border-radius: 3px; }
-  .brand-product { font-size: 13px; font-weight: 750; }
-  .workspace-tabs { display: flex; flex: 1 1 180px; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .workspace-tabs:empty { display: none; }
-  .workspace-tabs::-webkit-scrollbar { display: none; }
-  .workspace-tab { display: flex; align-items: center; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
-  .workspace-tab.active { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
-  .workspace-tab-select, .workspace-tab-close { border: 0; background: transparent; color: var(--text); cursor: pointer; height: 100%; }
-  .workspace-tab-select { max-width: 142px; padding: 0 6px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-  .workspace-tab-close { width: 22px; padding: 0; color: var(--text-soft); font-size: 16px; line-height: 1; }
-  .workspace-tab-close:hover { color: var(--down); }
-  .symbol-search { position: relative; flex: 0 1 292px; min-width: 184px; max-width: 292px; margin-left: auto; }
-  .symbol-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
-  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
-  .symbol-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }
-  .search-results { position: absolute; z-index: 40; top: calc(100% + 5px); left: 0; right: 0; display: none; max-height: 252px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); box-shadow: var(--shadow); }
-  .search-results.open { display: block; }
-  .search-result { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 7px 8px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
-  .search-result:last-child { border-bottom: 0; }
-  .search-result:hover, .search-result:focus { background: var(--bg-soft); outline: none; }
-  .search-result[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 10%, var(--bg)); box-shadow: inset 2px 0 0 var(--accent); }
-  .search-result-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
-  .search-result-symbol, .search-result-quote { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .search-result-quote.up { color: var(--up); }
-  .search-result-quote.down { color: var(--down); }
-  .search-empty { padding: 8px; color: var(--text-soft); font-size: 11px; }
-  .header-controls { display: flex; align-items: center; gap: 4px; }
-  .language-btn { width: 32px; min-width: 32px; padding: 0; }
-  .watchlist-wrap { position: relative; flex: 0 0 auto; }
-  .watchlist-popover {
-    position: absolute; z-index: 45; top: calc(100% + 6px); right: 0; width: min(300px, calc(100vw - 28px));
-    display: none; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow);
-  }
-  .watchlist-popover.open { display: block; }
-  .watchlist-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; }
-  .watchlist-groupbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; padding: 7px 8px; border-bottom: 1px solid var(--border); }
-  .watchlist-group-select { min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .watchlist-group-action { min-height: 28px; width: 28px; padding: 0; font-size: 16px; }
-  .watchlist-count { color: var(--text-soft); font-size: 10px; font-weight: 500; }
-  .watchlist-items { max-height: 252px; overflow-y: auto; }
-  .watchlist-empty { padding: 12px 9px; color: var(--text-soft); font-size: 11px; }
-  .watchlist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; width: 100%; padding: 7px 7px 7px 9px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
-  .watchlist-item:hover { background: var(--bg-soft); }
-  .watchlist-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
-  .watchlist-item-symbol { color: var(--text-soft); font-size: 10px; }
-  .watchlist-remove { align-self: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); cursor: pointer; font-size: 17px; line-height: 1; }
-  .watchlist-remove:hover { color: var(--down); background: var(--bg-soft); }
-  .watchlist-toggle.watched { color: var(--accent); border-color: var(--accent); }
-  .watchlist-rail-toggle { display: inline-grid; }
-  .watchlist-rail {
-    position: absolute; z-index: 24; top: 0; bottom: 31px; left: 0; width: 236px;
-    display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg);
-    box-shadow: var(--shadow); transform: translateX(-100%); transition: transform 160ms ease;
-    pointer-events: none;
-  }
-  #viewShell.watchlist-rail-open .watchlist-rail { transform: translateX(0); pointer-events: auto; }
-  .watchlist-rail-header { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 750; }
-  .watchlist-rail-items { flex: 1 1 auto; max-height: none; overflow-y: auto; }
-  .watchlist-rail .watchlist-item { min-height: 52px; }
-  .watchlist-rail .watchlist-item.current { background: color-mix(in srgb, var(--accent) 9%, var(--bg)); box-shadow: inset 2px 0 0 var(--accent); }
-  .watchlist-overview { padding: 7px 8px; border-bottom: 1px solid var(--border); }
-  .watchlist-summary { display: flex; justify-content: space-between; gap: 6px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .watchlist-summary .up { color: var(--up); } .watchlist-summary .down { color: var(--down); }
-  .watchlist-batchbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }
-  .watchlist-sort { min-width: 0; height: 27px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .watchlist-batch-open { min-height: 27px; padding-inline: 7px; font-size: 11px; }
-  .watchlist-item { grid-template-columns: minmax(0, 1fr) auto; }
-  .watchlist-item-main { min-width: 0; }
-  .watchlist-quote { align-self: center; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .watchlist-quote .up { color: var(--up); } .watchlist-quote .down { color: var(--down); }
-  .watchlist-quote .muted { font-size: 10px; }
-  .watchlist-select { width: 14px; height: 14px; margin: 0 5px 0 0; vertical-align: -2px; accent-color: var(--accent); }
-  .market-ticker { position: relative; z-index: 18; flex: 0 0 31px; width: calc(100% - 16px); margin-right: 16px; display: none; height: 31px; overflow: hidden; align-items: center; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(7px); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .market-ticker.visible { display: flex; }
-  #viewShell.ticker-visible #viewScrollbar { bottom: 31px; }
-  .market-ticker-flow { flex: 1 1 auto; min-width: 0; overflow: hidden; }
-  .market-ticker-track { display: flex; align-items: center; min-width: max-content; gap: 22px; padding: 0 13px; white-space: nowrap; }
-  .market-ticker-track.scrolling { animation: ticker-scroll 28s linear infinite; }
-  .market-ticker:hover .market-ticker-track { animation-play-state: paused; }
-  .ticker-item { display: inline-flex; align-items: baseline; gap: 5px; }
-  .ticker-market { color: var(--text-soft); font-size: 9px; font-weight: 700; letter-spacing: .2px; }
-  .ticker-name { color: var(--text); font-weight: 650; }
-  .ticker-price { color: var(--text); }
-  .ticker-change.up { color: var(--up); }
-  .ticker-change.down { color: var(--down); }
-  .market-ticker-meta { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 22px; margin-right: 8px; padding-left: 7px; border-left: 1px solid var(--border); color: var(--text-soft); font-size: 10px; white-space: nowrap; }
-  .ticker-state { padding: 1px 4px; border-radius: 3px; background: var(--bg-soft); font-weight: 700; }
-  .ticker-state.delayed { color: var(--warn); }
-  .ticker-state.closed, .ticker-state.stale { color: var(--text-soft); }
-  .ticker-state.stale { color: var(--danger); }
-  @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-30%); } }
-  .timebar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-  .timebar::-webkit-scrollbar { display: none; }
-  .timebar-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-  .timebar-divider { width: 1px; align-self: stretch; background: var(--border); flex: 0 0 1px; }
-  .timebar .btn { min-width: 36px; }
-  .timebar .btn.active { box-shadow: inset 0 -2px 0 rgba(255,255,255,.5); }
-  .range-custom-popover {
-    position: absolute; z-index: 42; top: calc(100% + 5px); left: 12px; display: none; width: min(330px, calc(100vw - 28px));
-    padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow);
-  }
-  .range-custom-popover.open { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
-  .range-custom-popover input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }
-  .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; padding: 6px 12px; border-bottom: 1px solid var(--border); }
-  .market-data-status { display: flex; align-items: center; gap: 7px; min-height: 27px; padding: 4px 12px; border-bottom: 1px solid var(--border); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .market-data-status strong { color: var(--text); font-weight: 600; }
-  .market-data-status .data-status { padding: 1px 4px; border-radius: 3px; background: var(--bg-soft); }
-  .market-data-status .data-status.live { color: var(--up); }
-  .market-data-status .data-status.delayed { color: var(--warn); }
-  .market-data-status .data-status.closed { color: var(--text-soft); }
-  .market-data-status .data-status.stale { color: var(--danger); }
-  .data-source-link { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 2px; }
-  .data-source-link:hover { color: var(--accent); }
-  .market-data-refresh { width: 24px; min-width: 24px; margin-left: auto; padding: 0; }
-  .market-data-refresh.loading { animation: ticker-spin .7s linear infinite; }
-  .toolbar-hint { color: var(--text-soft); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; flex: 0 0 auto; }
-  .indicator-menu-wrap { position: relative; }
-  .indicator-popover {
-    position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(336px, calc(100vw - 34px));
-    display: none; padding: 10px; border: 1px solid var(--border); border-radius: 6px;
-    background: var(--bg); box-shadow: var(--shadow);
-  }
-  .indicator-popover.open { display: block; }
-  .indicator-heading { font-size: 12px; font-weight: 700; margin: 2px 0 7px; }
-  .indicator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
-  .indicator-choice { display: flex; align-items: center; gap: 6px; min-height: 25px; cursor: pointer; font-size: 12px; }
-  .indicator-choice input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
-  .indicator-choice .indicator-note { color: var(--text-soft); font-size: 10px; }
-  .indicator-config { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
-  .indicator-field { display: grid; gap: 3px; font-size: 10px; color: var(--text-soft); }
-  .indicator-field input { width: 100%; height: 27px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-soft); font: inherit; }
-  .indicator-apply { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
-  #klineChart { width: 100%; min-width: 280px; height: 344px; background: var(--bg); }
-  .chart-wrap { position: relative; min-width: 280px; overflow: hidden; border-bottom: 1px solid var(--border); }
-  .session-guide-layer { position: absolute; z-index: 3; inset: 0 64px 0 0; overflow: hidden; pointer-events: none; }
-  .session-guide-divider { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text-soft) 58%, transparent); }
-  .session-guide-label { position: absolute; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .session-guide-label.start { transform: translateX(0); }
-  .session-guide-label.end { transform: translateX(-100%); }
-  .price-alert-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }
-  .price-alert-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--warn); }
-  .price-alert-line span { position: absolute; top: -15px; right: 4px; max-width: 185px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--warn); color: #fff; font-size: 10px; }
-  .canvas-resizer {
-    position: relative; height: 10px; margin: -1px 0 0; border-top: 1px solid var(--border);
-    background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none;
-  }
-  .canvas-resizer::before {
-    content: ""; position: absolute; left: 50%; top: 3px; width: 42px; height: 2px;
-    transform: translateX(-50%); border-radius: 2px; background: var(--text-soft); opacity: .72;
-  }
-  .canvas-resizer:hover::before, .canvas-resizer.dragging::before { background: var(--accent); opacity: 1; }
-  .canvas-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .chart-status {
-    position: absolute; top: 6px; right: 10px; font-size: 11px; color: var(--text-soft);
-    background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
-    pointer-events: none; display: none;
-  }
-  .chart-loading-overlay {
-    position: absolute; z-index: 14; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: color-mix(in srgb, var(--bg) 72%, transparent); pointer-events: none;
-  }
-  .chart-loading-overlay[hidden] { display: none; }
-  .chart-loading-card {
-    display: flex; align-items: center; gap: 9px; min-width: 150px; max-width: min(320px, calc(100% - 32px));
-    padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
-    box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650;
-  }
-  .chart-loading-spinner { width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }
-  .chart-loading-overlay.complete { background: transparent; }
-  .chart-loading-overlay.complete .chart-loading-spinner { border: 0; animation: none; }
-  .chart-loading-overlay.complete .chart-loading-spinner::before { content: "\2713"; color: var(--success); font-size: 17px; line-height: 16px; }
-  .chart-loading-overlay.failed { background: color-mix(in srgb, var(--bg) 82%, transparent); }
-  .chart-loading-overlay.failed .chart-loading-spinner { border: 0; animation: none; }
-  .chart-loading-overlay.failed .chart-loading-spinner::before { content: "!"; color: var(--danger); font-size: 17px; line-height: 16px; }
-  .percent-axis {
-    display: none; position: absolute; top: 0; right: 1px; z-index: 4; width: 64px;
-    pointer-events: none; font-size: 10px; font-variant-numeric: tabular-nums;
-  }
-  .percent-axis.visible { display: block; }
-  .percent-axis-title { position: absolute; top: 4px; right: 2px; color: var(--text-soft); font-size: 10px; }
-  .percent-tick { position: absolute; right: 2px; transform: translateY(-50%); padding: 0 2px; background: color-mix(in srgb, var(--bg) 88%, transparent); }
-  .percent-tick.up { color: var(--up); }
-  .percent-tick.down { color: var(--down); }
-  .percent-tick.flat { color: var(--text-soft); }
-  .cards {
-    display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .card {
-    flex: 1 1 110px; min-width: 110px; padding: 8px 10px;
-    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;
-  }
-  .card .k { font-size: 11px; color: var(--text-soft); }
-  .card .v { font-size: 16px; font-weight: 600; margin-top: 2px; }
-  .card .v.down { color: var(--down); }
-  .card .v.up { color: var(--up); }
-  .tables { padding: 10px 12px; border-bottom: 1px solid var(--border); max-height: 220px; overflow-y: auto; }
-  .tables .t-title { font-size: 12px; color: var(--text-soft); margin-bottom: 4px; }
-  table.t { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
-  table.t th, table.t td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
-  table.t th { background: var(--bg-soft); font-weight: 600; }
-  #rangeBanner {
-    position: absolute; left: 50%; transform: translateX(-50%); top: 10px;
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-    background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;
-    box-shadow: var(--shadow); z-index: 5; font-size: 12px;
-  }
-  #rangeBanner #rangeText { color: var(--text); font-weight: 500; }
-  .alert-menu-wrap { position: relative; }
-  .alert-popover, .chart-context-menu {
-    display: none; position: absolute; z-index: 22; border: 1px solid var(--border); border-radius: 6px;
-    background: var(--bg); box-shadow: var(--shadow); color: var(--text);
-  }
-  .alert-popover.open, .chart-context-menu.open { display: block; }
-  .alert-popover { top: calc(100% + 5px); right: 0; width: 248px; padding: 8px; }
-  .alert-fields { display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; }
-  .alert-fields input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .alert-list { max-height: 150px; margin-top: 7px; overflow-y: auto; }
-  .alert-empty { padding: 5px 1px; color: var(--text-soft); font-size: 11px; }
-  .alert-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; align-items: center; padding: 5px 1px; border-top: 1px solid var(--border); font-size: 11px; }
-  .alert-item-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chart-context-menu { min-width: 142px; padding: 4px; }
-  .chart-context-menu button { display: block; width: 100%; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; font-size: 12px; }
-  .chart-context-menu button:hover { background: var(--bg-soft); }
-  .compare-menu-wrap, .drawing-menu-wrap { position: relative; }
-  .compare-popover, .drawing-popover { display: none; position: absolute; z-index: 22; top: calc(100% + 5px); right: 0; width: 270px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }
-  .compare-popover.open, .drawing-popover.open { display: block; }
-  .compare-fields, .drawing-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }
-  .compare-fields input, .drawing-fields input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .compare-presets, .drawing-types { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-  .compare-mode { display: flex; gap: 0; margin-top: 7px; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; }
-  .compare-mode button { min-height: 25px; flex: 1; border: 0; border-radius: 0; background: var(--bg-soft); font-size: 10px; }
-  .compare-mode button + button { border-left: 1px solid var(--border); }
-  .compare-mode button.active { background: var(--accent); color: #fff; }
-  .compare-presets button, .drawing-types button { min-height: 25px; padding: 3px 6px; font-size: 10px; }
-  .compare-list, .drawing-list { max-height: 130px; margin-top: 7px; overflow-y: auto; }
-  .compare-item, .drawing-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; align-items: center; padding: 5px 1px; border-top: 1px solid var(--border); font-size: 11px; }
-  .compare-item-main, .drawing-item-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .comparison-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
-  .comparison-stat { min-width: 0; padding: 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); font-size: 10px; }
-  .comparison-stat-label { display: block; overflow: hidden; color: var(--text-soft); text-overflow: ellipsis; white-space: nowrap; }
-  .comparison-stat-value { display: block; margin-top: 2px; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .comparison-layer { display: none; }
-  .comparison-legend { display: none; }
-  .comparison-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }
-  .comparison-performance { display: grid; grid-template-columns: 176px minmax(0, 1fr); min-height: 112px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg); }
-  .comparison-performance[hidden] { display: none; }
-  .comparison-performance-head { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 12px; border-right: 1px solid var(--border); }
-  .comparison-performance-title { color: var(--text); font-size: 12px; font-weight: 700; }
-  .comparison-performance-subtitle { color: var(--text-soft); font-size: 10px; }
-  .comparison-performance-legend { display: grid; gap: 5px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .comparison-performance-legend span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .comparison-performance-canvas { position: relative; min-width: 0; min-height: 112px; }
-  .comparison-performance-svg { display: block; width: 100%; height: 112px; }
-  .comparison-performance-zero { stroke: var(--border); stroke-dasharray: 3 3; }
-  .comparison-performance-value { fill: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  @media (max-width: 640px) {
-    .comparison-performance { grid-template-columns: 1fr; }
-    .comparison-performance-head { min-height: 60px; border-right: 0; border-bottom: 1px solid var(--border); }
-  }
-  /* MA/VWAP now render as native price indicators, sharing KLineChart's exact
-     pane transform while panning, zooming and resizing. */
-  .ma-layer { display: none; }
-  .ma-legend { display: none; position: absolute; z-index: 6; top: 8px; left: 64px; max-width: calc(100% - 132px); align-items: baseline; flex-wrap: wrap; gap: 4px 12px; pointer-events: none; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .ma-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }
-  .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
-  .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
-  .activity-notice[hidden] { display: none; }
-  .activity-notice-spinner { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }
-  .activity-notice.complete .activity-notice-spinner, .activity-notice.failed .activity-notice-spinner { border: 0; animation: none; }
-  .activity-notice.complete .activity-notice-spinner::before { content: "\\2713"; color: var(--success); font-size: 16px; line-height: 14px; }
-  .activity-notice.failed .activity-notice-spinner::before { content: "!"; color: var(--danger); font-size: 16px; line-height: 14px; }
-  .user-drawing-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }
-  .user-horizontal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--info); }
-  .user-horizontal-line span { position: absolute; top: -15px; right: 4px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--info); color: #fff; font-size: 10px; }
-  .drawing-capture-layer { position: absolute; z-index: 8; inset: 0 64px 0 0; display: none; cursor: crosshair; }
-  .drawing-capture-layer.active { display: block; }
-  .security-nav { display: flex; align-items: center; gap: 18px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-  .security-nav::-webkit-scrollbar, .company-tabbar::-webkit-scrollbar { display: none; }
-  .security-nav-tab { position: relative; flex: 0 0 auto; height: 42px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
-  .security-nav-tab:hover { color: var(--text); }
-  .security-nav-tab.active { color: var(--text); }
-  .security-nav-tab.active::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); }
-  .security-nav-count { display: inline-grid; min-width: 16px; margin-left: 3px; padding: 0 3px; place-items: center; border-radius: 8px; background: var(--bg-soft); color: var(--text-soft); font-size: 9px; font-weight: 700; vertical-align: 1px; }
-  .security-panel[hidden] { display: none; }
-  .insight-panel { min-height: 0; padding: 0 12px 24px; }
-  .insight-source { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .insight-source.mock { color: var(--warn); }
-  .insight-source-footer { display: flex; align-items: center; justify-content: flex-end; min-height: 32px; margin-top: 18px; padding-top: 9px; border-top: 1px solid var(--border); }
-  .news-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; padding: 13px 0; border-top: 1px solid var(--border); }
-  .news-item:first-child { border-top: 0; }
-  .news-item-title { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-  .news-item-summary { grid-column: 1 / 2; overflow: hidden; color: var(--text-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .news-meta { align-self: center; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .news-kind { display: inline-block; min-width: 52px; margin-right: 7px; color: var(--accent); font-size: 10px; font-weight: 700; }
-  .company-tabbar { display: flex; gap: 5px; min-height: 50px; padding: 10px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-  .company-tab { flex: 0 0 auto; min-height: 29px; padding: 4px 10px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-soft); color: var(--text-soft); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
-  .company-tab:hover { color: var(--text); border-color: var(--border); }
-  .company-tab.active { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); border-color: color-mix(in srgb, var(--accent) 22%, var(--border)); }
-  .company-content { padding-top: 18px; }
-  .company-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-  .company-section-heading h3 { margin: 0; font-size: 15px; font-weight: 750; }
-  .company-section-heading span { color: var(--text-soft); font-size: 10px; }
-  .company-metrics { display: grid; grid-template-columns: repeat(5, minmax(112px, 1fr)); border: 1px solid var(--border); }
-  .company-metric { min-width: 0; padding: 11px 12px; border-right: 1px solid var(--border); }
-  .company-metric:last-child { border-right: 0; }
-  .company-metric-label { display: block; overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-  .company-metric-value { display: block; overflow: hidden; margin-top: 3px; color: var(--text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-  .company-metric-value.up { color: var(--up); } .company-metric-value.down { color: var(--down); }
-  .company-detail-section { margin-top: 22px; }
-  .company-detail-section h3 { margin: 0 0 9px; color: var(--text-soft); font-size: 11px; font-weight: 700; }
-  .company-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
-  .company-detail { display: grid; gap: 3px; min-width: 0; min-height: 58px; padding: 9px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .company-detail-label { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-  .company-detail-value { overflow: hidden; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-  .company-info-table, .company-data-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .company-info-table { margin-top: 18px; border: 1px solid var(--border); }
-  .company-info-table th, .company-info-table td { padding: 9px 11px; border: 1px solid var(--border); text-align: left; }
-  .company-info-table th { width: 15%; color: var(--text-soft); background: var(--bg-soft); font-size: 11px; font-weight: 650; }
-  .company-info-table td { width: 35%; font-size: 12px; }
-  .company-description { margin: 18px 0 0; color: var(--text-soft); font-size: 12px; line-height: 1.75; }
-  .company-data-table { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .company-data-table th, .company-data-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
-  .company-data-table th:first-child, .company-data-table td:first-child { padding-left: 0; text-align: left; }
-  .company-data-table th:last-child, .company-data-table td:last-child { padding-right: 0; }
-  .company-data-table tr:last-child td { border-bottom: 0; }
-  .company-data-table th { color: var(--text-soft); font-size: 10px; font-weight: 650; }
-  .company-data-table td { font-size: 12px; }
-  .company-data-table .up { color: var(--up); } .company-data-table .down { color: var(--down); }
-  .holder-layout { display: grid; grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr); gap: 24px; align-items: start; }
-  .holder-summary { border-top: 1px solid var(--border); }
-  .holder-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .holder-summary-name { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-  .holder-summary-track { height: 5px; margin-top: 5px; overflow: hidden; background: var(--bg-soft); }
-  .holder-summary-fill { height: 100%; background: var(--info); }
-  .holder-summary-value { color: var(--text-soft); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
-  .insight-empty { display: grid; min-height: 270px; place-items: center; color: var(--text-soft); font-size: 12px; text-align: center; }
-  .err { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--danger); padding: 8px 12px; }
-  .err-message { min-width: 0; overflow-wrap: anywhere; }
-  .err .btn { flex: 0 0 auto; }
-  .group-dialog-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 17, 25, .35); }
-  .group-dialog-backdrop[hidden] { display: none; }
-  .group-dialog { width: min(320px, 100%); padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }
-  .group-dialog-title { margin: 0 0 10px; font-size: 14px; }
-  .group-dialog-input { width: 100%; height: 32px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }
-  .group-dialog-error { min-height: 18px; margin-top: 5px; color: var(--danger); font-size: 11px; }
-  .group-dialog-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
-  @media (max-width: 760px) {
-    .workspace-bar { flex-wrap: wrap; }
-    .brand { min-width: 0; }
-    .workspace-tabs { order: 3; flex-basis: 100%; }
-    .symbol-search { margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; }
-    .toolbar-hint { display: none; }
-    .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-    .toolbar::-webkit-scrollbar { display: none; }
-    .toolbar-actions { width: max-content; flex-wrap: nowrap; justify-content: flex-start; }
-    .ma-legend { left: 60px; max-width: calc(100% - 126px); }
-    .company-metrics { grid-template-columns: repeat(3, minmax(112px, 1fr)); }
-    .company-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .company-metric:nth-child(3) { border-right: 0; }
-    .company-metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
-    .holder-layout { grid-template-columns: 1fr; gap: 18px; }
-  }
-  @media (max-width: 980px) {
-    #viewShell.watchlist-rail-open #viewScroll { padding-left: 0; }
-    .watchlist-rail, .watchlist-rail-toggle { display: none; }
-  }
-  @media (max-width: 480px) {
-    .workspace-bar { gap: 5px; padding: 6px 8px; }
-    .header-controls { gap: 3px; }
-    header.bar {
-      display: grid; grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center; gap: 6px; padding-inline: 8px;
-    }
-    header.bar .row { min-width: 0; flex-wrap: nowrap; gap: 5px; }
-    header.bar .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    header.bar .chip { padding-inline: 5px; }
-    header.bar .quote { display: grid; grid-template-columns: auto; justify-items: end; gap: 0; }
-    header.bar .close { font-size: 17px; line-height: 1.2; white-space: nowrap; }
-    header.bar .change { font-size: 11px; line-height: 1.2; white-space: nowrap; }
-    header.bar .quote-meta { display: none; }
-    .timebar { padding-inline: 8px; }
-    .toolbar { padding-inline: 8px; }
-    .range-custom-popover { left: 8px; }
-    .brand { min-width: auto; }
-    .brand-product { font-size: 11px; }
-    .security-nav { gap: 15px; padding-inline: 8px; }
-    .insight-panel { padding-inline: 8px; }
-    .company-metrics { grid-template-columns: repeat(2, minmax(112px, 1fr)); }
-    .company-detail-grid { grid-template-columns: 1fr; }
-    .company-metric { border-bottom: 1px solid var(--border); }
-    .company-metric:nth-child(2n) { border-right: 0; }
-    .company-metric:nth-last-child(-n+1) { border-bottom: 0; }
-    .company-info-table th, .company-info-table td { padding: 8px 7px; }
-    .company-info-table th { width: 23%; }
-    .news-item { gap: 4px 10px; }
-    .news-item-summary { grid-column: 1 / -1; }
-  }
-</style>
-</head>
-<body>
-<div id="viewShell">
-<div id="viewScroll">
-<div id="viewContent">
-<div class="workspace-bar">
-  <div class="brand" id="productBrand" aria-label="dsh_kline Chart"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">dsh_kline Chart</span></div>
-  <div class="workspace-tabs" id="workspaceTabs" role="tablist" aria-label="Chart workspace tabs"></div>
-  <div class="symbol-search" id="symbolSearch">
-    <form class="symbol-search-form" id="symbolSearchForm" role="search">
-      <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" />
-      <button class="btn" id="symbolSearchBtn" type="submit">搜索</button>
-    </form>
-    <div class="search-results" id="searchResults" role="listbox"></div>
-  </div>
-  <button class="btn icon-btn watchlist-rail-toggle" id="watchlistRailToggle" type="button" title="展开自选侧栏" aria-label="展开自选侧栏" aria-expanded="false">&#9776;</button>
-  <div class="watchlist-wrap">
-    <button class="btn icon-btn watchlist-toggle" id="watchlistBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="自选列表" aria-label="自选列表">&#9734;</button>
-    <div class="watchlist-popover" id="watchlistPopover" role="menu" aria-label="自选列表">
-      <div class="watchlist-heading"><span id="watchlistHeading">自选</span><span class="watchlist-count" id="watchlistCount"></span></div>
-      <div class="watchlist-groupbar">
-        <select class="watchlist-group-select" id="watchlistGroupSelect" aria-label="自选分组"></select>
-        <button class="btn watchlist-group-action" id="watchlistGroupAddBtn" type="button" title="新建分组" aria-label="新建分组">+</button>
-        <button class="btn watchlist-group-action" id="watchlistGroupDeleteBtn" type="button" title="删除分组" aria-label="删除分组">&times;</button>
-      </div>
-      <div class="watchlist-items" id="watchlistItems"></div>
-    </div>
-  </div>
-  <div class="header-controls">
-    <button class="btn language-btn" id="languageToggle" title="切换至 English" aria-label="切换至 English">EN</button>
-    <button class="btn icon-btn" id="themeToggle" title="切换至夜间模式" aria-label="切换至夜间模式">&#9789;</button>
-    <button class="btn icon-btn" id="expandBtn" aria-label="展开图表" title="展开图表">&#x26F6;</button>
-  </div>
-</div>
-<header class="bar">
-  <div class="row">
-    <span class="title" id="name">dsh_kline</span>
-    <span class="chip" id="symbolChip">—</span>
-    <button class="btn icon-btn watchlist-toggle" id="watchCurrentBtn" type="button" title="加入自选" aria-label="加入自选">&#9734;</button>
-  </div>
-  <div class="quote">
-    <span class="close" id="qClose">--</span>
-    <span class="change" id="qChange">--</span>
-    <span class="quote-meta" id="qMeta"></span>
-  </div>
-</header>
-<div class="market-data-status" id="marketDataStatus" aria-live="polite"></div>
-<nav class="security-nav" id="securityNav" role="tablist" aria-label="标的内容">
-  <button class="security-nav-tab active" id="securityTabChart" type="button" role="tab" aria-selected="true" aria-controls="chartWorkspacePanel" data-security-tab="chart">图表</button>
-  <button class="security-nav-tab" id="securityTabNews" type="button" role="tab" aria-selected="false" aria-controls="newsWorkspacePanel" data-security-tab="news">新闻<span class="security-nav-count" id="securityNewsCount">0</span></button>
-  <button class="security-nav-tab" id="securityTabCompany" type="button" role="tab" aria-selected="false" aria-controls="companyWorkspacePanel" data-security-tab="company">简况</button>
-</nav>
-<section class="security-panel" id="chartWorkspacePanel" role="tabpanel" aria-labelledby="securityTabChart">
-<div class="timebar" id="timebar">
-  <div class="timebar-group" id="rangeControls" role="tablist" aria-label="时间范围">
-    <button class="btn" type="button" data-range="1d">1D</button>
-    <button class="btn" type="button" data-range="5d">5D</button>
-    <button class="btn" type="button" data-range="10d">10D</button>
-    <button class="btn" type="button" data-range="30d">30D</button>
-    <button class="btn" type="button" data-range="ytd">YTD</button>
-    <button class="btn active" type="button" data-range="1y">1Y</button>
-    <button class="btn" type="button" data-range="5y">5Y</button>
-    <button class="btn" type="button" data-range="custom" id="customRangeBtn">Custom</button>
-  </div>
-  <span class="timebar-divider" aria-hidden="true"></span>
-  <div class="timebar-group" id="intervalControls" role="tablist" aria-label="K 线周期">
-    <button class="btn active" type="button" data-interval="day">Daily</button>
-    <button class="btn" type="button" data-interval="week">Weekly</button>
-    <button class="btn" type="button" data-interval="month">Monthly</button>
-    <button class="btn" type="button" data-interval="quarter">Quarterly</button>
-    <button class="btn" type="button" data-interval="year">Yearly</button>
-  </div>
-  <div class="range-custom-popover" id="customRangePopover" role="dialog" aria-label="自定义时间范围">
-    <input id="customRangeStart" type="date" aria-label="开始日期" />
-    <input id="customRangeEnd" type="date" aria-label="结束日期" />
-    <button class="btn primary" id="applyCustomRangeBtn" type="button">Apply</button>
-  </div>
-</div>
-<div class="toolbar">
-  <div class="toolbar-hint" id="toolbarHint">单击引用 K 线 · 再点选区间 · 点击标记引用分析</div>
-  <div class="toolbar-actions">
-    <button class="btn" id="clearBtn">清标注</button>
-    <button class="btn icon-btn" id="resetZoomBtn" type="button" title="重置缩放" aria-label="重置缩放">&#8634;</button>
-    <button class="btn" id="volumeUnitBtn" title="切换成交量单位" aria-label="成交量单位：万">万</button>
-    <button class="btn active" id="maBtn" data-ind="ma">MA</button>
-    <button class="btn" id="vwapBtn" data-ind="vwap">VWAP</button>
-    <button class="btn active" id="volBtn" data-ind="vol">VOL</button>
-    <button class="btn" id="macdBtn" data-ind="macd">MACD</button>
-    <button class="btn" id="kdjBtn" data-ind="kdj">KDJ</button>
-    <button class="btn" id="bollBtn" data-ind="boll">BOLL</button>
-    <div class="indicator-menu-wrap">
-      <button class="btn" id="indicatorMenuBtn" aria-haspopup="menu" aria-expanded="false">指标</button>
-      <div class="indicator-popover" id="indicatorPopover" role="menu" aria-label="指标与参数">
-        <div class="indicator-heading" id="indicatorHeading">显示指标</div>
-        <div class="indicator-grid">
-          <label class="indicator-choice"><input id="indMa" type="checkbox" checked /><span>MA</span><span class="indicator-note" data-i18n="maNote">均线</span></label>
-          <label class="indicator-choice"><input id="indVwap" type="checkbox" /><span>VWAP</span><span class="indicator-note" data-i18n="vwapNote">成交量加权</span></label>
-          <label class="indicator-choice"><input id="indVol" type="checkbox" checked /><span>VOL</span><span class="indicator-note" data-i18n="volNote">万股</span></label>
-          <label class="indicator-choice"><input id="indMacd" type="checkbox" /><span>MACD</span><span class="indicator-note" data-i18n="macdNote">动能</span></label>
-          <label class="indicator-choice"><input id="indKdj" type="checkbox" /><span>KDJ</span><span class="indicator-note" data-i18n="kdjNote">随机指标</span></label>
-          <label class="indicator-choice"><input id="indBoll" type="checkbox" /><span>BOLL</span><span class="indicator-note" data-i18n="bollNote">布林带</span></label>
-          <label class="indicator-choice"><input id="indRsi" type="checkbox" /><span>RSI</span><span class="indicator-note" data-i18n="rsiNote">强弱</span></label>
-          <label class="indicator-choice"><input id="indAtr" type="checkbox" /><span>ATR</span><span class="indicator-note" data-i18n="atrNote">波动率</span></label>
-        </div>
-        <div class="indicator-config">
-          <label class="indicator-field"><span data-i18n="maPeriods">MA 周期（逗号分隔）</span><input id="maPeriodsInput" inputmode="numeric" value="5,10,20,30,60" /></label>
-          <label class="indicator-field"><span data-i18n="volumeMa">VOL 均线周期</span><input id="volumeMaInput" type="number" min="2" max="200" value="5" /></label>
-          <label class="indicator-field"><span data-i18n="bollPeriod">BOLL 周期</span><input id="bollPeriodInput" type="number" min="2" max="200" value="20" /></label>
-          <label class="indicator-field"><span data-i18n="bollStd">BOLL 标准差</span><input id="bollStdInput" type="number" min="0.5" max="5" step="0.1" value="2" /></label>
-          <label class="indicator-field"><span data-i18n="rsiPeriod">RSI 周期</span><input id="rsiPeriodInput" type="number" min="2" max="200" value="14" /></label>
-          <label class="indicator-field"><span data-i18n="atrPeriod">ATR 周期</span><input id="atrPeriodInput" type="number" min="2" max="200" value="14" /></label>
-        </div>
-        <div class="indicator-apply"><button class="btn primary" id="applyIndicatorBtn">应用</button></div>
-      </div>
-    </div>
-    <div class="alert-menu-wrap">
-      <button class="btn" id="alertMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false">预警</button>
-      <div class="alert-popover" id="alertPopover" role="dialog" aria-label="价格预警">
-        <div class="alert-fields"><input id="alertPriceInput" type="number" inputmode="decimal" step="0.01" placeholder="价格" aria-label="预警价格" /><input id="alertNoteInput" type="text" maxlength="32" placeholder="备注（可选）" aria-label="预警备注" /><button class="btn primary" id="addAlertBtn" type="button">+</button></div>
-        <div class="alert-list" id="alertList"></div>
-      </div>
-    </div>
-    <div class="compare-menu-wrap">
-      <button class="btn" id="compareMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false">对比</button>
-      <div class="compare-popover" id="comparePopover" role="dialog" aria-label="多标的对比">
-        <div class="compare-fields"><input id="compareSymbolInput" type="text" maxlength="32" placeholder="代码或名称" aria-label="对比标的" /><button class="btn primary" id="addCompareBtn" type="button">+</button></div>
-        <div class="compare-presets"><button class="btn" type="button" data-compare-symbol="000300.XSHG" data-compare-name="沪深300">沪深300</button><button class="btn" type="button" data-compare-symbol="000001.XSHG" data-compare-name="上证指数">上证</button></div>
-        <div class="compare-mode" role="group" aria-label="对比模式"><button type="button" data-compare-mode="return">相对收益</button><button type="button" data-compare-mode="absolute">绝对价格</button></div>
-        <div class="comparison-summary" id="comparisonSummary"></div>
-        <div class="compare-list" id="compareList"></div>
-      </div>
-    </div>
-    <div class="drawing-menu-wrap">
-      <button class="btn" id="drawingMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false">画线</button>
-      <div class="drawing-popover" id="drawingPopover" role="dialog" aria-label="画线工具">
-        <div class="drawing-fields"><input id="drawingNameInput" type="text" maxlength="32" placeholder="名称（可选）" aria-label="画线名称" /><button class="btn" id="clearDrawingsBtn" type="button">清除</button></div>
-        <div class="drawing-types"><button class="btn" type="button" data-drawing-type="trend">趋势线</button><button class="btn" type="button" data-drawing-type="horizontal">水平线</button><button class="btn" type="button" data-drawing-type="rect">矩形</button><button class="btn" type="button" data-drawing-type="fibonacci">斐波那契</button></div>
-        <div class="drawing-list" id="drawingList"></div>
-      </div>
-    </div>
-  </div>
-</div>
-<section class="comparison-performance" id="comparisonPerformance" hidden aria-label="标的对比走势">
-  <div class="comparison-performance-head"><span class="comparison-performance-title" id="comparisonPerformanceTitle">区间涨跌</span><span class="comparison-performance-subtitle" id="comparisonPerformanceSubtitle">以首个共同交易点为 0%</span><div class="comparison-performance-legend" id="comparisonPerformanceLegend"></div></div>
-  <div class="comparison-performance-canvas"><svg class="comparison-performance-svg" id="comparisonPerformanceSvg" aria-hidden="true"></svg></div>
-</section>
-<div class="chart-wrap">
-  <div id="klineChart"></div>
-  <div class="session-guide-layer" id="sessionGuideLayer" aria-hidden="true"></div>
-  <svg class="ma-layer" id="maLayer" aria-hidden="true"></svg>
-  <div class="ma-legend" id="maLegend" aria-hidden="true"></div>
-  <div class="crosshair-time-label" id="crosshairTimeLabel" hidden aria-hidden="true"></div>
-  <svg class="comparison-layer" id="comparisonLayer" aria-hidden="true"></svg>
-  <div class="comparison-legend" id="comparisonLegend" aria-hidden="true"></div>
-  <div class="user-drawing-layer" id="userDrawingLayer" aria-hidden="true"></div>
-  <div class="drawing-capture-layer" id="drawingCaptureLayer" aria-hidden="true"></div>
-  <div class="price-alert-layer" id="priceAlertLayer" aria-hidden="true"></div>
-  <div class="percent-axis" id="percentAxis" aria-label="涨跌幅坐标轴"></div>
-  <div class="chart-status" id="chartStatus"></div>
-  <div class="chart-loading-overlay" id="chartLoadingOverlay" role="status" aria-live="polite" hidden><div class="chart-loading-card"><span class="chart-loading-spinner" aria-hidden="true"></span><span id="chartLoadingText">正在拉取数据…</span></div></div>
-  <div id="rangeBanner" style="display:none;">
-    <span id="rangeText"></span>
-    <button class="btn primary" id="selectionAnalyzeBtn">分析</button>
-    <button class="btn primary" id="rangeAnalyzeBtn">📊 区间统计</button>
-    <button class="btn" id="rangeClearBtn">取消</button>
-  </div>
-  <div class="chart-context-menu" id="chartContextMenu" role="menu" aria-label="K线快捷操作">
-    <button type="button" id="contextAddWatchBtn" role="menuitem">加入自选</button>
-    <button type="button" id="contextAnalyzeBtn" role="menuitem">分析此 K 线</button>
-  </div>
-</div>
-<div class="canvas-resizer" id="canvasResizer" role="separator" aria-label="调整画布高度" aria-orientation="horizontal" tabindex="0"></div>
-<div class="cards" id="cards" style="display:none;"></div>
-<div class="tables" id="tables" style="display:none;"></div>
-<div id="errorBox" class="err" style="display:none;"></div>
-</section>
-<section class="security-panel insight-panel" id="newsWorkspacePanel" role="tabpanel" aria-labelledby="securityTabNews" hidden></section>
-<section class="security-panel insight-panel" id="companyWorkspacePanel" role="tabpanel" aria-labelledby="securityTabCompany" hidden></section>
-</div>
-</div>
-<aside class="watchlist-rail" id="watchlistRail" aria-label="自选列表" aria-hidden="true">
-  <div class="watchlist-rail-header"><span id="watchlistRailHeading">自选</span><button class="btn icon-btn" id="watchlistRailCloseBtn" type="button" title="收起自选侧栏" aria-label="收起自选侧栏">&times;</button></div>
-  <div class="watchlist-groupbar">
-    <select class="watchlist-group-select" id="watchlistRailGroupSelect" aria-label="自选分组"></select>
-    <button class="btn watchlist-group-action" id="watchlistRailGroupAddBtn" type="button" title="新建分组" aria-label="新建分组">+</button>
-    <button class="btn watchlist-group-action" id="watchlistRailGroupDeleteBtn" type="button" title="删除分组" aria-label="删除分组">&times;</button>
-  </div>
-  <div class="watchlist-overview"><div class="watchlist-summary" id="watchlistSummary"></div><div class="watchlist-batchbar"><select class="watchlist-sort" id="watchlistSortSelect" aria-label="自选排序"></select><button class="btn watchlist-batch-open" id="watchlistBatchOpenBtn" type="button">批量打开</button></div></div>
-  <div class="watchlist-items watchlist-rail-items" id="watchlistRailItems"></div>
-</aside>
-<div class="group-dialog-backdrop" id="groupDialog" hidden>
-  <form class="group-dialog" id="groupDialogForm" aria-labelledby="groupDialogTitle">
-    <h2 class="group-dialog-title" id="groupDialogTitle">新建分组</h2>
-    <input class="group-dialog-input" id="groupDialogInput" type="text" maxlength="24" autocomplete="off" />
-    <div class="group-dialog-error" id="groupDialogError" aria-live="polite"></div>
-    <div class="group-dialog-actions"><button class="btn" id="groupDialogCancel" type="button">取消</button><button class="btn primary" id="groupDialogSubmit" type="submit">创建</button></div>
-  </form>
-</div>
-<div class="market-ticker" id="marketTicker" aria-live="polite"><div class="market-ticker-flow"><div class="market-ticker-track" id="marketTickerTrack"></div></div><div class="market-ticker-meta" id="marketTickerMeta"></div></div>
-<div class="activity-notice" id="activityNotice" role="status" aria-live="polite" hidden><span class="activity-notice-spinner" aria-hidden="true"></span><span id="activityNoticeText"></span></div>
-<div id="viewScrollbar" role="scrollbar" aria-controls="viewScroll" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
-  <div id="viewScrollbarThumb"></div>
-</div>
-</div>
+// @ts-nocheck
+// Generated from view/kline.html by scripts/generate-client-view.mjs.
 
-<script>
+const VIEW_STYLE = "\n  :host {\n    --bg: #ffffff;\n    --bg-soft: #f7f9fb;\n    --border: #e7ebef;\n    --text: #20242b;\n    --text-soft: #7a828c;\n    --accent: #ff6b00;\n    /* A-share convention: red = up, green = down. Foreign symbols switch\n       these two variables through data-market=\"foreign\" below. */\n    --up: #f04462;\n    --down: #00b578;\n    --warn: #ff7a00;\n    --info: #00a5ef;\n    --danger: #f04462;\n    --success: #00b578;\n    --shadow: 0 2px 10px rgba(24, 32, 45, 0.08);\n  }\n  :host([data-theme=\"dark\"]) {\n    --bg: #15191f;\n    --bg-soft: #20262e;\n    --border: #303842;\n    --text: #f5f7fa;\n    --text-soft: #aeb7c2;\n    --up: #ff6179;\n    --down: #20c997;\n    --warn: #fbbf24;\n    --info: #60a5fa;\n    --danger: #ff6670;\n    --success: #20c997;\n    --shadow: 0 1px 2px rgba(0,0,0,0.2);\n  }\n  :host([data-market=\"foreign\"]) {\n    --up: #00b578;\n    --down: #f04462;\n  }\n  :host([data-theme=\"dark\"][data-market=\"foreign\"]) {\n    --up: #20c997;\n    --down: #ff6179;\n  }\n  :host, .dsh-kline-view-body {\n    margin: 0; padding: 0; overflow: hidden;\n    background: var(--bg); color: var(--text);\n    font-family: -apple-system, \"Segoe UI\", system-ui, \"PingFang SC\", \"Microsoft YaHei\", sans-serif;\n    font-size: 13px; line-height: 1.5;\n    -webkit-font-smoothing: antialiased;\n  }\n  .dsh-kline-view-body { display: flex; flex-direction: column; min-height: auto; }\n  #viewShell {\n    position: relative; display: flex; flex-direction: column;\n    width: 100%; height: min(1120px, 100vh); min-height: 500px; max-height: 1120px;\n    overflow: hidden; background: var(--bg);\n  }\n  #viewShell.is-fullscreen, #viewShell.is-local-expanded {\n    width: 100vw; height: 100dvh; min-height: 100dvh; max-height: none; border-radius: 0;\n  }\n  #viewScroll {\n    flex: 1 1 auto; min-height: 0; width: 100%; padding-right: 16px;\n    overflow-x: auto; overflow-y: auto; scrollbar-width: none;\n  }\n  /* KLineChart must never be resized below its usable drawing width. */\n  #viewContent { min-width: 340px; min-height: 100%; }\n  #viewShell.watchlist-rail-open #viewScroll { padding-left: 236px; }\n  #viewScroll::-webkit-scrollbar { display: none; width: 0; height: 0; }\n  #viewScrollbar {\n    position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; width: 16px;\n    background: var(--bg-soft); border-left: 1px solid var(--border);\n    cursor: pointer; touch-action: none; user-select: none;\n  }\n  #viewScrollbar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }\n  #viewScrollbarThumb {\n    position: absolute; top: 0; left: 3px; right: 3px; height: 40px;\n    border-radius: 999px; background: var(--text-soft); cursor: grab;\n    will-change: transform;\n  }\n  #viewScrollbarThumb:hover { background: var(--text); }\n  #viewScrollbarThumb.dragging { background: var(--accent); cursor: grabbing; }\n  * { box-sizing: border-box; }\n  .row { display: flex; align-items: center; gap: 8px; }\n  .muted { color: var(--text-soft); }\n  .chip {\n    display: inline-block; padding: 2px 7px; border-radius: 4px;\n    background: var(--bg-soft); border: 1px solid var(--border);\n    color: var(--text-soft); font-size: 11px;\n  }\n  header.bar, .bar {\n    display: flex; align-items: center; justify-content: space-between; gap: 8px;\n    padding: 9px 12px; border-bottom: 1px solid var(--border);\n  }\n  .title { font-weight: 700; font-size: 15px; }\n  .quote { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; min-width: 0; }\n  .close { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }\n  .close.up { color: var(--up); }\n  .close.down { color: var(--down); }\n  .change { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }\n  .change.up { color: var(--up); }\n  .change.down { color: var(--down); }\n  .quote-meta { color: var(--text-soft); font-size: 11px; font-variant-numeric: tabular-nums; }\n  .btn {\n    min-height: 28px; padding: 4px 9px; border-radius: 4px; border: 1px solid var(--border);\n    background: var(--bg-soft); color: var(--text); cursor: pointer; font-size: 12px; white-space: nowrap;\n  }\n  .btn:hover { border-color: #cfd6de; background: #eef2f6; }\n  :host([data-theme=\"dark\"]) .btn:hover { background: #2a323c; border-color: #465260; }\n  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }\n  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }\n  #selectionAnalyzeBtn, #contextAnalyzeBtn { display: none; }\n  .btn.data-unavailable:not(.active) { opacity: .58; border-style: dashed; }\n  .icon-btn { width: 28px; min-width: 28px; padding: 0; display: inline-grid; place-items: center; font-size: 16px; line-height: 1; }\n  .workspace-bar {\n    display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 6px 12px;\n    border-bottom: 1px solid var(--border); background: var(--bg-soft);\n  }\n  .brand { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; min-width: 132px; color: var(--text); }\n  .brand-logo { width: 25px; height: 25px; object-fit: contain; border-radius: 3px; }\n  .brand-product { font-size: 13px; font-weight: 750; }\n  .workspace-tabs { display: flex; flex: 1 1 180px; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }\n  .workspace-tabs:empty { display: none; }\n  .workspace-tabs::-webkit-scrollbar { display: none; }\n  .workspace-tab { display: flex; align-items: center; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }\n  .workspace-tab.active { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }\n  .workspace-tab-select, .workspace-tab-close { border: 0; background: transparent; color: var(--text); cursor: pointer; height: 100%; }\n  .workspace-tab-select { max-width: 142px; padding: 0 6px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }\n  .workspace-tab-close { width: 22px; padding: 0; color: var(--text-soft); font-size: 16px; line-height: 1; }\n  .workspace-tab-close:hover { color: var(--down); }\n  .symbol-search { position: relative; flex: 0 1 292px; min-width: 184px; max-width: 292px; margin-left: auto; }\n  .symbol-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }\n  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }\n  .symbol-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }\n  .search-results { position: absolute; z-index: 40; top: calc(100% + 5px); left: 0; right: 0; display: none; max-height: 252px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); box-shadow: var(--shadow); }\n  .search-results.open { display: block; }\n  .search-result { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 7px 8px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }\n  .search-result:last-child { border-bottom: 0; }\n  .search-result:hover, .search-result:focus { background: var(--bg-soft); outline: none; }\n  .search-result[aria-selected=\"true\"] { background: color-mix(in srgb, var(--accent) 10%, var(--bg)); box-shadow: inset 2px 0 0 var(--accent); }\n  .search-result-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }\n  .search-result-symbol, .search-result-quote { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }\n  .search-result-quote.up { color: var(--up); }\n  .search-result-quote.down { color: var(--down); }\n  .search-empty { padding: 8px; color: var(--text-soft); font-size: 11px; }\n  .header-controls { display: flex; align-items: center; gap: 4px; }\n  .language-btn { width: 32px; min-width: 32px; padding: 0; }\n  .watchlist-wrap { position: relative; flex: 0 0 auto; }\n  .watchlist-popover {\n    position: absolute; z-index: 45; top: calc(100% + 6px); right: 0; width: min(300px, calc(100vw - 28px));\n    display: none; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow);\n  }\n  .watchlist-popover.open { display: block; }\n  .watchlist-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; }\n  .watchlist-groupbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; padding: 7px 8px; border-bottom: 1px solid var(--border); }\n  .watchlist-group-select { min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }\n  .watchlist-group-action { min-height: 28px; width: 28px; padding: 0; font-size: 16px; }\n  .watchlist-count { color: var(--text-soft); font-size: 10px; font-weight: 500; }\n  .watchlist-items { max-height: 252px; overflow-y: auto; }\n  .watchlist-empty { padding: 12px 9px; color: var(--text-soft); font-size: 11px; }\n  .watchlist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; width: 100%; padding: 7px 7px 7px 9px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }\n  .watchlist-item:hover { background: var(--bg-soft); }\n  .watchlist-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }\n  .watchlist-item-symbol { color: var(--text-soft); font-size: 10px; }\n  .watchlist-remove { align-self: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); cursor: pointer; font-size: 17px; line-height: 1; }\n  .watchlist-remove:hover { color: var(--down); background: var(--bg-soft); }\n  .watchlist-toggle.watched { color: var(--accent); border-color: var(--accent); }\n  .watchlist-rail-toggle { display: inline-grid; }\n  .watchlist-rail {\n    position: absolute; z-index: 24; top: 0; bottom: 31px; left: 0; width: 236px;\n    display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg);\n    box-shadow: var(--shadow); transform: translateX(-100%); transition: transform 160ms ease;\n    pointer-events: none;\n  }\n  #viewShell.watchlist-rail-open .watchlist-rail { transform: translateX(0); pointer-events: auto; }\n  .watchlist-rail-header { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 750; }\n  .watchlist-rail-items { flex: 1 1 auto; max-height: none; overflow-y: auto; }\n  .watchlist-rail .watchlist-item { min-height: 52px; }\n  .watchlist-rail .watchlist-item.current { background: color-mix(in srgb, var(--accent) 9%, var(--bg)); box-shadow: inset 2px 0 0 var(--accent); }\n  .watchlist-overview { padding: 7px 8px; border-bottom: 1px solid var(--border); }\n  .watchlist-summary { display: flex; justify-content: space-between; gap: 6px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }\n  .watchlist-summary .up { color: var(--up); } .watchlist-summary .down { color: var(--down); }\n  .watchlist-batchbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }\n  .watchlist-sort { min-width: 0; height: 27px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }\n  .watchlist-batch-open { min-height: 27px; padding-inline: 7px; font-size: 11px; }\n  .watchlist-item { grid-template-columns: minmax(0, 1fr) auto; }\n  .watchlist-item-main { min-width: 0; }\n  .watchlist-quote { align-self: center; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }\n  .watchlist-quote .up { color: var(--up); } .watchlist-quote .down { color: var(--down); }\n  .watchlist-quote .muted { font-size: 10px; }\n  .watchlist-select { width: 14px; height: 14px; margin: 0 5px 0 0; vertical-align: -2px; accent-color: var(--accent); }\n  .market-ticker { position: relative; z-index: 18; flex: 0 0 31px; width: calc(100% - 16px); margin-right: 16px; display: none; height: 31px; overflow: hidden; align-items: center; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(7px); font-size: 11px; font-variant-numeric: tabular-nums; }\n  .market-ticker.visible { display: flex; }\n  #viewShell.ticker-visible #viewScrollbar { bottom: 31px; }\n  .market-ticker-flow { flex: 1 1 auto; min-width: 0; overflow: hidden; }\n  .market-ticker-track { display: flex; align-items: center; min-width: max-content; gap: 22px; padding: 0 13px; white-space: nowrap; }\n  .market-ticker-track.scrolling { animation: ticker-scroll 28s linear infinite; }\n  .market-ticker:hover .market-ticker-track { animation-play-state: paused; }\n  .ticker-item { display: inline-flex; align-items: baseline; gap: 5px; }\n  .ticker-market { color: var(--text-soft); font-size: 9px; font-weight: 700; letter-spacing: .2px; }\n  .ticker-name { color: var(--text); font-weight: 650; }\n  .ticker-price { color: var(--text); }\n  .ticker-change.up { color: var(--up); }\n  .ticker-change.down { color: var(--down); }\n  .market-ticker-meta { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 22px; margin-right: 8px; padding-left: 7px; border-left: 1px solid var(--border); color: var(--text-soft); font-size: 10px; white-space: nowrap; }\n  .ticker-state { padding: 1px 4px; border-radius: 3px; background: var(--bg-soft); font-weight: 700; }\n  .ticker-state.delayed { color: var(--warn); }\n  .ticker-state.closed, .ticker-state.stale { color: var(--text-soft); }\n  .ticker-state.stale { color: var(--danger); }\n  @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-30%); } }\n  .timebar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }\n  .timebar::-webkit-scrollbar { display: none; }\n  .timebar-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }\n  .timebar-divider { width: 1px; align-self: stretch; background: var(--border); flex: 0 0 1px; }\n  .timebar .btn { min-width: 36px; }\n  .timebar .btn.active { box-shadow: inset 0 -2px 0 rgba(255,255,255,.5); }\n  .range-custom-popover {\n    position: absolute; z-index: 42; top: calc(100% + 5px); left: 12px; display: none; width: min(330px, calc(100vw - 28px));\n    padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow);\n  }\n  .range-custom-popover.open { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }\n  .range-custom-popover input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }\n  .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; padding: 6px 12px; border-bottom: 1px solid var(--border); }\n  .market-data-status { display: flex; align-items: center; gap: 7px; min-height: 27px; padding: 4px 12px; border-bottom: 1px solid var(--border); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }\n  .market-data-status strong { color: var(--text); font-weight: 600; }\n  .market-data-status .data-status { padding: 1px 4px; border-radius: 3px; background: var(--bg-soft); }\n  .market-data-status .data-status.live { color: var(--up); }\n  .market-data-status .data-status.delayed { color: var(--warn); }\n  .market-data-status .data-status.closed { color: var(--text-soft); }\n  .market-data-status .data-status.stale { color: var(--danger); }\n  .data-source-link { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 2px; }\n  .data-source-link:hover { color: var(--accent); }\n  .market-data-refresh { width: 24px; min-width: 24px; margin-left: auto; padding: 0; }\n  .market-data-refresh.loading { animation: ticker-spin .7s linear infinite; }\n  .toolbar-hint { color: var(--text-soft); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; flex: 0 0 auto; }\n  .indicator-menu-wrap { position: relative; }\n  .indicator-popover {\n    position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(336px, calc(100vw - 34px));\n    display: none; padding: 10px; border: 1px solid var(--border); border-radius: 6px;\n    background: var(--bg); box-shadow: var(--shadow);\n  }\n  .indicator-popover.open { display: block; }\n  .indicator-heading { font-size: 12px; font-weight: 700; margin: 2px 0 7px; }\n  .indicator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }\n  .indicator-choice { display: flex; align-items: center; gap: 6px; min-height: 25px; cursor: pointer; font-size: 12px; }\n  .indicator-choice input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }\n  .indicator-choice .indicator-note { color: var(--text-soft); font-size: 10px; }\n  .indicator-config { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }\n  .indicator-field { display: grid; gap: 3px; font-size: 10px; color: var(--text-soft); }\n  .indicator-field input { width: 100%; height: 27px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-soft); font: inherit; }\n  .indicator-apply { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }\n  #klineChart { width: 100%; min-width: 280px; height: 344px; background: var(--bg); }\n  .chart-wrap { position: relative; min-width: 280px; overflow: hidden; border-bottom: 1px solid var(--border); }\n  .session-guide-layer { position: absolute; z-index: 3; inset: 0 64px 0 0; overflow: hidden; pointer-events: none; }\n  .session-guide-divider { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text-soft) 58%, transparent); }\n  .session-guide-label { position: absolute; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }\n  .session-guide-label.start { transform: translateX(0); }\n  .session-guide-label.end { transform: translateX(-100%); }\n  .price-alert-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }\n  .price-alert-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--warn); }\n  .price-alert-line span { position: absolute; top: -15px; right: 4px; max-width: 185px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--warn); color: #fff; font-size: 10px; }\n  .canvas-resizer {\n    position: relative; height: 10px; margin: -1px 0 0; border-top: 1px solid var(--border);\n    background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none;\n  }\n  .canvas-resizer::before {\n    content: \"\"; position: absolute; left: 50%; top: 3px; width: 42px; height: 2px;\n    transform: translateX(-50%); border-radius: 2px; background: var(--text-soft); opacity: .72;\n  }\n  .canvas-resizer:hover::before, .canvas-resizer.dragging::before { background: var(--accent); opacity: 1; }\n  .canvas-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }\n  .chart-status {\n    position: absolute; top: 6px; right: 10px; font-size: 11px; color: var(--text-soft);\n    background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);\n    pointer-events: none; display: none;\n  }\n  .chart-loading-overlay {\n    position: absolute; z-index: 14; inset: 0; display: flex; align-items: center; justify-content: center;\n    background: color-mix(in srgb, var(--bg) 72%, transparent); pointer-events: none;\n  }\n  .chart-loading-overlay[hidden] { display: none; }\n  .chart-loading-card {\n    display: flex; align-items: center; gap: 9px; min-width: 150px; max-width: min(320px, calc(100% - 32px));\n    padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);\n    box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650;\n  }\n  .chart-loading-spinner { width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }\n  .chart-loading-overlay.complete { background: transparent; }\n  .chart-loading-overlay.complete .chart-loading-spinner { border: 0; animation: none; }\n  .chart-loading-overlay.complete .chart-loading-spinner::before { content: \"\\2713\"; color: var(--success); font-size: 17px; line-height: 16px; }\n  .chart-loading-overlay.failed { background: color-mix(in srgb, var(--bg) 82%, transparent); }\n  .chart-loading-overlay.failed .chart-loading-spinner { border: 0; animation: none; }\n  .chart-loading-overlay.failed .chart-loading-spinner::before { content: \"!\"; color: var(--danger); font-size: 17px; line-height: 16px; }\n  .percent-axis {\n    display: none; position: absolute; top: 0; right: 1px; z-index: 4; width: 64px;\n    pointer-events: none; font-size: 10px; font-variant-numeric: tabular-nums;\n  }\n  .percent-axis.visible { display: block; }\n  .percent-axis-title { position: absolute; top: 4px; right: 2px; color: var(--text-soft); font-size: 10px; }\n  .percent-tick { position: absolute; right: 2px; transform: translateY(-50%); padding: 0 2px; background: color-mix(in srgb, var(--bg) 88%, transparent); }\n  .percent-tick.up { color: var(--up); }\n  .percent-tick.down { color: var(--down); }\n  .percent-tick.flat { color: var(--text-soft); }\n  .cards {\n    display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px;\n    border-bottom: 1px solid var(--border);\n  }\n  .card {\n    flex: 1 1 110px; min-width: 110px; padding: 8px 10px;\n    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;\n  }\n  .card .k { font-size: 11px; color: var(--text-soft); }\n  .card .v { font-size: 16px; font-weight: 600; margin-top: 2px; }\n  .card .v.down { color: var(--down); }\n  .card .v.up { color: var(--up); }\n  .tables { padding: 10px 12px; border-bottom: 1px solid var(--border); max-height: 220px; overflow-y: auto; }\n  .tables .t-title { font-size: 12px; color: var(--text-soft); margin-bottom: 4px; }\n  table.t { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }\n  table.t th, table.t td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }\n  table.t th { background: var(--bg-soft); font-weight: 600; }\n  #rangeBanner {\n    position: absolute; left: 50%; transform: translateX(-50%); top: 10px;\n    display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n    background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;\n    box-shadow: var(--shadow); z-index: 5; font-size: 12px;\n  }\n  #rangeBanner #rangeText { color: var(--text); font-weight: 500; }\n  .alert-menu-wrap { position: relative; }\n  .alert-popover, .chart-context-menu {\n    display: none; position: absolute; z-index: 22; border: 1px solid var(--border); border-radius: 6px;\n    background: var(--bg); box-shadow: var(--shadow); color: var(--text);\n  }\n  .alert-popover.open, .chart-context-menu.open { display: block; }\n  .alert-popover { top: calc(100% + 5px); right: 0; width: 248px; padding: 8px; }\n  .alert-fields { display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; }\n  .alert-fields input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }\n  .alert-list { max-height: 150px; margin-top: 7px; overflow-y: auto; }\n  .alert-empty { padding: 5px 1px; color: var(--text-soft); font-size: 11px; }\n  .alert-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; align-items: center; padding: 5px 1px; border-top: 1px solid var(--border); font-size: 11px; }\n  .alert-item-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .chart-context-menu { min-width: 142px; padding: 4px; }\n  .chart-context-menu button { display: block; width: 100%; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; font-size: 12px; }\n  .chart-context-menu button:hover { background: var(--bg-soft); }\n  .compare-menu-wrap, .drawing-menu-wrap { position: relative; }\n  .compare-popover, .drawing-popover { display: none; position: absolute; z-index: 22; top: calc(100% + 5px); right: 0; width: 270px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }\n  .compare-popover.open, .drawing-popover.open { display: block; }\n  .compare-fields, .drawing-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }\n  .compare-fields input, .drawing-fields input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }\n  .compare-presets, .drawing-types { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }\n  .compare-mode { display: flex; gap: 0; margin-top: 7px; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; }\n  .compare-mode button { min-height: 25px; flex: 1; border: 0; border-radius: 0; background: var(--bg-soft); font-size: 10px; }\n  .compare-mode button + button { border-left: 1px solid var(--border); }\n  .compare-mode button.active { background: var(--accent); color: #fff; }\n  .compare-presets button, .drawing-types button { min-height: 25px; padding: 3px 6px; font-size: 10px; }\n  .compare-list, .drawing-list { max-height: 130px; margin-top: 7px; overflow-y: auto; }\n  .compare-item, .drawing-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; align-items: center; padding: 5px 1px; border-top: 1px solid var(--border); font-size: 11px; }\n  .compare-item-main, .drawing-item-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .comparison-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }\n  .comparison-stat { min-width: 0; padding: 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); font-size: 10px; }\n  .comparison-stat-label { display: block; overflow: hidden; color: var(--text-soft); text-overflow: ellipsis; white-space: nowrap; }\n  .comparison-stat-value { display: block; margin-top: 2px; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; }\n  .comparison-layer { display: none; }\n  .comparison-legend { display: none; }\n  .comparison-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }\n  .comparison-performance { display: grid; grid-template-columns: 176px minmax(0, 1fr); min-height: 112px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg); }\n  .comparison-performance[hidden] { display: none; }\n  .comparison-performance-head { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 12px; border-right: 1px solid var(--border); }\n  .comparison-performance-title { color: var(--text); font-size: 12px; font-weight: 700; }\n  .comparison-performance-subtitle { color: var(--text-soft); font-size: 10px; }\n  .comparison-performance-legend { display: grid; gap: 5px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }\n  .comparison-performance-legend span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n  .comparison-performance-canvas { position: relative; min-width: 0; min-height: 112px; }\n  .comparison-performance-svg { display: block; width: 100%; height: 112px; }\n  .comparison-performance-zero { stroke: var(--border); stroke-dasharray: 3 3; }\n  .comparison-performance-value { fill: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }\n  @media (max-width: 640px) {\n    .comparison-performance { grid-template-columns: 1fr; }\n    .comparison-performance-head { min-height: 60px; border-right: 0; border-bottom: 1px solid var(--border); }\n  }\n  /* MA/VWAP now render as native price indicators, sharing KLineChart's exact\n     pane transform while panning, zooming and resizing. */\n  .ma-layer { display: none; }\n  .ma-legend { display: none; position: absolute; z-index: 6; top: 8px; left: 64px; max-width: calc(100% - 132px); align-items: baseline; flex-wrap: wrap; gap: 4px 12px; pointer-events: none; font-size: 11px; font-variant-numeric: tabular-nums; }\n  .ma-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }\n  .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }\n  .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }\n  .activity-notice[hidden] { display: none; }\n  .activity-notice-spinner { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }\n  .activity-notice.complete .activity-notice-spinner, .activity-notice.failed .activity-notice-spinner { border: 0; animation: none; }\n  .activity-notice.complete .activity-notice-spinner::before { content: \"\\\\2713\"; color: var(--success); font-size: 16px; line-height: 14px; }\n  .activity-notice.failed .activity-notice-spinner::before { content: \"!\"; color: var(--danger); font-size: 16px; line-height: 14px; }\n  .user-drawing-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }\n  .user-horizontal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--info); }\n  .user-horizontal-line span { position: absolute; top: -15px; right: 4px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--info); color: #fff; font-size: 10px; }\n  .drawing-capture-layer { position: absolute; z-index: 8; inset: 0 64px 0 0; display: none; cursor: crosshair; }\n  .drawing-capture-layer.active { display: block; }\n  .security-nav { display: flex; align-items: center; gap: 18px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }\n  .security-nav::-webkit-scrollbar, .company-tabbar::-webkit-scrollbar { display: none; }\n  .security-nav-tab { position: relative; flex: 0 0 auto; height: 42px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }\n  .security-nav-tab:hover { color: var(--text); }\n  .security-nav-tab.active { color: var(--text); }\n  .security-nav-tab.active::after { content: \"\"; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); }\n  .security-nav-count { display: inline-grid; min-width: 16px; margin-left: 3px; padding: 0 3px; place-items: center; border-radius: 8px; background: var(--bg-soft); color: var(--text-soft); font-size: 9px; font-weight: 700; vertical-align: 1px; }\n  .security-panel[hidden] { display: none; }\n  .insight-panel { min-height: 0; padding: 0 12px 24px; }\n  .insight-source { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }\n  .insight-source.mock { color: var(--warn); }\n  .insight-source-footer { display: flex; align-items: center; justify-content: flex-end; min-height: 32px; margin-top: 18px; padding-top: 9px; border-top: 1px solid var(--border); }\n  .news-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; padding: 13px 0; border-top: 1px solid var(--border); }\n  .news-item:first-child { border-top: 0; }\n  .news-item-title { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }\n  .news-item-summary { grid-column: 1 / 2; overflow: hidden; color: var(--text-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }\n  .news-meta { align-self: center; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }\n  .news-kind { display: inline-block; min-width: 52px; margin-right: 7px; color: var(--accent); font-size: 10px; font-weight: 700; }\n  .company-tabbar { display: flex; gap: 5px; min-height: 50px; padding: 10px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }\n  .company-tab { flex: 0 0 auto; min-height: 29px; padding: 4px 10px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-soft); color: var(--text-soft); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }\n  .company-tab:hover { color: var(--text); border-color: var(--border); }\n  .company-tab.active { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); border-color: color-mix(in srgb, var(--accent) 22%, var(--border)); }\n  .company-content { padding-top: 18px; }\n  .company-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }\n  .company-section-heading h3 { margin: 0; font-size: 15px; font-weight: 750; }\n  .company-section-heading span { color: var(--text-soft); font-size: 10px; }\n  .company-metrics { display: grid; grid-template-columns: repeat(5, minmax(112px, 1fr)); border: 1px solid var(--border); }\n  .company-metric { min-width: 0; padding: 11px 12px; border-right: 1px solid var(--border); }\n  .company-metric:last-child { border-right: 0; }\n  .company-metric-label { display: block; overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }\n  .company-metric-value { display: block; overflow: hidden; margin-top: 3px; color: var(--text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }\n  .company-metric-value.up { color: var(--up); } .company-metric-value.down { color: var(--down); }\n  .company-detail-section { margin-top: 22px; }\n  .company-detail-section h3 { margin: 0 0 9px; color: var(--text-soft); font-size: 11px; font-weight: 700; }\n  .company-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); border-left: 1px solid var(--border); }\n  .company-detail { display: grid; gap: 3px; min-width: 0; min-height: 58px; padding: 9px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }\n  .company-detail-label { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }\n  .company-detail-value { overflow: hidden; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }\n  .company-info-table, .company-data-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\n  .company-info-table { margin-top: 18px; border: 1px solid var(--border); }\n  .company-info-table th, .company-info-table td { padding: 9px 11px; border: 1px solid var(--border); text-align: left; }\n  .company-info-table th { width: 15%; color: var(--text-soft); background: var(--bg-soft); font-size: 11px; font-weight: 650; }\n  .company-info-table td { width: 35%; font-size: 12px; }\n  .company-description { margin: 18px 0 0; color: var(--text-soft); font-size: 12px; line-height: 1.75; }\n  .company-data-table { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }\n  .company-data-table th, .company-data-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }\n  .company-data-table th:first-child, .company-data-table td:first-child { padding-left: 0; text-align: left; }\n  .company-data-table th:last-child, .company-data-table td:last-child { padding-right: 0; }\n  .company-data-table tr:last-child td { border-bottom: 0; }\n  .company-data-table th { color: var(--text-soft); font-size: 10px; font-weight: 650; }\n  .company-data-table td { font-size: 12px; }\n  .company-data-table .up { color: var(--up); } .company-data-table .down { color: var(--down); }\n  .holder-layout { display: grid; grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr); gap: 24px; align-items: start; }\n  .holder-summary { border-top: 1px solid var(--border); }\n  .holder-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }\n  .holder-summary-name { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }\n  .holder-summary-track { height: 5px; margin-top: 5px; overflow: hidden; background: var(--bg-soft); }\n  .holder-summary-fill { height: 100%; background: var(--info); }\n  .holder-summary-value { color: var(--text-soft); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }\n  .insight-empty { display: grid; min-height: 270px; place-items: center; color: var(--text-soft); font-size: 12px; text-align: center; }\n  .err { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--danger); padding: 8px 12px; }\n  .err-message { min-width: 0; overflow-wrap: anywhere; }\n  .err .btn { flex: 0 0 auto; }\n  .group-dialog-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 17, 25, .35); }\n  .group-dialog-backdrop[hidden] { display: none; }\n  .group-dialog { width: min(320px, 100%); padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }\n  .group-dialog-title { margin: 0 0 10px; font-size: 14px; }\n  .group-dialog-input { width: 100%; height: 32px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }\n  .group-dialog-error { min-height: 18px; margin-top: 5px; color: var(--danger); font-size: 11px; }\n  .group-dialog-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }\n  @media (max-width: 760px) {\n    .workspace-bar { flex-wrap: wrap; }\n    .brand { min-width: 0; }\n    .workspace-tabs { order: 3; flex-basis: 100%; }\n    .symbol-search { margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; }\n    .toolbar-hint { display: none; }\n    .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }\n    .toolbar::-webkit-scrollbar { display: none; }\n    .toolbar-actions { width: max-content; flex-wrap: nowrap; justify-content: flex-start; }\n    .ma-legend { left: 60px; max-width: calc(100% - 126px); }\n    .company-metrics { grid-template-columns: repeat(3, minmax(112px, 1fr)); }\n    .company-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n    .company-metric:nth-child(3) { border-right: 0; }\n    .company-metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }\n    .holder-layout { grid-template-columns: 1fr; gap: 18px; }\n  }\n  @media (max-width: 980px) {\n    #viewShell.watchlist-rail-open #viewScroll { padding-left: 0; }\n    .watchlist-rail, .watchlist-rail-toggle { display: none; }\n  }\n  @media (max-width: 480px) {\n    .workspace-bar { gap: 5px; padding: 6px 8px; }\n    .header-controls { gap: 3px; }\n    header.bar {\n      display: grid; grid-template-columns: minmax(0, 1fr) auto;\n      align-items: center; gap: 6px; padding-inline: 8px;\n    }\n    header.bar .row { min-width: 0; flex-wrap: nowrap; gap: 5px; }\n    header.bar .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n    header.bar .chip { padding-inline: 5px; }\n    header.bar .quote { display: grid; grid-template-columns: auto; justify-items: end; gap: 0; }\n    header.bar .close { font-size: 17px; line-height: 1.2; white-space: nowrap; }\n    header.bar .change { font-size: 11px; line-height: 1.2; white-space: nowrap; }\n    header.bar .quote-meta { display: none; }\n    .timebar { padding-inline: 8px; }\n    .toolbar { padding-inline: 8px; }\n    .range-custom-popover { left: 8px; }\n    .brand { min-width: auto; }\n    .brand-product { font-size: 11px; }\n    .security-nav { gap: 15px; padding-inline: 8px; }\n    .insight-panel { padding-inline: 8px; }\n    .company-metrics { grid-template-columns: repeat(2, minmax(112px, 1fr)); }\n    .company-detail-grid { grid-template-columns: 1fr; }\n    .company-metric { border-bottom: 1px solid var(--border); }\n    .company-metric:nth-child(2n) { border-right: 0; }\n    .company-metric:nth-last-child(-n+1) { border-bottom: 0; }\n    .company-info-table th, .company-info-table td { padding: 8px 7px; }\n    .company-info-table th { width: 23%; }\n    .news-item { gap: 4px 10px; }\n    .news-item-summary { grid-column: 1 / -1; }\n  }\n"
+const VIEW_MARKUP = "\n<div id=\"viewShell\">\n<div id=\"viewScroll\">\n<div id=\"viewContent\">\n<div class=\"workspace-bar\">\n  <div class=\"brand\" id=\"productBrand\" aria-label=\"dsh_kline Chart\"><img class=\"brand-logo\" src=\"/dsh-kline/logo.jpg\" alt=\"\" /><span class=\"brand-product\" id=\"brandProduct\">dsh_kline Chart</span></div>\n  <div class=\"workspace-tabs\" id=\"workspaceTabs\" role=\"tablist\" aria-label=\"Chart workspace tabs\"></div>\n  <div class=\"symbol-search\" id=\"symbolSearch\">\n    <form class=\"symbol-search-form\" id=\"symbolSearchForm\" role=\"search\">\n      <input id=\"symbolSearchInput\" type=\"search\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"搜索代码或名称\" aria-label=\"搜索股票\" />\n      <button class=\"btn\" id=\"symbolSearchBtn\" type=\"submit\">搜索</button>\n    </form>\n    <div class=\"search-results\" id=\"searchResults\" role=\"listbox\"></div>\n  </div>\n  <button class=\"btn icon-btn watchlist-rail-toggle\" id=\"watchlistRailToggle\" type=\"button\" title=\"展开自选侧栏\" aria-label=\"展开自选侧栏\" aria-expanded=\"false\">&#9776;</button>\n  <div class=\"watchlist-wrap\">\n    <button class=\"btn icon-btn watchlist-toggle\" id=\"watchlistBtn\" type=\"button\" aria-haspopup=\"menu\" aria-expanded=\"false\" title=\"自选列表\" aria-label=\"自选列表\">&#9734;</button>\n    <div class=\"watchlist-popover\" id=\"watchlistPopover\" role=\"menu\" aria-label=\"自选列表\">\n      <div class=\"watchlist-heading\"><span id=\"watchlistHeading\">自选</span><span class=\"watchlist-count\" id=\"watchlistCount\"></span></div>\n      <div class=\"watchlist-groupbar\">\n        <select class=\"watchlist-group-select\" id=\"watchlistGroupSelect\" aria-label=\"自选分组\"></select>\n        <button class=\"btn watchlist-group-action\" id=\"watchlistGroupAddBtn\" type=\"button\" title=\"新建分组\" aria-label=\"新建分组\">+</button>\n        <button class=\"btn watchlist-group-action\" id=\"watchlistGroupDeleteBtn\" type=\"button\" title=\"删除分组\" aria-label=\"删除分组\">&times;</button>\n      </div>\n      <div class=\"watchlist-items\" id=\"watchlistItems\"></div>\n    </div>\n  </div>\n  <div class=\"header-controls\">\n    <button class=\"btn language-btn\" id=\"languageToggle\" title=\"切换至 English\" aria-label=\"切换至 English\">EN</button>\n    <button class=\"btn icon-btn\" id=\"themeToggle\" title=\"切换至夜间模式\" aria-label=\"切换至夜间模式\">&#9789;</button>\n    <button class=\"btn icon-btn\" id=\"expandBtn\" aria-label=\"展开图表\" title=\"展开图表\">&#x26F6;</button>\n  </div>\n</div>\n<header class=\"bar\">\n  <div class=\"row\">\n    <span class=\"title\" id=\"name\">dsh_kline</span>\n    <span class=\"chip\" id=\"symbolChip\">—</span>\n    <button class=\"btn icon-btn watchlist-toggle\" id=\"watchCurrentBtn\" type=\"button\" title=\"加入自选\" aria-label=\"加入自选\">&#9734;</button>\n  </div>\n  <div class=\"quote\">\n    <span class=\"close\" id=\"qClose\">--</span>\n    <span class=\"change\" id=\"qChange\">--</span>\n    <span class=\"quote-meta\" id=\"qMeta\"></span>\n  </div>\n</header>\n<div class=\"market-data-status\" id=\"marketDataStatus\" aria-live=\"polite\"></div>\n<nav class=\"security-nav\" id=\"securityNav\" role=\"tablist\" aria-label=\"标的内容\">\n  <button class=\"security-nav-tab active\" id=\"securityTabChart\" type=\"button\" role=\"tab\" aria-selected=\"true\" aria-controls=\"chartWorkspacePanel\" data-security-tab=\"chart\">图表</button>\n  <button class=\"security-nav-tab\" id=\"securityTabNews\" type=\"button\" role=\"tab\" aria-selected=\"false\" aria-controls=\"newsWorkspacePanel\" data-security-tab=\"news\">新闻<span class=\"security-nav-count\" id=\"securityNewsCount\">0</span></button>\n  <button class=\"security-nav-tab\" id=\"securityTabCompany\" type=\"button\" role=\"tab\" aria-selected=\"false\" aria-controls=\"companyWorkspacePanel\" data-security-tab=\"company\">简况</button>\n</nav>\n<section class=\"security-panel\" id=\"chartWorkspacePanel\" role=\"tabpanel\" aria-labelledby=\"securityTabChart\">\n<div class=\"timebar\" id=\"timebar\">\n  <div class=\"timebar-group\" id=\"rangeControls\" role=\"tablist\" aria-label=\"时间范围\">\n    <button class=\"btn\" type=\"button\" data-range=\"1d\">1D</button>\n    <button class=\"btn\" type=\"button\" data-range=\"5d\">5D</button>\n    <button class=\"btn\" type=\"button\" data-range=\"10d\">10D</button>\n    <button class=\"btn\" type=\"button\" data-range=\"30d\">30D</button>\n    <button class=\"btn\" type=\"button\" data-range=\"ytd\">YTD</button>\n    <button class=\"btn active\" type=\"button\" data-range=\"1y\">1Y</button>\n    <button class=\"btn\" type=\"button\" data-range=\"5y\">5Y</button>\n    <button class=\"btn\" type=\"button\" data-range=\"custom\" id=\"customRangeBtn\">Custom</button>\n  </div>\n  <span class=\"timebar-divider\" aria-hidden=\"true\"></span>\n  <div class=\"timebar-group\" id=\"intervalControls\" role=\"tablist\" aria-label=\"K 线周期\">\n    <button class=\"btn active\" type=\"button\" data-interval=\"day\">Daily</button>\n    <button class=\"btn\" type=\"button\" data-interval=\"week\">Weekly</button>\n    <button class=\"btn\" type=\"button\" data-interval=\"month\">Monthly</button>\n    <button class=\"btn\" type=\"button\" data-interval=\"quarter\">Quarterly</button>\n    <button class=\"btn\" type=\"button\" data-interval=\"year\">Yearly</button>\n  </div>\n  <div class=\"range-custom-popover\" id=\"customRangePopover\" role=\"dialog\" aria-label=\"自定义时间范围\">\n    <input id=\"customRangeStart\" type=\"date\" aria-label=\"开始日期\" />\n    <input id=\"customRangeEnd\" type=\"date\" aria-label=\"结束日期\" />\n    <button class=\"btn primary\" id=\"applyCustomRangeBtn\" type=\"button\">Apply</button>\n  </div>\n</div>\n<div class=\"toolbar\">\n  <div class=\"toolbar-hint\" id=\"toolbarHint\">单击引用 K 线 · 再点选区间 · 点击标记引用分析</div>\n  <div class=\"toolbar-actions\">\n    <button class=\"btn\" id=\"clearBtn\">清标注</button>\n    <button class=\"btn icon-btn\" id=\"resetZoomBtn\" type=\"button\" title=\"重置缩放\" aria-label=\"重置缩放\">&#8634;</button>\n    <button class=\"btn\" id=\"volumeUnitBtn\" title=\"切换成交量单位\" aria-label=\"成交量单位：万\">万</button>\n    <button class=\"btn active\" id=\"maBtn\" data-ind=\"ma\">MA</button>\n    <button class=\"btn\" id=\"vwapBtn\" data-ind=\"vwap\">VWAP</button>\n    <button class=\"btn active\" id=\"volBtn\" data-ind=\"vol\">VOL</button>\n    <button class=\"btn\" id=\"macdBtn\" data-ind=\"macd\">MACD</button>\n    <button class=\"btn\" id=\"kdjBtn\" data-ind=\"kdj\">KDJ</button>\n    <button class=\"btn\" id=\"bollBtn\" data-ind=\"boll\">BOLL</button>\n    <div class=\"indicator-menu-wrap\">\n      <button class=\"btn\" id=\"indicatorMenuBtn\" aria-haspopup=\"menu\" aria-expanded=\"false\">指标</button>\n      <div class=\"indicator-popover\" id=\"indicatorPopover\" role=\"menu\" aria-label=\"指标与参数\">\n        <div class=\"indicator-heading\" id=\"indicatorHeading\">显示指标</div>\n        <div class=\"indicator-grid\">\n          <label class=\"indicator-choice\"><input id=\"indMa\" type=\"checkbox\" checked /><span>MA</span><span class=\"indicator-note\" data-i18n=\"maNote\">均线</span></label>\n          <label class=\"indicator-choice\"><input id=\"indVwap\" type=\"checkbox\" /><span>VWAP</span><span class=\"indicator-note\" data-i18n=\"vwapNote\">成交量加权</span></label>\n          <label class=\"indicator-choice\"><input id=\"indVol\" type=\"checkbox\" checked /><span>VOL</span><span class=\"indicator-note\" data-i18n=\"volNote\">万股</span></label>\n          <label class=\"indicator-choice\"><input id=\"indMacd\" type=\"checkbox\" /><span>MACD</span><span class=\"indicator-note\" data-i18n=\"macdNote\">动能</span></label>\n          <label class=\"indicator-choice\"><input id=\"indKdj\" type=\"checkbox\" /><span>KDJ</span><span class=\"indicator-note\" data-i18n=\"kdjNote\">随机指标</span></label>\n          <label class=\"indicator-choice\"><input id=\"indBoll\" type=\"checkbox\" /><span>BOLL</span><span class=\"indicator-note\" data-i18n=\"bollNote\">布林带</span></label>\n          <label class=\"indicator-choice\"><input id=\"indRsi\" type=\"checkbox\" /><span>RSI</span><span class=\"indicator-note\" data-i18n=\"rsiNote\">强弱</span></label>\n          <label class=\"indicator-choice\"><input id=\"indAtr\" type=\"checkbox\" /><span>ATR</span><span class=\"indicator-note\" data-i18n=\"atrNote\">波动率</span></label>\n        </div>\n        <div class=\"indicator-config\">\n          <label class=\"indicator-field\"><span data-i18n=\"maPeriods\">MA 周期（逗号分隔）</span><input id=\"maPeriodsInput\" inputmode=\"numeric\" value=\"5,10,20,30,60\" /></label>\n          <label class=\"indicator-field\"><span data-i18n=\"volumeMa\">VOL 均线周期</span><input id=\"volumeMaInput\" type=\"number\" min=\"2\" max=\"200\" value=\"5\" /></label>\n          <label class=\"indicator-field\"><span data-i18n=\"bollPeriod\">BOLL 周期</span><input id=\"bollPeriodInput\" type=\"number\" min=\"2\" max=\"200\" value=\"20\" /></label>\n          <label class=\"indicator-field\"><span data-i18n=\"bollStd\">BOLL 标准差</span><input id=\"bollStdInput\" type=\"number\" min=\"0.5\" max=\"5\" step=\"0.1\" value=\"2\" /></label>\n          <label class=\"indicator-field\"><span data-i18n=\"rsiPeriod\">RSI 周期</span><input id=\"rsiPeriodInput\" type=\"number\" min=\"2\" max=\"200\" value=\"14\" /></label>\n          <label class=\"indicator-field\"><span data-i18n=\"atrPeriod\">ATR 周期</span><input id=\"atrPeriodInput\" type=\"number\" min=\"2\" max=\"200\" value=\"14\" /></label>\n        </div>\n        <div class=\"indicator-apply\"><button class=\"btn primary\" id=\"applyIndicatorBtn\">应用</button></div>\n      </div>\n    </div>\n    <div class=\"alert-menu-wrap\">\n      <button class=\"btn\" id=\"alertMenuBtn\" type=\"button\" aria-haspopup=\"dialog\" aria-expanded=\"false\">预警</button>\n      <div class=\"alert-popover\" id=\"alertPopover\" role=\"dialog\" aria-label=\"价格预警\">\n        <div class=\"alert-fields\"><input id=\"alertPriceInput\" type=\"number\" inputmode=\"decimal\" step=\"0.01\" placeholder=\"价格\" aria-label=\"预警价格\" /><input id=\"alertNoteInput\" type=\"text\" maxlength=\"32\" placeholder=\"备注（可选）\" aria-label=\"预警备注\" /><button class=\"btn primary\" id=\"addAlertBtn\" type=\"button\">+</button></div>\n        <div class=\"alert-list\" id=\"alertList\"></div>\n      </div>\n    </div>\n    <div class=\"compare-menu-wrap\">\n      <button class=\"btn\" id=\"compareMenuBtn\" type=\"button\" aria-haspopup=\"dialog\" aria-expanded=\"false\">对比</button>\n      <div class=\"compare-popover\" id=\"comparePopover\" role=\"dialog\" aria-label=\"多标的对比\">\n        <div class=\"compare-fields\"><input id=\"compareSymbolInput\" type=\"text\" maxlength=\"32\" placeholder=\"代码或名称\" aria-label=\"对比标的\" /><button class=\"btn primary\" id=\"addCompareBtn\" type=\"button\">+</button></div>\n        <div class=\"compare-presets\"><button class=\"btn\" type=\"button\" data-compare-symbol=\"000300.XSHG\" data-compare-name=\"沪深300\">沪深300</button><button class=\"btn\" type=\"button\" data-compare-symbol=\"000001.XSHG\" data-compare-name=\"上证指数\">上证</button></div>\n        <div class=\"compare-mode\" role=\"group\" aria-label=\"对比模式\"><button type=\"button\" data-compare-mode=\"return\">相对收益</button><button type=\"button\" data-compare-mode=\"absolute\">绝对价格</button></div>\n        <div class=\"comparison-summary\" id=\"comparisonSummary\"></div>\n        <div class=\"compare-list\" id=\"compareList\"></div>\n      </div>\n    </div>\n    <div class=\"drawing-menu-wrap\">\n      <button class=\"btn\" id=\"drawingMenuBtn\" type=\"button\" aria-haspopup=\"dialog\" aria-expanded=\"false\">画线</button>\n      <div class=\"drawing-popover\" id=\"drawingPopover\" role=\"dialog\" aria-label=\"画线工具\">\n        <div class=\"drawing-fields\"><input id=\"drawingNameInput\" type=\"text\" maxlength=\"32\" placeholder=\"名称（可选）\" aria-label=\"画线名称\" /><button class=\"btn\" id=\"clearDrawingsBtn\" type=\"button\">清除</button></div>\n        <div class=\"drawing-types\"><button class=\"btn\" type=\"button\" data-drawing-type=\"trend\">趋势线</button><button class=\"btn\" type=\"button\" data-drawing-type=\"horizontal\">水平线</button><button class=\"btn\" type=\"button\" data-drawing-type=\"rect\">矩形</button><button class=\"btn\" type=\"button\" data-drawing-type=\"fibonacci\">斐波那契</button></div>\n        <div class=\"drawing-list\" id=\"drawingList\"></div>\n      </div>\n    </div>\n  </div>\n</div>\n<section class=\"comparison-performance\" id=\"comparisonPerformance\" hidden aria-label=\"标的对比走势\">\n  <div class=\"comparison-performance-head\"><span class=\"comparison-performance-title\" id=\"comparisonPerformanceTitle\">区间涨跌</span><span class=\"comparison-performance-subtitle\" id=\"comparisonPerformanceSubtitle\">以首个共同交易点为 0%</span><div class=\"comparison-performance-legend\" id=\"comparisonPerformanceLegend\"></div></div>\n  <div class=\"comparison-performance-canvas\"><svg class=\"comparison-performance-svg\" id=\"comparisonPerformanceSvg\" aria-hidden=\"true\"></svg></div>\n</section>\n<div class=\"chart-wrap\">\n  <div id=\"klineChart\"></div>\n  <div class=\"session-guide-layer\" id=\"sessionGuideLayer\" aria-hidden=\"true\"></div>\n  <svg class=\"ma-layer\" id=\"maLayer\" aria-hidden=\"true\"></svg>\n  <div class=\"ma-legend\" id=\"maLegend\" aria-hidden=\"true\"></div>\n  <div class=\"crosshair-time-label\" id=\"crosshairTimeLabel\" hidden aria-hidden=\"true\"></div>\n  <svg class=\"comparison-layer\" id=\"comparisonLayer\" aria-hidden=\"true\"></svg>\n  <div class=\"comparison-legend\" id=\"comparisonLegend\" aria-hidden=\"true\"></div>\n  <div class=\"user-drawing-layer\" id=\"userDrawingLayer\" aria-hidden=\"true\"></div>\n  <div class=\"drawing-capture-layer\" id=\"drawingCaptureLayer\" aria-hidden=\"true\"></div>\n  <div class=\"price-alert-layer\" id=\"priceAlertLayer\" aria-hidden=\"true\"></div>\n  <div class=\"percent-axis\" id=\"percentAxis\" aria-label=\"涨跌幅坐标轴\"></div>\n  <div class=\"chart-status\" id=\"chartStatus\"></div>\n  <div class=\"chart-loading-overlay\" id=\"chartLoadingOverlay\" role=\"status\" aria-live=\"polite\" hidden><div class=\"chart-loading-card\"><span class=\"chart-loading-spinner\" aria-hidden=\"true\"></span><span id=\"chartLoadingText\">正在拉取数据…</span></div></div>\n  <div id=\"rangeBanner\" style=\"display:none;\">\n    <span id=\"rangeText\"></span>\n    <button class=\"btn primary\" id=\"selectionAnalyzeBtn\">分析</button>\n    <button class=\"btn primary\" id=\"rangeAnalyzeBtn\">📊 区间统计</button>\n    <button class=\"btn\" id=\"rangeClearBtn\">取消</button>\n  </div>\n  <div class=\"chart-context-menu\" id=\"chartContextMenu\" role=\"menu\" aria-label=\"K线快捷操作\">\n    <button type=\"button\" id=\"contextAddWatchBtn\" role=\"menuitem\">加入自选</button>\n    <button type=\"button\" id=\"contextAnalyzeBtn\" role=\"menuitem\">分析此 K 线</button>\n  </div>\n</div>\n<div class=\"canvas-resizer\" id=\"canvasResizer\" role=\"separator\" aria-label=\"调整画布高度\" aria-orientation=\"horizontal\" tabindex=\"0\"></div>\n<div class=\"cards\" id=\"cards\" style=\"display:none;\"></div>\n<div class=\"tables\" id=\"tables\" style=\"display:none;\"></div>\n<div id=\"errorBox\" class=\"err\" style=\"display:none;\"></div>\n</section>\n<section class=\"security-panel insight-panel\" id=\"newsWorkspacePanel\" role=\"tabpanel\" aria-labelledby=\"securityTabNews\" hidden></section>\n<section class=\"security-panel insight-panel\" id=\"companyWorkspacePanel\" role=\"tabpanel\" aria-labelledby=\"securityTabCompany\" hidden></section>\n</div>\n</div>\n<aside class=\"watchlist-rail\" id=\"watchlistRail\" aria-label=\"自选列表\" aria-hidden=\"true\">\n  <div class=\"watchlist-rail-header\"><span id=\"watchlistRailHeading\">自选</span><button class=\"btn icon-btn\" id=\"watchlistRailCloseBtn\" type=\"button\" title=\"收起自选侧栏\" aria-label=\"收起自选侧栏\">&times;</button></div>\n  <div class=\"watchlist-groupbar\">\n    <select class=\"watchlist-group-select\" id=\"watchlistRailGroupSelect\" aria-label=\"自选分组\"></select>\n    <button class=\"btn watchlist-group-action\" id=\"watchlistRailGroupAddBtn\" type=\"button\" title=\"新建分组\" aria-label=\"新建分组\">+</button>\n    <button class=\"btn watchlist-group-action\" id=\"watchlistRailGroupDeleteBtn\" type=\"button\" title=\"删除分组\" aria-label=\"删除分组\">&times;</button>\n  </div>\n  <div class=\"watchlist-overview\"><div class=\"watchlist-summary\" id=\"watchlistSummary\"></div><div class=\"watchlist-batchbar\"><select class=\"watchlist-sort\" id=\"watchlistSortSelect\" aria-label=\"自选排序\"></select><button class=\"btn watchlist-batch-open\" id=\"watchlistBatchOpenBtn\" type=\"button\">批量打开</button></div></div>\n  <div class=\"watchlist-items watchlist-rail-items\" id=\"watchlistRailItems\"></div>\n</aside>\n<div class=\"group-dialog-backdrop\" id=\"groupDialog\" hidden>\n  <form class=\"group-dialog\" id=\"groupDialogForm\" aria-labelledby=\"groupDialogTitle\">\n    <h2 class=\"group-dialog-title\" id=\"groupDialogTitle\">新建分组</h2>\n    <input class=\"group-dialog-input\" id=\"groupDialogInput\" type=\"text\" maxlength=\"24\" autocomplete=\"off\" />\n    <div class=\"group-dialog-error\" id=\"groupDialogError\" aria-live=\"polite\"></div>\n    <div class=\"group-dialog-actions\"><button class=\"btn\" id=\"groupDialogCancel\" type=\"button\">取消</button><button class=\"btn primary\" id=\"groupDialogSubmit\" type=\"submit\">创建</button></div>\n  </form>\n</div>\n<div class=\"market-ticker\" id=\"marketTicker\" aria-live=\"polite\"><div class=\"market-ticker-flow\"><div class=\"market-ticker-track\" id=\"marketTickerTrack\"></div></div><div class=\"market-ticker-meta\" id=\"marketTickerMeta\"></div></div>\n<div class=\"activity-notice\" id=\"activityNotice\" role=\"status\" aria-live=\"polite\" hidden><span class=\"activity-notice-spinner\" aria-hidden=\"true\"></span><span id=\"activityNoticeText\"></span></div>\n<div id=\"viewScrollbar\" role=\"scrollbar\" aria-controls=\"viewScroll\" aria-orientation=\"vertical\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" tabindex=\"0\">\n  <div id=\"viewScrollbarThumb\"></div>\n</div>\n</div>\n\n\n"
+
+export function mountKlineView(root, payload) {
+  const host = root.host
+  root.innerHTML = `<style>${VIEW_STYLE}</style><div class="dsh-kline-view-body">${VIEW_MARKUP}</div>`
+  const body = root.querySelector('.dsh-kline-view-body')
+  const lifecycle = createScopedWindow(host, payload)
+  const window = lifecycle.window
+  const document = createScopedDocument(root, host, body)
+  const fetch = (input, init) => {
+    if (typeof input === 'string' && input.startsWith('/api/tools/')) {
+      return globalThis.fetch('/dsh-kline/api/tools/' + input.slice('/api/tools/'.length), init)
+    }
+    return globalThis.fetch(input, init)
+  }
+
+
 "use strict";
 
 /* ---------- standalone dsh_kline chart API ---------- */
@@ -5535,6 +4827,84 @@ init().catch((error) => {
   console.error("dsh_kline chart init", error);
   showError(`图表初始化失败：${String(error?.message || error)}`);
 });
-</script>
-</body>
-</html>
+
+
+  return () => {
+    lifecycle.dispose()
+    root.innerHTML = ''
+  }
+}
+
+function createScopedDocument(root, host, body) {
+  const realDocument = globalThis.document
+  return new Proxy(realDocument, {
+    get(target, property) {
+      if (property === 'documentElement') return host
+      if (property === 'body') return body
+      if (property === 'activeElement') return root.activeElement
+      if (property === 'getElementById') return id => root.getElementById(id)
+      if (property === 'querySelector') return selector => root.querySelector(selector)
+      if (property === 'querySelectorAll') return selector => root.querySelectorAll(selector)
+      if (property === 'addEventListener') return (...args) => root.addEventListener(...args)
+      if (property === 'removeEventListener') return (...args) => root.removeEventListener(...args)
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+}
+
+function createScopedWindow(host, payload) {
+  const realWindow = globalThis.window
+  const local = new Map([['__DSH_CHART_SESSION__', payload]])
+  const listeners = []
+  const intervals = new Set()
+  const timeouts = new Set()
+  const proxy = new Proxy(realWindow, {
+    get(target, property) {
+      if (local.has(property)) return local.get(property)
+      if (property === 'innerHeight') return host.clientHeight || target.innerHeight
+      if (property === 'addEventListener') return (type, listener, options) => {
+        listeners.push([type, listener, options])
+        target.addEventListener(type, listener, options)
+      }
+      if (property === 'removeEventListener') return (type, listener, options) => target.removeEventListener(type, listener, options)
+      if (property === 'setInterval') return (handler, timeout, ...args) => {
+        const id = target.setInterval(handler, timeout, ...args)
+        intervals.add(id)
+        return id
+      }
+      if (property === 'clearInterval') return id => {
+        intervals.delete(id)
+        target.clearInterval(id)
+      }
+      if (property === 'setTimeout') return (handler, timeout, ...args) => {
+        const id = target.setTimeout(handler, timeout, ...args)
+        timeouts.add(id)
+        return id
+      }
+      if (property === 'clearTimeout') return id => {
+        timeouts.delete(id)
+        target.clearTimeout(id)
+      }
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+    set(_target, property, value) {
+      local.set(property, value)
+      return true
+    },
+  })
+  return {
+    window: proxy,
+    dispose() {
+      for (const [type, listener] of listeners) {
+        if (type === 'beforeunload') {
+          try { listener(new Event('beforeunload')) } catch {}
+        }
+      }
+      for (const [type, listener, options] of listeners) realWindow.removeEventListener(type, listener, options)
+      for (const id of intervals) realWindow.clearInterval(id)
+      for (const id of timeouts) realWindow.clearTimeout(id)
+    },
+  }
+}

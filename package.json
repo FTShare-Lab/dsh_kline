@@ -5,6 +5,31 @@
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
   "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/FTShare-Lab/dsh_kline.git"
@@ -28,14 +53,23 @@
     "dsh": "dsh",
     "dsh:version": "dsh --version",
     "bootstrap": "bash ./scripts/bootstrap.sh",
-    "dsh:dump": "dsh --profile web --patch ./config/dsh-kline.patch.yml --dump-config",
-    "dsh:web": "dsh --profile web --patch ./config/dsh-kline.patch.yml",
+    "generate:client-view": "node ./scripts/generate-client-view.mjs",
+    "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts",
+    "dsh:dump": "bash ./scripts/run-dsh-web.sh --dump-config",
+    "dsh:web": "bash ./scripts/run-dsh-web.sh",
     "chart:preview": ".venv/bin/python ./scripts/preview-chart.py",
     "smoke:mcp": "bash ./scripts/smoke-mcp.sh",
     "smoke:live": "bash ./scripts/live-smoke.sh",
     "smoke:markets": ".venv/bin/python ./scripts/smoke-markets.py"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.1.0-rc.6"
+    "@deepseek-ai/dsh": "0.1.0-rc.6",
+    "@types/node": "22.20.0",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.22.2",
+    "typescript": "6.0.3"
   }
 }

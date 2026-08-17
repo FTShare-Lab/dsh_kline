@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 
 import chart_service
@@ -53,6 +54,36 @@ def test_chart_session_store_expires_and_evicts() -> None:
 
     store._items[second] = chart_service.ChartSession(payload={"symbol": "B"}, created_at=time.time() - 2)
     assert store.get(second) is None
+
+
+def test_chart_session_json_endpoint_uses_the_same_in_memory_payload() -> None:
+    store = chart_service.ChartSessionStore()
+    token = store.create({"symbol": "00700.HK", "chartCommands": []})
+
+    assert store.get(token) == {"symbol": "00700.HK", "chartCommands": []}
+
+
+def test_runtime_session_manifest_is_atomic_and_bounded(tmp_path, monkeypatch) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_file = runtime_dir / "chart-session.json"
+    monkeypatch.setattr(chart_service, "RUNTIME_DIR", runtime_dir)
+    monkeypatch.setattr(chart_service, "RUNTIME_SESSION_FILE", runtime_file)
+
+    chart_service._write_runtime_session(
+        "session-test",
+        "http://127.0.0.1:8765/chart/session-test",
+        {"symbol": "00700.HK", "name": "腾讯控股", "rows": [{"close": 440.0}]},
+    )
+
+    manifest = json.loads(runtime_file.read_text(encoding="utf-8"))
+    assert manifest["ok"] is True
+    assert manifest["process_id"] > 0
+    assert manifest["session"] == "session-test"
+    assert manifest["chart_url"] == "http://127.0.0.1:8765/chart/session-test"
+    assert manifest["symbol"] == "00700.HK"
+    assert manifest["name"] == "腾讯控股"
+    assert isinstance(manifest["published_at"], int)
+    assert list(runtime_dir.glob("chart-session-*.json")) == []
 
 
 def test_chart_api_dispatches_tools_and_rejects_unknown(monkeypatch) -> None:

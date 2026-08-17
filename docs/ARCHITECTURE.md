@@ -6,7 +6,12 @@ repository owns its complete runtime tool path.
 ## Runtime
 
 ```text
-dsh agent loop
+dsh web
+  -> native dsh_kline client bundle (collapsible right sidebar)
+       -> same-origin latest-session manifest
+       -> Shadow DOM chart workspace rendered by the client bundle
+       -> same-origin chart data and tool proxy
+  -> dsh agent loop
   -> dsh MCP client
   -> local stdio server (`server.py`)
        -> installed FTShare Python SDK
@@ -16,10 +21,13 @@ dsh agent loop
        -> compact text result and structured chart data
        -> `chart_service` session store and loopback chart URL
 
-The chart URL serves the vendored `view/kline.html` and `view/vendor/klinecharts.min.js`
-from the same process. The page calls same-origin `/api/tools/*` routes for
-range changes, symbol search, comparisons, and optional security workspace data.
-It does not use MCP Apps `postMessage`, `window.openai`, or a resource handshake.
+The client build generates a scoped module from the vendored `view/kline.html`
+workspace and mounts it directly into a Shadow DOM inside the native, resizable
+sidebar. It does not create an iframe and does not read `chart_url`. The Harness
+web server exposes the latest in-memory payload, KLineCharts vendor asset, and
+same-origin `/dsh-kline/api/tools/*` proxy used for range changes, symbol search,
+comparisons, news, and company data. `chart_url` remains structured compatibility
+data for hosts without the DSH client plugin.
 ```
 
 The process does not connect to FTShare-MCP, spawn another MCP process, import
@@ -41,7 +49,7 @@ that exact row set, and returns:
 - compact JSON in the MCP text block for the model;
 - canonical rows and a provider-neutral chart specification in
   `structuredContent`;
-- `chart_url` and `chart_session` for the standalone browser view.
+- `chart_session` for the native sidebar, plus `chart_url` for non-DSH host fallback.
 
 `fetch_candles` and `calc_metrics` remain available for debugging and capable
 MCP hosts, but current dsh prompts should not chain them because dsh does not

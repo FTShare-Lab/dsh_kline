@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -67,8 +68,9 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert 'chartEl?.addEventListener("wheel"' not in html
     assert 'expandChart: "Expand chart"' in html
     assert 'percentAxis: "Change %"' in html
-    assert 'legend.style.display = "flex"' not in html
-    assert 'kchart.createIndicator({ name: "MA", calcParams: maPeriods }' in html
+    assert 'legend.style.display = "flex"' in html
+    assert "registerMaGroupIndicator" in html
+    assert "activeMaGroupName" in html
     assert 'if (!previousSymbol || previousSymbol !== nextSymbol)' in html
 
 
@@ -89,6 +91,24 @@ def test_frontend_uses_only_supported_same_origin_chart_actions() -> None:
     assert "watchlist_list" not in html
     assert "watchlist_replace" not in html
     assert 'fetch(`/api/tools/${encodeURIComponent(name)}`' in html
+
+
+def test_dsh_sidebar_renders_the_chart_directly_without_an_iframe() -> None:
+    source = (ROOT / "src" / "client" / "index.tsx").read_text(encoding="utf-8")
+    package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+
+    assert package["dsh"]["client"]["platform"] == "web"
+    assert package["exports"]["./client"]["default"] == "./lib/client.js"
+    assert "'/dsh-kline/session'" in source
+    assert "<iframe" not in source
+    assert "session.chart_url" not in source
+    assert "function NativeKlineApp" in source
+    assert "mountKlineView" in source
+    assert "'/dsh-kline/data'" in source
+    assert "'/dsh-kline/vendor/klinecharts.min.js'" in source
+    assert "attachShadow({ mode: 'open' })" in source
+    assert "--dsh-kline-sidebar-width" in source
+    assert 'role="separator"' in source
 
 
 def test_frontend_has_no_mcp_app_or_original_host_runtime_dependency() -> None:

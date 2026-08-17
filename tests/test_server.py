@@ -38,6 +38,7 @@ def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_error
     assert "Do not call health or fetch_candles first" in server.mcp.instructions
     assert "explain that error and stop" in server.mcp.instructions
     assert "same call adds the calculated levels" in server.mcp.instructions
+    assert "do not print chart_url" in server.mcp.instructions
 
 
 def test_health_reports_installed_sdk(monkeypatch) -> None:
@@ -112,7 +113,7 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert summary["source"] == "ftshare"
     assert summary["count"] == 60
     assert "chart" not in summary
-    assert summary["chart_url"] == data["chart_url"]
+    assert "chart_url" not in summary
 
 
 def test_analyze_kline_adds_support_and_resistance_marks_to_chart(monkeypatch) -> None:
@@ -214,4 +215,4 @@ def test_analyze_kline_keeps_text_analysis_when_chart_service_fails(monkeypatch)
         "error": "chart_service_unavailable",
         "message": "port unavailable",
     }
-    assert json.loads(result.content[0].text.split(" · ", 1)[1])["chart_url"] is None
+    assert "chart_url" not in json.loads(result.content[0].text.split(" · ", 1)[1])

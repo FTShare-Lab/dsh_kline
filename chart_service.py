@@ -11,6 +11,7 @@ import base64
 import json
 import os
 import secrets
+import tempfile
 import threading
 import time
 from collections import OrderedDict
@@ -36,6 +37,8 @@ ROOT = Path(__file__).resolve().parent
 VIEW_FILE = ROOT / "view" / "kline.html"
 VENDOR_FILE = ROOT / "view" / "vendor" / "klinecharts.min.js"
 LOGO_FILE = ROOT / "view" / "ft-logo.jpg"
+RUNTIME_DIR = ROOT / ".runtime"
+RUNTIME_SESSION_FILE = RUNTIME_DIR / "chart-session.json"
 SERVER_VERSION = "0.1.0"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -162,6 +165,17 @@ class ChartRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_bytes(render_chart_html(payload), "text/html; charset=utf-8")
             return
+        if path.startswith("/api/session/"):
+            token = path.removeprefix("/api/session/").strip("/")
+            payload = self.session_store.get(token)
+            if payload is None:
+                self._send_json(
+                    {"ok": False, "error": "chart_session_not_found", "message": "Chart session expired or does not exist."},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_json({"ok": True, "session": token, "payload": payload})
+            return
         self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -232,7 +246,35 @@ class ChartService:
 
     def publish(self, payload: dict[str, Any]) -> tuple[str, str]:
         token = self.store.create(payload)
-        return token, f"http://{self.host}:{self.port}/chart/{token}"
+        chart_url = f"http://{self.host}:{self.port}/chart/{token}"
+        _write_runtime_session(token, chart_url, payload)
+        return token, chart_url
+
+
+def _write_runtime_session(token: str, chart_url: str, payload: dict[str, Any]) -> None:
+    RUNTIME_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    document = {
+        "ok": True,
+        "process_id": os.getpid(),
+        "session": token,
+        "chart_url": chart_url,
+        "symbol": str(payload.get("symbol") or ""),
+        "name": str(payload.get("name") or ""),
+        "published_at": int(time.time()),
+    }
+    descriptor, temp_name = tempfile.mkstemp(prefix="chart-session-", suffix=".json", dir=RUNTIME_DIR)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(document, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, RUNTIME_SESSION_FILE)
+    finally:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
 
 
 _service: ChartService | None = None

@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-kline-sidebar
+      name: '@ftshare-lab/dsh-kline'

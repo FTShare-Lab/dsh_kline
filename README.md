@@ -1,53 +1,33 @@
 # dsh_kline
 
-`dsh_kline` 是面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-的 K 线分析 MCP。项目推荐使用
-[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)，并针对其
-市场代码、历史行情限制和多市场数据结构做了原生适配；也支持接入其他符合统一
-OHLCV 结构的数据源。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的交互式
+K 线分析工具。一次 `analyze_kline` 调用即可完成行情获取、技术指标计算、支撑压力
+分析，并在 Harness 右侧栏直接展示图表。
 
-一次 `analyze_kline` 调用即可完成数据获取、指标计算和图表生成。
-
-## 界面预览
-
-![桌面版交互式 K 线图](docs/images/chart-desktop.jpg)
-
-主图使用 FTShare 数据展示 K 线、技术指标和时间范围切换。
+![DeepSeek Harness K 线分析侧栏](docs/images/dsh-sidebar.png)
 
 ## 功能
 
-- 支持港股、美股和 A 股日线分析
-- 提供 MA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP
-- 自动计算支撑位和压力位，并在对应 K 线上标注价位与触及次数
-- 提供缩放、拖动、十字线和响应式交互式图表
-- 图表可切换 10D、30D、YTD、1Y、5Y 等范围
-- 通过本机临时 URL 查看图表，数据只保存在内存中
-- 指标计算采用统一 OHLCV 数据结构，可接入自有数据源
+- 港股、美股和 A 股 K 线分析
+- MA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP
+- 支撑位、压力位及触及次数标注
+- 个股相关新闻、公司简况和基本面信息
+- 缩放、拖动、十字线、范围切换和响应式布局
+- DSH 原生可折叠、可调宽侧栏；移动端自动切换为全屏图表
+- 标准 OHLCV 计算接口，可扩展自有数据源
 
-### 支撑位、压力位与标注
-
-![支撑位和压力位标注](docs/images/chart-support-resistance.jpg)
-
-`analyze_kline` 可在一次调用中计算支撑位和压力位，并把价位与触及次数标到对应
-K 线上。图中使用确定性预览数据，仅用于展示标注效果。
-
-### 响应式布局
-
-<img src="docs/images/chart-mobile.jpg" alt="移动端交互式 K 线图" width="390">
-
-移动端保留指标切换、缩放、拖动、十字线和时间范围控制。
+`analyze_kline` 可在同一次调用中计算并标注支撑位、压力位与触及次数。图表中的
+“新闻”和“简况”页签可查看数据源返回的资讯、公司资料和基本面摘要；数据缺失时会
+显示明确的空状态。移动端保留指标切换、缩放、拖动、十字线和时间范围控制。
 
 ## 环境要求
 
 - Node.js `>=22.19.0`
 - pnpm `11.7.0`
 - Python `>=3.10`
-- DeepSeek API Key
+- 可用的 DeepSeek Harness 模型配置
 
-## 首次本地部署
-
-DeepSeek Harness 会调用并自动启动 `dsh_kline`，但不会替用户下载 MCP 服务端代码
-或安装 FTShare SDK。因此首次使用需要完成一次本地部署：
+## 安装
 
 ```bash
 git clone https://github.com/FTShare-Lab/dsh_kline.git
@@ -56,8 +36,8 @@ pnpm install --frozen-lockfile
 ./scripts/bootstrap.sh
 ```
 
-`pnpm install` 安装固定版本的 DeepSeek Harness；`bootstrap.sh` 创建 `.venv`，并
-安装 `dsh_kline` 所需的 Python 依赖及推荐的 FTShare SDK 数据源。
+`bootstrap.sh` 会创建 `.venv`，安装 Python 依赖，以及默认推荐的
+[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)。
 
 ## 启动
 
@@ -65,45 +45,37 @@ pnpm install --frozen-lockfile
 pnpm dsh:web
 ```
 
-无需单独启动 MCP。上述命令会启动 dsh Web，并由 Harness 通过 `stdio` 自动启动
-`dsh_kline`。后续使用通常只需要运行这一条命令。
+该命令会构建并注册 DSH 原生侧栏，然后由 Harness 自动启动 `dsh_kline` MCP。
+无需另开终端启动 MCP 或图表服务。按终端输出的地址进入 dsh Web，并在设置中完成
+模型配置即可使用。
 
-按终端输出的地址打开 dsh Web，进入 **Settings -> Models** 配置 DeepSeek API
-Key，然后选择 `dsh_kline` workspace。
-
-也可以通过环境变量提供 Key：
+也可以通过本机环境变量提供 DeepSeek API Key：
 
 ```bash
 export DEEPSEEK_API_KEY='your_key_here'
 pnpm dsh:web
 ```
 
-API Key 只能保存在本机，不要提交到 Git。
+不要把 API Key 写入代码或提交到 Git。
 
 ## 使用
 
-在 dsh Web 中直接输入，例如：
+在 dsh Web 中直接输入：
 
 ```text
 分析 00700.HK 最近 60 根日 K，显示 MA、成交量、MACD、RSI、BOLL、ATR 和 VWAP，
-分析并标注支撑位和压力位，用中文总结趋势并提供交互式图表链接。
+分析并标注支撑位和压力位，用中文总结趋势。
 ```
 
-![DeepSeek Harness 单次调用 analyze_kline](docs/images/harness-analyze-kline.jpg)
-
-上图展示 DeepSeek Harness 通过一次 `analyze_kline` 调用返回行情摘要和数据来源；
-完整结果同时包含 `chart_url`。截图不包含 API Key 或其他凭据。
-
-推荐始终使用单次调用工具：
+推荐的单次调用工具是：
 
 ```text
 mcp__dsh-kline__analyze_kline
 ```
 
-分析结果会返回文字摘要和 `chart_url`。在浏览器中打开该 URL 即可查看交互式图表。
-
-图表服务仅监听本机回环地址，并自动返回当前可用地址。图表会话保留 6 小时，
-dsh 进程退出后失效。
+分析完成后，DSH 插件会在右侧栏直接渲染交互式图表，无需打开额外网页。MCP 的
+结构化结果仍保留 `chart_url` 作为其他 host 的兼容字段，但 DSH 插件不使用它；图表
+会话数据仅保存在本机内存中，并随进程退出失效。
 
 ## MCP 工具
 
@@ -116,12 +88,11 @@ dsh 进程退出后失效。
 
 ## 数据源
 
-[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk) 是可选的
-数据源依赖，也是本项目默认安装并推荐的方案。
-`fetch_candles` 和 `analyze_kline` 已针对 FTShare 的港股、美股、A 股代码规范、
-复权参数和历史数据分页进行了优化；FTShare SDK 不是指标与图表层的强制依赖。
+[FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk) 是默认安装并
+推荐的数据源。`dsh_kline` 已针对其港股、美股、A 股代码、复权参数、历史分页和多
+市场结构做了原生适配。
 
-`calc_metrics` 可以直接接收其他数据源生成的标准 OHLCV：
+指标与图表层不绑定 FTShare。`calc_metrics` 可直接接收其他数据源的标准 OHLCV：
 
 ```json
 {
@@ -134,10 +105,8 @@ dsh 进程退出后失效。
 }
 ```
 
-`time` 使用 Unix 秒，其余字段为数值。不安装 FTShare SDK 时，外部数据仍可用于
-`calc_metrics`；默认的 `fetch_candles` 和 `analyze_kline` 取数会返回明确的数据源
-不可用错误。要让 `analyze_kline` 自动从自有数据源取数并支持图表范围切换，可在
-`tools/fetch.py` 中扩展适配器，只需继续输出相同的标准 OHLCV 结构。
+`time` 使用 Unix 秒。若希望 `analyze_kline` 自动使用自有数据源，可在
+`tools/fetch.py` 中增加适配器，并继续输出相同结构。
 
 ## 验证
 
@@ -148,26 +117,14 @@ pnpm smoke:live
 pnpm smoke:markets
 ```
 
-- `smoke:mcp`：检查 4 个 MCP 工具是否可发现
-- `smoke:live`：验证真实港股分析和图表 URL
-- `smoke:markets`：验证港股、美股、A 股及错误输入
-
-真实行情测试需要能够访问 FTShare 服务。
+真实行情测试需要能够访问对应数据源。
 
 ## 当前限制
 
-- 港股分钟 K 线尚未经过 FTShare SDK 验证，建议使用日线及以上周期
+- 港股分钟 K 线尚未经过 FTShare SDK 完整验证，建议使用日线及以上周期
 - 部分 A 股宽基指数缺少已验证的历史行情接口，系统会明确返回错误
-
-## 安全
-
-- 不要提交 API Key、凭据文件、dsh 会话或生成的行情数据
-- 曾粘贴到聊天、Issue 或终端日志中的 Key 应立即轮换
-- `DSH_KLINE_CACHE_DIR` 可能包含证券元数据，不应公开
 
 ## 来源与许可证
 
-指标实现和交互式前端参考了 MIT 许可的 `ft-kline-view`，详细来源见
-[docs/PROVENANCE.md](docs/PROVENANCE.md)。
-
-本项目采用 MIT 许可证，见 [LICENSE](LICENSE)。
+指标实现和交互式前端参考了 MIT 许可的 `ft-kline-view`，详见
+[docs/PROVENANCE.md](docs/PROVENANCE.md)。本项目采用 [MIT License](LICENSE)。
