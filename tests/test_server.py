@@ -33,6 +33,12 @@ def test_server_exposes_only_the_standalone_tool_surface() -> None:
     }
 
 
+def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_errors() -> None:
+    assert "call analyze_kline exactly once" in server.mcp.instructions
+    assert "Do not call health or fetch_candles first" in server.mcp.instructions
+    assert "explain that error and stop" in server.mcp.instructions
+
+
 def test_health_reports_installed_sdk(monkeypatch) -> None:
     monkeypatch.setattr(server, "ftshare_status", lambda: {"available": True, "distribution_version": "test"})
     result = asyncio.run(server.health())

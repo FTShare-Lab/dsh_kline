@@ -57,6 +57,7 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert "function scheduleChartResize()" in html
     assert "try { kchart.resize(); }" in html
     assert "function hasLocalRowsForRange(key)" in html
+    assert '!hasLocalRowsForRange(currentRangeKey) && currentSymbol && !openingSymbol' in html
     assert 'await openSymbol(currentSymbol, currentName, { preserveOnFailure: true });' in html
     assert "@media (max-width: 640px)" in html
     assert "@media (max-width: 480px)" in html
@@ -64,6 +65,10 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert "header.bar .change { font-size: 11px; line-height: 1.2; white-space: nowrap; }" in html
     assert ".chart-wrap { position: relative; min-width: 280px; overflow: hidden;" in html
     assert 'chartEl?.addEventListener("wheel"' not in html
+    assert 'expandChart: "Expand chart"' in html
+    assert 'percentAxis: "Change %"' in html
+    assert 'legend.style.display = "flex"' not in html
+    assert 'kchart.createIndicator({ name: "MA", calcParams: maPeriods }' in html
 
 
 def test_frontend_uses_only_supported_same_origin_chart_actions() -> None:

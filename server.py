@@ -42,9 +42,14 @@ from tools.fetch import fetch_candles, ftshare_status
 mcp = FastMCP(
     "dsh_kline",
     instructions=(
-        "Use analyze_kline as the primary entry point. It performs FTShare fetch, "
-        "deterministic calculations, and chart-spec generation against one row set. "
-        "Do not switch providers or reconstruct market rows."
+        "For ordinary K-line requests, call analyze_kline exactly once. It performs "
+        "the FTShare fetch, deterministic calculations, and chart generation against "
+        "one row set. Do not call health or fetch_candles first, switch providers, "
+        "reconstruct market rows, or use shell/web probes. If the provider rejects a "
+        "symbol or interval, explain that error and stop; do not probe other symbols "
+        "or substitute another interval unless the user explicitly asks. Use "
+        "fetch_candles only when raw OHLCV rows are explicitly requested, and use "
+        "calc_metrics only for caller-supplied rows."
     ),
     json_response=True,
 )

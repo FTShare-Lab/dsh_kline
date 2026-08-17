@@ -810,8 +810,6 @@ function resetIndicatorVisibility() {
 }
 let overlaysRegistered = false;
 const registeredMaIndicators = new Set();
-const registeredMaGroupIndicators = new Set();
-let activeMaGroupName = null;
 let redrawing = false;
 let currentSelection = null;
 let selectionOverlayId = null;
@@ -928,7 +926,7 @@ const UI_COPY = {
     maNote: "均线", vwapNote: "成交量加权", volNote: "万股", macdNote: "动能", kdjNote: "随机指标", bollNote: "布林带", rsiNote: "强弱", atrNote: "波动率",
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘",
-    switchToEnglish: "切换至 English", switchToChinese: "切换至中文", switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式",
+    switchToEnglish: "切换至 English", switchToChinese: "切换至中文", switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", expandChart: "展开图表", collapseChart: "收起图表", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从 FTShare 加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "新闻与简况暂时不可用", localPreview: "本地预览",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前 FTShare 数据源未提供可用的美股/港股分钟 K 线，1D/5D 仅适用于 A 股。请切换到 10D 或更长周期。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
@@ -941,7 +939,7 @@ const UI_COPY = {
     maNote: "moving avg", vwapNote: "volume weighted", volNote: "volume", macdNote: "momentum", kdjNote: "stochastic", bollNote: "bands", rsiNote: "strength", atrNote: "volatility",
     maPeriods: "MA periods (comma-separated)", volumeMa: "VOL MA period", bollPeriod: "BOLL period", bollStd: "BOLL std. dev.", rsiPeriod: "RSI period", atrPeriod: "ATR period",
     volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close",
-    switchToEnglish: "Switch to English", switchToChinese: "Switch to Chinese", switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode",
+    switchToEnglish: "Switch to English", switchToChinese: "Switch to Chinese", switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", expandChart: "Expand chart", collapseChart: "Collapse chart", percentAxis: "Change %", resizeCanvas: "Resize chart height",
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from FTShare…", workspaceReady: "News and company information updated", workspaceUnavailable: "News and company information are temporarily unavailable", localPreview: "Local preview",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
     rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The current FTShare source has no usable U.S./Hong Kong minute bars. 1D/5D are available for mainland China symbols only. Switch to 10D or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
@@ -1177,10 +1175,13 @@ function syncLanguageControls() {
   }
   document.getElementById("rangeControls")?.setAttribute("aria-label", t("rangeLabel"));
   document.getElementById("intervalControls")?.setAttribute("aria-label", t("intervalLabel"));
+  document.getElementById("percentAxis")?.setAttribute("aria-label", t("percentAxis"));
+  document.getElementById("canvasResizer")?.setAttribute("aria-label", t("resizeCanvas"));
   document.querySelectorAll("[data-interval]").forEach((button) => {
     button.textContent = t(button.dataset.interval);
   });
   syncToggleButtons();
+  syncExpandButton();
   syncVolumeUnitButton();
   syncThemeToggle();
   syncTimeControls();
@@ -1329,8 +1330,9 @@ function syncExpandButton() {
   if (!button) return;
   const fullscreen = isCanvasExpanded();
   button.innerHTML = fullscreen ? "&#x26F7;" : "&#x26F6;";
-  button.setAttribute("aria-label", fullscreen ? "收起图表" : "展开图表");
-  button.title = fullscreen ? "收起图表" : "展开图表";
+  const label = fullscreen ? t("collapseChart") : t("expandChart");
+  button.setAttribute("aria-label", label);
+  button.title = label;
   button.classList.toggle("active", fullscreen);
 }
 function applyLocalCanvasExpansion(expanded) {
@@ -1369,7 +1371,7 @@ function refreshPercentAxis() {
   low -= padding;
   axis.style.height = chartBaseHeight() + "px";
   const ticks = Array.from({ length: 5 }, (_, index) => high - (high - low) * index / 4);
-  axis.innerHTML = `<span class="percent-axis-title">涨跌幅</span>${ticks.map((price, index) => {
+  axis.innerHTML = `<span class="percent-axis-title">${escapeHtml(t("percentAxis"))}</span>${ticks.map((price, index) => {
     const pct = (price / reference - 1) * 100;
     const cls = pct > 0.005 ? "up" : pct < -0.005 ? "down" : "flat";
     return `<span class="percent-tick ${cls}" style="top:${index * 25}%">${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`;
@@ -2631,24 +2633,15 @@ function removePriceAlert(id) {
   window.setTimeout(() => setChartStatus(""), 900);
 }
 function drawMaLayer() {
-  // MA lines are native KLineCharts indicators; this small HTML legend keeps
-  // their values horizontal while the chart pans and resizes.
+  // MA lines and values are rendered by the native KLineCharts indicator.
+  // Keep the legacy overlay empty so the two legends cannot overlap.
   const layer = document.getElementById("maLayer");
   const legend = document.getElementById("maLegend");
   if (layer) layer.innerHTML = "";
-  if (!legend) return;
-  if (!activeMaMaps.length) {
+  if (legend) {
     legend.innerHTML = "";
     legend.style.display = "none";
-    return;
   }
-  const latestTime = secOrMsToMs(currentCandles.at(-1)?.time);
-  legend.innerHTML = activeMaMaps.map((series, index) => {
-    const value = Number(series.map?.[latestTime]);
-    const color = chartColors().ma[index % chartColors().ma.length];
-    return `<span class="ma-legend-item" style="color:${color}">MA${series.period}: ${Number.isFinite(value) ? fmt(value, 2) : "--"}</span>`;
-  }).join("");
-  legend.style.display = "flex";
 }
 function comparisonRowsForTime(rows, time, indexState) {
   while (indexState.index + 1 < rows.length && Number(rows[indexState.index + 1]?.time) <= time) indexState.index += 1;
@@ -3112,7 +3105,7 @@ function initChartContextMenu() {
 }
 function clearBackendIndicators() {
   if (!kchart) return;
-  const names = ["ftvMA", "ftvMA1", "ftvMA2", "ftvMA3", "ftvMA4", "ftvMA5", "ftvMA6", ...registeredMaGroupIndicators, "ftvVWAP", "ftvBOLL", "ftvMACD", "ftvMACDHist", "ftvKDJ", "ftvVOLWan", "ftvVOLK", "ftvRSI", "ftvATR"];
+  const names = ["MA", "ftvVWAP", "ftvBOLL", "ftvMACD", "ftvMACDHist", "ftvKDJ", "ftvVOLWan", "ftvVOLK", "ftvRSI", "ftvATR"];
   for (const n of names) {
     try { kchart.removeIndicator({ name: n }); } catch {}
     try { kchart.removeIndicator("candle_pane", n); } catch {}
@@ -3122,81 +3115,9 @@ function clearBackendIndicators() {
     try { kchart.removeIndicator("rsi_pane", n); } catch {}
     try { kchart.removeIndicator("atr_pane", n); } catch {}
   }
-  activeMaGroupName = null;
 }
 
 /* ---------- apply chartCommands ---------- */
-function registerMaIndicator(name, period, paletteIndex) {
-  if (!window.klinecharts || registeredMaIndicators.has(name)) return;
-  window.klinecharts.registerIndicator({
-    name,
-    shortName: `MA${period}`,
-    series: "price",
-    precision: 2,
-    calc: (dataList, indicator) => {
-      const map = indicator?.extendData?.map || {};
-      return (dataList || []).map((row) => {
-        const value = map[row.timestamp];
-        return Number.isFinite(value) ? { value } : {};
-      });
-    },
-    figures: [{
-      key: "value",
-      title: `MA${period}: `,
-      type: "line",
-      attrs: (params) => {
-        const cur = params?.coordinate?.current;
-        const next = params?.coordinate?.next;
-        if (!cur || cur.value === undefined || !next || next.value === undefined) return null;
-        return { coordinates: [{ x: cur.x, y: cur.value }, { x: next.x, y: next.value }] };
-      },
-      styles: () => ({ color: chartColors().ma[paletteIndex % chartColors().ma.length], size: 1.5 }),
-    }],
-  });
-  registeredMaIndicators.add(name);
-}
-function registerMaGroupIndicator(periods) {
-  const normalized = periods.map((period) => Number(period)).filter((period) => Number.isInteger(period) && period >= 2 && period <= 200).slice(0, 6);
-  if (!window.klinecharts || !normalized.length) return null;
-  const name = `ftvMAG${normalized.join("_")}`;
-  if (registeredMaGroupIndicators.has(name)) return name;
-  const figures = normalized.map((period, index) => ({
-    key: `ma${index}`,
-    // Keep the native title empty; the view-owned legend below stays in one
-    // responsive horizontal row.
-    title: "",
-    type: "line",
-    attrs: (params) => {
-      const cur = params?.coordinate?.current;
-      const next = params?.coordinate?.next;
-      if (!cur || cur.value === undefined || !next || next.value === undefined) return null;
-      return { coordinates: [{ x: cur.x, y: cur.value }, { x: next.x, y: next.value }] };
-    },
-    styles: () => ({ color: chartColors().ma[index % chartColors().ma.length], size: 1.5 }),
-  }));
-  window.klinecharts.registerIndicator({
-    name,
-    shortName: "MA",
-    series: "price",
-    precision: 2,
-    calc: (dataList, indicator) => {
-      const maps = indicator?.extendData?.maps || {};
-      const mapNames = indicator?.extendData?.mapNames || [];
-      return (dataList || []).map((row) => {
-        const result = {};
-        normalized.forEach((period, index) => {
-          const map = maps[mapNames[index]] || maps[`ma${period}`] || {};
-          const value = map[row.timestamp];
-          result[`ma${index}`] = Number.isFinite(value) ? value : undefined;
-        });
-        return result;
-      });
-    },
-    figures,
-  });
-  registeredMaGroupIndicators.add(name);
-  return name;
-}
 function registerVwapIndicator() {
   const name = "ftvVWAP";
   if (!window.klinecharts || registeredMaIndicators.has(name)) return;
@@ -3251,15 +3172,8 @@ function applyIndicatorSeries(cmd) {
       color: chartColors().ma[index % chartColors().ma.length],
     }));
     try {
-      activeMaGroupName = registerMaGroupIndicator(activeMaMaps.map((series) => series.period));
-      const maps = Object.fromEntries(maEntries.slice(0, 6).map(([mapName, map]) => [mapName, map]));
-      if (activeMaGroupName) {
-        kchart.createIndicator(
-          { name: activeMaGroupName, extendData: { maps, mapNames: maEntries.slice(0, 6).map(([mapName]) => mapName) } },
-          false,
-          { id: "candle_pane" }
-        );
-      }
+      const maPeriods = activeMaMaps.map((series) => series.period);
+      kchart.createIndicator({ name: "MA", calcParams: maPeriods }, false, { id: "candle_pane" });
     } catch (error) { console.warn("ftvMA", error); }
   } else if (name === "vwap") {
     let map = maps.vwap || {};
@@ -5017,6 +4931,10 @@ async function handleToolResult(result) {
     // on screen. The nested render is local_render=true, so this is one pass
     // only and never repeats on later tool results.
     if (!structured.local_render && !structured.range_key && sourceCandles.length >= 2) {
+      if (!isIntradayRange() && sourceCandleInterval === "day" && !hasLocalRowsForRange(currentRangeKey) && currentSymbol && !openingSymbol) {
+        await openSymbol(currentSymbol, currentName, { preserveOnFailure: true });
+        return;
+      }
       await renderCurrentViewLocally({ fitToData: true });
       return;
     }

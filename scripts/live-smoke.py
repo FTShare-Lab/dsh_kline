@@ -36,6 +36,9 @@ async def main_async() -> None:
             )
 
             data = result.structuredContent or {}
+            if result.isError or data.get("ok") is False:
+                detail = result.content[0].text if result.content else data.get("message") or data.get("error")
+                raise SystemExit(f"analyze_kline failed: {detail}")
             chart_url = str(data.get("chart_url") or "")
             if urlparse(chart_url).scheme != "http" or urlparse(chart_url).hostname not in {"127.0.0.1", "localhost"}:
                 raise SystemExit(f"missing loopback chart URL: {chart_url}")
@@ -44,8 +47,6 @@ async def main_async() -> None:
             if response.status != 200 or "window.__DSH_CHART_SESSION__=" not in chart_html:
                 raise SystemExit("chart session did not return standalone HTML")
 
-    if result.isError:
-        raise SystemExit(f"analyze_kline failed: {result.content}")
     if data.get("source") != "ftshare":
         raise SystemExit(f"unexpected source: {data.get('source')}")
     if data.get("count") != args.limit:
