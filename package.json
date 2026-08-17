@@ -30,8 +30,10 @@
     "bootstrap": "bash ./scripts/bootstrap.sh",
     "dsh:dump": "dsh --profile web --patch ./config/dsh-kline.patch.yml --dump-config",
     "dsh:web": "dsh --profile web --patch ./config/dsh-kline.patch.yml",
+    "chart:preview": ".venv/bin/python ./scripts/preview-chart.py",
     "smoke:mcp": "bash ./scripts/smoke-mcp.sh",
-    "smoke:live": "bash ./scripts/live-smoke.sh"
+    "smoke:live": "bash ./scripts/live-smoke.sh",
+    "smoke:markets": ".venv/bin/python ./scripts/smoke-markets.py"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.0-rc.6"

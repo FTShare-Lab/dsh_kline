@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -28,12 +30,20 @@ async def main_async() -> None:
                     "symbol": args.symbol,
                     "interval": "day",
                     "limit": args.limit,
-                    "indicators": ["ma", "vol", "macd", "rsi"],
-                    "metrics": ["rsi"],
+                    "indicators": ["ma", "vol", "macd", "rsi", "boll", "atr", "vwap"],
+                    "metrics": ["rsi", "atr"],
                 },
             )
 
-    data = result.structuredContent or {}
+            data = result.structuredContent or {}
+            chart_url = str(data.get("chart_url") or "")
+            if urlparse(chart_url).scheme != "http" or urlparse(chart_url).hostname not in {"127.0.0.1", "localhost"}:
+                raise SystemExit(f"missing loopback chart URL: {chart_url}")
+            with urlopen(chart_url, timeout=5) as response:  # noqa: S310
+                chart_html = response.read().decode("utf-8")
+            if response.status != 200 or "window.__DSH_CHART_SESSION__=" not in chart_html:
+                raise SystemExit("chart session did not return standalone HTML")
+
     if result.isError:
         raise SystemExit(f"analyze_kline failed: {result.content}")
     if data.get("source") != "ftshare":
@@ -56,6 +66,7 @@ async def main_async() -> None:
                 "as_of": data.get("as_of"),
                 "latest": data.get("latest"),
                 "indicator_last": indicator_last,
+                "chart_url": data.get("chart_url"),
             },
             ensure_ascii=False,
         )

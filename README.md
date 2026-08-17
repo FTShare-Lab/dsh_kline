@@ -34,6 +34,7 @@ DeepSeek model
        -> canonical OHLCV normalization
        -> deterministic indicators
        -> compact model-facing summary + structured chart data
+       -> loopback chart service with an expiring chart URL
 ```
 
 There is no FTShare-MCP connection and no external K-line MCP process.
@@ -47,10 +48,10 @@ There is no FTShare-MCP connection and no external K-line MCP process.
 | `calc_metrics` | Calculate deterministic summaries for caller-supplied canonical rows |
 | `health` | Report Python and FTShare SDK readiness |
 
-Use `analyze_kline` for normal DeepSeek tasks. DeepSeek Harness `0.1.0-rc.6`
-retains MCP text blocks in model history but does not let the model reliably
-relay `structuredContent.rows` between calls. The single-call workflow avoids
-provider switching and model-generated market rows.
+Use `analyze_kline` for normal DeepSeek tasks. It remains one MCP call and now
+returns both `chart.rows` and a `chart_url`. Open the URL from the MCP text
+result to view the interactive chart in a normal browser; the chart service is
+owned by the same dsh process and listens on loopback only.
 
 ## Prerequisites
 
@@ -88,11 +89,12 @@ The interpreter must have `mcp`, `pydantic`, and `ftshare` installed.
 ```bash
 pnpm dsh:version
 pnpm smoke:mcp
+pnpm smoke:markets
 .venv/bin/python -m pytest -q
 pnpm smoke:live
 ```
 
-The smoke test must discover exactly:
+The MCP smoke test must discover exactly:
 
 ```text
 analyze_kline
@@ -110,7 +112,10 @@ pnpm dsh:dump
 It should contain one MCP server named `dsh-kline` and no external MCP URL.
 
 `pnpm smoke:live` calls `analyze_kline` through the real stdio protocol and
-requires FTShare data, exactly 60 bars, RSI, and MACD.
+requires FTShare data, exactly 60 bars, RSI, MACD, and a chart URL.
+
+`pnpm smoke:markets` is the live provider regression for `00700.HK`, `NVDA.US`,
+and `600519.XSHG`, followed by malformed-symbol and unsupported-interval checks.
 
 ## Configure DeepSeek
 
@@ -160,7 +165,7 @@ Canonical rows use Unix seconds and this shape:
 }
 ```
 
-Supported chart indicators are MA, volume MA, MACD, BOLL, RSI, ATR, and VWAP.
+Supported chart indicators are MA, volume MA, MACD, KDJ, BOLL, RSI, ATR, and VWAP.
 Summary metrics additionally include maximum drawdown, support/resistance,
 MA crosses, volume breakout, Bollinger state, RSI, and ATR.
 
@@ -168,8 +173,12 @@ MA crosses, volume breakout, Bollinger state, RSI, and ATR.
 
 The standalone release checks completed successfully:
 
-- 42 provider, normalization, indicator, and MCP server tests passed;
+- 64 provider, normalization, indicator, chart-session, frontend-contract, and MCP server tests passed;
 - stdio discovery exposed exactly four local tools;
+- the chart payload contains candles plus MA, volume, MACD, RSI, BOLL, ATR, and
+  VWAP series without an MCP Apps handshake;
+- the standalone chart fetches missing long-history rows on range expansion;
+  the real A-share 5Y view was verified back to August 2021;
 - a clean directory with no `ft-kline-view` sibling installed all Node and
   Python dependencies from pinned inputs;
 - the clean directory completed a real FTShare `00700.HK` analysis with 60
@@ -180,9 +189,14 @@ The standalone release checks completed successfully:
 
 ## Current Boundaries
 
-- DeepSeek Harness `0.1.0-rc.6` bridges MCP tools but does not render MCP Apps.
-- `analyze_kline` returns provider-neutral structured chart data for a future
-  dsh-native UI, while the current Web UI shows the textual analysis.
+- DeepSeek Harness `0.1.0-rc.6` bridges MCP tools but does not render MCP Apps;
+  `dsh_kline` therefore serves a normal browser chart URL from the MCP process.
+- Chart sessions are in-memory, expire after six hours, and are reachable only
+  on `127.0.0.1` by default. Port `8765` is preferred; if it is occupied, the
+  service chooses an available loopback port and returns the exact URL.
+- Daily-or-larger generic FTShare history is fetched in pages no wider than 360
+  days, which stays inside the provider's 12-natural-month request limit while
+  supporting the chart's 1Y and 5Y ranges.
 - The installed FTShare SDK has no verified Hong Kong minute-candle endpoint;
   use daily-or-larger Hong Kong intervals.
 - A-share broad-index K-lines fail closed where the installed SDK has no
@@ -192,12 +206,15 @@ The standalone release checks completed successfully:
 
 ```text
 server.py                 standalone MCP server
+chart_service.py          loopback chart session and HTTP service
 core/                     OHLCV normalization and indicators
-tools/                    FTShare adapter and calculation wrapper
+tools/                    FTShare adapter, calculation wrapper, and chart payloads
+view/                     vendored interactive K-line frontend
 config/dsh-kline.patch.yml
 scripts/bootstrap.sh      Python environment setup
 scripts/run-dsh-kline.sh  stdio launcher used by dsh
 scripts/smoke-mcp.py      MCP protocol discovery check
+scripts/smoke-markets.py  live HK/US/CN/error regression
 tests/                    provider, indicator, and server tests
 ```
 
@@ -206,12 +223,15 @@ tests/                    provider, indicator, and server tests
 - Never commit API keys, credential files, dsh sessions, or generated market data.
 - Rotate any key pasted into chat, issues, or terminal logs.
 - `DSH_KLINE_CACHE_DIR` may contain provider metadata; do not publish it.
+- The chart service binds to loopback and keeps chart rows in memory only.
 
 ## Provenance
 
 The deterministic OHLCV and indicator implementation was adapted from the
 MIT-licensed `ft-kline-view` codebase. See [docs/PROVENANCE.md](docs/PROVENANCE.md).
-That project is source provenance only and is not a runtime dependency.
+The interactive frontend and vendored chart library were copied into `view/`
+for this repository's standalone browser service. `ft-kline-view` is source
+provenance only and is not a runtime dependency.
 
 ## License
 

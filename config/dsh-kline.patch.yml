@@ -10,6 +10,8 @@
         cwd: !!js process.cwd()
         env:
           DSH_KLINE_PYTHON: !!js process.env.DSH_KLINE_PYTHON || ''
+          DSH_KLINE_CHART_HOST: !!js process.env.DSH_KLINE_CHART_HOST || '127.0.0.1'
+          DSH_KLINE_CHART_PORT: !!js process.env.DSH_KLINE_CHART_PORT || '8765'
           FTSHARE_SDK_SRC: !!js process.env.FTSHARE_SDK_SRC || ''
         toolCallTimeoutMs: 120000
         failOnStartupError: true

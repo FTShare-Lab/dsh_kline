@@ -28,9 +28,52 @@ def test_search_symbols_normalizes_ftshare_results(monkeypatch) -> None:
 
     assert result["ok"] is True
     assert result["count"] == 2
-    assert result["results"][0]["symbol"] == "600036.SH"
+    assert result["results"][0]["symbol"] == "600036.XSHG"
     assert result["results"][0]["change_rate"] == 0.01
     assert result["results"][1]["symbol"] == "03968"
+
+
+def test_search_symbols_accepts_vendor_name_alias_fields(monkeypatch) -> None:
+    class FakeMarket:
+        def search(self, **_kwargs: object) -> list[dict[str, object]]:
+            return [
+                {"stock_code": "600519.XSHG", "stock_name": "600519.XSHG"},
+                {"stock_code": "600519.SH", "stock_name": "贵州茅台"},
+            ]
+
+    monkeypatch.setattr(fetch, "ftshare_available", lambda: True)
+    monkeypatch.setitem(sys.modules, "ftshare", SimpleNamespace(market_api=lambda **_kwargs: FakeMarket()))
+    fetch._symbol_search_cache.clear()
+
+    result = fetch.search_symbols("600519", limit=3)
+
+    assert result["results"] == [{"symbol": "600519.XSHG", "name": "贵州茅台"}]
+
+
+def test_symbol_name_prefers_named_exchange_alias_over_code_fallback() -> None:
+    class FakeMarket:
+        def search(self, **kwargs: object) -> list[dict[str, object]]:
+            assert kwargs == {"query": "600519", "limit": 8, "as_dataframe": False}
+            return [
+                {"stock_code": "600519.XSHG", "stock_name": "600519.XSHG"},
+                {"stock_code": "600519.SH", "stock_name": "贵州茅台"},
+            ]
+
+    assert fetch._symbol_name(FakeMarket(), "600519.XSHG") == "贵州茅台"
+
+
+def test_symbol_name_falls_back_to_canonicalized_directory_cache(monkeypatch) -> None:
+    class EmptyMarket:
+        def search(self, **_kwargs: object) -> list[dict[str, object]]:
+            return []
+
+    monkeypatch.setattr(
+        fetch,
+        "_read_symbol_directory_cache",
+        lambda: {"items": [{"symbol": "600519.SH", "name": "贵州茅台", "market": "CN"}]},
+    )
+
+    assert fetch._symbol_name(EmptyMarket(), "600519.XSHG") == "贵州茅台"
 
 
 def test_search_symbols_rejects_empty_query() -> None:
@@ -156,6 +199,21 @@ def test_ftshare_enum_translation_supports_long_intervals_and_adjustment() -> No
     assert fetch._adjust_to_sdk("unknown") == "none"
 
 
+def test_fetch_candles_rejects_unsupported_interval_before_provider_call() -> None:
+    result = fetch.fetch_candles("00700.HK", interval="hour")
+
+    assert result["ok"] is False
+    assert result["error"] == "unsupported_interval"
+    assert result["supported_intervals"] == ["day", "minute", "month", "quarter", "week", "year"]
+
+
+def test_fetch_candles_rejects_malformed_symbol_before_provider_call() -> None:
+    result = fetch.fetch_candles("NOT A SYMBOL", interval="day")
+
+    assert result["ok"] is False
+    assert result["error"] == "invalid_symbol"
+
+
 def test_normalize_raw_unwraps_ftshare_service_envelope() -> None:
     raw = {
         "code": 200,
@@ -235,6 +293,48 @@ def test_candle_fetch_exposes_source_timestamp_and_market_status(monkeypatch) ->
     assert result["exchange_timezone"] == "Asia/Shanghai"
     assert result["freshness"] == "derived_from_latest_candle"
     assert isinstance(result["as_of"], int)
+
+
+def test_daily_history_pages_within_ftshare_twelve_month_limit(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeMarket:
+        def stock_candlesticks(self, **kwargs: object) -> list[dict[str, object]]:
+            calls.append(kwargs)
+            page = len(calls)
+            newest = 1_700_000_000_000 - (page - 1) * 200 * 86_400_000
+            return [
+                {
+                    "ts_millis": newest - index * 86_400_000,
+                    "open": 10,
+                    "high": 12,
+                    "low": 9,
+                    "close": 11,
+                    "volume": 100,
+                }
+                for index in range(200)
+            ]
+
+        def search(self, **_kwargs: object) -> list[dict[str, object]]:
+            return []
+
+    monkeypatch.setattr(fetch, "ftshare_available", lambda: True)
+    monkeypatch.setattr(fetch, "_until_ms", lambda: 1_800_000_000_000)
+    monkeypatch.setitem(sys.modules, "ftshare", SimpleNamespace(market_api=lambda **_kwargs: FakeMarket()))
+    fetch._candle_cache.clear()
+    try:
+        result = fetch.fetch_candles("600519.XSHG", limit=300)
+    finally:
+        fetch._candle_cache.clear()
+
+    assert result["ok"] is True
+    assert result["count"] == 300
+    assert len(calls) == 2
+    assert all(
+        int(call["until_ts_millis"]) - int(call["since_ts_millis"]) <= 360 * 86_400_000
+        for call in calls
+    )
+    assert int(calls[1]["until_ts_millis"]) < int(calls[0]["until_ts_millis"])
 
 
 def test_candle_fetch_retries_and_uses_recent_cache_on_transient_failure(monkeypatch) -> None:

@@ -63,6 +63,13 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(server, "fetch_candles", fake_fetch)
+    published: dict[str, object] = {}
+
+    def fake_publish(payload):
+        published["payload"] = payload
+        return "session-test", "http://127.0.0.1:8765/chart/session-test"
+
+    monkeypatch.setattr(server, "publish_chart", fake_publish)
     result = asyncio.run(
         server.analyze_kline(
             "TEST.HK",
@@ -86,6 +93,11 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert data["count"] == 60
     assert data["fetched_count"] == 80
     assert data["chart"]["rows"] == source_rows[-60:]
+    assert data["chart_session"] == "session-test"
+    assert data["chart_url"] == "http://127.0.0.1:8765/chart/session-test"
+    assert data["chart"]["url"] == data["chart_url"]
+    assert published["payload"]["chartCommands"][0]["type"] == "SET_CANDLES"
+    assert published["payload"]["chartCommands"][0]["rows"] == source_rows[-60:]
     assert data["metrics"]["rsi"]["last"]["value"] == data["indicator_last"]["rsi"]
     assert set(data["indicator_last"]["macd"]) == {"dif", "dea", "hist"}
 
@@ -93,6 +105,7 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert summary["source"] == "ftshare"
     assert summary["count"] == 60
     assert "chart" not in summary
+    assert summary["chart_url"] == data["chart_url"]
 
 
 def test_analyze_kline_propagates_provider_error(monkeypatch) -> None:
@@ -110,4 +123,36 @@ def test_analyze_kline_propagates_provider_error(monkeypatch) -> None:
 
     assert result.isError is True
     assert result.structuredContent["error"] == "fetch_failed"
-    assert result.content[0].text == "upstream unavailable"
+    assert result.content[0].text == "fetch_failed: upstream unavailable"
+
+
+def test_analyze_kline_keeps_text_analysis_when_chart_service_fails(monkeypatch) -> None:
+    rows = _rows()
+    monkeypatch.setattr(
+        server,
+        "fetch_candles",
+        lambda symbol, **_kwargs: {
+            "ok": True,
+            "symbol": symbol,
+            "name": "Test Security",
+            "interval": "day",
+            "adjust": "none",
+            "rows": rows,
+            "source": "ftshare",
+            "status": "fresh",
+            "as_of": rows[-1]["time"],
+        },
+    )
+    monkeypatch.setattr(server, "publish_chart", lambda _payload: (_ for _ in ()).throw(OSError("port unavailable")))
+
+    result = asyncio.run(server.analyze_kline("TEST.HK", limit=60))
+
+    assert result.isError is False
+    assert result.structuredContent["count"] == 60
+    assert result.structuredContent["chart_url"] is None
+    assert result.structuredContent["chart_service"] == {
+        "ok": False,
+        "error": "chart_service_unavailable",
+        "message": "port unavailable",
+    }
+    assert json.loads(result.content[0].text.split(" · ", 1)[1])["chart_url"] is None

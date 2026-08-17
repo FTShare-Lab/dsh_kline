@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import sys
 import time
 from copy import deepcopy
@@ -436,7 +437,7 @@ def _until_ms() -> int:
 
 
 def _history_since_ms(limit: int, interval: str) -> int:
-    """Return a conservative lookback start for FTShare history requests."""
+    """Return a conservative single-page start within FTShare's 12-month cap."""
     normalized = str(interval or "day").strip().lower()
     days_per_bar = {
         "day": 3,
@@ -445,8 +446,70 @@ def _history_since_ms(limit: int, interval: str) -> int:
         "quarter": 92,
         "year": 370,
     }.get(normalized, 3)
-    lookback_days = max(2, int(limit or 220) * days_per_bar)
+    lookback_days = min(360, max(2, int(limit or 220) * days_per_bar))
     return max(_until_ms() - lookback_days * 86_400_000, 0)
+
+
+def _fetch_generic_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    interval_unit: str,
+    interval_value: int,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Page daily-or-larger history without exceeding FTShare's 12-month window."""
+    normalized = str(interval or "day").strip().lower()
+    requested = max(2, int(limit or 220))
+    # Quarter candles are assembled from monthly rows, so collect three times
+    # the requested output count before aggregation.
+    target_rows = min(12_000, requested * 3 if normalized == "quarter" else requested)
+    days_per_bar = {
+        "day": 3,
+        "week": 10,
+        "month": 32,
+        "quarter": 32,
+        "year": 360,
+    }.get(normalized, 3)
+    window_days = min(360, max(30, requested * days_per_bar))
+    estimated_rows_per_page = max(1, window_days // max(1, days_per_bar))
+    max_pages = min(32, max(1, (target_rows + estimated_rows_per_page - 1) // estimated_rows_per_page + 1))
+    page_limit = min(4000, max(2, target_rows))
+    until_ms = _until_ms()
+    rows_by_time: dict[int, dict[str, Any]] = {}
+
+    for _page in range(max_pages):
+        since_ms = max(0, until_ms - window_days * 86_400_000)
+        raw = market.stock_candlesticks(
+            symbol=symbol,
+            interval_unit=interval_unit,
+            interval_value=interval_value,
+            adjust_kind=adjust_kind,
+            since_ts_millis=since_ms,
+            until_ts_millis=until_ms,
+            limit=page_limit,
+            as_dataframe=False,
+        )
+        chunk = _normalize_raw(raw)
+        if not chunk:
+            break
+        previous_count = len(rows_by_time)
+        for row in chunk:
+            rows_by_time[int(row["time"])] = row
+        if len(rows_by_time) >= target_rows:
+            break
+        minimum_full_page = max(2, min(target_rows, estimated_rows_per_page) * 3 // 4)
+        if len(chunk) < minimum_full_page:
+            break
+        earliest_ms = min(int(row["time"]) for row in chunk) * 1000
+        next_until_ms = earliest_ms - 1
+        if len(rows_by_time) == previous_count or next_until_ms <= 0 or next_until_ms >= until_ms:
+            break
+        until_ms = next_until_ms
+
+    return [rows_by_time[key] for key in sorted(rows_by_time)]
 
 
 def _symbol_name(market: Any, symbol: str) -> str:
@@ -461,9 +524,50 @@ def _symbol_name(market: Any, symbol: str) -> str:
             return str(item["name"])
     try:
         code = str(symbol or "").split(".")[0]
-        rows = market.search(query=code, limit=1, as_dataframe=False)
-        if isinstance(rows, list) and rows and rows[0].get("name"):
-            return str(rows[0]["name"])
+        rows = market.search(query=code, limit=8, as_dataframe=False)
+        fallback: str | None = None
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, Mapping):
+                continue
+            name: str | None = None
+            for key in ("name", "stock_name", "security_name", "index_name", "symbol_name"):
+                if row.get(key):
+                    name = str(row[key]).strip()
+                    break
+            if not name or name.upper() in {normalized, code.upper()}:
+                continue
+            row_symbol = _canonical_market_symbol(
+                _canonical_directory_symbol(
+                    row.get("symbol")
+                    or row.get("symbol_id")
+                    or row.get("stock_code")
+                    or row.get("index_code")
+                    or row.get("ticker")
+                    or row.get("code"),
+                    market=row.get("market") or row.get("board"),
+                )
+            )
+            if row_symbol == normalized:
+                return name
+            fallback = fallback or name
+        if fallback:
+            return fallback
+    except Exception:
+        pass
+    try:
+        cached = _read_symbol_directory_cache()
+        for item in list(cached.get("items") or []) if isinstance(cached, Mapping) else []:
+            if not isinstance(item, Mapping):
+                continue
+            candidate_symbol = _canonical_market_symbol(
+                _canonical_directory_symbol(
+                    item.get("symbol") or item.get("code") or item.get("stock_code"),
+                    market=item.get("market") or item.get("board"),
+                )
+            )
+            candidate_name = str(item.get("name") or item.get("stock_name") or "").strip()
+            if candidate_symbol == normalized and candidate_name and candidate_name.upper() not in {normalized, code.upper()}:
+                return candidate_name
     except Exception:
         pass
     return symbol
@@ -900,15 +1004,39 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
 
     def add(item: Mapping[str, Any]) -> None:
         market = item.get("market") or item.get("board")
-        symbol = _canonical_directory_symbol(
-            item.get("symbol") or item.get("symbol_id") or item.get("secid") or item.get("code"),
-            market=market,
-            default_market="US" if str(market or "").strip() == "105" else "",
+        symbol = _canonical_market_symbol(
+            _canonical_directory_symbol(
+                item.get("symbol")
+                or item.get("symbol_id")
+                or item.get("secid")
+                or item.get("stock_code")
+                or item.get("index_code")
+                or item.get("ticker")
+                or item.get("code"),
+                market=market,
+                default_market="US" if str(market or "").strip() == "105" else "",
+            )
         )
-        if not symbol or symbol in seen or len(results) >= lim:
+        if not symbol:
+            return
+        name = next(
+            (
+                item.get(key)
+                for key in ("name", "stock_name", "security_name", "index_name", "symbol_name")
+                if item.get(key)
+            ),
+            symbol,
+        )
+        if symbol in seen:
+            for result in results:
+                if result["symbol"] == symbol and result["name"] == symbol and str(name) != symbol:
+                    result["name"] = str(name)
+                    break
+            return
+        if len(results) >= lim:
             return
         seen.add(symbol)
-        result: dict[str, Any] = {"symbol": symbol, "name": str(item.get("name") or symbol)}
+        result: dict[str, Any] = {"symbol": symbol, "name": str(name)}
         for key in ("board", "close", "change", "change_rate", "market"):
             if item.get(key) is not None:
                 result[key] = "US" if key == "market" and str(item[key]).strip() == "105" else item[key]
@@ -1187,6 +1315,17 @@ def fetch_candles(
     sym = _canonical_market_symbol(symbol)
     if not sym:
         return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9.-]{0,63}", sym):
+        return {"ok": False, "error": "invalid_symbol", "message": f"invalid symbol: {symbol}"}
+    normalized_interval = (interval or "day").strip().lower()
+    supported_intervals = {"minute", "day", "week", "month", "quarter", "year"}
+    if normalized_interval not in supported_intervals:
+        return {
+            "ok": False,
+            "error": "unsupported_interval",
+            "message": f"unsupported interval: {interval}",
+            "supported_intervals": sorted(supported_intervals),
+        }
     ambiguous = _ambiguous_broad_index_result(sym)
     if ambiguous is not None:
         return ambiguous
@@ -1201,7 +1340,6 @@ def fetch_candles(
 
     unit = _interval_to_sdk(interval)
     adj = _adjust_to_sdk(adjust)
-    normalized_interval = (interval or "day").strip().lower()
     step = max(1, min(int(interval_value or 1), 240))
     sessions = max(1, min(int(session_count or 1), 10))
     lim = max(1, min(int(limit or 220), 4000))
@@ -1238,30 +1376,28 @@ def fetch_candles(
                     # production. Fall back to the generic history endpoint so
                     # daily 10D/30D/YTD charts do not fail while minute data works.
                     us_daily_history_error = exc
-                    raw = market.stock_candlesticks(
+                    raw = _fetch_generic_history(
+                        market,
                         symbol=sym,
+                        interval=normalized_interval,
                         interval_unit=unit,
                         interval_value=step,
                         adjust_kind=adj,
-                        since_ts_millis=_history_since_ms(lim, normalized_interval),
-                        until_ts_millis=_until_ms(),
                         limit=lim,
-                        as_dataframe=False,
                     )
             elif _is_hk_symbol(sym) and normalized_interval in {"day", "month", "quarter", "year"}:
                 try:
                     raw = _fetch_hk_candles(market, sym, normalized_interval, lim, adjust)
                 except Exception as exc:  # noqa: BLE001
                     hk_history_error = exc
-                    raw = market.stock_candlesticks(
+                    raw = _fetch_generic_history(
+                        market,
                         symbol=sym,
+                        interval=normalized_interval,
                         interval_unit=unit,
                         interval_value=step,
                         adjust_kind=adj,
-                        since_ts_millis=_history_since_ms(lim, normalized_interval),
-                        until_ts_millis=_until_ms(),
                         limit=lim,
-                        as_dataframe=False,
                     )
             elif normalized_interval == "minute":
                 # FTShare minute history is restricted to short natural-date
@@ -1309,15 +1445,14 @@ def fetch_candles(
                     cutoff = earliest * 1000 - 1
                 raw = list(unique.values())
             else:
-                raw = market.stock_candlesticks(
+                raw = _fetch_generic_history(
+                    market,
                     symbol=sym,
+                    interval=normalized_interval,
                     interval_unit=unit,
                     interval_value=step,
                     adjust_kind=adj,
-                    since_ts_millis=_history_since_ms(lim, normalized_interval),
-                    until_ts_millis=_until_ms(),
                     limit=lim,
-                    as_dataframe=False,
                 )
             fetch_error = None
             break
@@ -1358,7 +1493,7 @@ def fetch_candles(
     if _is_us_symbol(sym) and normalized_interval != "minute":
         rows = _aggregate_interval(rows[-lim:], interval, timezone_name=exchange_timezone)
     elif normalized_interval == "quarter":
-        rows = _aggregate_quarters(rows, timezone_name=exchange_timezone)
+        rows = _aggregate_quarters(rows, timezone_name=exchange_timezone)[-lim:]
     elif not _is_hk_symbol(sym) and normalized_interval != "minute" and len(rows) > lim:
         rows = rows[-lim:]
     if len(rows) < 2:
