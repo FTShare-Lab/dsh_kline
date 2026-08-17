@@ -1,70 +1,27 @@
 # dsh_kline
 
-Standalone K-line MCP for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness),
-powered by the FTShare Python SDK.
+`dsh_kline` 是面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
+的独立 K 线分析 MCP，使用 FTShare Python SDK 获取真实市场数据。
 
-`dsh_kline` is one repository and one MCP process. It contains its own FTShare
-adapter, OHLCV normalization, deterministic indicator calculations, tests, and
-DeepSeek Harness profile. It does not call or require another MCP server.
+一次 `analyze_kline` 调用即可完成数据获取、指标计算和图表生成。项目不依赖
+FTShare-MCP、`ft-kline-view` 或其他外部 K 线 MCP 服务。
 
-## Status
+## 功能
 
-Developer preview. The repository pins DeepSeek Harness `0.1.0-rc.6`, which may
-introduce breaking changes.
+- 支持港股、美股和 A 股日线分析
+- 提供 MA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP
+- 提供缩放、拖动、十字线和响应式交互式图表
+- 图表可切换 10D、30D、YTD、1Y、5Y 等范围
+- 通过本机临时 URL 查看图表，数据只保存在内存中
 
-Verified locally on 2026-08-16 with:
-
-| Component | Version |
-| --- | --- |
-| DeepSeek Harness | `0.1.0-rc.6` |
-| Node.js | `26.7.0` |
-| pnpm | `11.7.0` |
-| Python | `3.12.13` |
-| MCP Python SDK | `1.28.1` |
-| FTShare Python distribution | `0.1.1` |
-
-## Architecture
-
-```text
-DeepSeek model
-  -> DeepSeek Harness
-  -> @deepseek-ai/dsh-mcp-client
-  -> this repository's server.py over stdio
-       -> FTShare Python SDK
-       -> canonical OHLCV normalization
-       -> deterministic indicators
-       -> compact model-facing summary + structured chart data
-       -> loopback chart service with an expiring chart URL
-```
-
-There is no FTShare-MCP connection and no external K-line MCP process.
-
-## Tools
-
-| Tool | Purpose |
-| --- | --- |
-| `analyze_kline` | Preferred single call: fetch, calculate indicators, and build chart data from one FTShare row set |
-| `fetch_candles` | Fetch canonical OHLCV rows directly through the FTShare SDK |
-| `calc_metrics` | Calculate deterministic summaries for caller-supplied canonical rows |
-| `health` | Report Python and FTShare SDK readiness |
-
-Use `analyze_kline` for normal DeepSeek tasks. It remains one MCP call and now
-returns both `chart.rows` and a `chart_url`. Open the URL from the MCP text
-result to view the interactive chart in a normal browser; the chart service is
-owned by the same dsh process and listens on loopback only.
-
-## Prerequisites
+## 环境要求
 
 - Node.js `>=22.19.0`
 - pnpm `11.7.0`
 - Python `>=3.10`
-- Git access to the FTShare Python SDK repository
-- a DeepSeek API key for natural-language agent tasks
+- DeepSeek API Key
 
-Tool discovery, unit tests, and MCP protocol checks do not require a DeepSeek
-API key. A live market-data test requires network access to FTShare.
-
-## Install
+## 安装
 
 ```bash
 git clone https://github.com/FTShare-Lab/dsh_kline.git
@@ -73,166 +30,86 @@ pnpm install --frozen-lockfile
 ./scripts/bootstrap.sh
 ```
 
-`bootstrap.sh` creates `.venv` and installs the pinned MCP runtime plus a pinned
-FTShare SDK source archive. No sibling repository or Git credential is needed.
+`bootstrap.sh` 会创建 `.venv` 并安装固定版本的 Python 依赖和 FTShare SDK。
 
-To use a different interpreter, set:
-
-```bash
-export DSH_KLINE_PYTHON=/absolute/path/to/python
-```
-
-The interpreter must have `mcp`, `pydantic`, and `ftshare` installed.
-
-## Verify
-
-```bash
-pnpm dsh:version
-pnpm smoke:mcp
-pnpm smoke:markets
-.venv/bin/python -m pytest -q
-pnpm smoke:live
-```
-
-The MCP smoke test must discover exactly:
-
-```text
-analyze_kline
-calc_metrics
-fetch_candles
-health
-```
-
-Inspect the composed dsh profile:
-
-```bash
-pnpm dsh:dump
-```
-
-It should contain one MCP server named `dsh-kline` and no external MCP URL.
-
-`pnpm smoke:live` calls `analyze_kline` through the real stdio protocol and
-requires FTShare data, exactly 60 bars, RSI, MACD, and a chart URL.
-
-`pnpm smoke:markets` is the live provider regression for `00700.HK`, `NVDA.US`,
-and `600519.XSHG`, followed by malformed-symbol and unsupported-interval checks.
-
-## Configure DeepSeek
-
-Start the Web UI, open **Settings -> Models**, enter a DeepSeek API key, and
-save it. The key belongs in dsh's local credential store, never in Git.
-
-You may also provide the key through your local environment:
-
-```bash
-export DEEPSEEK_API_KEY=your_key_here
-```
-
-## Run
+## 启动
 
 ```bash
 pnpm dsh:web
 ```
 
-Open [http://127.0.0.1:3080](http://127.0.0.1:3080), choose the `dsh_kline`
-workspace, and send:
+打开 [http://127.0.0.1:3080](http://127.0.0.1:3080)，进入
+**Settings -> Models** 配置 DeepSeek API Key，然后选择 `dsh_kline` workspace。
 
-```text
-Use dsh-kline analyze_kline exactly once for 00700.HK with interval day,
-limit 60, indicators [ma, vol, macd, rsi], and metrics [rsi]. Report the
-source, latest close, RSI, and MACD values in Chinese. Do not use another
-provider or reconstruct rows.
+也可以通过环境变量提供 Key：
+
+```bash
+export DEEPSEEK_API_KEY='your_key_here'
+pnpm dsh:web
 ```
 
-The expected tool is:
+API Key 只能保存在本机，不要提交到 Git。
+
+## 使用
+
+在 dsh Web 中直接输入，例如：
+
+```text
+分析 00700.HK 最近 60 根日 K，显示 MA、成交量、MACD、RSI、BOLL、ATR 和 VWAP，
+用中文总结趋势并提供交互式图表链接。
+```
+
+推荐始终使用单次调用工具：
 
 ```text
 mcp__dsh-kline__analyze_kline
 ```
 
-## Data Contract
+分析结果会返回文字摘要和 `chart_url`。DeepSeek Harness `0.1.0-rc.6` 不直接渲染
+MCP Apps，因此需要在浏览器中打开该 URL 查看图表。
 
-Canonical rows use Unix seconds and this shape:
+图表服务仅监听 `127.0.0.1`，优先使用端口 `8765`；端口被占用时会自动选择其他
+本机端口。图表会话保留 6 小时，dsh 进程退出后失效。
 
-```json
-{
-  "time": 1786636800,
-  "open": 436.0,
-  "high": 445.0,
-  "low": 436.0,
-  "close": 440.0,
-  "volume": 30601060.0
-}
+## MCP 工具
+
+| 工具 | 用途 |
+| --- | --- |
+| `analyze_kline` | 获取行情、计算指标并生成图表，推荐使用 |
+| `fetch_candles` | 获取标准化 OHLCV 数据 |
+| `calc_metrics` | 计算调用方提供数据的指标摘要 |
+| `health` | 检查 Python 和 FTShare SDK 状态 |
+
+## 验证
+
+```bash
+pnpm smoke:mcp
+.venv/bin/python -m pytest -q
+pnpm smoke:live
+pnpm smoke:markets
 ```
 
-Supported chart indicators are MA, volume MA, MACD, KDJ, BOLL, RSI, ATR, and VWAP.
-Summary metrics additionally include maximum drawdown, support/resistance,
-MA crosses, volume breakout, Bollinger state, RSI, and ATR.
+- `smoke:mcp`：检查 4 个 MCP 工具是否可发现
+- `smoke:live`：验证真实港股分析和图表 URL
+- `smoke:markets`：验证港股、美股、A 股及错误输入
 
-## Verified Behavior
+真实行情测试需要能够访问 FTShare 服务。
 
-The standalone release checks completed successfully:
+## 当前限制
 
-- 64 provider, normalization, indicator, chart-session, frontend-contract, and MCP server tests passed;
-- stdio discovery exposed exactly four local tools;
-- the chart payload contains candles plus MA, volume, MACD, RSI, BOLL, ATR, and
-  VWAP series without an MCP Apps handshake;
-- the standalone chart fetches missing long-history rows on range expansion;
-  the real A-share 5Y view was verified back to August 2021;
-- a clean directory with no `ft-kline-view` sibling installed all Node and
-  Python dependencies from pinned inputs;
-- the clean directory completed a real FTShare `00700.HK` analysis with 60
-  bars, close `440.0`, RSI(14) `40.444`, MACD DIF `0.597986`, DEA `4.929754`,
-  and histogram `-8.663534`;
-- the dsh Web UI called only `mcp__dsh-kline__analyze_kline` and produced the
-  corresponding Chinese summary without Bash, Web, or another provider.
+- 港股分钟 K 线尚未经过 FTShare SDK 验证，建议使用日线及以上周期
+- 部分 A 股宽基指数缺少已验证的历史行情接口，系统会明确返回错误
+- 本项目固定使用 DeepSeek Harness `0.1.0-rc.6`
 
-## Current Boundaries
+## 安全
 
-- DeepSeek Harness `0.1.0-rc.6` bridges MCP tools but does not render MCP Apps;
-  `dsh_kline` therefore serves a normal browser chart URL from the MCP process.
-- Chart sessions are in-memory, expire after six hours, and are reachable only
-  on `127.0.0.1` by default. Port `8765` is preferred; if it is occupied, the
-  service chooses an available loopback port and returns the exact URL.
-- Daily-or-larger generic FTShare history is fetched in pages no wider than 360
-  days, which stays inside the provider's 12-natural-month request limit while
-  supporting the chart's 1Y and 5Y ranges.
-- The installed FTShare SDK has no verified Hong Kong minute-candle endpoint;
-  use daily-or-larger Hong Kong intervals.
-- A-share broad-index K-lines fail closed where the installed SDK has no
-  verified index-history endpoint.
+- 不要提交 API Key、凭据文件、dsh 会话或生成的行情数据
+- 曾粘贴到聊天、Issue 或终端日志中的 Key 应立即轮换
+- `DSH_KLINE_CACHE_DIR` 可能包含证券元数据，不应公开
 
-## Repository Layout
+## 来源与许可证
 
-```text
-server.py                 standalone MCP server
-chart_service.py          loopback chart session and HTTP service
-core/                     OHLCV normalization and indicators
-tools/                    FTShare adapter, calculation wrapper, and chart payloads
-view/                     vendored interactive K-line frontend
-config/dsh-kline.patch.yml
-scripts/bootstrap.sh      Python environment setup
-scripts/run-dsh-kline.sh  stdio launcher used by dsh
-scripts/smoke-mcp.py      MCP protocol discovery check
-scripts/smoke-markets.py  live HK/US/CN/error regression
-tests/                    provider, indicator, and server tests
-```
+指标实现和交互式前端基于 MIT 许可的 `ft-kline-view` 改造，但本项目运行时不依赖
+该仓库。详细来源见 [docs/PROVENANCE.md](docs/PROVENANCE.md)。
 
-## Security
-
-- Never commit API keys, credential files, dsh sessions, or generated market data.
-- Rotate any key pasted into chat, issues, or terminal logs.
-- `DSH_KLINE_CACHE_DIR` may contain provider metadata; do not publish it.
-- The chart service binds to loopback and keeps chart rows in memory only.
-
-## Provenance
-
-The deterministic OHLCV and indicator implementation was adapted from the
-MIT-licensed `ft-kline-view` codebase. See [docs/PROVENANCE.md](docs/PROVENANCE.md).
-The interactive frontend and vendored chart library were copied into `view/`
-for this repository's standalone browser service. `ft-kline-view` is source
-provenance only and is not a runtime dependency.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+本项目采用 MIT 许可证，见 [LICENSE](LICENSE)。
