@@ -57,7 +57,11 @@ mcp = FastMCP(
         " In DeepSeek Harness, say that the interactive chart is open in the right "
         "sidebar only when chart_ready is true; otherwise explain that the chart "
         "service is unavailable. Do not create files or claim that a chart was "
-        "rendered based on a script or URL."
+        "rendered based on a script or URL. Report count, interval, latest, and "
+        "indicator values exactly as returned; do not infer a different bar count "
+        "from the selected timeframe. Keep support/resistance labels from the "
+        "metrics, but describe whether each level is above or below the latest "
+        "close instead of calling an above-price support a current support."
     ),
     json_response=True,
 )

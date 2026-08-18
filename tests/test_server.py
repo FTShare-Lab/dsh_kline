@@ -39,6 +39,8 @@ def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_error
     assert "explain that error and stop" in server.mcp.instructions
     assert "Do not create files" in server.mcp.instructions
     assert "interactive chart is open in the right sidebar" in server.mcp.instructions
+    assert "Report count, interval, latest, and indicator values exactly as returned" in server.mcp.instructions
+    assert "describe whether each level is above or below the latest close" in server.mcp.instructions
 
 
 def test_health_reports_installed_sdk(monkeypatch) -> None:
