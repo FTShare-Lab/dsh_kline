@@ -384,7 +384,7 @@
   /* MA/VWAP now render as native price indicators, sharing KLineChart's exact
      pane transform while panning, zooming and resizing. */
   .ma-layer { display: none; }
-  .ma-legend { display: none; position: absolute; z-index: 6; top: 8px; left: 64px; max-width: calc(100% - 132px); align-items: baseline; flex-wrap: wrap; gap: 4px 12px; pointer-events: none; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ma-legend { display: none; }
   .ma-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }
   .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
   .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
@@ -477,7 +477,6 @@
     .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .toolbar::-webkit-scrollbar { display: none; }
     .toolbar-actions { width: max-content; flex-wrap: nowrap; justify-content: flex-start; }
-    .ma-legend { left: 60px; max-width: calc(100% - 126px); }
     .company-metrics { grid-template-columns: repeat(3, minmax(112px, 1fr)); }
     .company-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .company-metric:nth-child(3) { border-right: 0; }
@@ -2628,24 +2627,13 @@ function removePriceAlert(id) {
   window.setTimeout(() => setChartStatus(""), 900);
 }
 function drawMaLayer() {
-  // MA lines are native KLineCharts indicators; this small HTML legend keeps
-  // their values horizontal while the chart pans and resizes.
+  // Kept as a safe cleanup hook for views restored from older resources. MA
+  // and VWAP are native KLineCharts indicators now; the old custom legend was
+  // susceptible to stale placement during pan and resize.
   const layer = document.getElementById("maLayer");
   const legend = document.getElementById("maLegend");
   if (layer) layer.innerHTML = "";
-  if (!legend) return;
-  if (!activeMaMaps.length) {
-    legend.innerHTML = "";
-    legend.style.display = "none";
-    return;
-  }
-  const latestTime = secOrMsToMs(currentCandles.at(-1)?.time);
-  legend.innerHTML = activeMaMaps.map((series, index) => {
-    const value = Number(series.map?.[latestTime]);
-    const color = chartColors().ma[index % chartColors().ma.length];
-    return `<span class="ma-legend-item" style="color:${color}">MA${series.period}: ${Number.isFinite(value) ? fmt(value, 2) : "--"}</span>`;
-  }).join("");
-  legend.style.display = "flex";
+  if (legend) legend.innerHTML = "";
 }
 function comparisonRowsForTime(rows, time, indexState) {
   while (indexState.index + 1 < rows.length && Number(rows[indexState.index + 1]?.time) <= time) indexState.index += 1;
@@ -3130,7 +3118,7 @@ function registerMaGroupIndicator(periods) {
   if (registeredMaGroupIndicators.has(name)) return name;
   const figures = normalized.map((period, index) => ({
     key: `ma${index}`,
-    title: "",
+    title: `MA${period}: `,
     type: "line",
     attrs: (params) => {
       const cur = params?.coordinate?.current;
@@ -5169,7 +5157,10 @@ async function submitRangeAnalyze() {
 
 /* ---------- indicator toggle → reapply in the current view ---------- */
 async function redrawWithIndicators() {
-  if (!sourceCandles.length || redrawing) return;
+  // Host-provided local renders may populate currentCandles without retaining
+  // a separate sourceCandles buffer. Indicator toggles must still redraw that
+  // already-visible chart.
+  if ((!sourceCandles.length && !currentCandles.length) || redrawing) return;
   redrawing = true;
   setChartStatus("更新指标…");
   try {

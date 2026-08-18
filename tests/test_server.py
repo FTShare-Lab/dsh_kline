@@ -40,7 +40,7 @@ def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_error
     assert "Do not create files" in server.mcp.instructions
     assert "interactive chart is open in the right sidebar" in server.mcp.instructions
     assert "Report count, interval, latest, and indicator values exactly as returned" in server.mcp.instructions
-    assert "describe whether each level is above or below the latest close" in server.mcp.instructions
+    assert "Only calculate and annotate support and resistance when the user explicitly requests it" in server.mcp.instructions
 
 
 def test_health_reports_installed_sdk(monkeypatch) -> None:
@@ -104,11 +104,13 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert data["chart"]["rows"] == source_rows[-60:]
     assert data["chart_session"] == "session-test"
     assert data["chart_ready"] is True
-    assert "support_resistance" in data["metrics"]
+    assert "support_resistance" not in data["metrics"]
+    assert data["chart"]["marks"] == []
     assert "chart_url" not in data
     assert "url" not in data["chart"]
     assert published["payload"]["chartCommands"][0]["type"] == "SET_CANDLES"
     assert published["payload"]["chartCommands"][0]["rows"] == source_rows[-60:]
+    assert not any(command["type"] == "TEXT_MARKER" for command in published["payload"]["chartCommands"])
     assert data["metrics"]["rsi"]["last"]["value"] == data["indicator_last"]["rsi"]
     assert set(data["indicator_last"]["macd"]) == {"dif", "dea", "hist"}
 

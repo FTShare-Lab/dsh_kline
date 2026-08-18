@@ -52,8 +52,9 @@ mcp = FastMCP(
         "symbol or interval, explain that error and stop; do not probe other symbols "
         "or substitute another interval unless the user explicitly asks. Use "
         "fetch_candles only when raw OHLCV rows are explicitly requested, and use "
-        "calc_metrics only for caller-supplied rows. analyze_kline includes support "
-        "and resistance levels by default and adds them to the chart as annotations. "
+        "calc_metrics only for caller-supplied rows. Only calculate and annotate support "
+        "and resistance when the user explicitly requests it: pass metrics including "
+        "support_resistance or set mark_support_resistance=true. "
         " In DeepSeek Harness, say that the interactive chart is open in the right "
         "sidebar only when chart_ready is true; otherwise explain that the chart "
         "service is unavailable. Do not create files or claim that a chart was "
@@ -262,6 +263,7 @@ async def analyze_kline(
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式")] = "none",
     indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
     metrics: Annotated[list[str] | None, Field(description="指标摘要子集，可选：" + ", ".join(AVAILABLE_METRICS))] = None,
+    mark_support_resistance: Annotated[bool, Field(description="仅在用户明确要求支撑位/压力位时设为 true；默认不标注")] = False,
     ma_periods: Annotated[list[int] | None, Field(description=f"MA 周期，默认 {DEFAULT_MA_PERIODS}")] = None,
     rsi_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_RSI_PERIOD,
     boll_period: Annotated[int, Field(ge=2, le=200)] = DEFAULT_BOLL_PERIOD,
@@ -294,9 +296,13 @@ async def analyze_kline(
         if str(value).lower() in {"ma", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"}
     ]
     periods = [int(value) for value in (ma_periods or DEFAULT_MA_PERIODS)]
+    requested_metrics = [str(value).lower() for value in metrics] if metrics is not None else ["rsi"]
+    should_mark_levels = mark_support_resistance or "support_resistance" in requested_metrics
+    if mark_support_resistance and "support_resistance" not in requested_metrics:
+        requested_metrics.append("support_resistance")
     metric_data = run_calc_metrics(
         rows,
-        metrics=metrics or ["rsi", "support_resistance"],
+        metrics=requested_metrics,
         rsi_period=rsi_period,
         boll_period=boll_period,
         boll_std=boll_std,
@@ -304,7 +310,7 @@ async def analyze_kline(
         volume_ma=volume_ma,
         ma_periods=periods,
     )
-    analysis_marks = _support_resistance_marks(metric_data)
+    analysis_marks = _support_resistance_marks(metric_data) if should_mark_levels else []
     previous = float(rows[-2]["close"])
     latest = dict(rows[-1])
     latest["change"] = round(float(latest["close"]) - previous, 6)

@@ -48,9 +48,12 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert 'chartEl?.addEventListener("wheel"' not in html
     assert 'expandChart: "Expand chart"' in html
     assert 'percentAxis: "Change %"' in html
-    assert 'legend.style.display = "flex"' in html
-    assert "registerMaGroupIndicator" in html
-    assert "activeMaGroupName" in html
+    assert 'legend.style.display = "flex"' not in html
+    assert "function registerMaGroupIndicator(periods)" in html
+    assert 'shortName: "MA"' in html
+    assert 'title: `MA${period}: `' in html
+    assert "activeMaGroupName = registerMaGroupIndicator" in html
+    assert "if ((!sourceCandles.length && !currentCandles.length) || redrawing) return;" in html
     assert 'if (!previousSymbol || previousSymbol !== nextSymbol)' in html
 
 
