@@ -35,9 +35,9 @@ def test_server_exposes_only_the_standalone_tool_surface() -> None:
 
 def test_server_instructions_prefer_one_analysis_call_and_stop_on_provider_errors() -> None:
     assert "call analyze_kline exactly once" in server.mcp.instructions
-    assert "Do not call health or fetch_candles first" in server.mcp.instructions
+    assert "Never call health, fetch_candles, or calc_metrics as a preflight or follow-up" in server.mcp.instructions
     assert "explain that error and stop" in server.mcp.instructions
-    assert "same call adds the calculated levels" in server.mcp.instructions
+    assert "Do not create files" in server.mcp.instructions
     assert "interactive chart is open in the right sidebar" in server.mcp.instructions
 
 
@@ -83,7 +83,6 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
             "TEST.HK",
             limit=60,
             indicators=["ma", "vol", "macd", "rsi"],
-            metrics=["rsi"],
         )
     )
 
@@ -102,6 +101,8 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     assert data["fetched_count"] == 80
     assert data["chart"]["rows"] == source_rows[-60:]
     assert data["chart_session"] == "session-test"
+    assert data["chart_ready"] is True
+    assert "support_resistance" in data["metrics"]
     assert "chart_url" not in data
     assert "url" not in data["chart"]
     assert published["payload"]["chartCommands"][0]["type"] == "SET_CANDLES"
@@ -112,6 +113,7 @@ def test_analyze_kline_uses_one_ftshare_row_set(monkeypatch) -> None:
     summary = json.loads(result.content[0].text.split(" · ", 1)[1])
     assert summary["source"] == "ftshare"
     assert summary["count"] == 60
+    assert summary["chart_ready"] is True
     assert "chart" not in summary
     assert "chart_url" not in summary
 
@@ -209,6 +211,7 @@ def test_analyze_kline_keeps_text_analysis_when_chart_service_fails(monkeypatch)
 
     assert result.isError is False
     assert result.structuredContent["count"] == 60
+    assert result.structuredContent["chart_ready"] is False
     assert "chart_url" not in result.structuredContent
     assert result.structuredContent["chart_service"] == {
         "ok": False,

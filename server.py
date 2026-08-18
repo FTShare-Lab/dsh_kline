@@ -43,18 +43,21 @@ from tools.fetch import fetch_candles, ftshare_status
 mcp = FastMCP(
     "dsh_kline",
     instructions=(
-        "For ordinary K-line requests, call analyze_kline exactly once. It performs "
-        "the FTShare fetch, deterministic calculations, and chart generation against "
-        "one row set. Do not call health or fetch_candles first, switch providers, "
-        "reconstruct market rows, or use shell/web probes. If the provider rejects a "
+        "IMPORTANT workflow policy: For ordinary K-line requests, call analyze_kline "
+        "exactly once. It performs the FTShare fetch, deterministic calculations, "
+        "and chart generation against one row set. Never call health, fetch_candles, "
+        "or calc_metrics as a preflight or follow-up; never use shell, filesystem, "
+        "scripts, web probes, or another chart generator for the same request. Do "
+        "not switch providers or reconstruct market rows. If the provider rejects a "
         "symbol or interval, explain that error and stop; do not probe other symbols "
         "or substitute another interval unless the user explicitly asks. Use "
         "fetch_candles only when raw OHLCV rows are explicitly requested, and use "
-        "calc_metrics only for caller-supplied rows. When support or resistance "
-        "analysis is requested, include support_resistance in analyze_kline metrics; "
-        "that same call adds the calculated levels to the chart as annotations."
+        "calc_metrics only for caller-supplied rows. analyze_kline includes support "
+        "and resistance levels by default and adds them to the chart as annotations. "
         " In DeepSeek Harness, say that the interactive chart is open in the right "
-        "sidebar."
+        "sidebar only when chart_ready is true; otherwise explain that the chart "
+        "service is unavailable. Do not create files or claim that a chart was "
+        "rendered based on a script or URL."
     ),
     json_response=True,
 )
@@ -185,7 +188,7 @@ def _chart_spec(
 
 @mcp.tool(name="health")
 async def health() -> types.CallToolResult:
-    """Check the local Python runtime and the FTShare SDK import status."""
+    """Check runtime health only when the user explicitly asks for a health check."""
     data = {"ok": True, "server": "dsh_kline", "ftshare": ftshare_status()}
     available = bool(data["ftshare"].get("available"))
     data["ok"] = available
@@ -202,7 +205,7 @@ async def fetch_candles_tool(
     limit: Annotated[int, Field(ge=2, le=4000, description="回看窗口")] = 220,
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式")] = "none",
 ) -> types.CallToolResult:
-    """Fetch canonical OHLCV rows directly from the installed FTShare SDK."""
+    """Fetch raw OHLCV rows only when the user explicitly requests raw candle data."""
     data = fetch_candles(
         symbol,
         interval=interval,
@@ -229,7 +232,7 @@ async def calc_metrics(
     atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
     volume_ma: Annotated[int, Field(ge=2, le=200)] = DEFAULT_VOLUME_MA,
 ) -> types.CallToolResult:
-    """Calculate deterministic indicator summaries for supplied canonical rows."""
+    """Calculate metrics only for rows explicitly supplied by the caller."""
     try:
         data = run_calc_metrics(
             rows,
@@ -262,7 +265,7 @@ async def analyze_kline(
     volume_ma: Annotated[int, Field(ge=2, le=200)] = DEFAULT_VOLUME_MA,
     atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
 ) -> types.CallToolResult:
-    """Single-call FTShare fetch, deterministic metrics, and chart-spec workflow."""
+    """Use this single call for ordinary K-line analysis; it also opens the native chart sidebar."""
     requested = max(2, min(int(limit), 4000))
     fetch_limit = requested if interval == "minute" else min(4000, max(requested, int(requested * 1.8)))
     fetched = fetch_candles(
@@ -289,7 +292,7 @@ async def analyze_kline(
     periods = [int(value) for value in (ma_periods or DEFAULT_MA_PERIODS)]
     metric_data = run_calc_metrics(
         rows,
-        metrics=metrics or ["rsi"],
+        metrics=metrics or ["rsi", "support_resistance"],
         rsi_period=rsi_period,
         boll_period=boll_period,
         boll_std=boll_std,
@@ -344,6 +347,7 @@ async def analyze_kline(
         "as_of": fetched.get("as_of"),
         "freshness": fetched.get("freshness"),
         "chart_session": chart_session,
+        "chart_ready": bool(chart_session and chart_service_status.get("ok")),
         "chart_service": chart_service_status,
         "latest": latest,
         "indicator_last": _indicator_last(
@@ -372,6 +376,7 @@ async def analyze_kline(
             "latest",
             "indicator_last",
             "metrics",
+            "chart_ready",
         )
     }
     return _result(data, "analyze_kline ok · " + json.dumps(summary, ensure_ascii=False, separators=(",", ":")))
