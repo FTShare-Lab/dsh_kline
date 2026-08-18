@@ -6,7 +6,6 @@
 <title>dsh_kline Chart</title>
 <!-- The local chart server injects the vendored library and session payload. -->
 <script id="klinecharts-vendor">/*__KLINECHARTS_VENDOR_JS__*/</script>
-<script id="ftv-view-meta">/*__FTV_VIEW_META__*/</script>
 <style>
   :root {
     --bg: #ffffff;
@@ -2510,19 +2509,13 @@ function registerOverlays() {
 
 function initChart() {
   if (kchart) return;
-  const meta = window.__FTV_VIEW_META__;
-  if (!meta) {
-    showError("图表元数据未注入，请在 dsh 中重新运行 analyze_kline。");
-  }
   if (!window.klinecharts?.init) {
     const vendor = window.__FTV_KLINECHARTS_VENDOR__ || {};
-    const reason = !meta
-      ? "图表元数据未注入"
-      : vendor.error
-        ? `vendor 执行异常：${vendor.error}`
-        : vendor.started
-          ? "vendor 已执行但未导出 window.klinecharts"
-          : "vendor 注入代码未执行";
+    const reason = vendor.error
+      ? `vendor 执行异常：${vendor.error}`
+      : vendor.started
+        ? "vendor 已执行但未导出 window.klinecharts"
+        : "vendor 注入代码未执行";
     const el = document.getElementById("klineChart");
     el.textContent = `klinecharts 加载失败：${reason}`;
     return;
@@ -4930,10 +4923,6 @@ async function handleToolResult(result) {
 
   // draw_kline payload
   if (Array.isArray(structured.chartCommands)) {
-    const viewMeta = window.__FTV_VIEW_META__ || null;
-    if (!viewMeta) {
-      showError("当前页面缺少图表元数据，请在 dsh 中重新运行 analyze_kline。");
-    }
     if (!structured.local_render) {
       const sourceCommand = structured.chartCommands.find((command) => command.type === "SET_CANDLES" && Array.isArray(command.rows));
       if (sourceCommand?.rows?.length) sourceCandles = sourceCommand.rows.slice();

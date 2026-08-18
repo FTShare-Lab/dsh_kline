@@ -101,6 +101,8 @@ def test_frontend_has_no_mcp_app_or_original_host_runtime_dependency() -> None:
         "ui/request-display-mode",
         "MCP Apps",
         "ft-kline-view",
+        "__FTV_VIEW_META__",
+        "当前页面缺少图表元数据",
     ):
         assert forbidden not in html
     assert "window.__DSH_CHART_SESSION__" in html
