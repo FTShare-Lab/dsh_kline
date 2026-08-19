@@ -381,11 +381,9 @@
     .comparison-performance { grid-template-columns: 1fr; }
     .comparison-performance-head { min-height: 60px; border-right: 0; border-bottom: 1px solid var(--border); }
   }
-  /* MA/VWAP now render as native price indicators, sharing KLineChart's exact
+  /* MA/VWAP render as native price indicators, sharing KLineChart's exact
      pane transform while panning, zooming and resizing. */
   .ma-layer { display: none; }
-  .ma-legend { display: none; }
-  .ma-legend-item { padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 88%, transparent); font-variant-numeric: tabular-nums; }
   .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
   .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
   .activity-notice[hidden] { display: none; }
@@ -669,7 +667,6 @@
   <div id="klineChart"></div>
   <div class="session-guide-layer" id="sessionGuideLayer" aria-hidden="true"></div>
   <svg class="ma-layer" id="maLayer" aria-hidden="true"></svg>
-  <div class="ma-legend" id="maLegend" aria-hidden="true"></div>
   <div class="crosshair-time-label" id="crosshairTimeLabel" hidden aria-hidden="true"></div>
   <svg class="comparison-layer" id="comparisonLayer" aria-hidden="true"></svg>
   <div class="comparison-legend" id="comparisonLegend" aria-hidden="true"></div>
@@ -2627,13 +2624,9 @@ function removePriceAlert(id) {
   window.setTimeout(() => setChartStatus(""), 900);
 }
 function drawMaLayer() {
-  // Kept as a safe cleanup hook for views restored from older resources. MA
-  // and VWAP are native KLineCharts indicators now; the old custom legend was
-  // susceptible to stale placement during pan and resize.
+  // MA lines and their values are rendered by the native KLineCharts indicator.
   const layer = document.getElementById("maLayer");
-  const legend = document.getElementById("maLegend");
   if (layer) layer.innerHTML = "";
-  if (legend) legend.innerHTML = "";
 }
 function comparisonRowsForTime(rows, time, indexState) {
   while (indexState.index + 1 < rows.length && Number(rows[indexState.index + 1]?.time) <= time) indexState.index += 1;

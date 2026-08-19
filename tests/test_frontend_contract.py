@@ -49,6 +49,7 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert 'expandChart: "Expand chart"' in html
     assert 'percentAxis: "Change %"' in html
     assert 'legend.style.display = "flex"' not in html
+    assert 'maLegendSlot' not in html
     assert "function registerMaGroupIndicator(periods)" in html
     assert 'shortName: "MA"' in html
     assert 'title: `MA${period}: `' in html
