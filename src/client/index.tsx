@@ -9,6 +9,8 @@ const PANEL_MAX = 920
 const PANEL_DEFAULT = 680
 const SESSION_ENDPOINT = '/dsh-kline/session'
 const STORAGE_KEY = 'dsh-kline:sidebar:v1'
+const CURRENT_VERSION = '0.1.1'
+const LATEST_RELEASE_URL = 'https://api.github.com/repos/FTShare-Lab/dsh_kline/releases/latest'
 
 interface ClientContext {
   effect(callback: () => () => void, label: string): void
@@ -36,6 +38,11 @@ interface SidebarState {
   width: number
 }
 
+interface ReleaseUpdate {
+  version: string
+  url: string
+}
+
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     installStyles()
@@ -57,6 +64,7 @@ function KlineSidebar() {
   const [state, setState] = useState<SidebarState>(readState)
   const [session, setSession] = useState<ChartSession>()
   const [available, setAvailable] = useState(true)
+  const [update, setUpdate] = useState<ReleaseUpdate>()
   const drag = useRef<{ startX: number; startWidth: number }>()
   const compact = useCompactLayout()
   const panelWidth = compact ? window.innerWidth : state.width
@@ -91,6 +99,16 @@ function KlineSidebar() {
     return () => {
       active = false
       if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void checkForUpdate().then(result => {
+      if (active) setUpdate(result)
+    })
+    return () => {
+      active = false
     }
   }, [])
 
@@ -154,6 +172,12 @@ function KlineSidebar() {
           </div>
           <button type="button" aria-label="关闭 K 线侧栏" title="关闭" onClick={() => setOpen(false)}>x</button>
         </header>
+        {update && (
+          <div className="dsh-kline-update" role="status">
+            <span>发现新版本 v{update.version}</span>
+            <a href={update.url} target="_blank" rel="noreferrer">查看更新</a>
+          </div>
+        )}
         <div className="dsh-kline-content">
           {session ? (
             <NativeKlineApp key={session.session} session={session} />
@@ -167,6 +191,38 @@ function KlineSidebar() {
       </aside>
     </>
   )
+}
+
+async function checkForUpdate(): Promise<ReleaseUpdate | undefined> {
+  try {
+    const response = await fetch(LATEST_RELEASE_URL, {
+      cache: 'no-store',
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+    if (!response.ok) return undefined
+    const release = await response.json() as { tag_name?: unknown; html_url?: unknown; prerelease?: unknown }
+    const version = typeof release.tag_name === 'string' ? release.tag_name.replace(/^v/i, '') : ''
+    const url = typeof release.html_url === 'string' ? release.html_url : ''
+    if (release.prerelease === true || !url || !isNewerVersion(version, CURRENT_VERSION)) return undefined
+    return { version, url }
+  } catch {
+    return undefined
+  }
+}
+
+function isNewerVersion(candidate: string, current: string): boolean {
+  const parse = (value: string) => {
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value)
+    return match ? match.slice(1).map(Number) : undefined
+  }
+  const next = parse(candidate)
+  const installed = parse(current)
+  if (!next || !installed) return false
+  for (let index = 0; index < next.length; index += 1) {
+    if (next[index] === installed[index]) continue
+    return next[index] > installed[index]
+  }
+  return false
 }
 
 function NativeKlineApp({ session }: { session: ChartSession }) {
@@ -270,6 +326,9 @@ function installStyles(): void {
     .dsh-kline-header small { color: var(--dsw-alias-label-tertiary, #7a8495); font-size: 11px; white-space: nowrap; }
     .dsh-kline-header button { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; font: 20px/1 system-ui; }
     .dsh-kline-header button:hover { background: var(--dsw-alias-interactive-bg-hover, #eef1f5); }
+    .dsh-kline-update { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px 7px 18px; border-bottom: 1px solid #f4c48d; color: #8a4b08; background: #fff8ef; font-size: 12px; }
+    .dsh-kline-update a { color: #a65400; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .dsh-kline-update a:hover { text-decoration: underline; }
     .dsh-kline-content { min-height: 0; flex: 1; overflow: hidden; background: #fff; }
     .dsh-kline-native-host { display: block; width: 100%; height: 100%; overflow: hidden; background: #fff; }
     .dsh-kline-native { display: flex; height: 100%; min-width: 340px; flex-direction: column; overflow: hidden; color: #20242b; background: #fff; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

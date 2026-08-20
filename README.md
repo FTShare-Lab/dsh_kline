@@ -52,6 +52,10 @@
 - 支撑位、压力位和指标均为基于历史价格数据的技术分析结果，不构成投资建议。
 - 商业、高频或对时效有严格要求的场景，应使用具备相应授权和服务保障的数据源。
 
+## 更新
+
+版本更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。侧栏会在有新正式版本时显示更新提示；已从源码运行的用户可拉取最新版本后重启 Harness。
+
 ## 许可
 
 本项目采用 [MIT License](LICENSE)，前端来源说明见 [docs/PROVENANCE.md](docs/PROVENANCE.md)。

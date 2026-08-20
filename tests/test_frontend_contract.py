@@ -93,6 +93,8 @@ def test_dsh_sidebar_renders_the_chart_directly_without_an_iframe() -> None:
     assert "attachShadow({ mode: 'open' })" in source
     assert "--dsh-kline-sidebar-width" in source
     assert 'role="separator"' in source
+    assert "LATEST_RELEASE_URL = 'https://api.github.com/repos/FTShare-Lab/dsh_kline/releases/latest'" in source
+    assert "function isNewerVersion" in source
 
 
 def test_dsh_static_assets_do_not_require_a_chart_session() -> None:
@@ -101,6 +103,13 @@ def test_dsh_static_assets_do_not_require_a_chart_session() -> None:
 
     assert source.index("'/dsh-kline/vendor/klinecharts.min.js'") < session_read
     assert source.index("'/dsh-kline/logo.jpg'") < session_read
+
+
+def test_release_update_check_uses_semantic_versions() -> None:
+    source = (ROOT / "src" / "client" / "index.tsx").read_text(encoding="utf-8")
+
+    assert "for (let index = 0; index < next.length; index += 1)" in source
+    assert "return next[index] > installed[index]" in source
 
 
 def test_frontend_has_no_mcp_app_or_original_host_runtime_dependency() -> None:
