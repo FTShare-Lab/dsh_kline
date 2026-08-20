@@ -95,6 +95,14 @@ def test_dsh_sidebar_renders_the_chart_directly_without_an_iframe() -> None:
     assert 'role="separator"' in source
 
 
+def test_dsh_static_assets_do_not_require_a_chart_session() -> None:
+    source = (ROOT / "src" / "index.ts").read_text(encoding="utf-8")
+    session_read = source.index("const session = await readLiveSession()")
+
+    assert source.index("'/dsh-kline/vendor/klinecharts.min.js'") < session_read
+    assert source.index("'/dsh-kline/logo.jpg'") < session_read
+
+
 def test_frontend_has_no_mcp_app_or_original_host_runtime_dependency() -> None:
     html = VIEW_FILE.read_text(encoding="utf-8")
 

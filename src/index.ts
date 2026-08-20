@@ -42,6 +42,17 @@ export function apply(ctx: WebServerContext): void {
 async function serveRuntimeSession(request: IncomingMessage, response: ServerResponse): Promise<void> {
   const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
   try {
+    // Static browser assets must remain available before the first chart session exists.
+    if (pathname === '/dsh-kline/vendor/klinecharts.min.js' && (request.method === 'GET' || request.method === 'HEAD')) {
+      const body = await readFile(VENDOR_FILE)
+      sendBytes(response, 200, body, 'text/javascript; charset=utf-8', request.method === 'HEAD')
+      return
+    }
+    if (pathname === '/dsh-kline/logo.jpg' && (request.method === 'GET' || request.method === 'HEAD')) {
+      const body = await readFile(LOGO_FILE)
+      sendBytes(response, 200, body, 'image/jpeg', request.method === 'HEAD')
+      return
+    }
     const session = await readLiveSession()
     if (!session) {
       sendJson(response, 200, { ok: false, error: 'chart_session_unavailable' }, request.method === 'HEAD')
@@ -56,16 +67,6 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       await proxyJson(response, `${serviceOrigin(session)}/api/session/${encodeURIComponent(session.session)}`, {
         method: request.method,
       })
-      return
-    }
-    if (pathname === '/dsh-kline/vendor/klinecharts.min.js' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const body = await readFile(VENDOR_FILE)
-      sendBytes(response, 200, body, 'text/javascript; charset=utf-8', request.method === 'HEAD')
-      return
-    }
-    if (pathname === '/dsh-kline/logo.jpg' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const body = await readFile(LOGO_FILE)
-      sendBytes(response, 200, body, 'image/jpeg', request.method === 'HEAD')
       return
     }
     if (pathname.startsWith('/dsh-kline/api/tools/') && request.method === 'POST') {
