@@ -1,6 +1,6 @@
 # dsh_kline
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 K 线分析插件，支持直接用自然语言查看行情、指标、新闻和基本面信息。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的交互式 K 线分析插件。直接用自然语言查看行情、技术指标、新闻和基本面信息，并在侧栏继续探索图表。
 
 ## 预览
 
@@ -10,30 +10,47 @@
 
 ![新闻与简况](docs/images/kline-news.png)
 
-## 能做什么
+## 功能
 
-- 支持港股、美股和 A 股
-- 可直接输入股票名称、简称或代码
-- 查看 K 线、成交量、MA、MACD、KDJ、RSI、BOLL、ATR、VWAP
-- 自动标注支撑位、压力位
-- 点击两根 K 线查看区间统计
-- 查看新闻、简况和基本面信息
+- **多市场行情**：支持港股、美股和 A 股，可使用股票名称、简称或代码查询。
+- **交互式图表**：提供日、周、月、季、年及分钟 K 线，支持缩放、拖动、十字线与响应式布局。
+- **技术指标**：K 线、成交量、MA、MACD、KDJ、RSI、BOLL、ATR、VWAP 可按需切换。
+- **关键价位**：在明确提出需求时，自动识别并标注支撑位、压力位和触及次数。
+- **区间统计**：依次点击起点和终点 K 线，即可查看区间涨跌、振幅、最大回撤、K 线数、成交情况等统计。
+- **信息补充**：可切换查看个股新闻、公司简况、财务与股东等基本面信息。
 
-## 怎么用
+## 使用方式
 
-在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中启用 `dsh_kline` 后，直接说出你的需求即可，例如：
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中启用 `dsh_kline` 后，像与分析助手对话一样提出需求即可。无需记住固定代码格式。
 
 - `调取紫金矿业的 K 线`
 - `看看腾讯控股的日 K，标注压力位和支撑位`
+- `分析英伟达最近一个月的成交量、MACD 和 RSI`
 - `查看这只股票最近的新闻和基本面信息`
+- `切换到周线，看看趋势是否转强`
+
+分析完成后，可在图表侧栏继续切换周期、指标、新闻和简况；需要区间统计时，依次点击两根 K 线即可。
+
+## MCP 工具
+
+| 工具 | 用途 |
+| --- | --- |
+| `analyze_kline` | 默认入口。一次返回行情、指标、图表数据和可选的支撑/压力位分析。 |
+| `fetch_candles` | 获取标准化 OHLCV K 线数据。 |
+| `calc_metrics` | 对 OHLCV 数据计算技术指标和统计指标。 |
+| `health` | 检查服务与数据适配器状态。 |
+
+通常只需调用 `analyze_kline`；其余工具用于需要原始数据、单独计算或健康检查的场景。
 
 ## 数据源
 
-推荐使用 [FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)，也支持其他符合 OHLCV 结构的数据源。
+默认推荐 [FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)。项目已针对 FTShare 的港股、美股和 A 股数据做了适配，并将行情统一为标准 OHLCV 结构，便于接入其他自有或授权数据源。
 
-## 说明
+## 数据与使用边界
 
-行情可能延迟或已收盘，图中内容仅供参考，不构成投资建议。
+- 行情可能延迟、处于收盘状态或受上游数据可用性影响。
+- 支撑位、压力位和指标均为基于历史价格数据的技术分析结果，不构成投资建议。
+- 商业、高频或对时效有严格要求的场景，应使用具备相应授权和服务保障的数据源。
 
 ## 许可
 
