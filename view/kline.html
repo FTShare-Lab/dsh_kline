@@ -122,9 +122,10 @@
   .brand { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; min-width: 132px; color: var(--text); }
   .brand-logo { width: 25px; height: 25px; object-fit: contain; border-radius: 3px; }
   .brand-product { font-size: 13px; font-weight: 750; }
-  /* Keep tabs in the native workspace row, but make each tab a stable
-     scrolling item so it cannot collapse into the search and action buttons. */
-  .workspace-tabs { display: flex; flex: 1 1 0; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .workspace-tabbar { display: flex; min-width: 0; padding: 5px 12px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .workspace-tabbar[hidden] { display: none; }
+  /* Tabs describe the open workspaces and stay out of the search/action row. */
+  .workspace-tabs { display: flex; flex: 1 1 auto; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .workspace-tabs:empty { display: none; }
   .workspace-tabs::-webkit-scrollbar { display: none; }
   .workspace-tab { display: flex; flex: 0 0 auto; align-items: center; min-width: 0; max-width: 166px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
@@ -478,7 +479,6 @@
   @media (max-width: 760px) {
     .workspace-bar { flex-wrap: wrap; }
     .brand { min-width: 0; }
-    .workspace-tabs { order: 3; flex: 0 0 100%; flex-basis: 100%; }
     .symbol-search { margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; }
     .toolbar-hint { display: none; }
     .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -533,7 +533,6 @@
 <div id="viewContent">
 <div class="workspace-bar">
   <div class="brand" id="productBrand" aria-label="dsh_kline Chart"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">dsh_kline Chart</span></div>
-  <div class="workspace-tabs" id="workspaceTabs" role="tablist" aria-label="Chart workspace tabs"></div>
   <div class="symbol-search" id="symbolSearch">
     <form class="symbol-search-form" id="symbolSearchForm" role="search">
       <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" />
@@ -559,6 +558,9 @@
     <button class="btn icon-btn" id="themeToggle" title="切换至夜间模式" aria-label="切换至夜间模式">&#9789;</button>
     <button class="btn icon-btn" id="expandBtn" aria-label="展开图表" title="展开图表">&#x26F6;</button>
   </div>
+</div>
+<div class="workspace-tabbar" id="workspaceTabbar" hidden>
+  <div class="workspace-tabs" id="workspaceTabs" role="tablist" aria-label="Chart workspace tabs"></div>
 </div>
 <header class="bar">
   <div class="row">
@@ -4593,7 +4595,9 @@ function workspaceTabId(payload) {
 }
 function renderWorkspaceTabs() {
   const el = document.getElementById("workspaceTabs");
-  if (!el) return;
+  const bar = document.getElementById("workspaceTabbar");
+  if (!el || !bar) return;
+  bar.hidden = workspaceTabs.length < 2;
   el.innerHTML = workspaceTabs.map((tab) => {
     const active = tab.id === activeWorkspaceTabId;
     const timeLabel = `${rangeLabel(tab.rangeKey)} · ${tab.sourceInterval === "minute" ? t("intraday") : t(tab.interval || "day")}`;

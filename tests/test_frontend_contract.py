@@ -51,8 +51,11 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert 'showRule: "none", showType: "standard"' in html
     assert "const topInset = Math.max(42, Number(PANE_LAYOUTS.candle.gap?.top) || 0);" in html
     assert "const bottomInset = 26;" in html
-    assert '.workspace-tabs { display: flex; flex: 1 1 0;' in html
+    assert 'id="workspaceTabbar" hidden' in html
+    assert '.workspace-tabbar[hidden] { display: none; }' in html
+    assert '.workspace-tabs { display: flex; flex: 1 1 auto;' in html
     assert '.workspace-tab { display: flex; flex: 0 0 auto;' in html
+    assert 'bar.hidden = workspaceTabs.length < 2;' in html
     assert 'chartEl?.addEventListener("wheel"' not in html
     assert 'expandChart: "Expand chart"' in html
     assert 'percentAxis: "Change %"' in html
