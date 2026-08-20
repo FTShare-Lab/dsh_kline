@@ -1,5 +1,7 @@
 # dsh_kline
 
+简体中文 | [English](README.en.md)
+
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的交互式 K 线分析插件。直接用自然语言查看行情、技术指标、新闻和基本面信息，并在侧栏继续探索图表。
 
 ## 预览
@@ -54,7 +56,7 @@
 
 ## 更新
 
-版本更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。侧栏会在有新正式版本时显示更新提示；已从源码运行的用户可拉取最新版本后重启 Harness。
+版本更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。侧栏会在有新正式版本时显示更新提示；已从源码运行的用户可更新到最新版本后重启 Harness。
 
 ## 许可
 
