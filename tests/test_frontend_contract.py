@@ -45,6 +45,14 @@ def test_rendered_frontend_preserves_interactive_chart_contract() -> None:
     assert ".toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }" in html
     assert "header.bar .change { font-size: 11px; line-height: 1.2; white-space: nowrap; }" in html
     assert ".chart-wrap { position: relative; min-width: 280px; overflow: hidden;" in html
+    assert 'id="chartMetaCandle"' in html
+    assert 'id="chartMetaIndicators"' in html
+    assert "function renderChartMeta(candle = currentCandles.at(-1))" in html
+    assert 'showRule: "none", showType: "standard"' in html
+    assert "const topInset = Math.max(42, Number(PANE_LAYOUTS.candle.gap?.top) || 0);" in html
+    assert "const bottomInset = 26;" in html
+    assert '.workspace-tabs { display: flex; flex: 1 1 0;' in html
+    assert '.workspace-tab { display: flex; flex: 0 0 auto;' in html
     assert 'chartEl?.addEventListener("wheel"' not in html
     assert 'expandChart: "Expand chart"' in html
     assert 'percentAxis: "Change %"' in html

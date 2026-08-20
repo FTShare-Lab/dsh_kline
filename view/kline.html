@@ -122,13 +122,15 @@
   .brand { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; min-width: 132px; color: var(--text); }
   .brand-logo { width: 25px; height: 25px; object-fit: contain; border-radius: 3px; }
   .brand-product { font-size: 13px; font-weight: 750; }
-  .workspace-tabs { display: flex; flex: 1 1 180px; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  /* Keep tabs in the native workspace row, but make each tab a stable
+     scrolling item so it cannot collapse into the search and action buttons. */
+  .workspace-tabs { display: flex; flex: 1 1 0; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .workspace-tabs:empty { display: none; }
   .workspace-tabs::-webkit-scrollbar { display: none; }
-  .workspace-tab { display: flex; align-items: center; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
+  .workspace-tab { display: flex; flex: 0 0 auto; align-items: center; min-width: 0; max-width: 166px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
   .workspace-tab.active { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
   .workspace-tab-select, .workspace-tab-close { border: 0; background: transparent; color: var(--text); cursor: pointer; height: 100%; }
-  .workspace-tab-select { max-width: 142px; padding: 0 6px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+  .workspace-tab-select { flex: 0 1 142px; width: 142px; min-width: 0; max-width: 142px; padding: 0 6px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
   .workspace-tab-close { width: 22px; padding: 0; color: var(--text-soft); font-size: 16px; line-height: 1; }
   .workspace-tab-close:hover { color: var(--down); }
   .symbol-search { position: relative; flex: 0 1 292px; min-width: 184px; max-width: 292px; margin-left: auto; }
@@ -255,6 +257,13 @@
   .indicator-apply { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
   #klineChart { width: 100%; min-width: 280px; height: 344px; background: var(--bg); }
   .chart-wrap { position: relative; min-width: 280px; overflow: hidden; border-bottom: 1px solid var(--border); }
+  .chart-meta { display: grid; gap: 2px; min-height: 42px; padding: 5px 12px 4px; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; overflow: hidden; }
+  .chart-meta-row { display: flex; align-items: baseline; gap: 10px; min-width: max-content; white-space: nowrap; }
+  .chart-meta-row[hidden] { display: none; }
+  .chart-meta-label { color: var(--text-soft); }
+  .chart-meta-value { color: var(--text); }
+  .chart-meta-indicator { display: inline-flex; align-items: baseline; gap: 3px; }
+  .chart-meta-indicator strong { font-weight: 500; }
   .session-guide-layer { position: absolute; z-index: 3; inset: 0 64px 0 0; overflow: hidden; pointer-events: none; }
   .session-guide-divider { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text-soft) 58%, transparent); }
   .session-guide-label { position: absolute; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -300,7 +309,7 @@
     pointer-events: none; font-size: 10px; font-variant-numeric: tabular-nums;
   }
   .percent-axis.visible { display: block; }
-  .percent-axis-title { position: absolute; top: 4px; right: 2px; color: var(--text-soft); font-size: 10px; }
+  .percent-axis-title { position: absolute; top: 16px; right: 2px; color: var(--text-soft); font-size: 10px; }
   .percent-tick { position: absolute; right: 2px; transform: translateY(-50%); padding: 0 2px; background: color-mix(in srgb, var(--bg) 88%, transparent); }
   .percent-tick.up { color: var(--up); }
   .percent-tick.down { color: var(--down); }
@@ -469,7 +478,7 @@
   @media (max-width: 760px) {
     .workspace-bar { flex-wrap: wrap; }
     .brand { min-width: 0; }
-    .workspace-tabs { order: 3; flex-basis: 100%; }
+    .workspace-tabs { order: 3; flex: 0 0 100%; flex-basis: 100%; }
     .symbol-search { margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; }
     .toolbar-hint { display: none; }
     .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -663,6 +672,10 @@
   <div class="comparison-performance-head"><span class="comparison-performance-title" id="comparisonPerformanceTitle">区间涨跌</span><span class="comparison-performance-subtitle" id="comparisonPerformanceSubtitle">以首个共同交易点为 0%</span><div class="comparison-performance-legend" id="comparisonPerformanceLegend"></div></div>
   <div class="comparison-performance-canvas"><svg class="comparison-performance-svg" id="comparisonPerformanceSvg" aria-hidden="true"></svg></div>
 </section>
+<div class="chart-meta" id="chartMeta" aria-live="polite">
+  <div class="chart-meta-row" id="chartMetaCandle" hidden></div>
+  <div class="chart-meta-row" id="chartMetaIndicators" hidden></div>
+</div>
 <div class="chart-wrap">
   <div id="klineChart"></div>
   <div class="session-guide-layer" id="sessionGuideLayer" aria-hidden="true"></div>
@@ -1276,7 +1289,7 @@ function chartStyles() {
         last: { upColor: c.up, downColor: c.down, noChangeColor: c.neutral },
       },
       tooltip: {
-        showRule: "always", showType: "standard",
+        showRule: "none", showType: "standard",
         rect: { color: "transparent", borderColor: c.axisLine },
         text: { color: c.tooltip, size: 12 },
       },
@@ -1285,7 +1298,7 @@ function chartStyles() {
       ohlc: { upColor: c.upBar, downColor: c.downBar, noChangeColor: c.neutral },
       bars: [{ upColor: c.upBar, downColor: c.downBar, noChangeColor: c.neutral }],
       lines: c.ma.map((color) => ({ color, size: 1.5 })),
-      tooltip: { text: { color: c.tooltip, size: 12 } },
+      tooltip: { showRule: "none", text: { color: c.tooltip, size: 12 } },
     },
     xAxis: {
       axisLine: { color: c.axisLine }, tickText: { color: c.axis }, tickLine: { color: c.axisLine },
@@ -1366,12 +1379,17 @@ function refreshPercentAxis() {
   const padding = Math.max((high - low) * 0.06, reference * 0.002);
   high += padding;
   low -= padding;
-  axis.style.height = chartBaseHeight() + "px";
+  const height = chartBaseHeight();
+  const topInset = Math.max(42, Number(PANE_LAYOUTS.candle.gap?.top) || 0);
+  const bottomInset = 26;
+  const usableHeight = Math.max(1, height - topInset - bottomInset);
+  axis.style.height = height + "px";
   const ticks = Array.from({ length: 5 }, (_, index) => high - (high - low) * index / 4);
   axis.innerHTML = `<span class="percent-axis-title">${escapeHtml(t("percentAxis"))}</span>${ticks.map((price, index) => {
     const pct = (price / reference - 1) * 100;
     const cls = pct > 0.005 ? "up" : pct < -0.005 ? "down" : "flat";
-    return `<span class="percent-tick ${cls}" style="top:${index * 25}%">${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`;
+    const top = topInset + usableHeight * index / 4;
+    return `<span class="percent-tick ${cls}" style="top:${top}px">${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`;
   }).join("")}`;
   axis.classList.add("visible");
 }
@@ -1723,6 +1741,54 @@ function fmtCandleTimestamp(candleOrTime) {
     : `${fmtDate(endTime)} ${fmtTime(endTime)}`;
   const session = candleSessionLabel(candle);
   return session ? `${span} · ${session}` : span;
+}
+function chartSeriesValue(series, candle) {
+  const time = Number(candle?.time);
+  if (!series || !Number.isFinite(time)) return NaN;
+  const map = series.map || series;
+  for (const key of [time, time * 1000, String(time), String(time * 1000)]) {
+    const value = Number(map?.[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return NaN;
+}
+function renderChartMeta(candle = currentCandles.at(-1)) {
+  const candleRow = document.getElementById("chartMetaCandle");
+  const indicatorRow = document.getElementById("chartMetaIndicators");
+  if (!candleRow || !indicatorRow) return;
+  if (!candle || !Number.isFinite(Number(candle.close))) {
+    candleRow.hidden = true;
+    indicatorRow.hidden = true;
+    candleRow.innerHTML = "";
+    indicatorRow.innerHTML = "";
+    return;
+  }
+  const labels = viewLanguage === "zh"
+    ? ["时间", "开", "高", "低", "收", "成交量"]
+    : ["Time", "Open", "High", "Low", "Close", "Volume"];
+  const item = (label, value) => `<span class="chart-meta-value"><span class="chart-meta-label">${escapeHtml(label)}</span> ${escapeHtml(String(value))}</span>`;
+  candleRow.innerHTML = [
+    item(labels[0], fmtCandleTimestamp(candle)),
+    item(labels[1], fmt(Number(candle.open), 2)),
+    item(labels[2], fmt(Number(candle.high), 2)),
+    item(labels[3], fmt(Number(candle.low), 2)),
+    item(labels[4], fmt(Number(candle.close), 2)),
+    item(labels[5], fmtVolumeWan(Number(candle.volume))),
+  ].join("");
+  candleRow.hidden = false;
+
+  const parts = [];
+  if (maVisible && activeMaMaps.length) {
+    activeMaMaps.forEach((series, index) => {
+      const color = chartColors().ma[index % chartColors().ma.length];
+      parts.push(`<span class="chart-meta-indicator" style="color:${color}"><strong>MA${escapeHtml(series.period)}</strong> ${escapeHtml(fmt(chartSeriesValue(series, candle), 2))}</span>`);
+    });
+  }
+  if (vwapVisible && activeVwapMap) {
+    parts.push(`<span class="chart-meta-indicator" style="color:${chartColors().vwap}"><strong>VWAP</strong> ${escapeHtml(fmt(chartSeriesValue(activeVwapMap, candle), 2))}</span>`);
+  }
+  indicatorRow.innerHTML = parts.join("");
+  indicatorRow.hidden = parts.length === 0;
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
@@ -2624,9 +2690,11 @@ function removePriceAlert(id) {
   window.setTimeout(() => setChartStatus(""), 900);
 }
 function drawMaLayer() {
-  // MA lines and their values are rendered by the native KLineCharts indicator.
+  // Lines remain native KLineCharts indicators. Values use the dedicated
+  // header rather than competing with the price plot and percent axis.
   const layer = document.getElementById("maLayer");
   if (layer) layer.innerHTML = "";
+  renderChartMeta(crosshairCandle || currentCandles.at(-1));
 }
 function comparisonRowsForTime(rows, time, indexState) {
   while (indexState.index + 1 < rows.length && Number(rows[indexState.index + 1]?.time) <= time) indexState.index += 1;
@@ -2986,9 +3054,11 @@ function onCrosshairChange(data) {
   if (!candle) {
     const label = document.getElementById("crosshairTimeLabel");
     if (label) label.hidden = true;
+    renderChartMeta(currentCandles.at(-1));
     return;
   }
   crosshairCandle = candle;
+  renderChartMeta(candle);
   const label = document.getElementById("crosshairTimeLabel");
   const chartEl = document.getElementById("klineChart");
   if (!label || !chartEl) return;
@@ -3299,6 +3369,7 @@ async function applyChartCommands(payload) {
   lastChartPayload = payload;
   clearOverlays();
   clearBackendIndicators();
+  crosshairCandle = null;
   activeMaMaps = [];
   activeVwapMap = null;
   const maLayer = document.getElementById("maLayer");
