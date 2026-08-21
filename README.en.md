@@ -4,14 +4,6 @@
 
 An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Ask in natural language to explore prices, technical indicators, news, and company fundamentals in a sidebar chart.
 
-## Preview
-
-![K-line chart and key levels](docs/images/kline-support.png)
-
-![Range statistics](docs/images/kline-range-stats.png)
-
-![News and company overview](docs/images/kline-news.png)
-
 ## Features
 
 - **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.
@@ -62,4 +54,4 @@ See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for the change
 
 ## License
 
-Released under the [MIT License](LICENSE). Frontend provenance is documented in [docs/PROVENANCE.md](docs/PROVENANCE.md).
+Released under the [MIT License](LICENSE). Frontend provenance is documented in [PROVENANCE.md](PROVENANCE.md).
