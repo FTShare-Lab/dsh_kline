@@ -4,6 +4,14 @@
 
 An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Ask in natural language to explore prices, technical indicators, news, and company fundamentals in a sidebar chart.
 
+## Preview
+
+![K-line chart and key levels](docs/images/kline-support.png)
+
+![Range statistics](docs/images/kline-range-stats.png)
+
+![News and company overview](docs/images/kline-news.png)
+
 ## Features
 
 - **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.

@@ -4,6 +4,14 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的交互式 K 线分析插件。直接用自然语言查看行情、技术指标、新闻和基本面信息，并在侧栏继续探索图表。
 
+## 预览
+
+![K 线与关键价位](docs/images/kline-support.png)
+
+![区间统计](docs/images/kline-range-stats.png)
+
+![新闻与简况](docs/images/kline-news.png)
+
 ## 功能
 
 - **多市场行情**：支持港股、美股和 A 股，可使用股票名称、简称或代码查询。
