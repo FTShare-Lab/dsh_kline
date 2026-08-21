@@ -105,6 +105,7 @@ def test_dsh_sidebar_renders_the_chart_directly_without_an_iframe() -> None:
     assert "--dsh-kline-sidebar-width" in source
     assert 'role="separator"' in source
     assert "LATEST_RELEASE_URL = 'https://api.github.com/repos/FTShare-Lab/dsh_kline/releases/latest'" in source
+    assert "CURRENT_VERSION = '0.1.2'" in source
     assert "function isNewerVersion" in source
 
 

@@ -9,7 +9,7 @@ const PANEL_MAX = 920
 const PANEL_DEFAULT = 680
 const SESSION_ENDPOINT = '/dsh-kline/session'
 const STORAGE_KEY = 'dsh-kline:sidebar:v1'
-const CURRENT_VERSION = '0.1.1'
+const CURRENT_VERSION = '0.1.2'
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/FTShare-Lab/dsh_kline/releases/latest'
 
 interface ClientContext {
