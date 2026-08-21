@@ -50,16 +50,10 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dsh": "dsh",
-    "dsh:version": "dsh --version",
     "bootstrap": "bash ./scripts/bootstrap.sh",
     "generate:client-view": "node ./scripts/generate-client-view.mjs",
     "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts",
-    "dsh:dump": "bash ./scripts/run-dsh-web.sh --dump-config",
-    "dsh:web": "bash ./scripts/run-dsh-web.sh",
-    "smoke:mcp": "bash ./scripts/smoke-mcp.sh",
-    "smoke:live": "bash ./scripts/live-smoke.sh",
-    "smoke:markets": ".venv/bin/python ./scripts/smoke-markets.py"
+    "dsh:web": "bash ./scripts/run-dsh-web.sh"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.0-rc.6",
