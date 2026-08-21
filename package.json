@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
