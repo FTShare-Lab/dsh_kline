@@ -58,7 +58,7 @@
 
 ## 更新
 
-版本更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。侧栏会在有新正式版本时显示更新提示；已从源码运行的用户可更新到最新版本后重启 Harness。
+版本更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。已从源码运行的用户可更新到最新版本后重启 Harness。
 
 ## 许可
 
