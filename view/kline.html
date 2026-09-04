@@ -1197,6 +1197,7 @@ Object.assign(UI_COPY.zh, {
   levelLineAdded: "已添加自定义价位线", levelMarkerAdded: "已添加文本标注", levelRemoved: "已删除点位",
   levelsCleared: "已清空我的点位", madeMine: "已转为自定义点位", toMine: "转我的",
   clearLevelsBtn: "清空我的点位", reanalyzeLevelsBtn: "重新分析关键点位",
+  clearMarksDone: "已清空分析标注与选区", clearMarksNone: "没有可清除的分析标注",
 });
 Object.assign(UI_COPY.en, {
   levelMenu: "Levels", levelMenuAria: "Level annotations",
@@ -1211,6 +1212,7 @@ Object.assign(UI_COPY.en, {
   levelLineAdded: "Custom level line added", levelMarkerAdded: "Text marker added", levelRemoved: "Level removed",
   levelsCleared: "My levels cleared", madeMine: "Moved to my levels", toMine: "Keep mine",
   clearLevelsBtn: "Clear my levels", reanalyzeLevelsBtn: "Re-analyze key levels",
+  clearMarksDone: "Analysis annotations and selection cleared", clearMarksNone: "No analysis annotations to clear",
 });
 const RANGE_COPY = {
   zh: { detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
@@ -3401,6 +3403,25 @@ function clearCurrentCustomLevels() {
   saveWorkspacePreferences();
   setChartStatus(t("levelsCleared"));
   window.setTimeout(() => setChartStatus(""), 900);
+}
+function clearAnalysisAnnotations() {
+  // “清标注” clears analysis-produced annotations only: auto support /
+  // resistance levels, ephemeral analysis overlays/lines and the current
+  // selection. User-created custom levels and drawings keep their own
+  // explicit clear buttons (点位 → 清空我的点位, 画线 → 清除).
+  const hadAuto = analysisLevels.some((item) => item.symbol === currentSymbol);
+  clearRangePick();
+  clearOverlays();
+  lastMarks = [];
+  lastLines = [];
+  if (hadAuto) {
+    analysisLevels = analysisLevels.filter((item) => item.symbol !== currentSymbol);
+    saveWorkspacePreferences();
+  }
+  drawLevelOverlays();
+  renderLevelsPanel();
+  setChartStatus(t(hadAuto ? "clearMarksDone" : "clearMarksNone"));
+  window.setTimeout(() => setChartStatus(""), 1500);
 }
 function syncAutoLevelsFromPayload(payload) {
   const structured = payload?.structuredContent || payload || {};
@@ -6451,10 +6472,7 @@ function wireToggle(btnId, getter, setter) {
 /* ---------- events ---------- */
 mountSettingsRail();
 document.getElementById("clearBtn").addEventListener("click", () => {
-  clearOverlays();
-  lastMarks = [];
-  lastLines = [];
-  setChartStatus("");
+  clearAnalysisAnnotations();
 });
 document.getElementById("volumeUnitBtn").addEventListener("click", () => {
   toggleVolumeUnit().catch(console.warn);
