@@ -756,7 +756,6 @@
   <div class="toolbar-actions">
     <button class="btn" id="clearBtn">清标注</button>
     <button class="btn" id="keyLevelsBtn" type="button" data-i18n="keyLevels">关键点位</button>
-    <button class="btn icon-btn" id="resetZoomBtn" type="button" title="重置缩放" aria-label="重置缩放">&#8634;</button>
     <button class="btn" id="volumeUnitBtn" title="切换成交量单位" aria-label="成交量单位：万">万</button>
     <button class="btn active" id="maBtn" data-ind="ma">MA</button>
     <button class="btn" id="vwapBtn" data-ind="vwap">VWAP</button>
@@ -1101,7 +1100,7 @@ const UI_COPY = {
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
     capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
-    keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsReady: "关键点位分析已更新", keyLevelsFailed: "关键点位分析暂时不可用，请稍后重试。", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
+    keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsReady: "关键点位分析已更新", keyLevelsNeedData: "请先加载有效的 K 线数据，再分析关键点位。", keyLevelsFailed: "温馨提示：当前数据暂时无法完成关键点位分析，请稍后重试。", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
     welcomeItemLevels: "需要时点击“关键点位”，查看支撑位和压力位分析。",
     clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组保存在当前浏览器中，不会自动同步到其他设备。", updateDescription: "查看当前版本、更新记录和发布说明。",
     indicators: "指标", indicatorHeading: "显示指标", apply: "应用",
@@ -1119,7 +1118,7 @@ const UI_COPY = {
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
     capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
-    keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsReady: "Key-level analysis updated", keyLevelsFailed: "Key-level analysis is temporarily unavailable. Try again later.", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
+    keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsReady: "Key-level analysis updated", keyLevelsNeedData: "Load valid K-line data before analyzing key levels.", keyLevelsFailed: "Notice: key-level analysis is temporarily unavailable. Try again later.", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
     welcomeItemLevels: "Click “Key levels” when you want support and resistance analysis.",
     clear: "Clear", search: "Search", searchSubmit: "Submit search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols", versionUpdates: "Version & updates", currentSource: "Active data source", sourceCapabilities: "Available capabilities", sourceCapabilityDaily: "Daily bars and common indicators", sourceCapabilityOptional: "Minute bars / news / market data / company data: source and plan dependent", externalSourceTitle: "Other sources", externalSourceDetail: "Connect another market-data source and keep using charts and indicators.", externalSourceHint: "Connect it through dsh first; direct switching here is not available yet.", sourceFreeMode: "FTShare access is tiered: free plans include basic stock K-lines; minute bars, news, and other capabilities depend on the specific API and plan.", themeCurrent: "Current theme", languageCurrent: "Current language", overviewRoleTitle: "How the plugin works", overviewIntro: "dsh_kline is a market-analysis plugin for dsh. dsh understands your request; the plugin loads data, performs the analysis, and presents the chart. Results are returned to the conversation.", overviewStepOne: "Ask in the dsh conversation, for example: “Show a symbol’s K-line and analyze its key levels.”", overviewStepTwo: "The plugin loads the data and analyzes K-lines, technical indicators, and support/resistance levels.", overviewStepThree: "The chart opens on the right and the conclusion appears in the conversation; you can continue with other ranges and indicators.", overviewCapabilitiesTitle: "What it can do", overviewCapabilityOne: "View quotes and K-lines across daily, weekly, monthly, and other intervals.", overviewCapabilityTwo: "Use MA, MACD, KDJ, BOLL, RSI, ATR, VWAP, and volume indicators.", overviewCapabilityThree: "Identify and mark support, resistance, and other key price levels to help review trends and ranges.", overviewCapabilityFour: "Explore range statistics, symbol comparisons, watchlists, alerts, and drawings.", overviewCapabilityFive: "FTShare is the default source, while other sources can provide market data too.", overviewStartTitle: "Get started", overviewStart: "Ask for an analysis in dsh, or find a symbol in the top search bar; select it to open the chart.", feedbackDescription: "Found a problem or have an idea? Send us feedback.", feedbackOpen: "Submit feedback / 提交反馈", feedbackPrivacy: "This opens GitHub; you choose what information to submit.", helpWorkflow: "How to use", helpStepOne: "Enter a symbol or name in the top search bar and press Enter to find it.", helpStepTwo: "Click a symbol to load market data and analysis.", helpStepThree: "1D/5D require minute bars; switch to 30-day or check the FTShare plan when they are unavailable.", helpStepFour: "Watchlists and groups are stored in this browser and are not synced automatically across devices.", updateDescription: "View the current version, change history, and release notes.",
     indicators: "Indicators", indicatorHeading: "Indicators", apply: "Apply",
@@ -1353,8 +1352,6 @@ function syncLanguageControls() {
   if (tabs) tabs.setAttribute("aria-label", t("chartTabs"));
   document.getElementById("securityNav")?.setAttribute("aria-label", t("securityTabs"));
   document.getElementById("productBrand")?.setAttribute("aria-label", t("productName"));
-  const resetZoomButton = document.getElementById("resetZoomBtn");
-  if (resetZoomButton) { resetZoomButton.title = t("resetZoom"); resetZoomButton.setAttribute("aria-label", t("resetZoom")); }
   const alertButton = document.getElementById("alertMenuBtn");
   if (alertButton) { alertButton.title = t("alert"); alertButton.setAttribute("aria-label", t("alert")); }
   const alertPrice = document.getElementById("alertPriceInput");
@@ -5832,8 +5829,8 @@ function selectionAnalysisPrompt(selection) {
   return `请分析我引用的分析标记“${selection.marker.text || selection.marker.label || "标记"}”，结合它所在位置前后的行情。`;
 }
 async function analyzeKeyLevels() {
-  if (!currentSymbol) {
-    setChartStatus(t("keyLevelsFailed"));
+  if (!currentSymbol || currentCandles.length < 2) {
+    setChartStatus(t("keyLevelsNeedData"));
     return;
   }
   const button = document.getElementById("keyLevelsBtn");
@@ -5936,7 +5933,6 @@ document.getElementById("clearBtn").addEventListener("click", () => {
   lastLines = [];
   setChartStatus("");
 });
-document.getElementById("resetZoomBtn").addEventListener("click", resetChartViewport);
 document.getElementById("volumeUnitBtn").addEventListener("click", () => {
   toggleVolumeUnit().catch(console.warn);
 });
