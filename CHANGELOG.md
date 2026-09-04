@@ -54,7 +54,7 @@
 
 ### Changed
 
-- 默认展示收敛为 MA + VOL + MACD（BOLL/KDJ/RSI/ATR/VWAP 仅在需要时手动开启），默认时间范围改为 30日；仅当分析请求明确指定指标时才自动切换指标栈，旧版偏好在首次打开时迁移一次。
+- 默认展示收敛为 MA + VOL + MACD（BOLL/KDJ/RSI/ATR/VWAP 仅在需要时手动开启），默认时间范围为今年（YTD）；仅当分析请求明确指定指标时才自动切换指标栈，旧版偏好在首次打开时迁移一次。
 - FTShare 降级为可选适配器；`health` 不再因 FTShare 缺失而判定 dsh_kline 整体不可用。
 - 使用 FTShare v1 SDK 的 `stock_minutes` 接口获取分钟线，并保留旧 SDK 兼容回退。
 - 设置页集中语言、主题、数据源和帮助，FTShare 配置失败时保留其他数据源工作流。

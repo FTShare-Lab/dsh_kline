@@ -763,8 +763,8 @@
   <div class="timebar-group" id="rangeControls" role="tablist" aria-label="时间范围">
     <button class="btn" type="button" data-range="1d">1D</button>
     <button class="btn" type="button" data-range="5d">5D</button>
-    <button class="btn active" type="button" data-range="30d" data-i18n="range30d">30日</button>
-    <button class="btn" type="button" data-range="ytd" data-i18n="rangeYtd">今年</button>
+    <button class="btn" type="button" data-range="30d" data-i18n="range30d">30日</button>
+    <button class="btn active" type="button" data-range="ytd" data-i18n="rangeYtd">今年</button>
     <button class="btn" type="button" data-range="1y" data-i18n="range1y">1年</button>
     <button class="btn" type="button" data-range="5y" data-i18n="range5y">5年</button>
     <button class="btn" type="button" data-range="custom" id="customRangeBtn">Custom</button>
@@ -997,7 +997,7 @@ let kchart = null;
 let currentSymbol = "";
 let currentName = "";
 let currentInterval = "day";
-let currentRangeKey = "30d";
+let currentRangeKey = "ytd";
 let customRangeStart = "";
 let customRangeEnd = "";
 let currentCandles = []; // [{time(close sec), open_time?(sec), session?, open, high, low, close, volume}]
@@ -1228,7 +1228,7 @@ function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || la
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 9,
+      version: 10,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
@@ -1253,14 +1253,14 @@ function saveWorkspacePreferences() {
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
     if (parsed.rangeKey === "10d") currentRangeKey = "30d";
     else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
-    // v9 makes 30日 the opening range (and MA/VOL/MACD the default indicators,
-    // see below). Older saved selections are migrated once; preferences chosen
-    // after this release are preserved.
-    if (Number(parsed.version) < 9) currentRangeKey = "30d";
+    // v10 makes 今年 (YTD) the opening range again (and MA/VOL/MACD the
+    // default indicator stack, see below). Older saved selections migrate
+    // once; ranges chosen by the user after this release are preserved.
+    if (Number(parsed.version) < 10) currentRangeKey = "ytd";
     customRangeStart = typeof parsed.customRangeStart === "string" ? parsed.customRangeStart : "";
     customRangeEnd = typeof parsed.customRangeEnd === "string" ? parsed.customRangeEnd : "";
     if (["zh", "en"].includes(parsed.language)) viewLanguage = parsed.language;
