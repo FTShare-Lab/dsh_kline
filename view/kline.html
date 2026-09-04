@@ -371,11 +371,11 @@
     display: block; position: absolute; top: 0; right: 0; z-index: 4;
     width: var(--chart-right-gutter, 96px); box-sizing: border-box;
     background: color-mix(in srgb, var(--bg) 96%, transparent);
-    pointer-events: none; font-size: 10px; font-variant-numeric: tabular-nums;
+    pointer-events: none; font-size: 12px; line-height: 1.2; font-variant-numeric: tabular-nums;
   }
   .percent-axis.visible { display: block; }
   .percent-axis-title { position: absolute; top: 16px; right: 4px; color: var(--text-soft); font-size: 10px; }
-  .percent-tick, .mirror-axis-tick { position: absolute; right: 4px; transform: translateY(-50%); padding: 0 1px; background: var(--bg); white-space: nowrap; }
+  .percent-tick, .mirror-axis-tick { position: absolute; right: 4px; transform: translateY(-50%); padding: 0 1px; background: var(--bg); font-size: 12px; line-height: 1.2; white-space: nowrap; }
   .mirror-axis-tick { color: var(--text-soft); }
   .percent-tick.up { color: var(--up); }
   .percent-tick.down { color: var(--down); }
@@ -1274,6 +1274,7 @@ const PANE_LAYOUTS = {
   rsi: { id: "rsi_pane", gap: { top: 48, bottom: 0.1 } },
   atr: { id: "atr_pane", gap: { top: 48, bottom: 0.1 } },
 };
+const CHART_AXIS_FONT_SIZE = 12;
 
 let rangePickStart = null;
 let rangePickEnd = null;
@@ -1515,7 +1516,7 @@ function chartStyles() {
     },
     yAxis: {
       position: "left", inside: false, size: rightAxisGutterWidth(),
-      axisLine: { color: c.axisLine }, tickText: { color: c.axis }, tickLine: { color: c.axisLine },
+      axisLine: { color: c.axisLine }, tickText: { color: c.axis, size: CHART_AXIS_FONT_SIZE }, tickLine: { color: c.axisLine },
     },
     separator: { color: c.axisLine, size: 1, fill: true },
     crosshair: {
@@ -1582,14 +1583,16 @@ function rightAxisGutterWidth() {
       if (text) labels.push(text);
     }
   }
-  if (!labels.length) return 48;
+  if (!labels.length) return 60;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  if (!context) return 48;
-  context.font = '10px "Segoe UI", "Noto Sans SC", sans-serif';
+  if (!context) return 60;
+  context.font = `${CHART_AXIS_FONT_SIZE}px "Segoe UI", "Noto Sans SC", sans-serif`;
   const widest = Math.max(...labels.map((label) => context.measureText(label).width));
-  // Keep only a small breathing space around the longest numeric label.
-  return Math.min(56, Math.max(44, Math.ceil(widest + 8)));
+  // Both native left ticks and mirrored right ticks use the same font. Keep a
+  // small breathing space around the longest label without creating a wide
+  // empty gutter.
+  return Math.min(72, Math.max(52, Math.ceil(widest + 10)));
 }
 function syncRightAxisGutter() {
   const axis = document.getElementById("percentAxis");
