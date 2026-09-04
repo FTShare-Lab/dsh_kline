@@ -25,6 +25,7 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 - **Interactive charts**: daily, weekly, monthly, quarterly, yearly, and intraday K-lines with zoom, pan, crosshair, and responsive layout.
 - **Technical indicators**: switch K-line, volume, MA, MACD, KDJ, RSI, BOLL, ATR, and VWAP as needed.
 - **Key levels**: when requested, identifies and annotates support, resistance, and touch counts.
+- **Level annotations**: the “Levels” toolbar entry adds full-width level lines at any price or text markers on any candle (name/note/color; reprice, rename, or delete inline). Auto support/resistance can be repriced, renamed, deleted, or moved into your own locally persisted levels.
 - **Range statistics**: click a start and end candle to inspect return, volatility, maximum drawdown, candle count, and trading activity.
 - **Context**: browse stock news, company overview, financials, and shareholder information.
 
