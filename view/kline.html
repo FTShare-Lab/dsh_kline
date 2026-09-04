@@ -763,8 +763,8 @@
   <div class="timebar-group" id="rangeControls" role="tablist" aria-label="时间范围">
     <button class="btn" type="button" data-range="1d">1D</button>
     <button class="btn" type="button" data-range="5d">5D</button>
-    <button class="btn" type="button" data-range="30d" data-i18n="range30d">30日</button>
-    <button class="btn active" type="button" data-range="ytd" data-i18n="rangeYtd">今年</button>
+    <button class="btn active" type="button" data-range="30d" data-i18n="range30d">30日</button>
+    <button class="btn" type="button" data-range="ytd" data-i18n="rangeYtd">今年</button>
     <button class="btn" type="button" data-range="1y" data-i18n="range1y">1年</button>
     <button class="btn" type="button" data-range="5y" data-i18n="range5y">5年</button>
     <button class="btn" type="button" data-range="custom" id="customRangeBtn">Custom</button>
@@ -792,7 +792,7 @@
     <button class="btn active" id="maBtn" data-ind="ma">MA</button>
     <button class="btn" id="vwapBtn" data-ind="vwap">VWAP</button>
     <button class="btn active" id="volBtn" data-ind="vol">VOL</button>
-    <button class="btn" id="macdBtn" data-ind="macd">MACD</button>
+    <button class="btn active" id="macdBtn" data-ind="macd">MACD</button>
     <button class="btn" id="kdjBtn" data-ind="kdj">KDJ</button>
     <button class="btn" id="bollBtn" data-ind="boll">BOLL</button>
     <div class="indicator-menu-wrap">
@@ -803,7 +803,7 @@
           <label class="indicator-choice"><input id="indMa" type="checkbox" checked /><span>MA</span><span class="indicator-note" data-i18n="maNote">均线</span></label>
           <label class="indicator-choice"><input id="indVwap" type="checkbox" /><span>VWAP</span><span class="indicator-note" data-i18n="vwapNote">成交量加权</span></label>
           <label class="indicator-choice"><input id="indVol" type="checkbox" checked /><span>VOL</span><span class="indicator-note" data-i18n="volNote">万股</span></label>
-          <label class="indicator-choice"><input id="indMacd" type="checkbox" /><span>MACD</span><span class="indicator-note" data-i18n="macdNote">动能</span></label>
+          <label class="indicator-choice"><input id="indMacd" type="checkbox" checked /><span>MACD</span><span class="indicator-note" data-i18n="macdNote">动能</span></label>
           <label class="indicator-choice"><input id="indKdj" type="checkbox" /><span>KDJ</span><span class="indicator-note" data-i18n="kdjNote">随机指标</span></label>
           <label class="indicator-choice"><input id="indBoll" type="checkbox" /><span>BOLL</span><span class="indicator-note" data-i18n="bollNote">布林带</span></label>
           <label class="indicator-choice"><input id="indRsi" type="checkbox" /><span>RSI</span><span class="indicator-note" data-i18n="rsiNote">强弱</span></label>
@@ -997,7 +997,7 @@ let kchart = null;
 let currentSymbol = "";
 let currentName = "";
 let currentInterval = "day";
-let currentRangeKey = "ytd";
+let currentRangeKey = "30d";
 let customRangeStart = "";
 let customRangeEnd = "";
 let currentCandles = []; // [{time(close sec), open_time?(sec), session?, open, high, low, close, volume}]
@@ -1026,7 +1026,7 @@ function resetIndicatorVisibility() {
   maVisible = true;
   vwapVisible = false;
   volVisible = true;
-  macdVisible = false;
+  macdVisible = true;
   kdjVisible = false;
   bollVisible = false;
   rsiVisible = false;
@@ -1228,7 +1228,7 @@ function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || la
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 8,
+      version: 9,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
@@ -1253,13 +1253,14 @@ function saveWorkspacePreferences() {
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
     if (parsed.rangeKey === "10d") currentRangeKey = "30d";
     else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
-    // v7 makes YTD the opening range. Migrate an older saved selection once,
-    // while preserving ranges selected by the user after this release.
-    if (Number(parsed.version) < 7) currentRangeKey = "ytd";
+    // v9 makes 30日 the opening range (and MA/VOL/MACD the default indicators,
+    // see below). Older saved selections are migrated once; preferences chosen
+    // after this release are preserved.
+    if (Number(parsed.version) < 9) currentRangeKey = "30d";
     customRangeStart = typeof parsed.customRangeStart === "string" ? parsed.customRangeStart : "";
     customRangeEnd = typeof parsed.customRangeEnd === "string" ? parsed.customRangeEnd : "";
     if (["zh", "en"].includes(parsed.language)) viewLanguage = parsed.language;
@@ -1270,10 +1271,10 @@ function loadWorkspacePreferences() {
     if (["wan", "k"].includes(parsed.volumeUnit)) volumeUnit = parsed.volumeUnit;
     if (Number.isFinite(Number(parsed.canvasHeight))) canvasBaseHeightOverride = Math.round(Math.min(CANVAS_BASE_MAX_HEIGHT, Math.max(CANVAS_BASE_MIN_HEIGHT, Number(parsed.canvasHeight))));
     const indicators = parsed.indicators || {};
-    // v6 starts new workspaces with the focused K-line + MA + VOL layout.
-    // Keep all other saved preferences from earlier releases, but do not carry
-    // an old experimental indicator stack into a newly rendered chart.
-    const migrateIndicatorDefaults = Number(parsed.version) < 6;
+    // v6+ start with a focused layout; since v9 the calm default stack is
+    // MA + VOL + MACD. Versions below 9 are migrated to that stack once so a
+    // busy indicator set from older builds does not come back unexpectedly.
+    const migrateIndicatorDefaults = Number(parsed.version) < 9;
     const visibilitySetters = {
       maVisible: (value) => { maVisible = value; }, vwapVisible: (value) => { vwapVisible = value; }, volVisible: (value) => { volVisible = value; }, macdVisible: (value) => { macdVisible = value; },
       kdjVisible: (value) => { kdjVisible = value; }, bollVisible: (value) => { bollVisible = value; }, rsiVisible: (value) => { rsiVisible = value; }, atrVisible: (value) => { atrVisible = value; },
@@ -1282,7 +1283,7 @@ function loadWorkspacePreferences() {
       maVisible = true;
       vwapVisible = false;
       volVisible = true;
-      macdVisible = false;
+      macdVisible = true;
       kdjVisible = false;
       bollVisible = false;
       rsiVisible = false;
@@ -3998,6 +3999,20 @@ function registerVwapIndicator() {
   });
   registeredMaIndicators.add(name);
 }
+function shouldRenderIndicatorSeries(cmd, payload) {
+  // The chart defaults to a calm stack (MA + VOL + MACD). A draw payload only
+  // forces its own indicator stack when the request explicitly asked for those
+  // indicators (indicators_explicit) or when it is a local re-render that
+  // already mirrors the current visibility state. Otherwise series not enabled
+  // by the user (e.g. BOLL/KDJ from a session opened without an explicit
+  // indicator request) stay hidden instead of clobbering user preferences.
+  if (!cmd || !payload) return false;
+  const name = String(cmd.name || "").toLowerCase();
+  const visible = { ma: maVisible, vwap: vwapVisible, vol: volVisible, macd: macdVisible, kdj: kdjVisible, boll: bollVisible, rsi: rsiVisible, atr: atrVisible };
+  if (visible[name]) return true;
+  if (payload.local_render || payload.indicators_explicit === true) return true;
+  return false;
+}
 function applyIndicatorSeries(cmd) {
   if (!kchart || !cmd) return;
   const name = String(cmd.name || "").toLowerCase();
@@ -4161,7 +4176,7 @@ async function applyChartCommands(payload) {
     if (cmd.type === "SET_RANGE" && (!payload.local_render || payload.fit_to_data)) {
       try { kchart.scrollToTimestamp?.(Number(cmd.end) * 1000); kchart.setOffsetRightDistance?.(72); } catch {}
     } else if (cmd.type === "SET_INDICATOR_SERIES") {
-      applyIndicatorSeries(cmd);
+      if (shouldRenderIndicatorSeries(cmd, payload)) applyIndicatorSeries(cmd);
     } else if (cmd.type === "DRAW_TREND_LINE") {
       const s = nearestCandle(Number(cmd.from?.time));
       const e = nearestCandle(Number(cmd.to?.time));
@@ -6159,7 +6174,12 @@ async function handleToolResult(result) {
     const maySyncLocalIndicators = !structured.local_render
       || !Number.isFinite(localIndicatorVersion)
       || localIndicatorVersion >= indicatorStateVersion;
-    if (Array.isArray(structured.indicators) && maySyncLocalIndicators) {
+    // A remote draw payload only becomes the authoritative indicator stack when
+    // the analysis explicitly requested indicators (indicators_explicit); an
+    // implicit session keeps the calm default / the user's own toggles.
+    const mayApplyRemoteIndicatorStack = structured.local_render
+      || structured.indicators_explicit === true;
+    if (Array.isArray(structured.indicators) && maySyncLocalIndicators && mayApplyRemoteIndicatorStack) {
       const set = new Set(structured.indicators.map(String));
       maVisible = set.has("ma");
       vwapVisible = set.has("vwap");

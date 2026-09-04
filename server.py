@@ -138,7 +138,9 @@ def _resolve_symbol_input(value: Any) -> tuple[str | None, str | None, dict[str,
 
 
 def _normalized_indicators(values: list[str] | None) -> tuple[list[str], list[str]]:
-    requested = [str(value).strip().lower() for value in (values or ["ma", "vol", "macd", "rsi"])]
+    # Calm default stack: MA + VOL + MACD on the main chart. RSI, BOLL, KDJ,
+    # ATR and VWAP are added only when explicitly requested.
+    requested = [str(value).strip().lower() for value in (values or ["ma", "vol", "macd"])]
     active = list(dict.fromkeys(value for value in requested if value in _SUPPORTED_INDICATORS))
     unknown = list(dict.fromkeys(value for value in requested if value not in _SUPPORTED_INDICATORS))
     return active, unknown
@@ -323,6 +325,7 @@ def _analysis_from_rows(
     chart_payload = draw_kline(
         selected,
         indicators=active_indicators,
+        indicators_explicit=indicators is not None,
         ma_periods=periods,
         marks=analysis_marks,
         security_workspace=security_workspace,
@@ -646,6 +649,7 @@ async def analyze_kline(
     chart_payload = draw_kline(
         rows,
         indicators=active_indicators,
+        indicators_explicit=indicators is not None,
         ma_periods=periods,
         marks=analysis_marks,
         symbol=str(fetched.get("symbol") or resolved_symbol or symbol),

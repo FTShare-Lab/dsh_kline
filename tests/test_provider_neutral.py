@@ -11,7 +11,8 @@ from urllib.request import Request, urlopen
 
 from core.rows import RowsValidationError, normalize_rows
 from chart_service import ChartService, _tool_dispatch
-from server import _analysis_from_rows, analyze_kline_rows
+from server import _analysis_from_rows, _normalized_indicators, analyze_kline_rows
+from tools.draw import draw_kline
 from tools.fetch import (
     _classify_ftshare_error,
     _ftshare_stock_candlesticks,
@@ -472,6 +473,17 @@ class ChartApiAnalyzeTests(unittest.TestCase):
         ftshare = status["providers"]["ftshare"]
         self.assertIn("index_kline", ftshare)
         self.assertFalse(ftshare["index_kline"])
+
+    def test_default_indicator_stack_is_calm(self):
+        active, unknown = _normalized_indicators(None)
+        self.assertEqual(active, ["ma", "vol", "macd"])
+        self.assertEqual(unknown, [])
+
+    def test_draw_payload_marks_indicator_explicitness(self):
+        implicit = draw_kline(self.wavy_rows(24), indicators=["ma", "vol", "macd"], symbol="TEST.X", name="Test")
+        self.assertIs(implicit["indicators_explicit"], False)
+        explicit = draw_kline(self.wavy_rows(24), indicators=["ma", "boll"], indicators_explicit=True, symbol="TEST.X", name="Test")
+        self.assertIs(explicit["indicators_explicit"], True)
 
 
 if __name__ == "__main__":

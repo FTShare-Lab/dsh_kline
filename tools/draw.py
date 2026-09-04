@@ -326,6 +326,7 @@ def draw_kline(
     rows: Any,
     *,
     indicators: list[str] | None = None,
+    indicators_explicit: bool | None = None,
     ma_periods: list[int] | None = None,
     marks: Any = None,
     lines: Any = None,
@@ -371,6 +372,7 @@ def draw_kline(
         "start_time": int(norm[0]["time"]),
         "end_time": int(norm[-1]["time"]),
         "indicators": inds,
+        "indicators_explicit": bool(indicators_explicit),
         "chartCommands": cmds,
         # Convenience cards for view header
         "last_close": float(norm[-1]["close"]),

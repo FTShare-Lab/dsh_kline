@@ -201,6 +201,7 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
         payload = draw_kline(
             rows,
             indicators=active_indicators,
+            indicators_explicit=args.get("indicators") is not None,
             ma_periods=periods,
             marks=analysis_marks,
             symbol=str(fetched.get("symbol") or resolved_symbol or symbol),
