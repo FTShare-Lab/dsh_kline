@@ -5,3 +5,6 @@ allowBuilds:
   koffi: true
   node-pty: true
   protobufjs: true
+
+overrides:
+  fast-uri: ">=3.1.6 <4"
