@@ -21,6 +21,7 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 ## Features
 
 - **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.
+- **Index quotes**: A-share index daily K-lines are served through the FTShare 1.0.0 SDK; overlay CSI 300, SSE Composite and peers in Compare (intraday index data depends on the plan).
 - **Search and watchlists**: search symbols, save the current symbol, and organize watchlists into groups with quote refresh, sorting, and batch opening. A star next to the symbol name favorites/unfavorites the current symbol with one click.
 - **Interactive charts**: daily, weekly, monthly, quarterly, yearly, and intraday K-lines with zoom, pan, crosshair, and responsive layout.
 - **Technical indicators**: K-line, MA, VOL, and MACD are shown by default; KDJ, RSI, BOLL, ATR, and VWAP can be switched on as needed.

@@ -19,6 +19,8 @@ from tools.fetch import (
     _ftshare_market_api,
     _symbol_name,
     configure_ftshare_api_key,
+    fetch_candles,
+    ftshare_index_kline_available,
     ftshare_status,
     search_symbols,
     test_ftshare_connection as run_ftshare_connection,
@@ -460,19 +462,53 @@ class ChartApiAnalyzeTests(unittest.TestCase):
     def test_chart_api_analyze_kline_passes_fetch_errors_through(self):
         with patch(
             "chart_service.fetch_candles",
-            return_value={"ok": False, "error": "index_candles_provider_unavailable", "message": "no index history"},
+            return_value={"ok": False, "error": "provider_unavailable", "message": "temporarily unavailable"},
         ):
-            result = _tool_dispatch("analyze_kline", {"symbol": "000300.XSHG", "interval": "day", "limit": 60})
+            result = _tool_dispatch("analyze_kline", {"symbol": "600519.XSHG", "interval": "day", "limit": 60})
         self.assertFalse(result["ok"])
-        self.assertEqual(result["error"], "index_candles_provider_unavailable")
+        self.assertEqual(result["error"], "provider_unavailable")
 
     def test_data_source_status_reports_index_kline_capability(self):
-        with patch("tools.fetch.ftshare_index_kline_available", return_value=False):
+        with patch("chart_service.ftshare_index_kline_available", return_value=False):
             status = _tool_dispatch("data_source_status", {})
         self.assertTrue(status["ok"])
         ftshare = status["providers"]["ftshare"]
         self.assertIn("index_kline", ftshare)
         self.assertFalse(ftshare["index_kline"])
+
+    def test_index_kline_capability_defaults_to_available_with_sdk_1(self):
+        self.assertTrue(ftshare_index_kline_available())
+
+    def test_fetch_candles_serves_ashare_index_daily(self):
+        import time as _time
+
+        now = int(_time.time() * 1000)
+        rows = [
+            {
+                "ts_millis": now - index * 86_400_000,
+                "ts_millis_open": now - index * 86_400_000 - 8 * 3_600_000,
+                "open": str(4000 + index * 0.5),
+                "high": str(4000 + index * 0.5 + 10),
+                "low": str(4000 + index * 0.5 - 10),
+                "close": str(4000 + index * 0.5 + 1),
+                "volume": 12_345_678,
+                "turnover": "1234567890",
+            }
+            for index in range(60, 0, -1)
+        ]
+
+        def fake_index(market, **params):
+            return {"code": 200, "message": "success", "data": rows}
+
+        with patch("tools.fetch.ftshare_available", return_value=True), patch(
+            "tools.fetch._ftshare_market_api", return_value=SimpleNamespace()
+        ), patch("tools.fetch._ftshare_index_candlesticks", side_effect=fake_index), patch(
+            "tools.fetch._recent_candle_cache", return_value=None
+        ), patch("tools.fetch._cached_candle_fallback", return_value=None):
+            result = fetch_candles("000300.XSHG", interval="day", limit=5, adjust="none")
+        self.assertTrue(result.get("ok"), str(result.get("error")))
+        self.assertEqual(result["symbol"], "000300.XSHG")
+        self.assertGreaterEqual(len(result.get("rows") or []), 2)
 
     def test_default_indicator_stack_is_calm(self):
         active, unknown = _normalized_indicators(None)

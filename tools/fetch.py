@@ -62,6 +62,20 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": False, "sdk": False},
     },
+    "index_daily_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/ (SDK endpoint: index_candlesticks)",
+        "tier": "free",
+        "verified_sdk_version": "1.0.0",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    "index_history_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/ (SDK endpoint: index_minutes)",
+        "tier": "base+",
+        "verified_sdk_version": "1.0.0",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": False},
+    },
 }
 SYMBOL_DIRECTORY_VERSION = 4
 SYMBOL_DIRECTORY_TTL_SECONDS = 24 * 60 * 60
@@ -337,6 +351,18 @@ def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -
                         result = get_method(path, as_dataframe=as_dataframe, **request_params)
                     else:
                         result = market.stock_candlesticks(**params)
+                elif contract == "index_daily_candles":
+                    path = "api/v1/market/data/index-candlesticks"
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.index_candlesticks(**params)
+                elif contract == "index_history_minute_candles":
+                    path = "api/v3/market/data/index_minutes"
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.index_minutes(**request_params)
                 else:
                     if transport == "http_get":
                         path = "api/v2/market/data/stock_minutes"
@@ -396,6 +422,16 @@ def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
     return _adaptive_ftshare_call("history_minute_candles", market, params)
 
 
+def _ftshare_index_candlesticks(market: Any, **params: Any) -> Any:
+    """Call the verified A-share index K-line endpoint (SDK >= 1.0.0)."""
+    return _adaptive_ftshare_call("index_daily_candles", market, params)
+
+
+def _ftshare_index_minutes(market: Any, **params: Any) -> Any:
+    """Call the A-share index minute endpoint (SDK >= 1.0.0, plan dependent)."""
+    return _adaptive_ftshare_call("index_history_minute_candles", market, params)
+
+
 def ftshare_status() -> dict[str, Any]:
     """Return safe provider status without host paths or module locations."""
     _load_persisted_ftshare_key()
@@ -442,12 +478,14 @@ def ftshare_index_kline_available() -> bool:
     """Whether A-share index K-line history is available from the FTShare adapter.
 
     The adapter only calls verified provider contracts (see
-    docs/provider-adaptation.md). No verified A-share index daily/minute K-line
-    history endpoint is registered yet, so index K-lines are intentionally
-    reported as unavailable instead of being routed to unverified endpoints.
-    Update this single flag when a verified index-history contract is added.
+    docs/provider-adaptation.md). Since FTShare SDK 1.0.0 the SDK exposes the
+    documented A-share index endpoint ``index_candlesticks``
+    (api/v1/market/data/index-candlesticks) which was verified with live
+    daily data (free tier) and registered in FT_CONTRACTS, so daily-or-larger
+    index K-lines are reported available. Index minutes (``index_minutes``)
+    stay plan-dependent and are not part of this capability flag.
     """
-    return False
+    return True
 
 
 def configure_ftshare_api_key(
@@ -930,6 +968,120 @@ def _fetch_generic_history(
         until_ms = next_until_ms
 
     return [rows_by_time[key] for key in sorted(rows_by_time)]
+
+
+def _fetch_index_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    interval_unit: str,
+    interval_value: int,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Page A-share index daily-or-larger history (SDK endpoint index_candlesticks).
+
+    Same 12-month windowing and de-duplication as the stock path. Quarter
+    candles arrive as monthly rows and are aggregated by the shared caller.
+    """
+    normalized = str(interval or "day").strip().lower()
+    requested = max(2, int(limit or 220))
+    target_rows = min(12_000, requested * 3 if normalized == "quarter" else requested)
+    days_per_bar = {
+        "day": 3,
+        "week": 10,
+        "month": 32,
+        "quarter": 32,
+        "year": 370,
+    }.get(normalized, 3)
+    window_days = min(360, max(30, requested * days_per_bar))
+    estimated_rows_per_page = max(1, window_days // max(1, days_per_bar))
+    max_pages = min(32, max(1, (target_rows + estimated_rows_per_page - 1) // estimated_rows_per_page + 1))
+    page_limit = min(4000, max(2, target_rows))
+    until_ms = _until_ms()
+    rows_by_time: dict[int, dict[str, Any]] = {}
+
+    for _page in range(max_pages):
+        since_ms = max(0, until_ms - window_days * 86_400_000)
+        raw = _ftshare_index_candlesticks(
+            market,
+            symbol=symbol,
+            interval_unit=interval_unit,
+            interval_value=interval_value,
+            adjust_kind=adjust_kind,
+            since_ts_millis=since_ms,
+            until_ts_millis=until_ms,
+            limit=page_limit,
+            as_dataframe=False,
+        )
+        chunk = _normalize_raw(raw)
+        if not chunk:
+            break
+        previous_count = len(rows_by_time)
+        for row in chunk:
+            rows_by_time[int(row["time"])] = row
+        if len(rows_by_time) >= target_rows:
+            break
+        minimum_full_page = max(2, min(target_rows, estimated_rows_per_page) * 3 // 4)
+        if len(chunk) < minimum_full_page:
+            break
+        earliest_ms = min(int(row["time"]) for row in chunk) * 1000
+        next_until_ms = earliest_ms - 1
+        if len(rows_by_time) == previous_count or next_until_ms <= 0 or next_until_ms >= until_ms:
+            break
+        until_ms = next_until_ms
+
+    return [rows_by_time[key] for key in sorted(rows_by_time)]
+
+
+def _fetch_index_history_minutes(
+    market: Any,
+    *,
+    symbol: str,
+    interval_value: int,
+    adjust_kind: str,
+    sessions: int,
+    limit: int,
+    exchange_timezone: str,
+) -> list[dict[str, Any]]:
+    """Page A-share index minute history session-by-session (SDK index_minutes).
+
+    Mirrors the stock minute walker; availability depends on the plan (the free
+    tier returns 401 auth_required and is surfaced as a capability message).
+    """
+    cutoff = _latest_session_close_millis(exchange_timezone)
+    unique: dict[int, dict[str, Any]] = {}
+    previous_earliest: int | None = None
+    page_window_days = 2
+    max_pages = max(6, sessions * 2 + 2)
+    for _page in range(max_pages):
+        page = _ftshare_index_minutes(
+            market,
+            symbol=symbol,
+            interval_value=interval_value,
+            since_ts_millis=max(0, cutoff - page_window_days * 86_400_000),
+            until_ts_millis=cutoff,
+            limit=min(500, max(limit, sessions * 250)),
+            as_dataframe=False,
+        )
+        chunk = _normalize_raw(page)
+        if not chunk:
+            break
+        for row in chunk:
+            unique[int(row["time"])] = row
+        earliest = min(int(row["time"]) for row in chunk)
+        if previous_earliest is not None and earliest >= previous_earliest:
+            break
+        previous_earliest = earliest
+        local_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in unique.values()
+        }
+        if len(local_dates) >= sessions:
+            break
+        cutoff = earliest * 1000 - 1
+    return list(unique.values())
 
 
 def _symbol_name(market: Any, symbol: str) -> str:
@@ -1734,8 +1886,10 @@ def fetch_candles(
     ambiguous = _ambiguous_broad_index_result(sym)
     if ambiguous is not None:
         return ambiguous
-    if _broad_index_for_symbol(sym) is not None:
-        return _index_candles_provider_unavailable_result(sym)
+    # A-share broad indexes use their own verified candlestick endpoint
+    # (SDK index_candlesticks >= 1.0.0) and must never fall back to a
+    # same-code equity.
+    is_index = _broad_index_for_symbol(sym) is not None
 
     fetched_at = int(time.time())
     if not ftshare_available():
@@ -1760,7 +1914,10 @@ def fetch_candles(
             "next_action": "Use daily-or-larger Hong Kong candles, or pass verified minute rows from another provider.",
             "retryable": False,
         }
-    contract_name = "history_minute_candles" if normalized_interval == "minute" else "daily_candles"
+    if is_index:
+        contract_name = "index_history_minute_candles" if normalized_interval == "minute" else "index_daily_candles"
+    else:
+        contract_name = "history_minute_candles" if normalized_interval == "minute" else "daily_candles"
     cache_key = _candle_cache_key(
         sym, normalized_interval, step, sessions, lim, adjust,
         _preferred_ftshare_transport(contract_name),
@@ -1776,7 +1933,28 @@ def fetch_candles(
     hk_history_error: Exception | None = None
     for attempt in range(2):
         try:
-            if _is_us_symbol(sym) and normalized_interval != "minute":
+            if is_index:
+                if normalized_interval == "minute":
+                    raw = _fetch_index_history_minutes(
+                        market,
+                        symbol=sym,
+                        interval_value=step,
+                        adjust_kind=adj,
+                        sessions=sessions,
+                        limit=lim,
+                        exchange_timezone=exchange_timezone,
+                    )
+                else:
+                    raw = _fetch_index_history(
+                        market,
+                        symbol=sym,
+                        interval=normalized_interval,
+                        interval_unit=unit,
+                        interval_value=step,
+                        adjust_kind=adj,
+                        limit=lim,
+                    )
+            elif _is_us_symbol(sym) and normalized_interval != "minute":
                 try:
                     raw = _fetch_us_daily_candles(market, sym, lim)
                 except Exception as exc:  # noqa: BLE001
