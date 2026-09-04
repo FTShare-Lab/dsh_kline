@@ -12,6 +12,12 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 
 ![News and company overview](docs/images/kline-news.png)
 
+## Plugin marketplace
+
+`dsh_kline` is available in the DeepSeek Harness plugin marketplace. Search for `dsh_kline` or `kline` in Harness to install it. After a new release, refresh the marketplace from the same settings area to sync and update the installed plugin.
+
+![Install and update dsh_kline from the plugin marketplace](docs/images/dsh-market.png)
+
 ## Features
 
 - **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.

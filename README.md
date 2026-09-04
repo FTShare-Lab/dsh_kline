@@ -12,6 +12,12 @@
 
 ![新闻与简况](docs/images/kline-news.png)
 
+## 插件市场
+
+`dsh_kline` 已接入 DeepSeek Harness 插件市场。用户可以在 Harness 的“插件市场”中搜索 `dsh_kline` 或 `kline`，直接安装插件；发布新版本后，在同一处更新插件市场即可同步并更新已安装插件。
+
+![在插件市场安装和更新 dsh_kline](docs/images/dsh-market.png)
+
 ## 功能
 
 - **多市场行情**：支持港股、美股和 A 股，可使用股票名称、简称或代码查询。
