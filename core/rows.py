@@ -15,6 +15,7 @@ an explicit start timestamp, ``open_time`` retains it as optional metadata.
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+import math
 from typing import Any
 
 # Values above this are treated as milliseconds regardless of field name.
@@ -136,7 +137,10 @@ def normalize_rows(rows: Any) -> list[dict[str, Any]]:
         l = _to_float(raw.get("low"))
         c = _to_float(raw.get("close"))
         vol = _to_float(raw.get("volume") if raw.get("volume") is not None else raw.get("vol"))
-        if t is None or None in (o, h, l, c):
+        volume = 0.0 if vol is None else float(vol)
+        if t is None or None in (o, h, l, c) or not all(
+            math.isfinite(float(value)) for value in (o, h, l, c, volume)
+        ):
             # Drop incomplete bars (OHLC missing). validate_rows may still fail
             # if too few remain.
             continue
@@ -146,7 +150,7 @@ def normalize_rows(rows: Any) -> list[dict[str, Any]]:
             "high": float(h),
             "low": float(l),
             "close": float(c),
-            "volume": float(vol or 0.0),
+            "volume": volume,
         }
         open_time = _to_time_sec(_pick_raw_open_time(raw))
         if open_time is not None and open_time <= int(t):

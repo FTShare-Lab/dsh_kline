@@ -13,6 +13,8 @@
           DSH_KLINE_CHART_HOST: !!js process.env.DSH_KLINE_CHART_HOST || '127.0.0.1'
           DSH_KLINE_CHART_PORT: !!js process.env.DSH_KLINE_CHART_PORT || '8765'
           FTSHARE_SDK_SRC: !!js process.env.FTSHARE_SDK_SRC || ''
+          FTSHARE_API_KEY: !!js process.env.FTSHARE_API_KEY || ''
+          FTSHARE_API_KEY_FILE: !!js process.env.FTSHARE_API_KEY_FILE || ''
         toolCallTimeoutMs: 120000
         failOnStartupError: true
         reconnect:

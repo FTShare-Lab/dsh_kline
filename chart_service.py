@@ -1,13 +1,14 @@
 """Loopback-only chart session service for dsh_kline.
 
 The MCP process owns this HTTP server. Chart payloads stay in memory and are
-addressed by random session IDs; no API credentials or market rows are written
-to disk.
+addressed by random session IDs. API credentials are handled separately by
+the provider adapter and never enter chart-session files.
 """
 
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import secrets
 import tempfile
@@ -23,12 +24,16 @@ from urllib.parse import unquote, urlparse
 
 from core.calc import calc_range
 from tools.fetch import (
+    configure_ftshare_api_key,
     fetch_candles,
     fetch_comparison_candles,
     fetch_market_ticker,
     fetch_security_workspace,
+    ftshare_capabilities,
+    ftshare_status,
     search_symbols,
     symbol_directory,
+    test_ftshare_connection,
 )
 
 
@@ -50,6 +55,9 @@ CHART_API_ACTIONS = frozenset(
         "market_ticker",
         "search_symbols",
         "symbol_directory",
+        "data_source_status",
+        "configure_ftshare",
+        "test_ftshare_connection",
     }
 )
 
@@ -96,6 +104,31 @@ class ChartSessionStore:
 def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "symbol_directory":
         return symbol_directory(force_refresh=bool(args.get("refresh") or args.get("force_refresh")))
+    if name == "data_source_status":
+        ftshare = ftshare_status()
+        return {
+            "ok": True,
+            "external_rows": True,
+            "providers": {
+                "ftshare": {
+                    "available": bool(ftshare.get("available")),
+                    "configured": bool(ftshare.get("configured")),
+                    "persistent": bool(ftshare.get("persistent")),
+                    "capabilities": ftshare_capabilities(),
+                    "sdk_version": ftshare.get("sdk_version"),
+                    "contracts": ftshare.get("contracts", {}),
+                    "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
+                }
+            },
+        }
+    if name == "configure_ftshare":
+        return configure_ftshare_api_key(
+            args.get("api_key"),
+            test_connection=bool(args.get("test_connection", True)),
+            persist=bool(args.get("persist", True)),
+        )
+    if name == "test_ftshare_connection":
+        return test_ftshare_connection()
     routes: dict[str, Callable[..., dict[str, Any]]] = {
         "fetch_candles": fetch_candles,
         "fetch_comparison_candles": fetch_comparison_candles,
@@ -122,10 +155,19 @@ class ChartRequestHandler(BaseHTTPRequestHandler):
     def session_store(self) -> ChartSessionStore:
         return self.server.session_store  # type: ignore[attr-defined, no-any-return]
 
+    def _authorized(self) -> bool:
+        expected = self.server.auth_token  # type: ignore[attr-defined]
+        provided = self.headers.get("X-DSH-Kline-Token", "")
+        host = self.headers.get("Host", "").split(":", 1)[0].strip("[]").lower()
+        return bool(expected and host in {"127.0.0.1", "localhost"} and hmac.compare_digest(provided, expected))
+
     def do_GET(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
         if path == "/healthz":
             self._send_json({"ok": True, "service": "dsh_kline_chart", "version": SERVER_VERSION})
+            return
+        if not self._authorized():
+            self._send_json({"ok": False, "error": "unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
             return
         if path.startswith("/api/session/"):
             token = path.removeprefix("/api/session/").strip("/")
@@ -142,8 +184,14 @@ class ChartRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
+        if not self._authorized():
+            self._send_json({"ok": False, "error": "unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
+            return
         if not path.startswith("/api/tools/"):
             self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            self._send_json({"ok": False, "error": "unsupported_media_type"}, status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
             return
         try:
             size = int(self.headers.get("Content-Length") or 0)
@@ -192,15 +240,17 @@ class ChartHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address: tuple[str, int], store: ChartSessionStore) -> None:
+    def __init__(self, address: tuple[str, int], store: ChartSessionStore, auth_token: str) -> None:
         self.session_store = store
+        self.auth_token = auth_token
         super().__init__(address, ChartRequestHandler)
 
 
 class ChartService:
     def __init__(self, host: str, port: int) -> None:
         self.store = ChartSessionStore()
-        self.httpd = ChartHTTPServer((host, port), self.store)
+        self.auth_token = secrets.token_urlsafe(32)
+        self.httpd = ChartHTTPServer((host, port), self.store, self.auth_token)
         self.host = host
         self.port = int(self.httpd.server_address[1])
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="dsh-kline-chart", daemon=True)
@@ -209,17 +259,18 @@ class ChartService:
     def publish(self, payload: dict[str, Any]) -> tuple[str, str]:
         token = self.store.create(payload)
         service_url = f"http://{self.host}:{self.port}"
-        _write_runtime_session(token, service_url, payload)
+        _write_runtime_session(token, service_url, self.auth_token, payload)
         return token, service_url
 
 
-def _write_runtime_session(token: str, service_url: str, payload: dict[str, Any]) -> None:
+def _write_runtime_session(token: str, service_url: str, service_token: str, payload: dict[str, Any]) -> None:
     RUNTIME_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     document = {
         "ok": True,
         "process_id": os.getpid(),
         "session": token,
         "service_url": service_url,
+        "service_token": service_token,
         "symbol": str(payload.get("symbol") or ""),
         "name": str(payload.get("name") or ""),
         "published_at": int(time.time()),

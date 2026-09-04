@@ -35,20 +35,34 @@
 分析完成后，可在图表侧栏继续切换周期、指标、新闻和简况；需要区间统计时，依次点击两根 K 线即可。
 搜索框可直接输入股票名称或代码；点击星标可加入自选，自选列表支持分组、排序和批量打开。自选数据保存在当前浏览器本机。
 
+右上角“设置”中的“数据源”可以粘贴 FTShare API Key 并测试连接。FTShare 按套餐开放接口：免费版包含股票 K 线，历史分钟行情和实时分钟 K 线按更高套餐区分；新闻等能力以具体接口的套餐标注为准。Key 只是身份凭据，具体能力仍取决于用户套餐。配置会在当前 dsh 进程生效；勾选保存到本机后，重启会自动加载。Key 不回显、不写入图表状态；也可用 `FTSHARE_API_KEY` 环境变量覆盖。未配置 FTShare 时，仍可使用免费数据和 `analyze_kline_rows` 接入其他数据源。
+
 ## MCP 工具
 
 | 工具 | 用途 |
 | --- | --- |
 | `analyze_kline` | 默认入口。一次返回行情、指标、图表数据和可选的支撑/压力位分析。 |
+| `analyze_kline_rows` | 对调用方提供的任意标准化 OHLCV 数据完成指标、图表和侧栏会话，不依赖 FTShare。 |
 | `fetch_candles` | 获取标准化 OHLCV K 线数据。 |
 | `calc_metrics` | 对 OHLCV 数据计算技术指标和统计指标。 |
+| `data_source_status` | 返回安全的数据源安装、配置和能力状态，供前端设置页使用。 |
+| `configure_ftshare` | 配置或清除 FTShare API Key，可选择保存到本机并发起连接测试；不会返回 Key。 |
+| `test_ftshare_connection` | 测试当前 FTShare 匿名/Key 连接，不修改配置。 |
 | `health` | 检查服务与数据适配器状态。 |
 
 通常只需调用 `analyze_kline`；其余工具用于需要原始数据、单独计算或健康检查的场景。
 
 ## 数据源
 
-默认推荐 [FTShare Python SDK](https://github.com/FTShare-Lab/FTShare-python-sdk)。项目已针对 FTShare 的港股、美股和 A 股数据做了适配，并将行情统一为标准 OHLCV 结构，便于接入其他自有或授权数据源。
+FTShare 是可选的默认数据适配器，不是核心分析引擎的硬依赖。没有 FTShare、没有 API key，或上游暂时不可用时，调用方仍可把自己的 OHLCV 行传给 `analyze_kline_rows`，继续使用指标计算、支撑/压力位、图表和侧栏工作区。
+
+外部数据源只需要提供 `time`（Unix 秒或毫秒）、`open`、`high`、`low`、`close`、`volume`；插件会排序、去重、校验有限数值，并且不会保存数据源凭据或要求注册特定供应商。`data_source_url` 仅接受 HTTPS 链接，用于图表中的来源标注。
+
+最小接入示例：先由宿主或数据源适配器取得行数据，再调用 `analyze_kline_rows(rows=rows, symbol="BTCUSDT", name="示例标的", data_source="自定义行情源", data_source_url="https://example.com")`。这样无需 FTShare 也能使用 K 线、指标、关键点位和图表；新闻、简况、大盘等扩展内容由调用方通过标准化工作区数据提供。
+
+搜索入口由 dsh_kline 自己维护的本地证券目录负责，不调用 FTShare 的搜索接口；目录在后台刷新，用户先快速选中标的，再按需请求 K 线。若需要分钟线、新闻或更完整的市场数据，是否可用取决于当前数据源的接口权限；这些增强能力不会影响外部 OHLCV 分析链路。
+
+FTShare 适配只使用已核对的官方接口契约。日 K 和历史分钟 K 会在已登记的 SDK/官方路径之间有限回退，并记录实际通道；认证、套餐权限和限流不会通过盲目换接口来“碰运气”。SDK 升级前请按“官方文档 → SDK 方法和参数 → 脱敏实测 → 回归测试”的顺序核对，详见 [provider adaptation guide](docs/provider-adaptation.md)。
 
 ## 数据与使用边界
 

@@ -59,16 +59,12 @@
     width: 100%; height: min(1120px, 100vh); min-height: 500px; max-height: 1120px;
     overflow: hidden; background: var(--bg);
   }
-  #viewShell.is-fullscreen, #viewShell.is-local-expanded {
-    width: 100vw; height: 100dvh; min-height: 100dvh; max-height: none; border-radius: 0;
-  }
   #viewScroll {
     flex: 1 1 auto; min-height: 0; width: 100%; padding-right: 16px;
     overflow-x: auto; overflow-y: auto; scrollbar-width: none;
   }
   /* KLineChart must never be resized below its usable drawing width. */
   #viewContent { min-width: 340px; min-height: 100%; }
-  #viewShell.watchlist-rail-open #viewScroll { padding-left: 236px; }
   #viewScroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
   #viewScrollbar {
     position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; width: 16px;
@@ -112,9 +108,9 @@
   html[data-theme="dark"] .btn:hover { background: #2a323c; border-color: #465260; }
   .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  #selectionAnalyzeBtn, #contextAnalyzeBtn { display: none; }
   .btn.data-unavailable:not(.active) { opacity: .58; border-style: dashed; }
   .icon-btn { width: 28px; min-width: 28px; padding: 0; display: inline-grid; place-items: center; font-size: 16px; line-height: 1; }
+  .settings-toggle { width: 30px; min-width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif; font-size: 26px; line-height: 1; }
   .workspace-bar {
     display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 6px 12px;
     border-bottom: 1px solid var(--border); background: var(--bg-soft);
@@ -134,10 +130,11 @@
   .workspace-tab-select { flex: 0 1 142px; width: 142px; min-width: 0; max-width: 142px; padding: 0 6px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
   .workspace-tab-close { width: 22px; padding: 0; color: var(--text-soft); font-size: 16px; line-height: 1; }
   .workspace-tab-close:hover { color: var(--down); }
-  .symbol-search { position: relative; flex: 0 1 292px; min-width: 184px; max-width: 292px; margin-left: auto; }
-  .symbol-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
-  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
+  .symbol-search { position: absolute; top: 6px; left: 50%; flex: 0 0 195px; width: min(195px, calc(100% - 360px)); min-width: 160px; max-width: 195px; margin: 0; transform: translateX(-50%); }
+  .symbol-search-form { position: relative; display: block; }
+  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 30px 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
   .symbol-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }
+  .search-enter-hint { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); color: var(--text-soft); font-size: 16px; line-height: 1; pointer-events: none; user-select: none; }
   .search-results { position: absolute; z-index: 40; top: calc(100% + 5px); left: 0; right: 0; display: none; max-height: 252px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); box-shadow: var(--shadow); }
   .search-results.open { display: block; }
   .search-result { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 7px 8px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
@@ -149,19 +146,11 @@
   .search-result-quote.up { color: var(--up); }
   .search-result-quote.down { color: var(--down); }
   .search-empty { padding: 8px; color: var(--text-soft); font-size: 11px; }
-  .header-controls { display: flex; align-items: center; gap: 4px; }
-  .language-btn { width: 32px; min-width: 32px; padding: 0; }
-  .watchlist-wrap { position: relative; flex: 0 0 auto; }
-  .watchlist-popover {
-    position: absolute; z-index: 45; top: calc(100% + 6px); right: 0; width: min(300px, calc(100vw - 28px));
-    display: none; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow);
-  }
-  .watchlist-popover.open { display: block; }
-  .watchlist-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; }
+  .header-controls { position: absolute; top: 6px; right: 12px; display: flex; align-items: center; gap: 4px; }
   .watchlist-groupbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  .watchlist-groupbar.no-delete { grid-template-columns: minmax(0, 1fr) auto; }
   .watchlist-group-select { min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
   .watchlist-group-action { min-height: 28px; width: 28px; padding: 0; font-size: 16px; }
-  .watchlist-count { color: var(--text-soft); font-size: 10px; font-weight: 500; }
   .watchlist-items { max-height: 252px; overflow-y: auto; }
   .watchlist-empty { padding: 12px 9px; color: var(--text-soft); font-size: 11px; }
   .watchlist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; width: 100%; padding: 7px 7px 7px 9px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
@@ -171,7 +160,11 @@
   .watchlist-remove { align-self: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); cursor: pointer; font-size: 17px; line-height: 1; }
   .watchlist-remove:hover { color: var(--down); background: var(--bg-soft); }
   .watchlist-toggle.watched { color: var(--accent); border-color: var(--accent); }
-  .watchlist-rail-toggle { display: inline-grid; }
+  .watchlist-rail-toggle {
+    position: static; z-index: 26; width: 30px; min-width: 30px; height: 30px;
+    display: inline-grid; place-items: center; padding: 0; border-radius: 4px;
+    box-shadow: none; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif; font-size: 18px; line-height: 1;
+  }
   .watchlist-rail {
     position: absolute; z-index: 24; top: 0; bottom: 31px; left: 0; width: 236px;
     display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg);
@@ -197,6 +190,7 @@
   .watchlist-select { width: 14px; height: 14px; margin: 0 5px 0 0; vertical-align: -2px; accent-color: var(--accent); }
   .market-ticker { position: relative; z-index: 18; flex: 0 0 31px; width: calc(100% - 16px); margin-right: 16px; display: none; height: 31px; overflow: hidden; align-items: center; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(7px); font-size: 11px; font-variant-numeric: tabular-nums; }
   .market-ticker.visible { display: flex; }
+  .market-ticker.placeholder { color: var(--text-soft); }
   #viewShell.ticker-visible #viewScrollbar { bottom: 31px; }
   .market-ticker-flow { flex: 1 1 auto; min-width: 0; overflow: hidden; }
   .market-ticker-track { display: flex; align-items: center; min-width: max-content; gap: 22px; padding: 0 13px; white-space: nowrap; }
@@ -213,6 +207,7 @@
   .ticker-state.delayed { color: var(--warn); }
   .ticker-state.closed, .ticker-state.stale { color: var(--text-soft); }
   .ticker-state.stale { color: var(--danger); }
+  .ticker-placeholder { padding: 0 13px; font-size: 10px; }
   @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-30%); } }
   .timebar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .timebar::-webkit-scrollbar { display: none; }
@@ -236,6 +231,7 @@
   .market-data-status .data-status.stale { color: var(--danger); }
   .data-source-link { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 2px; }
   .data-source-link:hover { color: var(--accent); }
+  .data-source-hint { color: var(--text-soft); }
   .market-data-refresh { width: 24px; min-width: 24px; margin-left: auto; padding: 0; }
   .market-data-refresh.loading { animation: ticker-spin .7s linear infinite; }
   .toolbar-hint { color: var(--text-soft); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -247,6 +243,71 @@
     background: var(--bg); box-shadow: var(--shadow);
   }
   .indicator-popover.open { display: block; }
+  .settings-menu-wrap { position: static; }
+  .settings-popover { position: absolute; z-index: 50; top: 0; right: 0; bottom: 31px; display: block; width: min(292px, 86vw); padding: 0 12px 12px; overflow-y: auto; border: 1px solid var(--border); border-right: 0; border-radius: 7px 0 0 7px; background: var(--bg); box-shadow: var(--shadow); color: var(--text-soft); font-size: 11px; line-height: 1.6; transform: translateX(100%); transition: transform 160ms ease; pointer-events: none; }
+  .settings-popover.open { transform: translateX(0); pointer-events: auto; }
+  .settings-heading { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; margin-bottom: 8px; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; font-weight: 750; }
+  .settings-heading-title { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .settings-heading-en { color: var(--text-soft); font-size: 11px; font-weight: 600; }
+  .settings-close { width: 30px; min-width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; font-size: 20px; line-height: 1; }
+  .settings-menu-list { display: grid; gap: 4px; }
+  .settings-menu-item { width: 100%; min-height: 32px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); text-align: left; cursor: pointer; font: inherit; font-size: 12px; }
+  .settings-menu-item:hover, .settings-menu-item:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg-soft)); outline: none; }
+  .settings-menu-item[aria-expanded="true"] { border-color: var(--accent); border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft)); }
+  .settings-section[hidden], .settings-menu-list[hidden] { display: none; }
+  .settings-menu-list > .settings-section { margin: -4px 0 4px; padding: 8px; border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 4px 4px; background: var(--bg); }
+  .icon-glyph { display: block; width: 18px; height: 18px; flex: 0 0 18px; }
+  .icon-glyph svg { display: block; width: 100%; height: 100%; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .settings-row-label { color: var(--text); font-weight: 650; }
+  .settings-row-label-en { margin-left: 4px; color: var(--text-soft); font-size: 10px; font-weight: 500; }
+  .settings-language-select { min-width: 112px; height: 28px; padding: 3px 22px 3px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
+  .settings-language-select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }
+  .settings-source { padding: 8px 0 4px; border-top: 1px solid var(--border); }
+  .settings-source-title { color: var(--text); font-weight: 650; }
+  .settings-source-status { margin-top: 3px; }
+  .settings-source-hint { margin-top: 5px; color: var(--text-soft); }
+  .settings-info { display: grid; gap: 4px; margin-top: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text-soft); }
+  .settings-info-title { color: var(--text); font-weight: 650; }
+  .settings-info-hint { margin-top: 3px; color: var(--text-soft); }
+  .settings-list { margin: 6px 0 0; padding-left: 18px; }
+  .settings-list li + li { margin-top: 3px; }
+  .capability-table { display: grid; gap: 4px; margin-top: 6px; }
+  .capability-row { display: grid; grid-template-columns: minmax(70px, .8fr) minmax(0, 1.2fr); gap: 8px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .capability-row span:first-child { color: var(--text); font-weight: 600; }
+  .capability-row span:last-child { color: var(--text-soft); }
+  .settings-section > .settings-source,
+  .settings-section > .settings-info,
+  .settings-section > .settings-help,
+  .settings-section > .settings-row { margin-top: 0; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); }
+  .settings-section > * + * { margin-top: 6px; }
+  .settings-section > .settings-row { min-height: 34px; border-top: 1px solid var(--border); }
+  .settings-section > .settings-help { padding-top: 8px; border-top: 1px solid var(--border); }
+  .settings-version-value { color: var(--text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .settings-link-row { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 7px; }
+  .settings-link-row a { color: var(--accent); text-underline-offset: 2px; }
+  .settings-provider { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .settings-provider-title { color: var(--text); font-weight: 650; }
+  .settings-provider-status-line { margin-top: 3px; color: var(--text-soft); font-size: 10px; }
+  .settings-provider-input { width: 100%; min-width: 0; height: 28px; margin-top: 6px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; font-size: 11px; }
+  .settings-provider-input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }
+  .settings-provider-persist { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--text-soft); font-size: 10px; cursor: pointer; }
+  .settings-provider-persist input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); }
+  .settings-provider-actions { display: flex; gap: 5px; margin-top: 6px; }
+  .settings-provider-actions .btn { min-height: 27px; font-size: 11px; }
+  .settings-provider-status { min-height: 17px; margin-top: 5px; color: var(--text-soft); }
+  .settings-provider-status.success { color: var(--up); }
+  .settings-provider-status.error { color: var(--danger); }
+  .settings-provider-note { margin-top: 4px; color: var(--text-soft); font-size: 10px; }
+  .settings-help { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .help-popover { position: absolute; z-index: 45; right: 0; top: calc(100% + 6px); display: none; width: min(330px, calc(100vw - 28px)); padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); color: var(--text-soft); font-size: 11px; line-height: 1.6; }
+  .settings-help .help-popover { position: static; display: block; width: auto; padding: 0; border: 0; box-shadow: none; }
+  .help-popover h3 { margin: 0 0 7px; color: var(--text); font-size: 13px; }
+  .help-popover p { margin: 7px 0; }
+  .help-popover a { color: var(--accent); }
+  .help-popover .help-version { padding-top: 7px; border-top: 1px solid var(--border); }
+  .help-examples { display: grid; gap: 4px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .help-examples code { display: block; padding: 4px 6px; border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }
   .indicator-heading { font-size: 12px; font-weight: 700; margin: 2px 0 7px; }
   .indicator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
   .indicator-choice { display: flex; align-items: center; gap: 6px; min-height: 25px; cursor: pointer; font-size: 12px; }
@@ -257,7 +318,8 @@
   .indicator-field input { width: 100%; height: 27px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--bg-soft); font: inherit; }
   .indicator-apply { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
   #klineChart { width: 100%; min-width: 280px; height: 344px; background: var(--bg); }
-  .chart-wrap { position: relative; min-width: 280px; overflow: hidden; border-bottom: 1px solid var(--border); }
+  .chart-wrap { --chart-right-gutter: 48px; position: relative; min-width: 280px; overflow: hidden; border-bottom: 1px solid var(--border); }
+  .chart-wrap::after { content: ""; position: absolute; z-index: 8; top: 0; bottom: 0; right: var(--chart-right-gutter); width: 1px; background: var(--border); pointer-events: none; }
   .chart-meta { display: grid; gap: 2px; min-height: 42px; padding: 5px 12px 4px; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; overflow: hidden; }
   .chart-meta-row { display: flex; align-items: baseline; gap: 10px; min-width: max-content; white-space: nowrap; }
   .chart-meta-row[hidden] { display: none; }
@@ -265,12 +327,12 @@
   .chart-meta-value { color: var(--text); }
   .chart-meta-indicator { display: inline-flex; align-items: baseline; gap: 3px; }
   .chart-meta-indicator strong { font-weight: 500; }
-  .session-guide-layer { position: absolute; z-index: 3; inset: 0 64px 0 0; overflow: hidden; pointer-events: none; }
+  .session-guide-layer { position: absolute; z-index: 3; inset: 0 var(--chart-right-gutter, 96px) 0 0; overflow: hidden; pointer-events: none; }
   .session-guide-divider { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text-soft) 58%, transparent); }
   .session-guide-label { position: absolute; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .session-guide-label.start { transform: translateX(0); }
   .session-guide-label.end { transform: translateX(-100%); }
-  .price-alert-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }
+  .price-alert-layer { position: absolute; z-index: 4; inset: 0 var(--chart-right-gutter, 96px) 0 0; pointer-events: none; overflow: hidden; }
   .price-alert-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--warn); }
   .price-alert-line span { position: absolute; top: -15px; right: 4px; max-width: 185px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--warn); color: #fff; font-size: 10px; }
   .canvas-resizer {
@@ -284,7 +346,7 @@
   .canvas-resizer:hover::before, .canvas-resizer.dragging::before { background: var(--accent); opacity: 1; }
   .canvas-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .chart-status {
-    position: absolute; top: 6px; right: 10px; font-size: 11px; color: var(--text-soft);
+    position: absolute; top: 6px; right: calc(var(--chart-right-gutter, 96px) + 8px); font-size: 11px; color: var(--text-soft);
     background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
     pointer-events: none; display: none;
   }
@@ -306,12 +368,15 @@
   .chart-loading-overlay.failed .chart-loading-spinner { border: 0; animation: none; }
   .chart-loading-overlay.failed .chart-loading-spinner::before { content: "!"; color: var(--danger); font-size: 17px; line-height: 16px; }
   .percent-axis {
-    display: none; position: absolute; top: 0; right: 1px; z-index: 4; width: 64px;
+    display: block; position: absolute; top: 0; right: 0; z-index: 4;
+    width: var(--chart-right-gutter, 96px); box-sizing: border-box;
+    background: color-mix(in srgb, var(--bg) 96%, transparent);
     pointer-events: none; font-size: 10px; font-variant-numeric: tabular-nums;
   }
   .percent-axis.visible { display: block; }
-  .percent-axis-title { position: absolute; top: 16px; right: 2px; color: var(--text-soft); font-size: 10px; }
-  .percent-tick { position: absolute; right: 2px; transform: translateY(-50%); padding: 0 2px; background: color-mix(in srgb, var(--bg) 88%, transparent); }
+  .percent-axis-title { position: absolute; top: 16px; right: 4px; color: var(--text-soft); font-size: 10px; }
+  .percent-tick, .mirror-axis-tick { position: absolute; right: 4px; transform: translateY(-50%); padding: 0 1px; background: var(--bg); white-space: nowrap; }
+  .mirror-axis-tick { color: var(--text-soft); }
   .percent-tick.up { color: var(--up); }
   .percent-tick.down { color: var(--down); }
   .percent-tick.flat { color: var(--text-soft); }
@@ -346,6 +411,7 @@
   }
   .alert-popover.open, .chart-context-menu.open { display: block; }
   .alert-popover { top: calc(100% + 5px); right: 0; width: 248px; padding: 8px; }
+  .alert-scope-note { margin-bottom: 7px; color: var(--text-soft); font-size: 10px; line-height: 1.45; }
   .alert-fields { display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; }
   .alert-fields input { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
   .alert-list { max-height: 150px; margin-top: 7px; overflow-y: auto; }
@@ -397,11 +463,11 @@
   .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
   .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
   .activity-notice[hidden] { display: none; }
-  .activity-notice-spinner { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }
+  .activity-notice-spinner { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }
   .activity-notice.complete .activity-notice-spinner, .activity-notice.failed .activity-notice-spinner { border: 0; animation: none; }
-  .activity-notice.complete .activity-notice-spinner::before { content: "\\2713"; color: var(--success); font-size: 16px; line-height: 14px; }
-  .activity-notice.failed .activity-notice-spinner::before { content: "!"; color: var(--danger); font-size: 16px; line-height: 14px; }
-  .user-drawing-layer { position: absolute; z-index: 4; inset: 0 64px 0 0; pointer-events: none; overflow: hidden; }
+  .activity-notice.complete .activity-notice-spinner::before { content: "\\2713"; color: var(--success); font-size: 13px; line-height: 1; font-weight: 800; }
+  .activity-notice.failed .activity-notice-spinner::before { content: "!"; color: var(--danger); font-size: 13px; line-height: 1; font-weight: 800; }
+  .user-drawing-layer { position: absolute; z-index: 4; inset: 0 var(--chart-right-gutter, 96px) 0 0; pointer-events: none; overflow: hidden; }
   .user-horizontal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--info); }
   .user-horizontal-line span { position: absolute; top: -15px; right: 4px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--info); color: #fff; font-size: 10px; }
   .drawing-capture-layer { position: absolute; z-index: 8; inset: 0 64px 0 0; display: none; cursor: crosshair; }
@@ -465,7 +531,9 @@
   .holder-summary-track { height: 5px; margin-top: 5px; overflow: hidden; background: var(--bg-soft); }
   .holder-summary-fill { height: 100%; background: var(--info); }
   .holder-summary-value { color: var(--text-soft); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
-  .insight-empty { display: grid; min-height: 270px; place-items: center; color: var(--text-soft); font-size: 12px; text-align: center; }
+  .insight-empty { display: grid; min-height: 270px; place-content: center; gap: 6px; padding: 24px; color: var(--text-soft); font-size: 12px; line-height: 1.6; text-align: center; }
+  .insight-empty strong { color: var(--text); font-size: 13px; font-weight: 700; }
+  .insight-empty span { max-width: 320px; }
   .err { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--danger); padding: 8px 12px; }
   .err-message { min-width: 0; overflow-wrap: anywhere; }
   .err .btn { flex: 0 0 auto; }
@@ -476,10 +544,23 @@
   .group-dialog-input { width: 100%; height: 32px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }
   .group-dialog-error { min-height: 18px; margin-top: 5px; color: var(--danger); font-size: 11px; }
   .group-dialog-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+  .welcome-backdrop { position: fixed; z-index: 75; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 17, 25, .35); }
+  .welcome-backdrop[hidden] { display: none; }
+  .welcome-dialog { position: relative; width: min(410px, 100%); padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow); color: var(--text-soft); font-size: 12px; line-height: 1.65; }
+  .welcome-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); cursor: pointer; font-size: 18px; line-height: 1; }
+  .welcome-close:hover { background: var(--bg-soft); color: var(--text); }
+  .welcome-title { margin: 0 28px 7px 0; color: var(--text); font-size: 17px; font-weight: 750; }
+  .welcome-lead { margin: 0 0 12px; }
+  .welcome-list { display: grid; gap: 6px; margin: 0 0 13px; padding-left: 18px; }
+  .welcome-ftshare { margin-top: 10px; padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+  .welcome-ftshare-title { color: var(--text); font-weight: 700; }
+  .welcome-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
+  .welcome-actions .btn { min-height: 29px; }
   @media (max-width: 760px) {
     .workspace-bar { flex-wrap: wrap; }
     .brand { min-width: 0; }
-    .symbol-search { margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; }
+    .symbol-search { position: static; width: auto; margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; transform: none; }
+    .header-controls { position: static; margin-left: auto; }
     .toolbar-hint { display: none; }
     .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .toolbar::-webkit-scrollbar { display: none; }
@@ -491,6 +572,7 @@
     .holder-layout { grid-template-columns: 1fr; gap: 18px; }
   }
   @media (max-width: 980px) {
+    #viewScroll { padding-left: 0; }
     #viewShell.watchlist-rail-open #viewScroll { padding-left: 0; }
     .watchlist-rail, .watchlist-rail-toggle { display: none; }
   }
@@ -535,28 +617,93 @@
   <div class="brand" id="productBrand" aria-label="dsh_kline Chart"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">dsh_kline Chart</span></div>
   <div class="symbol-search" id="symbolSearch">
     <form class="symbol-search-form" id="symbolSearchForm" role="search">
-      <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" />
-      <button class="btn" id="symbolSearchBtn" type="submit">搜索</button>
+      <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" aria-describedby="symbolSearchEnterHint" />
+      <span class="search-enter-hint" id="symbolSearchEnterHint" aria-hidden="true">↵</span>
     </form>
     <div class="search-results" id="searchResults" role="listbox"></div>
   </div>
-  <button class="btn icon-btn watchlist-rail-toggle" id="watchlistRailToggle" type="button" title="展开自选侧栏" aria-label="展开自选侧栏" aria-expanded="false">&#9776;</button>
-  <div class="watchlist-wrap">
-    <button class="btn icon-btn watchlist-toggle" id="watchlistBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="自选列表" aria-label="自选列表">&#9734;</button>
-    <div class="watchlist-popover" id="watchlistPopover" role="menu" aria-label="自选列表">
-      <div class="watchlist-heading"><span id="watchlistHeading">自选</span><span class="watchlist-count" id="watchlistCount"></span></div>
-      <div class="watchlist-groupbar">
-        <select class="watchlist-group-select" id="watchlistGroupSelect" aria-label="自选分组"></select>
-        <button class="btn watchlist-group-action" id="watchlistGroupAddBtn" type="button" title="新建分组" aria-label="新建分组">+</button>
-        <button class="btn watchlist-group-action" id="watchlistGroupDeleteBtn" type="button" title="删除分组" aria-label="删除分组">&times;</button>
-      </div>
-      <div class="watchlist-items" id="watchlistItems"></div>
-    </div>
-  </div>
   <div class="header-controls">
-    <button class="btn language-btn" id="languageToggle" title="切换至 English" aria-label="切换至 English">EN</button>
-    <button class="btn icon-btn" id="themeToggle" title="切换至夜间模式" aria-label="切换至夜间模式">&#9789;</button>
-    <button class="btn icon-btn" id="expandBtn" aria-label="展开图表" title="展开图表">&#x26F6;</button>
+    <button class="btn watchlist-rail-toggle" id="watchlistRailToggle" type="button" title="展开自选侧栏" aria-label="展开自选侧栏" aria-expanded="false"><span class="icon-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="m12 3.8 2.55 5.17 5.7.83-4.12 4.02.97 5.68L12 16.82l-5.1 2.68.97-5.68L3.75 9.8l5.7-.83L12 3.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span></button>
+    <div class="settings-menu-wrap">
+      <button class="btn settings-toggle" id="settingsBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="设置" aria-label="设置"><span class="icon-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M9.8 3.9h4.4l.55 2.02c.4.16.78.38 1.13.65l1.98-.68 2.2 3.8-1.43 1.5c.05.43.05.86 0 1.29l1.43 1.5-2.2 3.8-1.98-.68c-.35.27-.73.49-1.13.65l-.55 2.02H9.8l-.55-2.02a6.8 6.8 0 0 1-1.13-.65l-1.98.68-2.2-3.8 1.43-1.5a6.2 6.2 0 0 1 0-1.29l-1.43-1.5 2.2-3.8 1.98.68c.35-.27.73-.49 1.13-.65L9.8 3.9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="11.83" r="2.65" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></span></button>
+      <div class="settings-popover" id="settingsPopover" role="dialog" aria-label="设置 / Settings" aria-hidden="true">
+        <div class="settings-heading">
+          <div class="settings-heading-title"><span>设置</span><span class="settings-heading-en">Settings</span></div>
+          <button class="btn settings-close" id="settingsCloseBtn" type="button" title="关闭设置" aria-label="关闭设置">&times;</button>
+        </div>
+        <div class="settings-menu-list" id="settingsMenuList">
+          <button class="settings-menu-item" type="button" data-settings-section="overview" aria-expanded="false">简介与指引 <span class="settings-row-label-en">Overview & guide</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="source" aria-expanded="false">数据源 <span class="settings-row-label-en">Data source</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="updates" aria-expanded="false">版本与更新 <span class="settings-row-label-en">Updates</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="help" aria-expanded="false">帮助 <span class="settings-row-label-en">Help</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="feedback" aria-expanded="false">反馈 <span class="settings-row-label-en">Feedback</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="theme" aria-expanded="false">主题 <span class="settings-row-label-en">Theme</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="language" aria-expanded="false">语言 <span class="settings-row-label-en">Language</span></button>
+        </div>
+        <section class="settings-section" id="settingsSectionOverview" hidden>
+          <div class="settings-info">
+            <div class="settings-info-title" data-i18n="overviewRoleTitle">插件如何工作</div>
+            <div data-i18n="overviewIntro">非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。</div>
+            <ol class="settings-list">
+              <li data-i18n="overviewStepOne">在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。</li>
+              <li data-i18n="overviewStepTwo">插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。</li>
+              <li data-i18n="overviewStepThree">图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。</li>
+            </ol>
+          </div>
+          <div class="settings-info">
+            <div class="settings-info-title" data-i18n="overviewCapabilitiesTitle">可以做什么</div>
+            <ul class="settings-list">
+              <li data-i18n="overviewCapabilityOne">查看行情与日线、周线、月线等不同周期的 K 线。</li>
+              <li data-i18n="overviewCapabilityTwo">使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。</li>
+              <li data-i18n="overviewCapabilityThree">识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。</li>
+              <li data-i18n="overviewCapabilityFour">进行区间统计、标的对比、自选、预警和画线。</li>
+              <li data-i18n="overviewCapabilityFive">默认使用 FTShare，也支持其他数据源提供行情数据。</li>
+            </ul>
+          </div>
+          <div class="settings-info">
+            <div class="settings-info-title" data-i18n="overviewStartTitle">开始使用</div>
+            <div data-i18n="overviewStart">在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。</div>
+          </div>
+        </section>
+        <section class="settings-section" id="settingsSectionSource" hidden>
+          <div class="settings-source"><div class="settings-source-title" data-i18n="currentSource">当前数据源</div><div class="settings-source-status" id="settingsSourceStatus"></div><div class="settings-source-hint" data-i18n="settingsSourceHint">能力取决于当前数据源。</div></div>
+          <div class="settings-info"><div class="settings-info-title" data-i18n="sourceCapabilities">可用能力</div><div data-i18n="sourceCapabilityDaily">日 K 与常用技术指标</div><div data-i18n="sourceCapabilityOptional">分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供</div><div class="capability-table" aria-label="数据能力"><div class="capability-row"><span data-i18n="capDaily">日 K</span><span class="capability-state" id="capDailyState" data-i18n="capAvailable">当前可用</span></div><div class="capability-row"><span data-i18n="capIndicators">技术指标</span><span class="capability-state" data-i18n="capAvailable">当前可用</span></div><div class="capability-row"><span data-i18n="capMinute">分钟 K</span><span class="capability-state" id="capMinuteState" data-i18n="capSourceDependent">取决于数据源</span></div><div class="capability-row"><span data-i18n="capNews">新闻</span><span class="capability-state" id="capNewsState" data-i18n="capSourceDependent">取决于数据源</span></div><div class="capability-row"><span data-i18n="capMarket">大盘</span><span class="capability-state" id="capMarketState" data-i18n="capSourceDependent">取决于数据源</span></div><div class="capability-row"><span data-i18n="capCompany">公司资料</span><span class="capability-state" id="capCompanyState" data-i18n="capSourceDependent">取决于数据源</span></div></div></div>
+          <div class="settings-info"><div class="settings-info-title" data-i18n="externalSourceTitle">其他数据源</div><div data-i18n="externalSourceDetail">支持标准化 OHLCV 数据即可继续使用 K 线和指标。</div><div class="settings-info-hint" data-i18n="externalSourceHint">目前由 dsh 宿主或调用方接入，暂不支持在此处直接切换。</div></div>
+          <div class="settings-provider">
+            <div class="settings-provider-title" data-i18n="ftshareConfigTitle">FTShare 配置</div>
+            <div class="settings-provider-status-line" id="ftshareAdapterStatus"></div>
+            <input class="settings-provider-input" id="ftshareApiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 FTSHARE_API_KEY（可选）" aria-label="FTShare API Key" />
+            <label class="settings-provider-persist"><input id="ftsharePersistInput" type="checkbox" checked /><span data-i18n="ftsharePersist">保存到本机（推荐）</span></label>
+            <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
+            <div class="settings-provider-status" id="ftshareConfigStatus" role="status" aria-live="polite"></div>
+            <div class="settings-provider-note" data-i18n="ftshareConfigNote">Key 不会回显；保存到本机后，重启会自动读取。</div>
+            <div class="settings-provider-note" data-i18n="sourceFreeMode">FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。</div>
+            <div class="settings-link-row"><a href="https://ftai.chat/?tab=ft-share" target="_blank" rel="noopener noreferrer" data-i18n="ftshareWebsite">打开 FTShare 官网</a><a href="https://market.ft.tech/gateway/doc/p/pb8eizu3" target="_blank" rel="noopener noreferrer" data-i18n="ftshareDocs">查看 API 文档</a></div>
+          </div>
+          <div class="settings-info">
+            <div class="settings-info-title" data-i18n="localDataTitle">本机数据</div>
+            <div data-i18n="localDataDescription">自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。</div>
+            <div class="settings-provider-actions"><button class="btn" id="exportLocalDataBtn" type="button" data-i18n="exportLocalData">导出本机数据</button><button class="btn" id="importLocalDataBtn" type="button" data-i18n="importLocalData">导入本机数据</button><input id="importLocalDataInput" type="file" accept="application/json,.json" hidden /></div>
+            <div class="settings-provider-status" id="localDataStatus" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+        <section class="settings-section" id="settingsSectionUpdates" hidden>
+          <div class="settings-info"><div class="settings-info-title" data-i18n="helpVersion">当前版本</div><div class="settings-version-value">v<span id="settingsVersionValue">__DSH_KLINE_VERSION__</span></div><div class="settings-info-hint" data-i18n="updateDescription">查看当前版本、更新记录和发布说明。</div><div class="settings-link-row"><a href="https://github.com/FTShare-Lab/dsh_kline/releases" target="_blank" rel="noopener noreferrer" data-i18n="helpRelease">查看版本与更新</a><a href="https://github.com/FTShare-Lab/dsh_kline/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">CHANGELOG</a></div></div>
+        </section>
+        <section class="settings-section" id="settingsSectionHelp" hidden>
+          <div class="settings-help"><div class="help-popover" id="helpPopover" role="document" aria-label="使用帮助"></div></div>
+        </section>
+        <section class="settings-section" id="settingsSectionFeedback" hidden>
+          <div class="settings-info"><div data-i18n="feedbackDescription">遇到问题或有改进建议？欢迎提交反馈。</div><div class="settings-link-row"><a href="https://github.com/FTShare-Lab/dsh_kline/issues/new" target="_blank" rel="noopener noreferrer" data-i18n="feedbackOpen">提交反馈 / Send feedback</a></div><div class="settings-info-hint" data-i18n="feedbackPrivacy">反馈会打开 GitHub，提交内容由你主动填写。</div></div>
+        </section>
+        <section class="settings-section" id="settingsSectionTheme" hidden>
+          <div class="settings-row"><span class="settings-row-label"><span data-i18n="themeCurrent">当前主题</span><span class="settings-row-label-en">Theme</span></span><button class="btn" id="themeToggle" type="button" title="切换至夜间模式" aria-label="切换至夜间模式">切换至夜间模式</button></div>
+        </section>
+        <section class="settings-section" id="settingsSectionLanguage" hidden>
+          <div class="settings-row"><label class="settings-row-label" for="languageToggle"><span data-i18n="languageCurrent">当前语言</span><span class="settings-row-label-en">Language</span></label><select class="settings-language-select" id="languageToggle" aria-label="语言 / Language"><option value="zh">中文</option><option value="en">English</option></select></div>
+        </section>
+      </div>
+    </div>
   </div>
 </div>
 <div class="workspace-tabbar" id="workspaceTabbar" hidden>
@@ -566,7 +713,6 @@
   <div class="row">
     <span class="title" id="name">dsh_kline</span>
     <span class="chip" id="symbolChip">—</span>
-    <button class="btn icon-btn watchlist-toggle" id="watchCurrentBtn" type="button" title="加入自选" aria-label="加入自选">&#9734;</button>
   </div>
   <div class="quote">
     <span class="close" id="qClose">--</span>
@@ -585,11 +731,10 @@
   <div class="timebar-group" id="rangeControls" role="tablist" aria-label="时间范围">
     <button class="btn" type="button" data-range="1d">1D</button>
     <button class="btn" type="button" data-range="5d">5D</button>
-    <button class="btn" type="button" data-range="10d">10D</button>
-    <button class="btn" type="button" data-range="30d">30D</button>
-    <button class="btn" type="button" data-range="ytd">YTD</button>
-    <button class="btn active" type="button" data-range="1y">1Y</button>
-    <button class="btn" type="button" data-range="5y">5Y</button>
+    <button class="btn" type="button" data-range="30d" data-i18n="range30d">30日</button>
+    <button class="btn active" type="button" data-range="ytd" data-i18n="rangeYtd">今年</button>
+    <button class="btn" type="button" data-range="1y" data-i18n="range1y">1年</button>
+    <button class="btn" type="button" data-range="5y" data-i18n="range5y">5年</button>
     <button class="btn" type="button" data-range="custom" id="customRangeBtn">Custom</button>
   </div>
   <span class="timebar-divider" aria-hidden="true"></span>
@@ -610,6 +755,7 @@
   <div class="toolbar-hint" id="toolbarHint">单击引用 K 线 · 再点选区间 · 点击标记引用分析</div>
   <div class="toolbar-actions">
     <button class="btn" id="clearBtn">清标注</button>
+    <button class="btn" id="keyLevelsBtn" type="button" data-i18n="keyLevels">关键点位</button>
     <button class="btn icon-btn" id="resetZoomBtn" type="button" title="重置缩放" aria-label="重置缩放">&#8634;</button>
     <button class="btn" id="volumeUnitBtn" title="切换成交量单位" aria-label="成交量单位：万">万</button>
     <button class="btn active" id="maBtn" data-ind="ma">MA</button>
@@ -646,6 +792,7 @@
     <div class="alert-menu-wrap">
       <button class="btn" id="alertMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false">预警</button>
       <div class="alert-popover" id="alertPopover" role="dialog" aria-label="价格预警">
+        <div class="alert-scope-note" data-i18n="alertScopeNote">仅在当前页面打开时检查，不提供后台推送。</div>
         <div class="alert-fields"><input id="alertPriceInput" type="number" inputmode="decimal" step="0.01" placeholder="价格" aria-label="预警价格" /><input id="alertNoteInput" type="text" maxlength="32" placeholder="备注（可选）" aria-label="预警备注" /><button class="btn primary" id="addAlertBtn" type="button">+</button></div>
         <div class="alert-list" id="alertList"></div>
       </div>
@@ -693,13 +840,11 @@
   <div class="chart-loading-overlay" id="chartLoadingOverlay" role="status" aria-live="polite" hidden><div class="chart-loading-card"><span class="chart-loading-spinner" aria-hidden="true"></span><span id="chartLoadingText">正在拉取数据…</span></div></div>
   <div id="rangeBanner" style="display:none;">
     <span id="rangeText"></span>
-    <button class="btn primary" id="selectionAnalyzeBtn">分析</button>
     <button class="btn primary" id="rangeAnalyzeBtn">📊 区间统计</button>
     <button class="btn" id="rangeClearBtn">取消</button>
   </div>
   <div class="chart-context-menu" id="chartContextMenu" role="menu" aria-label="K线快捷操作">
     <button type="button" id="contextAddWatchBtn" role="menuitem">加入自选</button>
-    <button type="button" id="contextAnalyzeBtn" role="menuitem">分析此 K 线</button>
   </div>
 </div>
 <div class="canvas-resizer" id="canvasResizer" role="separator" aria-label="调整画布高度" aria-orientation="horizontal" tabindex="0"></div>
@@ -728,6 +873,24 @@
     <div class="group-dialog-error" id="groupDialogError" aria-live="polite"></div>
     <div class="group-dialog-actions"><button class="btn" id="groupDialogCancel" type="button">取消</button><button class="btn primary" id="groupDialogSubmit" type="submit">创建</button></div>
   </form>
+</div>
+<div class="welcome-backdrop" id="welcomeDialog" hidden>
+  <section class="welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <button class="welcome-close" id="welcomeCloseBtn" type="button" aria-label="关闭">&times;</button>
+    <h2 class="welcome-title" id="welcomeTitle" data-i18n="welcomeTitle">欢迎使用非凸 K 线助手</h2>
+    <p class="welcome-lead" data-i18n="welcomeLead">用自然语言查看行情、K 线、指标和标的信息。</p>
+    <ul class="welcome-list">
+      <li data-i18n="welcomeItemChart">先选择标的，再按需加载数据和分析图表。</li>
+      <li data-i18n="welcomeItemLevels">需要时点击“关键点位”，查看支撑位和压力位分析。</li>
+      <li data-i18n="welcomeItemSource">支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。</li>
+      <li data-i18n="welcomeItemWatchlist">自选和分组保存在当前浏览器中。</li>
+    </ul>
+    <div class="welcome-ftshare">
+      <div class="welcome-ftshare-title" data-i18n="welcomeFtshareTitle">想使用更多数据？</div>
+      <div data-i18n="welcomeFtshareDetail">FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。</div>
+    </div>
+    <div class="welcome-actions"><button class="btn" id="welcomeLaterBtn" type="button" data-i18n="welcomeLater">稍后设置</button><button class="btn primary" id="welcomeConfigureBtn" type="button" data-i18n="welcomeConfigure">配置 FTShare</button></div>
+  </section>
 </div>
 <div class="market-ticker" id="marketTicker" aria-live="polite"><div class="market-ticker-flow"><div class="market-ticker-track" id="marketTickerTrack"></div></div><div class="market-ticker-meta" id="marketTickerMeta"></div></div>
 <div class="activity-notice" id="activityNotice" role="status" aria-live="polite" hidden><span class="activity-notice-spinner" aria-hidden="true"></span><span id="activityNoticeText"></span></div>
@@ -784,7 +947,7 @@ let kchart = null;
 let currentSymbol = "";
 let currentName = "";
 let currentInterval = "day";
-let currentRangeKey = "1y";
+let currentRangeKey = "ytd";
 let customRangeStart = "";
 let customRangeEnd = "";
 let currentCandles = []; // [{time(close sec), open_time?(sec), session?, open, high, low, close, volume}]
@@ -795,6 +958,7 @@ let localChartDataMeta = null;
 let exchangeTimezone = "Asia/Shanghai";
 let activeMaMaps = [];
 let activeVwapMap = null;
+let activeIndicatorMaps = new Map();
 let localIndicatorCacheKey = "";
 let localIndicatorCache = [];
 let localIndicatorCacheByKey = new Map();
@@ -823,6 +987,8 @@ const registeredMaIndicators = new Set();
 const registeredMaGroupIndicators = new Set();
 let activeMaGroupName = null;
 let redrawing = false;
+let indicatorStateVersion = 0;
+let indicatorRedrawPending = false;
 let currentSelection = null;
 let selectionOverlayId = null;
 let volumeUnit = "wan";
@@ -921,48 +1087,69 @@ let drawingMode = "";
 let drawingDraft = null;
 const MAX_USER_DRAWINGS = 48;
 const RANGE_PRESETS = {
-  "1d": { days: 2, limit: 250, label: "1D" },
-  "5d": { days: 8, limit: 14, label: "5D" },
-  "10d": { days: 16, limit: 24, label: "10D" },
-  "30d": { days: 46, limit: 60, label: "30D" },
-  ytd: { days: null, limit: null, label: "YTD" },
-  "1y": { days: 370, limit: 390, label: "1Y" },
-  "5y": { days: 1830, limit: 1900, label: "5Y" },
+  "1d": { days: 2, limit: 250, labelKey: "range1d" },
+  "5d": { days: 8, limit: 14, labelKey: "range5d" },
+  "10d": { days: 16, limit: 24, labelKey: "range10d" }, // kept for migrating old local preferences
+  "30d": { days: 46, limit: 60, labelKey: "range30d" },
+  ytd: { days: null, limit: null, labelKey: "rangeYtd" },
+  "1y": { days: 370, limit: 390, labelKey: "range1y" },
+  "5y": { days: 1830, limit: 1900, labelKey: "range5y" },
   custom: { days: null, limit: 4000, label: "Custom" },
 };
 const UI_COPY = {
   zh: {
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
-    clear: "清标注", search: "搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票",
+    capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
+    range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
+    keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsReady: "关键点位分析已更新", keyLevelsFailed: "关键点位分析暂时不可用，请稍后重试。", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
+    welcomeItemLevels: "需要时点击“关键点位”，查看支撑位和压力位分析。",
+    clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组保存在当前浏览器中，不会自动同步到其他设备。", updateDescription: "查看当前版本、更新记录和发布说明。",
     indicators: "指标", indicatorHeading: "显示指标", apply: "应用",
     maNote: "均线", vwapNote: "成交量加权", volNote: "万股", macdNote: "动能", kdjNote: "随机指标", bollNote: "布林带", rsiNote: "强弱", atrNote: "波动率",
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘",
-    switchToEnglish: "切换至 English", switchToChinese: "切换至中文", switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", expandChart: "展开图表", collapseChart: "收起图表", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
-    closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从 FTShare 加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "新闻与简况暂时不可用", localPreview: "本地预览",
+    switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
+    closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
+    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组保存在当前浏览器中。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
-    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前 FTShare 数据源未提供可用的美股/港股分钟 K 线，1D/5D 仅适用于 A 股。请切换到 10D 或更长周期。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
+    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前数据源不提供此标的的分钟 K，请配置 FTSHARE_API_KEY 后重试，或切换到 30日。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
   },
   en: {
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
-    clear: "Clear", search: "Search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols",
+    capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
+    range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
+    keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsReady: "Key-level analysis updated", keyLevelsFailed: "Key-level analysis is temporarily unavailable. Try again later.", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
+    welcomeItemLevels: "Click “Key levels” when you want support and resistance analysis.",
+    clear: "Clear", search: "Search", searchSubmit: "Submit search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols", versionUpdates: "Version & updates", currentSource: "Active data source", sourceCapabilities: "Available capabilities", sourceCapabilityDaily: "Daily bars and common indicators", sourceCapabilityOptional: "Minute bars / news / market data / company data: source and plan dependent", externalSourceTitle: "Other sources", externalSourceDetail: "Connect another market-data source and keep using charts and indicators.", externalSourceHint: "Connect it through dsh first; direct switching here is not available yet.", sourceFreeMode: "FTShare access is tiered: free plans include basic stock K-lines; minute bars, news, and other capabilities depend on the specific API and plan.", themeCurrent: "Current theme", languageCurrent: "Current language", overviewRoleTitle: "How the plugin works", overviewIntro: "dsh_kline is a market-analysis plugin for dsh. dsh understands your request; the plugin loads data, performs the analysis, and presents the chart. Results are returned to the conversation.", overviewStepOne: "Ask in the dsh conversation, for example: “Show a symbol’s K-line and analyze its key levels.”", overviewStepTwo: "The plugin loads the data and analyzes K-lines, technical indicators, and support/resistance levels.", overviewStepThree: "The chart opens on the right and the conclusion appears in the conversation; you can continue with other ranges and indicators.", overviewCapabilitiesTitle: "What it can do", overviewCapabilityOne: "View quotes and K-lines across daily, weekly, monthly, and other intervals.", overviewCapabilityTwo: "Use MA, MACD, KDJ, BOLL, RSI, ATR, VWAP, and volume indicators.", overviewCapabilityThree: "Identify and mark support, resistance, and other key price levels to help review trends and ranges.", overviewCapabilityFour: "Explore range statistics, symbol comparisons, watchlists, alerts, and drawings.", overviewCapabilityFive: "FTShare is the default source, while other sources can provide market data too.", overviewStartTitle: "Get started", overviewStart: "Ask for an analysis in dsh, or find a symbol in the top search bar; select it to open the chart.", feedbackDescription: "Found a problem or have an idea? Send us feedback.", feedbackOpen: "Submit feedback / 提交反馈", feedbackPrivacy: "This opens GitHub; you choose what information to submit.", helpWorkflow: "How to use", helpStepOne: "Enter a symbol or name in the top search bar and press Enter to find it.", helpStepTwo: "Click a symbol to load market data and analysis.", helpStepThree: "1D/5D require minute bars; switch to 30-day or check the FTShare plan when they are unavailable.", helpStepFour: "Watchlists and groups are stored in this browser and are not synced automatically across devices.", updateDescription: "View the current version, change history, and release notes.",
     indicators: "Indicators", indicatorHeading: "Indicators", apply: "Apply",
     maNote: "moving avg", vwapNote: "volume weighted", volNote: "volume", macdNote: "momentum", kdjNote: "stochastic", bollNote: "bands", rsiNote: "strength", atrNote: "volatility",
     maPeriods: "MA periods (comma-separated)", volumeMa: "VOL MA period", bollPeriod: "BOLL period", bollStd: "BOLL std. dev.", rsiPeriod: "RSI period", atrPeriod: "ATR period",
     volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close",
-    switchToEnglish: "Switch to English", switchToChinese: "Switch to Chinese", switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", expandChart: "Expand chart", collapseChart: "Collapse chart", percentAxis: "Change %", resizeCanvas: "Resize chart height",
-    closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from FTShare…", workspaceReady: "News and company information updated", workspaceUnavailable: "News and company information are temporarily unavailable", localPreview: "Local preview",
+    switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
+    closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
+    newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
-    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The current FTShare source has no usable U.S./Hong Kong minute bars. 1D/5D are available for mainland China symbols only. Switch to 10D or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
+    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "This source does not provide minute bars for this symbol. Set FTSHARE_API_KEY and retry, or switch to 30-day.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
     day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "dsh_kline Chart",
   },
 };
 function t(key) { return UI_COPY[viewLanguage]?.[key] || UI_COPY.zh[key] || key; }
+const RANGE_COPY = {
+  zh: { detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
+  en: { detail: "Range details", return: "Period return", amplitude: "Amplitude", drawdown: "Max drawdown", bars: "Bars", days: "Calendar days", upDown: "Up/down", start: "Start", end: "End", openClose: "Open/close", highLow: "High/low", streak: "Up/down streak", averageVolume: "Average volume", pickNext: " (click the end point)", calculating: "Calculating range…", failed: "Range calculation failed", updating: "Updating indicators…", redrawFailed: "Redraw failed" },
+};
+function rt(key) { return RANGE_COPY[viewLanguage]?.[key] || RANGE_COPY.zh[key] || key; }
+const COMPANY_LABELS = {
+  "代码": "Symbol", "名称": "Name", "所属行业": "Industry", "上市市场": "Market", "上市日期": "Listed", "员工人数": "Employees", "官网": "Website",
+  "历史财务": "Historical financials", "单位": "Unit", "报告期": "Period", "营业收入": "Revenue", "净利润": "Net income", "毛利率": "Gross margin", "经营现金流": "Operating cash flow",
+  "股东": "Holder", "持股数": "Shares", "持股比例": "Ownership", "变动": "Change", "截至": "As of", "未声明": "Not specified",
+};
+function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || label) : label; }
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 6,
+      version: 7,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
@@ -985,9 +1172,13 @@ function saveWorkspacePreferences() {
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
-    if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
+    if (parsed.rangeKey === "10d") currentRangeKey = "30d";
+    else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
+    // v7 makes YTD the opening range. Migrate an older saved selection once,
+    // while preserving ranges selected by the user after this release.
+    if (Number(parsed.version) < 7) currentRangeKey = "ytd";
     customRangeStart = typeof parsed.customRangeStart === "string" ? parsed.customRangeStart : "";
     customRangeEnd = typeof parsed.customRangeEnd === "string" ? parsed.customRangeEnd : "";
     if (["zh", "en"].includes(parsed.language)) viewLanguage = parsed.language;
@@ -1071,7 +1262,6 @@ function rememberAnalysisCommands(payload) {
 }
 
 const CHART_BASE_HEIGHT = 560;
-const FULLSCREEN_CHART_BASE_HEIGHT = 680;
 const CANVAS_BASE_MIN_HEIGHT = 280;
 const CANVAS_BASE_MAX_HEIGHT = 1280;
 const PANE_SHRINK_STEP = 56;
@@ -1115,19 +1305,19 @@ function syncThemeToggle() {
   const button = document.getElementById("themeToggle");
   if (!button) return;
   const dark = currentTheme() === "dark";
-  button.textContent = dark ? "☀" : "☾";
   const label = dark ? t("switchToLight") : t("switchToDark");
+  button.textContent = label;
   button.title = label;
   button.setAttribute("aria-label", label);
 }
 function syncLanguageControls() {
   document.documentElement.lang = viewLanguage === "en" ? "en" : "zh-CN";
   const values = {
-    toolbarHint: t("toolbarHint"), clearBtn: t("clear"), symbolSearchBtn: t("search"),
+    toolbarHint: t("toolbarHint"), clearBtn: t("clear"),
     indicatorHeading: t("indicatorHeading"), applyIndicatorBtn: t("apply"), applyCustomRangeBtn: t("apply"),
-    watchlistHeading: t("watchlist"), watchlistRailHeading: t("watchlist"), customRangeBtn: t("custom"), brandProduct: t("productName"),
+    watchlistRailHeading: t("watchlist"), customRangeBtn: t("custom"), brandProduct: t("productName"),
     alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), watchlistBatchOpenBtn: t("batchOpen"), clearDrawingsBtn: t("clear"),
-    groupDialogTitle: t("newGroup"), groupDialogCancel: t("cancel"), groupDialogSubmit: t("create"),
+    groupDialogTitle: t("newGroup"), groupDialogCancel: t("cancel"), groupDialogSubmit: t("create"), ftshareConfigureBtn: t("configureAndTest"), ftshareClearBtn: t("clearConfig"),
   };
   for (const [id, value] of Object.entries(values)) {
     const el = document.getElementById(id);
@@ -1139,13 +1329,25 @@ function syncLanguageControls() {
     input.placeholder = t("searchPlaceholder");
     input.setAttribute("aria-label", t("searchLabel"));
   }
-  const languageButton = document.getElementById("languageToggle");
-  if (languageButton) {
-    const label = viewLanguage === "zh" ? t("switchToEnglish") : t("switchToChinese");
-    languageButton.textContent = viewLanguage === "zh" ? "EN" : "中";
-    languageButton.title = label;
-    languageButton.setAttribute("aria-label", label);
+  const ftshareInput = document.getElementById("ftshareApiKeyInput");
+  if (ftshareInput) { ftshareInput.placeholder = t("ftshareApiKeyPlaceholder"); ftshareInput.setAttribute("aria-label", t("ftshareApiKeyLabel")); }
+  const languageSelect = document.getElementById("languageToggle");
+  if (languageSelect) {
+    languageSelect.value = viewLanguage;
+    languageSelect.setAttribute("aria-label", viewLanguage === "zh" ? "语言 / Language" : "Language / 语言");
   }
+  const settingsButton = document.getElementById("settingsBtn");
+  if (settingsButton) { settingsButton.title = "设置 / Settings"; settingsButton.setAttribute("aria-label", "设置 / Settings"); }
+  const settingsCloseButton = document.getElementById("settingsCloseBtn");
+  if (settingsCloseButton) {
+    settingsCloseButton.title = t("closeSettings");
+    settingsCloseButton.setAttribute("aria-label", t("closeSettings"));
+  }
+  const versionValue = document.getElementById("settingsVersionValue");
+  if (versionValue) versionValue.textContent = DSH_KLINE_VERSION;
+  const helpPopover = document.getElementById("helpPopover");
+  if (helpPopover) helpPopover.setAttribute("aria-label", t("helpTitle"));
+  renderHelpPopover();
   const tabs = document.getElementById("workspaceTabs");
   if (tabs) tabs.setAttribute("aria-label", t("chartTabs"));
   document.getElementById("securityNav")?.setAttribute("aria-label", t("securityTabs"));
@@ -1193,7 +1395,6 @@ function syncLanguageControls() {
     button.textContent = t(button.dataset.interval);
   });
   syncToggleButtons();
-  syncExpandButton();
   syncVolumeUnitButton();
   syncThemeToggle();
   syncTimeControls();
@@ -1205,8 +1406,9 @@ function syncLanguageControls() {
   renderUserDrawings();
   renderSecurityWorkspace();
 }
-async function toggleLanguage() {
-  viewLanguage = viewLanguage === "zh" ? "en" : "zh";
+async function setLanguage(nextLanguage) {
+  if (!["zh", "en"].includes(nextLanguage) || nextLanguage === viewLanguage) return;
+  viewLanguage = nextLanguage;
   // Chinese market convention is Wan; English labels follow the K convention.
   volumeUnit = viewLanguage === "zh" ? "wan" : "k";
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
@@ -1300,13 +1502,19 @@ function chartStyles() {
       ohlc: { upColor: c.upBar, downColor: c.downBar, noChangeColor: c.neutral },
       bars: [{ upColor: c.upBar, downColor: c.downBar, noChangeColor: c.neutral }],
       lines: c.ma.map((color) => ({ color, size: 1.5 })),
-      tooltip: { showRule: "none", text: { color: c.tooltip, size: 12 } },
+      // Keep native pane legends for VOL, MACD, KDJ and other sub-panels.
+      // The MA registration supplies its own empty tooltip because MA is also
+      // shown in the shared meta row above the chart.
+      tooltip: {
+        showRule: "always", showName: true, showParams: true,
+        text: { color: c.tooltip, size: 12 },
+      },
     },
     xAxis: {
       axisLine: { color: c.axisLine }, tickText: { color: c.axis }, tickLine: { color: c.axisLine },
     },
     yAxis: {
-      position: "left", inside: false,
+      position: "left", inside: false, size: rightAxisGutterWidth(),
       axisLine: { color: c.axisLine }, tickText: { color: c.axis }, tickLine: { color: c.axisLine },
     },
     separator: { color: c.axisLine, size: 1, fill: true },
@@ -1323,45 +1531,11 @@ function chartStyles() {
   };
 }
 
-/* ---------- display mode + dual axis ---------- */
-function currentDisplayMode() {
-  return localCanvasExpanded ? "fullscreen" : "inline";
-}
-let localCanvasExpanded = false;
-function isCanvasExpanded() {
-  return currentDisplayMode() === "fullscreen" || localCanvasExpanded;
-}
+/* ---------- chart sizing + dual axis ---------- */
 function chartBaseHeight() {
-  const defaultHeight = isCanvasExpanded() ? FULLSCREEN_CHART_BASE_HEIGHT : CHART_BASE_HEIGHT;
-  const configured = canvasBaseHeightOverride === null ? defaultHeight : canvasBaseHeightOverride;
+  const configured = canvasBaseHeightOverride === null ? CHART_BASE_HEIGHT : canvasBaseHeightOverride;
   const paneCount = [volVisible, macdVisible, kdjVisible, rsiVisible, atrVisible].filter(Boolean).length;
   return Math.round(Math.min(CANVAS_BASE_MAX_HEIGHT, Math.max(CANVAS_BASE_MIN_HEIGHT, configured - paneCount * PANE_SHRINK_STEP)));
-}
-function syncExpandButton() {
-  const button = document.getElementById("expandBtn");
-  if (!button) return;
-  const fullscreen = isCanvasExpanded();
-  button.innerHTML = fullscreen ? "&#x26F7;" : "&#x26F6;";
-  const label = fullscreen ? t("collapseChart") : t("expandChart");
-  button.setAttribute("aria-label", label);
-  button.title = label;
-  button.classList.toggle("active", fullscreen);
-}
-function applyLocalCanvasExpansion(expanded) {
-  localCanvasExpanded = Boolean(expanded);
-  const shell = document.getElementById("viewShell");
-  if (shell) shell.classList.toggle("is-local-expanded", localCanvasExpanded);
-  syncExpandButton();
-  applyViewportHeight(null);
-  recalcChartHeight();
-  refreshPercentAxis();
-  scheduleChartResize();
-  window.setTimeout(scheduleChartResize, 90);
-  reportSize();
-}
-async function toggleExpandedView() {
-  applyLocalCanvasExpansion(!localCanvasExpanded);
-  setChartStatus("");
 }
 function visibleCandles() {
   const range = kchart?.getVisibleRange?.();
@@ -1370,13 +1544,84 @@ function visibleCandles() {
   const to = Math.min(currentCandles.length, Math.ceil(Number(range.to) || currentCandles.length));
   return currentCandles.slice(from, Math.max(from + 1, to));
 }
+function refreshMirrorAxes() {
+  const axis = document.getElementById("percentAxis");
+  if (!axis || !kchart) return;
+  axis.querySelectorAll(".mirror-axis-tick").forEach((tick) => tick.remove());
+  const candlePane = kchart.getCandlePane?.();
+  const xAxisPane = kchart.getXAxisPane?.();
+  const ticks = [];
+  for (const pane of kchart.getAllDrawPanes?.() || []) {
+    if (!pane || pane === candlePane || pane === xAxisPane) continue;
+    const bounds = pane.getBounding?.();
+    const paneTicks = pane.getAxisComponent?.()?.getTicks?.() || [];
+    if (!bounds || !paneTicks.length) continue;
+    for (const tick of paneTicks) {
+      const coord = Number(tick.coord);
+      if (!Number.isFinite(coord)) continue;
+      ticks.push({ text: tick.text ?? tick.value ?? "", top: Number(bounds.top || 0) + coord });
+    }
+  }
+  for (const tick of ticks) {
+    const label = document.createElement("span");
+    label.className = "mirror-axis-tick";
+    label.style.top = `${tick.top}px`;
+    label.textContent = String(tick.text);
+    axis.append(label);
+  }
+}
+function rightAxisGutterWidth() {
+  const axis = document.getElementById("percentAxis");
+  const labels = axis ? [...axis.querySelectorAll(".percent-tick, .mirror-axis-tick")].map((item) => String(item.textContent || "").trim()).filter(Boolean) : [];
+  // The left side is rendered by KLineCharts itself. Include its real tick
+  // labels in the same measurement so both sides always receive one shared
+  // width, even when a price value is wider than a percentage value.
+  for (const pane of kchart?.getAllDrawPanes?.() || []) {
+    for (const tick of pane?.getAxisComponent?.()?.getTicks?.() || []) {
+      const text = String(tick.text ?? tick.value ?? "").trim();
+      if (text) labels.push(text);
+    }
+  }
+  if (!labels.length) return 48;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return 48;
+  context.font = '10px "Segoe UI", "Noto Sans SC", sans-serif';
+  const widest = Math.max(...labels.map((label) => context.measureText(label).width));
+  // Keep only a small breathing space around the longest numeric label.
+  return Math.min(56, Math.max(44, Math.ceil(widest + 8)));
+}
+function syncRightAxisGutter() {
+  const axis = document.getElementById("percentAxis");
+  const wrap = axis?.parentElement;
+  if (!wrap) return;
+  const next = rightAxisGutterWidth();
+  const previous = Number.parseFloat(getComputedStyle(wrap).getPropertyValue("--chart-right-gutter")) || 48;
+  wrap.style.setProperty("--chart-right-gutter", `${next}px`);
+  if (kchart && currentCandles.length > 1 && Math.abs(previous - next) > 0.5) {
+    try { kchart.setStyles(chartStyles()); } catch {}
+    window.requestAnimationFrame(() => fitChartToData());
+  }
+}
 function refreshPercentAxis() {
   const axis = document.getElementById("percentAxis");
-  if (!axis || currentCandles.length < 2) return;
+  if (!axis) return;
+  axis.querySelectorAll(".percent-tick, .percent-axis-title").forEach((tick) => tick.remove());
+  if (!kchart || currentCandles.length < 2) {
+    refreshMirrorAxes();
+    syncRightAxisGutter();
+    axis.classList.add("visible");
+    return;
+  }
   const rows = visibleCandles();
   const reference = Number(currentCandles[0]?.close);
   const prices = rows.flatMap((row) => [Number(row.high), Number(row.low)]).filter(Number.isFinite);
-  if (!Number.isFinite(reference) || !prices.length) { axis.classList.remove("visible"); return; }
+  if (!Number.isFinite(reference) || !prices.length) {
+    refreshMirrorAxes();
+    syncRightAxisGutter();
+    axis.classList.add("visible");
+    return;
+  }
   let high = Math.max(...prices), low = Math.min(...prices);
   const padding = Math.max((high - low) * 0.06, reference * 0.002);
   high += padding;
@@ -1393,14 +1638,14 @@ function refreshPercentAxis() {
     const top = topInset + usableHeight * index / 4;
     return `<span class="percent-tick ${cls}" style="top:${top}px">${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%</span>`;
   }).join("")}`;
+  refreshMirrorAxes();
+  syncRightAxisGutter();
   axis.classList.add("visible");
 }
 
 /* ---------- size ---------- */
 // Keep a multi-pane chart inside a scrollable viewport.
 const VIEWPORT_MAX_HEIGHT = 1120;
-const FULLSCREEN_VIEWPORT_MAX_HEIGHT = 2400;
-const FULLSCREEN_VIEWPORT_MIN_HEIGHT = 720;
 const MIN_CHART_RENDER_WIDTH = 280;
 const VIEW_SCROLLBAR_INSET = 2;
 const VIEW_SCROLLBAR_MIN_THUMB = 40;
@@ -1409,15 +1654,11 @@ let lastReported = { w: 0, h: 0 };
 let viewResizeObserver = null;
 function applyViewportHeight(context) {
   const cd = context?.containerDimensions;
-  const modeMaxHeight = isCanvasExpanded()
-    ? FULLSCREEN_VIEWPORT_MAX_HEIGHT
-    : VIEWPORT_MAX_HEIGHT;
+  const modeMaxHeight = VIEWPORT_MAX_HEIGHT;
   const hostHeight = Number(cd?.height) || Number(cd?.maxHeight) || 0;
   const windowHeight = Number(window.innerHeight) || 0;
-  const availableHeight = isCanvasExpanded()
-    ? Math.max(hostHeight, windowHeight, FULLSCREEN_VIEWPORT_MIN_HEIGHT)
-    : hostHeight || windowHeight || modeMaxHeight;
-  viewportMaxHeight = Math.min(modeMaxHeight, Math.max(isCanvasExpanded() ? FULLSCREEN_VIEWPORT_MIN_HEIGHT : 500, availableHeight));
+  const availableHeight = hostHeight || windowHeight || modeMaxHeight;
+  viewportMaxHeight = Math.min(modeMaxHeight, Math.max(500, availableHeight));
   const shellEl = document.getElementById("viewShell");
   if (shellEl) {
     shellEl.style.height = viewportMaxHeight + "px";
@@ -1431,7 +1672,7 @@ function reportSize() {
   const contentHeight = scrollEl?.scrollHeight || document.documentElement.scrollHeight || document.body.scrollHeight;
   const tickerEl = document.getElementById("marketTicker");
   const tickerHeight = tickerEl?.classList.contains("visible") ? tickerEl.offsetHeight : 0;
-  const h = isCanvasExpanded() ? viewportMaxHeight : Math.min(contentHeight + tickerHeight, viewportMaxHeight);
+  const h = Math.min(contentHeight + tickerHeight, viewportMaxHeight);
   syncViewScrollbar();
   if (Math.abs(w - lastReported.w) < 1 && Math.abs(h - lastReported.h) < 1) return;
   lastReported = { w, h };
@@ -1789,6 +2030,26 @@ function renderChartMeta(candle = currentCandles.at(-1)) {
   if (vwapVisible && activeVwapMap) {
     parts.push(`<span class="chart-meta-indicator" style="color:${chartColors().vwap}"><strong>VWAP</strong> ${escapeHtml(fmt(chartSeriesValue(activeVwapMap, candle), 2))}</span>`);
   }
+  const specs = [
+    ["vol", volVisible, [["VOL", "vol"]], "ma"],
+    ["macd", macdVisible, [["DIF", "dif"], ["DEA", "dea"], ["HIST", "hist"]], "macd"],
+    ["kdj", kdjVisible, [["K", "k"], ["D", "d"], ["J", "j"]], "kdj"],
+    ["boll", bollVisible, [["BOLL", "mid"], ["UPPER", "upper"], ["LOWER", "lower"]], "boll"],
+    ["rsi", rsiVisible, [["RSI", "rsi"]], "rsi"],
+    ["atr", atrVisible, [["ATR", "atr"]], "atr"],
+  ];
+  for (const [name, visible, fields, paletteName] of specs) {
+    const maps = activeIndicatorMaps.get(name);
+    if (!visible || !maps) continue;
+    fields.forEach(([label, key], index) => {
+      const value = chartSeriesValue({ map: maps[key] }, candle);
+      if (!Number.isFinite(value)) return;
+      const palette = chartColors()[paletteName] || chartColors().ma;
+      const color = palette[index % palette.length];
+      const precision = name === "vol" ? 0 : 2;
+      parts.push(`<span class="chart-meta-indicator" style="color:${color}"><strong>${label}</strong> ${escapeHtml(fmt(value, precision))}</span>`);
+    });
+  }
   indicatorRow.innerHTML = parts.join("");
   indicatorRow.hidden = parts.length === 0;
 }
@@ -1803,39 +2064,6 @@ function revealAnalysisResults() {
     syncViewScrollbar();
   });
 }
-const LOCAL_SECURITY_WORKSPACE = {
-  source: { name: "Local mock", updated_at: "2026-07-29 17:45", status: "mock" },
-  news: [
-    { kind: "公司公告", time: "07-29 16:20", title: "关于模拟证券业务进展的公告", summary: "本地预览新闻条目，用于验证新闻流、来源状态与响应式布局。" },
-    { kind: "行业资讯", time: "07-29 13:10", title: "行业景气度跟踪：订单与交付节奏保持稳定", summary: "本地预览资讯条目，不代表真实新闻或投资建议。" },
-    { kind: "研究报告", time: "07-28 18:35", title: "覆盖公司关键经营指标更新", summary: "本地预览研报摘要，用于验证长标题截断和多行信息密度。" },
-    { kind: "重大事项", time: "07-25 09:30", title: "交易所披露信息已更新", summary: "本地预览事件条目，正式版本将由标准化新闻及公告接口提供。" },
-  ],
-  overview: {
-    industry: "高端制造", market: "上海证券交易所", listing_date: "2000-10-18", employees: "12,480", website: "https://example.invalid", description: "这是本地 HTML 预览中的标准化公司简况示例。正式数据将由已配置的数据源提供；在数据源缺失时，页面只显示空状态，不会把模拟内容当作真实披露信息。",
-    metrics: [
-      { label: "总市值", value: "1,286.4 亿" }, { label: "市盈率", value: "28.6" }, { label: "市净率", value: "2.14" }, { label: "ROE", value: "9.8%", tone: "up" }, { label: "股息率", value: "1.35%" },
-    ],
-    details: [
-      { label: "成立日期", value: "1999-09-16", group: "公司档案" }, { label: "注册资本", value: "20.00 亿", group: "公司档案" }, { label: "法人代表", value: "模拟负责人", group: "公司档案" }, { label: "主营业务", value: "卫星制造与应用服务", group: "公司档案" },
-      { label: "最新报告期", value: "2026 Q1", group: "经营与资本结构" }, { label: "营业收入同比", value: "+18.20%", group: "经营与资本结构" }, { label: "净资产收益率", value: "9.60%", group: "经营与资本结构" }, { label: "总负债", value: "150.00 亿", group: "经营与资本结构" }, { label: "货币资金", value: "80.00 亿", group: "经营与资本结构" },
-      { label: "股东户数", value: "12.35 万", group: "股东与治理" }, { label: "股份质押比例", value: "3.20%", group: "股东与治理" },
-    ],
-  },
-  financials: {
-    metrics: [
-      { label: "营业收入", value: "286.2 亿", tone: "up" }, { label: "净利润", value: "42.8 亿", tone: "up" }, { label: "毛利率", value: "31.6%" }, { label: "经营现金流", value: "51.9 亿", tone: "up" }, { label: "资产负债率", value: "48.2%" },
-    ],
-    rows: [
-      ["2026 Q1", "286.2 亿", "42.8 亿", "31.6%", "51.9 亿"], ["2025", "1,104.7 亿", "160.3 亿", "30.8%", "186.2 亿"], ["2024", "982.5 亿", "138.7 亿", "29.4%", "151.5 亿"], ["2023", "906.1 亿", "121.9 亿", "28.9%", "139.6 亿"],
-    ],
-  },
-  holders: {
-    updated_at: "2026-03-31", items: [
-      { name: "第一大股东（模拟）", percent: 32.18, shares: "8.12 亿", change: "+0.18%" }, { name: "基金组合（模拟）", percent: 8.65, shares: "2.18 亿", change: "+0.42%" }, { name: "保险资金（模拟）", percent: 4.23, shares: "1.07 亿", change: "-0.06%" }, { name: "其他流通股东", percent: 54.94, shares: "13.85 亿", change: "--" },
-    ],
-  },
-};
 function currentSecurityWorkspace() {
   if (securityWorkspaceData && typeof securityWorkspaceData === "object") return securityWorkspaceData;
   return null;
@@ -1875,7 +2103,7 @@ function companyTabsMarkup() {
   return `<div class="company-tabbar" role="tablist" aria-label="${escapeHtml(t("company"))}">${tabs.map(([id, label]) => `<button class="company-tab${activeCompanyTab === id ? " active" : ""}" type="button" role="tab" aria-selected="${activeCompanyTab === id}" data-company-tab="${id}">${escapeHtml(label)}</button>`).join("")}</div>`;
 }
 function metricMarkup(metrics = []) {
-  return `<div class="company-metrics">${metrics.map((metric) => `<div class="company-metric"><span class="company-metric-label">${escapeHtml(metric.label || "--")}</span><span class="company-metric-value ${escapeHtml(metric.tone || "")}">${escapeHtml(metric.value || "--")}</span></div>`).join("")}</div>`;
+  return `<div class="company-metrics">${metrics.map((metric) => `<div class="company-metric"><span class="company-metric-label">${escapeHtml(ct(metric.label || "--"))}</span><span class="company-metric-value ${escapeHtml(metric.tone || "")}">${escapeHtml(metric.value || "--")}</span></div>`).join("")}</div>`;
 }
 function companyDetailGroupLabel(group) {
   if (viewLanguage !== "en") return group;
@@ -1889,14 +2117,14 @@ function companyDetailSections(details) {
     if (!label || !value || value === "--") continue;
     const group = String(detail?.group || "经营与资本结构");
     if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push({ label, value });
+    groups.get(group).push({ label: ct(label), value });
   }
   return [...groups.entries()].map(([group, items]) => `<section class="company-detail-section"><h3>${escapeHtml(companyDetailGroupLabel(group))}</h3><div class="company-detail-grid">${items.map((item) => `<div class="company-detail"><span class="company-detail-label">${escapeHtml(item.label)}</span><span class="company-detail-value" title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</span></div>`).join("")}</div></section>`).join("");
 }
 function companyOverviewMarkup(data) {
   const overview = data.overview || {};
   const subject = currentName || overview.company_name || "--";
-  const fields = [["代码", currentSymbol], ["名称", subject], ["所属行业", overview.industry], ["上市市场", overview.market], ["上市日期", overview.listing_date], ["员工人数", overview.employees], ["官网", overview.website]]
+  const fields = [[ct("代码"), currentSymbol], [ct("名称"), subject], [ct("所属行业"), overview.industry], [ct("上市市场"), overview.market], [ct("上市日期"), overview.listing_date], [ct("员工人数"), overview.employees], [ct("官网"), overview.website]]
     .filter(([, value]) => value && value !== "--");
   const rows = [];
   for (let index = 0; index < fields.length; index += 2) rows.push([...(fields[index] || ["", ""]), ...(fields[index + 1] || ["", ""])]);
@@ -1909,12 +2137,15 @@ function companyFinancialsMarkup(data) {
   const financials = data.financials || {};
   const rows = Array.isArray(financials.rows) ? financials.rows : [];
   const unit = financials.unit || "未声明";
-  return `<div class="company-content">${metricMarkup(financials.metrics)}<div class="company-section-heading" style="margin-top:22px"><h3>历史财务</h3><span>单位：${escapeHtml(unit)}</span></div><table class="company-data-table"><thead><tr><th>报告期</th><th>营业收入</th><th>净利润</th><th>毛利率</th><th>经营现金流</th></tr></thead><tbody>${rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  return `<div class="company-content">${metricMarkup(financials.metrics)}<div class="company-section-heading" style="margin-top:22px"><h3>${escapeHtml(ct("历史财务"))}</h3><span>${escapeHtml(ct("单位"))}：${escapeHtml(viewLanguage === "en" && unit === "未声明" ? ct(unit) : unit)}</span></div><table class="company-data-table"><thead><tr><th>${escapeHtml(ct("报告期"))}</th><th>${escapeHtml(ct("营业收入"))}</th><th>${escapeHtml(ct("净利润"))}</th><th>${escapeHtml(ct("毛利率"))}</th><th>${escapeHtml(ct("经营现金流"))}</th></tr></thead><tbody>${rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 function companyHoldersMarkup(data) {
   const holders = data.holders || {};
   const items = Array.isArray(holders.items) ? holders.items : [];
-  return `<div class="company-content"><div class="company-section-heading"><h3>${escapeHtml(t("majorHolders"))}</h3><span>截至 ${escapeHtml(holders.updated_at || "--")}</span></div><div class="holder-layout"><div class="holder-summary">${items.map((item) => `<div class="holder-summary-row"><div><div class="holder-summary-name">${escapeHtml(item.name || "--")}</div><div class="holder-summary-track"><div class="holder-summary-fill" style="width:${Math.max(0, Math.min(100, Number(item.percent) || 0))}%"></div></div></div><div class="holder-summary-value">${escapeHtml(Number(item.percent).toFixed(2))}%</div></div>`).join("")}</div><table class="company-data-table"><thead><tr><th>股东</th><th>持股数</th><th>持股比例</th><th>变动</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.name || "--")}</td><td>${escapeHtml(item.shares || "--")}</td><td>${escapeHtml(Number(item.percent).toFixed(2))}%</td><td class="${String(item.change || "").startsWith("-") ? "down" : "up"}">${escapeHtml(item.change || "--")}</td></tr>`).join("")}</tbody></table></div></div>`;
+  return `<div class="company-content"><div class="company-section-heading"><h3>${escapeHtml(t("majorHolders"))}</h3><span>${escapeHtml(ct("截至"))} ${escapeHtml(holders.updated_at || "--")}</span></div><div class="holder-layout"><div class="holder-summary">${items.map((item) => `<div class="holder-summary-row"><div><div class="holder-summary-name">${escapeHtml(item.name || "--")}</div><div class="holder-summary-track"><div class="holder-summary-fill" style="width:${Math.max(0, Math.min(100, Number(item.percent) || 0))}%"></div></div></div><div class="holder-summary-value">${escapeHtml(Number(item.percent).toFixed(2))}%</div></div>`).join("")}</div><table class="company-data-table"><thead><tr><th>${escapeHtml(ct("股东"))}</th><th>${escapeHtml(ct("持股数"))}</th><th>${escapeHtml(ct("持股比例"))}</th><th>${escapeHtml(ct("变动"))}</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.name || "--")}</td><td>${escapeHtml(item.shares || "--")}</td><td>${escapeHtml(Number(item.percent).toFixed(2))}%</td><td class="${String(item.change || "").startsWith("-") ? "down" : "up"}">${escapeHtml(item.change || "--")}</td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function insightEmptyMarkup(title, hint = "") {
+  return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</div>`;
 }
 function renderSecurityWorkspace() {
   const data = currentSecurityWorkspace();
@@ -1924,9 +2155,12 @@ function renderSecurityWorkspace() {
   if (!newsPanel || !companyPanel) return;
   const sourceFooter = workspaceSourceFooter(data);
   if (!data) {
-    const emptyText = securityWorkspaceLoading ? t("workspaceLoading") : t("noWorkspaceData");
-    newsPanel.innerHTML = `<div class="insight-empty">${escapeHtml(emptyText)}</div>`;
-    companyPanel.innerHTML = `<div class="insight-empty">${escapeHtml(emptyText)}</div>`;
+    newsPanel.innerHTML = securityWorkspaceLoading
+      ? insightEmptyMarkup(t("workspaceLoading"))
+      : insightEmptyMarkup(t("newsUnavailable"), t("newsUnavailableHint"));
+    companyPanel.innerHTML = securityWorkspaceLoading
+      ? insightEmptyMarkup(t("workspaceLoading"))
+      : insightEmptyMarkup(t("companyUnavailable"), t("companyUnavailableHint"));
     return;
   }
   const news = Array.isArray(data.news) ? data.news : [];
@@ -1936,11 +2170,11 @@ function renderSecurityWorkspace() {
     const titleMarkup = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title;
     return `<article class="news-item"><div class="news-item-title"><span class="news-kind">${escapeHtml(item.kind || "资讯")}</span>${titleMarkup}</div><time class="news-meta">${escapeHtml(item.time || "--")}</time><div class="news-item-summary">${escapeHtml(item.summary || "")}</div></article>`;
   }).join("");
-  const newsContent = newsMarkup || `<div class="insight-empty">${escapeHtml(t("noWorkspaceData"))}</div>`;
+  const newsContent = newsMarkup || insightEmptyMarkup(t("newsEmpty"), t("newsEmptyHint"));
   newsPanel.innerHTML = `<div class="news-list">${newsContent}</div>${sourceFooter}`;
   const companySection = activeCompanyTab === "financials" ? "financials" : activeCompanyTab === "holders" ? "holders" : "overview";
   let content = ["unsupported", "empty"].includes(workspaceSectionState(data, companySection))
-    ? `<div class="insight-empty">${escapeHtml(`${data?.overview?.market || "--"} ${t("noWorkspaceData")}`)}</div>`
+    ? insightEmptyMarkup(t("companyEmpty"), t("companyEmptyHint"))
     : activeCompanyTab === "financials" ? companyFinancialsMarkup(data) : activeCompanyTab === "holders" ? companyHoldersMarkup(data) : companyOverviewMarkup(data);
   companyPanel.innerHTML = `${companyTabsMarkup()}${content}${sourceFooter}`;
 }
@@ -2971,17 +3205,34 @@ function fitChartToData() {
   // Leave room for the price axes while allowing a short range to use the
   // complete plot width instead of inheriting the previous zoom level.
   const plotWidth = Math.max(160, width - 132);
-  // KLineCharts v9 intentionally caps a bar at 50px. Respect that native
-  // limit, then centre sparse ranges instead of leaving every 10D/30D chart
-  // compressed against the right axis. The previous code asked for 76px+ on
-  // short ranges, which the library ignored altogether.
-  const barSpace = Math.max(4, Math.min(50, Math.round(plotWidth / currentCandles.length * 0.88)));
+  // Reserve a stable right gutter for percentage labels and other chart
+  // annotations so the newest candle never touches or covers them.
+  // Match the left price-axis footprint instead of leaving a large empty
+  // block. The same gutter is shared by every indicator pane.
+  const rightInfoGutter = rightAxisGutterWidth();
+  const dataWidth = Math.max(160, plotWidth - rightInfoGutter);
+  chartEl.parentElement?.style.setProperty("--chart-right-gutter", `${rightInfoGutter}px`);
+  // Keep short ranges dense enough to read, while giving longer ranges a
+  // deliberate minimum width. Users can still zoom out; the initial view
+  // should never make YTD/1Y/5Y candles look like a solid line.
+  const minimumBarSpace = currentRangeKey === "5y" ? 16 : currentRangeKey === "1y" || currentRangeKey === "ytd" ? 12 : 4;
+  const fillFactor = currentCandles.length <= 90 ? 0.94 : 0.88;
+  const barSpace = Math.max(minimumBarSpace, Math.min(50, Math.round(dataWidth / currentCandles.length * fillFactor)));
   const visibleBarCapacity = plotWidth / barSpace;
-  const rightPaddingBars = currentCandles.length < visibleBarCapacity
-    ? Math.max(2, (visibleBarCapacity - currentCandles.length) / 2)
-    : 1;
+  const hasRoomForAllCandles = currentCandles.length < visibleBarCapacity;
+  // When the range is short, use all remaining room as right padding. With
+  // the last candle kept as the anchor, that places the first candle at the
+  // left edge. Dense ranges keep only a small right margin and show the latest
+  // data by default.
+  const rightPaddingBars = hasRoomForAllCandles
+    ? Math.max(1, visibleBarCapacity - currentCandles.length)
+    : Math.max(1, rightInfoGutter / barSpace);
   try { kchart.setBarSpace?.(barSpace); } catch {}
   try { kchart.setOffsetRightDistance?.(Math.round(rightPaddingBars * barSpace)); } catch {}
+  // Do not scroll again here: scrollToTimestamp(last) would cancel the
+  // calculated right padding and move the newest candle back to the boundary.
+  // The final offset above left-aligns sparse ranges and right-aligns dense
+  // ranges while preserving the reserved annotation gutter.
   scheduleChartOverlayRender();
 }
 function actionCandle(data) {
@@ -3114,6 +3365,10 @@ function showChartContextMenu(candle, clientX, clientY) {
   const menu = document.getElementById("chartContextMenu");
   if (!chartWrap || !menu || !candle) return;
   contextMenuCandle = candle;
+  const watchButton = document.getElementById("contextAddWatchBtn");
+  if (watchButton) {
+    watchButton.textContent = watchedSymbol(currentSymbol) ? t("removeWatch") : t("addWatch");
+  }
   const rect = chartWrap.getBoundingClientRect();
   menu.classList.add("open");
   const width = menu.offsetWidth || 150;
@@ -3188,8 +3443,10 @@ function registerMaGroupIndicator(periods) {
     attrs: (params) => {
       const cur = params?.coordinate?.current;
       const next = params?.coordinate?.next;
-      if (!cur || cur.value === undefined || !next || next.value === undefined) return null;
-      return { coordinates: [{ x: cur.x, y: cur.value }, { x: next.x, y: next.value }] };
+      const currentValue = cur?.[`ma${index}`];
+      const nextValue = next?.[`ma${index}`];
+      if (!cur || currentValue === undefined || !next || nextValue === undefined) return null;
+      return { coordinates: [{ x: cur.x, y: currentValue }, { x: next.x, y: nextValue }] };
     },
     styles: () => ({ color: chartColors().ma[index % chartColors().ma.length], size: 1.5 }),
   }));
@@ -3198,6 +3455,10 @@ function registerMaGroupIndicator(periods) {
     shortName: "MA",
     series: "price",
     precision: 2,
+    // MA values are already shown in the shared meta row above the chart.
+    // Returning an empty custom tooltip hides only this native duplicate;
+    // other indicator panes keep their own legends.
+    createTooltipDataSource: () => ({ name: "", calcParamsText: "", values: [] }),
     calc: (dataList, indicator) => {
       const maps = indicator?.extendData?.maps || {};
       const mapNames = indicator?.extendData?.mapNames || [];
@@ -3255,6 +3516,7 @@ function applyIndicatorSeries(cmd) {
   for (const [k, v] of Object.entries(rawData)) {
     maps[k] = seriesKeysToMs(v);
   }
+  activeIndicatorMaps.set(name, maps);
   // also flatten ma5/ma10 aliases if data keys are ma5 etc.
   if (name === "ma") {
     const periods = Array.isArray(cmd.params?.periods) ? cmd.params.periods : [];
@@ -3288,6 +3550,7 @@ function applyIndicatorSeries(cmd) {
       map = seriesKeysToMs(cachedVwap?.data?.vwap);
     }
     activeVwapMap = { map, color: chartColors().vwap };
+    activeIndicatorMaps.set(name, { vwap: map });
     try {
       registerVwapIndicator();
       kchart.createIndicator(
@@ -3374,6 +3637,7 @@ async function applyChartCommands(payload) {
   crosshairCandle = null;
   activeMaMaps = [];
   activeVwapMap = null;
+  activeIndicatorMaps = new Map();
   const maLayer = document.getElementById("maLayer");
   const maLegend = document.getElementById("maLegend");
   if (maLayer) maLayer.innerHTML = "";
@@ -3405,7 +3669,7 @@ async function applyChartCommands(payload) {
   const renderedLevelPrices = new Set();
   for (const cmd of cmds) {
     if (cmd.type === "SET_RANGE" && (!payload.local_render || payload.fit_to_data)) {
-      try { kchart.setOffsetRightSpace(72); kchart.scrollToTimestamp(Number(cmd.end) * 1000); } catch {}
+      try { kchart.scrollToTimestamp?.(Number(cmd.end) * 1000); kchart.setOffsetRightDistance?.(72); } catch {}
     } else if (cmd.type === "SET_INDICATOR_SERIES") {
       applyIndicatorSeries(cmd);
     } else if (cmd.type === "DRAW_TREND_LINE") {
@@ -3476,6 +3740,9 @@ async function applyChartCommands(payload) {
   }
   recalcChartHeight();
   applyPaneLayouts();
+  // Always show the latest values immediately after a chart render. The
+  // native KLineCharts tooltip remains available when the crosshair moves.
+  renderChartMeta(currentCandles.at(-1));
   drawPriceAlertOverlays();
   renderPriceAlerts();
   renderComparisonSummary();
@@ -3492,8 +3759,15 @@ async function applyChartCommands(payload) {
 
 /* ---------- header / cards / tables ---------- */
 function renderHeader(name, symbol, rows) {
-  document.getElementById("name").textContent = name || symbol || "dsh_kline";
-  document.getElementById("symbolChip").textContent = symbol || "—";
+  const identity = resolveSymbolIdentity(symbol, name);
+  const normalizedSymbol = identity.symbol;
+  const requestedName = identity.name;
+  const displayName = requestedName || symbol || "dsh_kline";
+  const nameEl = document.getElementById("name");
+  const symbolEl = document.getElementById("symbolChip");
+  nameEl.textContent = displayName;
+  symbolEl.textContent = normalizedSymbol || "—";
+  symbolEl.hidden = !normalizedSymbol || displayName.toUpperCase() === normalizedSymbol;
   if (!rows || !rows.length) return;
   const last = rows[rows.length - 1], prev = rows[rows.length - 2];
   const close = document.getElementById("qClose");
@@ -3508,6 +3782,43 @@ function renderHeader(name, symbol, rows) {
     el.className = "change " + (chg >= 0 ? "up" : "down");
     document.getElementById("qMeta").textContent = `${t("volume")} ${fmtVolumeWan(last.volume)}`;
   }
+}
+function isSymbolLikeName(value, symbol = "") {
+  const text = String(value || "").trim();
+  const normalized = String(symbol || "").trim().toUpperCase();
+  if (!text) return true;
+  if (normalized && text.toUpperCase() === normalized) return true;
+  return text.toUpperCase() === normalized.split(".", 1)[0];
+}
+function preferredSymbolName(...values) {
+  const symbol = values.at(-1) || "";
+  return values.slice(0, -1).find((value) => value && !isSymbolLikeName(value, symbol)) || symbol;
+}
+function normalizeSymbolInput(value) {
+  const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!raw) return "";
+  const prefixed = raw.match(/^(SH|SZ)(\d{6})$/);
+  if (prefixed) return `${prefixed[2]}.${prefixed[1] === "SH" ? "XSHG" : "XSHE"}`;
+  const suffixed = raw.match(/^(\d{4,6})(?:\.(SH|SZ|XSHG|XSHE|HK|US))$/);
+  if (suffixed) {
+    const suffix = suffixed[2] === "SH" ? "XSHG" : suffixed[2] === "SZ" ? "XSHE" : suffixed[2];
+    return `${suffix === "HK" ? suffixed[1].padStart(5, "0") : suffixed[1]}.${suffix}`;
+  }
+  if (/^\d{6}$/.test(raw)) return `${raw}.${raw.startsWith("6") || raw.startsWith("68") ? "XSHG" : "XSHE"}`;
+  if (/^\d{1,5}$/.test(raw)) return `${raw.padStart(5, "0")}.HK`;
+  if (/^[A-Z][A-Z0-9_-]{0,15}$/.test(raw)) return `${raw}.US`;
+  return raw;
+}
+function directoryEntryForSymbol(symbol) {
+  const canonical = normalizeSymbolInput(symbol);
+  if (!canonical || !Array.isArray(symbolDirectory)) return null;
+  return symbolDirectory.find((item) => normalizeSymbolInput(item?.symbol) === canonical) || null;
+}
+function resolveSymbolIdentity(symbol, name = "") {
+  const canonical = normalizeSymbolInput(symbol);
+  const entry = directoryEntryForSymbol(canonical);
+  const displayName = preferredSymbolName(entry?.name, name, canonical);
+  return { symbol: canonical, name: displayName === canonical ? "" : displayName };
 }
 function renderCards(cards) {
   const el = document.getElementById("cards");
@@ -3545,6 +3856,12 @@ function dataFetchFailureDetail(error) {
   if (!raw) return "--";
   const http = raw.match(/HTTP\s+(\d{3})/i);
   if (http) {
+    if (http[1] === "401" && isIntradayRange()) return t("ftshareMinuteKeyRequired");
+    if (http[1] === "401" || http[1] === "403") {
+      return viewLanguage === "zh"
+        ? "当前数据源暂未提供这部分数据，请配置 FTSHARE_API_KEY 后重试，或切换数据源。"
+        : "This data is not available from the current source. Set FTSHARE_API_KEY and retry, or switch data source.";
+    }
     const detail = /系统错误/.test(raw) ? "（上游系统错误）" : "";
     return `FTShare HTTP ${http[1]}${detail}`;
   }
@@ -3570,8 +3887,14 @@ function showDataFetchError(error, request) {
   if (!el) return;
   const detail = dataFetchFailureDetail(error);
   el.style.display = "flex";
-  el.innerHTML = `<span class="err-message">${escapeHtml(t("dataFailed"))}：${escapeHtml(detail)}</span>` +
+  const prefix = isIntradayKeyRequired(error) || /HTTP\s+(401|403)/i.test(String(error?.message || error || ""))
+    ? t("friendlyNotice")
+    : t("dataFailed");
+  el.innerHTML = `<span class="err-message">${escapeHtml(prefix)}：${escapeHtml(detail)}</span>` +
     `<button class="btn" id="retryDataFetchBtn" type="button">${escapeHtml(t("retry"))}</button>`;
+}
+function isIntradayKeyRequired(error) {
+  return isIntradayRange() && /HTTP\s+401/i.test(String(error?.message || error || ""));
 }
 async function retryLastDataFetch() {
   const request = lastDataFetchRequest;
@@ -3583,7 +3906,7 @@ async function retryLastDataFetch() {
 const INDICATOR_HISTORY_BUFFER_DAYS = 180;
 function rangeLabel(key = currentRangeKey) {
   if (key === "custom") return t("custom");
-  return RANGE_PRESETS[key]?.label || "1Y";
+  return t(RANGE_PRESETS[key]?.labelKey || "range1y");
 }
 function dateInputValue(timestamp) {
   if (!Number.isFinite(Number(timestamp))) return "";
@@ -3623,7 +3946,7 @@ function rangeFetchLimit(key = currentRangeKey) {
 function isIntradayRange(key = currentRangeKey) { return key === "1d" || key === "5d"; }
 function isFtshareIntradayUnsupportedSymbol(symbol = currentSymbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
-  return normalized.endsWith((".US", ".NASDAQ", ".NYSE", ".HK", ".HKG"))
+  return [".US", ".NASDAQ", ".NYSE", ".HK", ".HKG"].some((suffix) => normalized.endsWith(suffix))
     || normalized.startsWith("100.NDX") || normalized.startsWith("100.HSI");
 }
 function isFtshareIntradayUnavailable(symbol = currentSymbol, rangeKey = currentRangeKey) {
@@ -4039,6 +4362,7 @@ function buildLocalChartPayload(rows, overrides = {}) {
     interval: overrides.interval || currentInterval,
     range_key: currentRangeKey,
     fit_to_data: Boolean(overrides.fitToData),
+    indicator_state_version: indicatorStateVersion,
     indicators: activeIndicators(),
     data_meta: {
       ...dataMeta,
@@ -4204,30 +4528,87 @@ function saveWatchlist() {
     }));
   } catch {}
 }
+function setLocalDataStatus(message, state = "") {
+  const el = document.getElementById("localDataStatus");
+  if (!el) return;
+  el.className = `settings-provider-status${state ? ` ${state}` : ""}`;
+  el.textContent = message || "";
+}
+function exportLocalData() {
+  const workspacePreferences = (() => {
+    try { return JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null"); } catch { return null; }
+  })();
+  const payload = {
+    format: "dsh_kline_local_data",
+    version: 1,
+    exported_at: new Date().toISOString(),
+    note: "This file does not contain FTShare API keys or other provider credentials.",
+    watchlist: { groups: watchlistGroups, items: watchlist, activeGroupId: activeWatchlistGroupId, sort: watchlistSort },
+    priceAlerts,
+    userDrawings,
+    comparisons: comparisonSeries.map((item) => ({ symbol: item.symbol, name: item.name })),
+    workspacePreferences,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `dsh-kline-data-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setLocalDataStatus(t("localDataExported"), "success");
+}
+function normalizeImportedAlerts(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => item && item.symbol && Number.isFinite(Number(item.price))).slice(0, MAX_PRICE_ALERTS).map((item) => ({
+    id: String(item.id || `${item.symbol}:${item.price}`),
+    symbol: normalizeSymbolInput(item.symbol),
+    price: Number(item.price),
+    note: String(item.note || "").slice(0, 32),
+  })).filter((item) => item.symbol);
+}
+function normalizeImportedDrawings(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => item && item.symbol && item.type && Array.isArray(item.points)).slice(0, MAX_USER_DRAWINGS).map((item) => ({
+    id: String(item.id || `${item.type}:${item.symbol}`),
+    symbol: normalizeSymbolInput(item.symbol),
+    type: String(item.type),
+    name: String(item.name || "").slice(0, 32),
+    points: item.points.slice(0, 2).map((point) => ({ time: Number(point.time), price: Number(point.price) })).filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price)),
+  })).filter((item) => item.symbol && item.points.length >= (item.type === "horizontal" ? 1 : 2));
+}
+async function importLocalData(file) {
+  try {
+    const payload = JSON.parse(await file.text());
+    if (payload?.format !== "dsh_kline_local_data" || Number(payload.version) !== 1) throw new Error("invalid format");
+    const watchState = normalizeWatchlistPayload(payload.watchlist);
+    if (!watchState) throw new Error("invalid watchlist");
+    applyWatchlistState(watchState);
+    priceAlerts = normalizeImportedAlerts(payload.priceAlerts);
+    userDrawings = normalizeImportedDrawings(payload.userDrawings);
+    comparisonRestores = (Array.isArray(payload.comparisons) ? payload.comparisons : []).filter((item) => item?.symbol).slice(0, MAX_COMPARISONS).map((item) => ({ symbol: normalizeSymbolInput(item.symbol), name: String(item.name || item.symbol) }));
+    saveWatchlist();
+    saveWorkspacePreferences();
+    renderWatchlist();
+    renderPriceAlerts();
+    drawPriceAlertOverlays();
+    renderUserDrawings();
+    setLocalDataStatus(t("localDataImported"), "success");
+  } catch (error) {
+    console.warn("import local data", error);
+    setLocalDataStatus(t("localDataInvalid"), "error");
+  }
+}
 function activeWatchlistGroup() {
   return watchlistGroups.find((group) => group.id === activeWatchlistGroupId) || watchlistGroups[0] || null;
 }
 function watchedSymbol(symbol, groupId = activeWatchlistGroupId) {
   return watchlist.some((item) => item.symbol === symbol && item.groupId === groupId);
 }
-function syncWatchlistButton() {
-  const button = document.getElementById("watchCurrentBtn");
-  if (!button) return;
-  const watched = Boolean(currentSymbol && watchedSymbol(currentSymbol));
-  button.innerHTML = watched ? "&#9733;" : "&#9734;";
-  button.classList.toggle("watched", watched);
-  const label = watched ? t("removeWatch") : t("addWatch");
-  button.title = label;
-  button.setAttribute("aria-label", label);
-  const listButton = document.getElementById("watchlistBtn");
-  if (listButton) {
-    listButton.title = t("watchlist");
-    listButton.setAttribute("aria-label", t("watchlist"));
-  }
-}
 function setWatchlistRail(open, { persist = true } = {}) {
   const supported = window.matchMedia?.("(min-width: 981px)")?.matches !== false;
   watchlistRailOpen = Boolean(open && supported);
+  if (watchlistRailOpen) setSettingsOpen(false);
   const shell = document.getElementById("viewShell");
   const rail = document.getElementById("watchlistRail");
   const toggle = document.getElementById("watchlistRailToggle");
@@ -4273,38 +4654,40 @@ function renderWatchlistSummary(items) {
   el.innerHTML = `<span>${escapeHtml(t("groupSummary"))} ${quotes.length}/${items.length}</span><span><b class="up">${up}</b> / <b class="down">${down}</b>${average == null ? "" : ` · ${average >= 0 ? "+" : ""}${average.toFixed(2)}%`}</span>`;
 }
 function renderWatchlist() {
-  const count = document.getElementById("watchlistCount");
   const group = activeWatchlistGroup();
   const groupItems = group ? watchlist.filter((item) => item.groupId === group.id) : [];
   const options = watchlistGroups.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === activeWatchlistGroupId ? "selected" : ""}>${escapeHtml(entry.name)}</option>`).join("");
   const canDelete = Boolean(group && group.id !== "default");
-  for (const suffix of ["", "Rail"]) {
-    const select = document.getElementById(`watchlist${suffix}GroupSelect`);
-    const deleteButton = document.getElementById(`watchlist${suffix}GroupDeleteBtn`);
-    const addButton = document.getElementById(`watchlist${suffix}GroupAddBtn`);
-    if (select) { select.innerHTML = options; select.setAttribute("aria-label", t("watchlist")); }
-    if (deleteButton) { deleteButton.disabled = !canDelete; deleteButton.title = t("deleteGroup"); deleteButton.setAttribute("aria-label", t("deleteGroup")); }
-    if (addButton) { addButton.title = t("newGroup"); addButton.setAttribute("aria-label", t("newGroup")); }
+  const select = document.getElementById("watchlistRailGroupSelect");
+  const deleteButton = document.getElementById("watchlistRailGroupDeleteBtn");
+  const addButton = document.getElementById("watchlistRailGroupAddBtn");
+  if (select) { select.innerHTML = options; select.setAttribute("aria-label", t("watchlist")); }
+  if (deleteButton) {
+    deleteButton.disabled = !canDelete;
+    deleteButton.hidden = !canDelete;
+    deleteButton.title = t("deleteGroup");
+    deleteButton.setAttribute("aria-label", t("deleteGroup"));
   }
-  if (count) count.textContent = groupItems.length ? String(groupItems.length) : "";
-  const popoverItems = document.getElementById("watchlistItems");
+  select?.closest(".watchlist-groupbar")?.classList.toggle("no-delete", !canDelete);
+  if (addButton) { addButton.title = t("newGroup"); addButton.setAttribute("aria-label", t("newGroup")); }
   const railItems = document.getElementById("watchlistRailItems");
-  if (popoverItems) popoverItems.innerHTML = watchlistItemsMarkup(groupItems);
   if (railItems) railItems.innerHTML = watchlistItemsMarkup(groupItems, true);
   renderWatchlistSummary(groupItems);
-  syncWatchlistButton();
 }
 function toggleWatchlist(symbol = currentSymbol, name = currentName) {
   if (!symbol) return;
   const group = activeWatchlistGroup();
   if (!group) return;
   const index = watchlist.findIndex((item) => item.symbol === symbol && item.groupId === group.id);
-  if (index >= 0) watchlist.splice(index, 1);
+  const removing = index >= 0;
+  if (removing) watchlist.splice(index, 1);
   else watchlist.unshift({ symbol, name: name || symbol, groupId: group.id });
   watchlist = watchlist.slice(0, WATCHLIST_MAX_ITEMS);
   saveWatchlist();
   renderWatchlist();
   refreshWatchlistQuotes().catch(() => {});
+  setChartStatus(t(removing ? "removeWatch" : "addWatch"));
+  window.setTimeout(() => setChartStatus(""), 1200);
 }
 function addWatchlistGroup() {
   if (watchlistGroups.length >= WATCHLIST_MAX_GROUPS) return;
@@ -4357,7 +4740,7 @@ function setActiveWatchlistGroup(groupId) {
   renderWatchlist();
   refreshWatchlistQuotes().catch(() => {});
 }
-function handleWatchlistItemsClick(event, { closePopover = false } = {}) {
+function handleWatchlistItemsClick(event) {
   event.stopPropagation();
   const target = event.target instanceof Element ? event.target : null;
   const checkbox = target?.closest("[data-watch-select-symbol]");
@@ -4375,10 +4758,6 @@ function handleWatchlistItemsClick(event, { closePopover = false } = {}) {
   }
   const item = target?.closest("[data-watch-open-symbol]");
   if (!item) return;
-  if (closePopover) {
-    document.getElementById("watchlistPopover").classList.remove("open");
-    document.getElementById("watchlistBtn").setAttribute("aria-expanded", "false");
-  }
   openSymbol(item.getAttribute("data-watch-open-symbol"), item.getAttribute("data-watch-open-name")).catch(console.warn);
 }
 
@@ -4444,6 +4823,79 @@ function tickerStatusLabel(status, stale) {
 }
 const FTSHARE_SDK_URL = "https://github.com/FTShare-Lab/FTShare-python-sdk";
 const FTSHARE_MCP_URL = "https://github.com/FTShare-Lab/FTShare-MCP";
+const FTSHARE_WEBSITE_URL = "https://ftai.chat/?tab=ft-share";
+const FTSHARE_DOCS_URL = "https://market.ft.tech/gateway/doc/p/pb8eizu3";
+const DSH_KLINE_VERSION = "__DSH_KLINE_VERSION__";
+const WELCOME_STORAGE_KEY = "dsh_kline_welcome_seen_v1";
+function setSettingsOpen(open) {
+  const popover = document.getElementById("settingsPopover");
+  const button = document.getElementById("settingsBtn");
+  if (!popover || !button) return;
+  const nextOpen = Boolean(open);
+  if (nextOpen) setWatchlistRail(false);
+  popover.classList.toggle("open", nextOpen);
+  popover.setAttribute("aria-hidden", String(!nextOpen));
+  button.setAttribute("aria-expanded", String(nextOpen));
+  if (nextOpen) showSettingsSection();
+}
+function closeWelcome() {
+  const dialog = document.getElementById("welcomeDialog");
+  if (dialog) dialog.hidden = true;
+  try { window.localStorage?.setItem(WELCOME_STORAGE_KEY, "1"); } catch {}
+}
+function showWelcomeIfFirstRun() {
+  let seen = false;
+  try { seen = window.localStorage?.getItem(WELCOME_STORAGE_KEY) === "1"; } catch {}
+  if (seen) return;
+  const dialog = document.getElementById("welcomeDialog");
+  if (!dialog) return;
+  dialog.hidden = false;
+  document.getElementById("welcomeLaterBtn")?.focus();
+}
+function openSettingsFromWelcome() {
+  closeWelcome();
+  const popover = document.getElementById("settingsPopover");
+  const button = document.getElementById("settingsBtn");
+  if (!popover || !button) return;
+  setSettingsOpen(true);
+  showSettingsSection("source");
+}
+function renderHelpPopover() {
+  const el = document.getElementById("helpPopover");
+  if (!el) return;
+  el.innerHTML = `<ol class="settings-list">` +
+    `<li>${escapeHtml(t("helpStepOne"))}</li>` +
+    `<li>${escapeHtml(t("helpStepTwo"))}</li>` +
+    `<li>${escapeHtml(t("helpStepThree"))}</li>` +
+    `<li>${escapeHtml(t("helpStepFour"))}</li>` +
+    `</ol>` +
+    `<div class="help-examples"><div class="settings-info-title">${escapeHtml(t("helpExamplesTitle"))}</div><code>${escapeHtml(t("helpExampleOne"))}</code><code>${escapeHtml(t("helpExampleTwo"))}</code><code>${escapeHtml(t("helpExampleThree"))}</code><code>${escapeHtml(t("helpExampleFour"))}</code></div>` +
+    `<p class="settings-link-row"><a href="${FTSHARE_WEBSITE_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t("ftshareWebsite"))}</a> · <a href="${FTSHARE_DOCS_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t("ftshareDocs"))}</a></p>`;
+}
+function showSettingsSection(section = "") {
+  const menu = document.getElementById("settingsMenuList");
+  if (!menu) return;
+  const requested = section ? document.getElementById(`settingsSection${section[0].toUpperCase()}${section.slice(1)}`) : null;
+  const target = requested && !requested.hidden ? null : requested;
+  const targetButton = target
+    ? [...menu.querySelectorAll("[data-settings-section]")].find((el) => el.dataset.settingsSection === section)
+    : null;
+  // Place the opened panel immediately after its trigger so it behaves as a
+  // real accordion item rather than as a separate page or detached panel.
+  if (target && targetButton) targetButton.after(target);
+  menu.hidden = false;
+  document.querySelectorAll(".settings-section").forEach((el) => { el.hidden = target ? el !== target : true; });
+  document.querySelectorAll("[data-settings-section]").forEach((el) => {
+    el.setAttribute("aria-expanded", String(Boolean(target && el.dataset.settingsSection === section)));
+    el.setAttribute("aria-controls", `settingsSection${el.dataset.settingsSection[0].toUpperCase()}${el.dataset.settingsSection.slice(1)}`);
+  });
+  if (section === "source" && target) refreshDataSourceStatus().catch(console.warn);
+}
+function mountSettingsRail() {
+  const shell = document.getElementById("viewShell");
+  const rail = document.getElementById("settingsPopover");
+  if (shell && rail && rail.parentElement !== shell) shell.appendChild(rail);
+}
 function safeSourceUrl(value) {
   try {
     const url = new URL(String(value || ""));
@@ -4463,6 +4915,110 @@ function marketDataSourceMarkup(source, sourceUrl = "") {
   const presentation = marketDataSourcePresentation(source, sourceUrl);
   if (!presentation.url) return `<strong>${escapeHtml(presentation.label)}</strong>`;
   return `<a class="data-source-link" href="${escapeHtml(presentation.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(presentation.label)}</a>`;
+}
+function renderSettingsSource() {
+  const el = document.getElementById("settingsSourceStatus");
+  if (!el) return;
+  const status = chartDataStatus === "unavailable" ? t("sourceUnavailable") : t("sourceConnected");
+  el.innerHTML = `${marketDataSourceMarkup(chartDataSource, chartDataSourceUrl)} · ${escapeHtml(status)}`;
+}
+function setFtshareConfigStatus(message = "", state = "") {
+  const el = document.getElementById("ftshareConfigStatus");
+  if (!el) return;
+  el.className = `settings-provider-status${state ? ` ${state}` : ""}`;
+  el.textContent = message;
+}
+function ftshareConfigErrorMessage(error) {
+  const raw = String(error?.message || error || "").trim();
+  if (/unsupported_chart_action|unsupported action:\s*(configure_ftshare|data_source_status|test_ftshare_connection)/i.test(raw)) {
+    return viewLanguage === "zh"
+      ? "温馨提示：当前 dsh Web 尚未启用配置功能，请重启 dsh Web 后刷新页面。"
+      : "Notice: configuration is not enabled in this dsh Web instance yet. Restart dsh Web and refresh the page.";
+  }
+  return raw || t("ftshareConfigFailed");
+}
+function renderDataSourceStatus(data) {
+  const provider = data?.providers?.ftshare || {};
+  const status = document.getElementById("ftshareAdapterStatus");
+  if (!status) return;
+  const label = provider.available
+    ? (provider.configured
+      ? (provider.persistent ? t("ftshareStatusConfiguredSaved") : t("ftshareStatusConfigured"))
+      : t("ftshareStatusAnonymous"))
+    : t("ftshareStatusMissing");
+  status.innerHTML = `${marketDataSourceMarkup("ftshare")} · ${escapeHtml(label)}`;
+  const capabilities = provider.capabilities || {};
+  const setCapabilityState = (id, value) => {
+    const element = document.getElementById(id);
+    if (!element || value === undefined) return;
+    element.textContent = value === "available"
+      ? t("capAvailable")
+      : (value === "insufficient_quota" || value === "capability_limited")
+        ? t("capLocked")
+        : t("capNotTested");
+    element.classList.toggle("capability-limited", value !== "available");
+  };
+  setCapabilityState("capDailyState", capabilities.daily);
+  setCapabilityState("capMinuteState", capabilities.minute);
+}
+async function refreshDataSourceStatus() {
+  try {
+    const result = await callTool("data_source_status", {});
+    const data = result?.structuredContent || result || {};
+    if (data.ok) { renderSettingsSource(); renderDataSourceStatus(data); }
+  } catch (error) {
+    setFtshareConfigStatus(ftshareConfigErrorMessage(error), "error");
+  }
+}
+async function configureFtshareFromSettings() {
+  const input = document.getElementById("ftshareApiKeyInput");
+  const button = document.getElementById("ftshareConfigureBtn");
+  const value = String(input?.value || "").trim();
+  if (!value) {
+    setFtshareConfigStatus(t("ftshareConfigInvalid"), "error");
+    input?.focus();
+    return;
+  }
+  if (button) button.disabled = true;
+  setFtshareConfigStatus(t("ftshareConfigTesting"));
+  try {
+    const persist = document.getElementById("ftsharePersistInput")?.checked !== false;
+    const result = await callTool("configure_ftshare", { api_key: value, test_connection: true, persist });
+    const data = result?.structuredContent || result || {};
+    if (!data.ok) {
+      setFtshareConfigStatus(data.message || t("ftshareConfigFailed"), "error");
+      return;
+    }
+    if (input) input.value = "";
+    setFtshareConfigStatus(data.persistent ? t("ftshareConfiguredSaved") : t("ftshareConfigured"), "success");
+    renderDataSourceStatus({ providers: { ftshare: { available: true, configured: true, persistent: Boolean(data.persistent), capabilities: data.capabilities || {} } } });
+    chartDataSource = "ftshare";
+    chartDataSourceUrl = FTSHARE_SDK_URL;
+    renderSettingsSource();
+    if (currentSymbol) renderLocalChartWithFeedback().catch(console.warn);
+  } catch (error) {
+    setFtshareConfigStatus(ftshareConfigErrorMessage(error), "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+async function clearFtshareFromSettings() {
+  const button = document.getElementById("ftshareClearBtn");
+  if (button) button.disabled = true;
+  try {
+    const result = await callTool("configure_ftshare", { api_key: "", test_connection: false });
+    const data = result?.structuredContent || result || {};
+    if (!data.ok) throw new Error(data.error || data.message || t("ftshareConfigFailed"));
+    const input = document.getElementById("ftshareApiKeyInput");
+    if (input) input.value = "";
+    setFtshareConfigStatus(t("ftshareCleared"), "success");
+    await refreshDataSourceStatus();
+    if (currentSymbol) renderLocalChartWithFeedback().catch(console.warn);
+  } catch (error) {
+    setFtshareConfigStatus(ftshareConfigErrorMessage(error), "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 function marketDataStatusLabel() {
   if (chartDataStale) return t("stale");
@@ -4494,12 +5050,14 @@ function updateChartDataState(meta, stale = false) {
 }
 function renderMarketDataStatus() {
   const el = document.getElementById("marketDataStatus");
+  renderSettingsSource();
   if (!el) return;
   const state = marketDataStatusLabel();
   const session = chartDataMarketStatus === "open" ? t("open") : chartDataMarketStatus === "closed" ? t("closed") : "";
   const stateClass = chartDataStale ? "stale" : chartDataStatus === "delayed" ? "delayed" : chartDataStatus === "closed" ? "closed" : "live";
   const refreshTitle = chartDataRefreshInFlight ? t("refreshing") : t("refresh");
   el.innerHTML = `<span>${escapeHtml(t("source"))} ${marketDataSourceMarkup(chartDataSource, chartDataSourceUrl)}</span>` +
+    `<span class="data-source-hint">${escapeHtml(t("externalDataHint"))}</span>` +
     `<span>${escapeHtml(t("marketUpdated"))} ${escapeHtml(t("beijingTime"))} ${escapeHtml(formatTickerUpdatedAt(chartDataUpdatedAt))}</span>` +
     (state ? `<span class="data-status ${stateClass}">${escapeHtml(state)}</span>` : "") +
     (session ? `<span class="data-status ${chartDataMarketStatus === "open" ? "live" : "closed"}">${escapeHtml(session)}</span>` : "") +
@@ -4534,10 +5092,10 @@ function renderMarketTicker() {
   const valid = Array.isArray(marketTickerItems) ? marketTickerItems.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
   if (!bar || !track || !meta) return;
   if (!valid.length) {
-    track.innerHTML = "";
+    track.innerHTML = `<span class="ticker-placeholder">${escapeHtml(t("marketTickerUnavailable"))}</span>`;
     meta.textContent = "";
-    bar.classList.remove("visible");
-    document.getElementById("viewShell")?.classList.remove("ticker-visible");
+    bar.classList.add("visible", "placeholder");
+    document.getElementById("viewShell")?.classList.add("ticker-visible");
     reportSize();
     return;
   }
@@ -4551,6 +5109,7 @@ function renderMarketTicker() {
   meta.innerHTML = `<span>${escapeHtml(t("marketUpdated"))} ${escapeHtml(t("beijingTime"))} ${escapeHtml(formatTickerUpdatedAt(marketTickerUpdatedAt))}</span>` +
     (label ? `<span class="ticker-state ${marketTickerStale ? "stale" : escapeHtml(marketTickerStatus)}">${escapeHtml(label)}</span>` : "");
   bar.classList.add("visible");
+  bar.classList.remove("placeholder");
   document.getElementById("viewShell")?.classList.add("ticker-visible");
   reportSize();
   window.requestAnimationFrame(() => {
@@ -4614,8 +5173,8 @@ function rememberWorkspaceTab(payload) {
   const existing = workspaceTabs.find((item) => item.id === id);
   const tab = {
     id,
-    symbol: String(payload.symbol),
-    name: String(payload.name || payload.symbol),
+    symbol: String(currentSymbol || payload.symbol),
+    name: String(currentName || payload.name || payload.symbol),
     rangeKey: String(payload.range_key || currentRangeKey),
     interval: String(payload.interval || currentInterval || "day"),
     payload,
@@ -4639,6 +5198,7 @@ function rememberWorkspaceTab(payload) {
 async function selectWorkspaceTab(id) {
   const tab = workspaceTabs.find((item) => item.id === id);
   if (!tab || tab.id === activeWorkspaceTabId) return;
+  clearRangePick();
   activeWorkspaceTabId = tab.id;
   currentRangeKey = tab.rangeKey || currentRangeKey;
   currentInterval = tab.payload?.interval || currentInterval;
@@ -4736,6 +5296,17 @@ function saveSymbolDirectory(payload) {
       ...symbolDirectoryMeta,
     }));
   } catch {}
+  // The directory is loaded asynchronously on first use. If the initial
+  // chart payload only contained a code, immediately backfill the visible
+  // security name once the local directory becomes available.
+  if (currentSymbol && currentCandles.length) {
+    const resolved = resolveSymbolIdentity(currentSymbol, currentName);
+    if (resolved.name && resolved.name !== currentName) {
+      currentName = resolved.name;
+      renderHeader(currentName, currentSymbol, currentCandles);
+      renderWorkspaceTabs();
+    }
+  }
 }
 async function refreshSymbolDirectory({ force = false } = {}) {
   if (symbolDirectoryRefreshInFlight) return;
@@ -4765,6 +5336,36 @@ function searchResultMatches(item, normalizedQuery) {
     .map((value) => String(value || "").toLocaleLowerCase())
     .join(" ");
   return haystack.includes(normalizedQuery);
+}
+function enrichSymbolResults(results) {
+  return (Array.isArray(results) ? results : []).map((item) => {
+    const entry = directoryEntryForSymbol(item?.symbol);
+    const name = preferredSymbolName(entry?.name, item?.name, item?.symbol);
+    return { ...item, symbol: normalizeSymbolInput(item?.symbol), name };
+  }).filter((item) => item.symbol);
+}
+function localDirectorySearch(query) {
+  const raw = String(query || "").trim().toLocaleLowerCase();
+  const canonical = normalizeSymbolInput(query).toLocaleLowerCase();
+  if (!raw) return [];
+  return symbolDirectory.filter((item) => {
+    const symbol = String(item?.symbol || "").toLocaleLowerCase();
+    const name = String(item?.name || "").toLocaleLowerCase();
+    return symbol.includes(raw) || name.includes(raw) || (canonical && symbol.includes(canonical));
+  }).sort((left, right) => {
+    const leftText = `${left.symbol} ${left.name}`.toLocaleLowerCase();
+    const rightText = `${right.symbol} ${right.name}`.toLocaleLowerCase();
+    return Number(!leftText.startsWith(raw)) - Number(!rightText.startsWith(raw));
+  }).slice(0, 12);
+}
+function mergeSearchResults(results, query) {
+  const merged = enrichSymbolResults([...(Array.isArray(results) ? results : []), ...localDirectorySearch(query)]);
+  const seen = new Set();
+  return merged.filter((item) => {
+    if (!item.symbol || seen.has(item.symbol)) return false;
+    seen.add(item.symbol);
+    return true;
+  }).slice(0, 12);
 }
 function cacheSymbolSearch(query, results) {
   const key = String(query || "").trim().toLocaleLowerCase();
@@ -4854,9 +5455,18 @@ async function searchSymbols(query) {
     const structured = result?.structuredContent || result || {};
     if (result?.isError || !structured.ok) throw new Error(structured.message || structured.error || "search failed");
     if (requestId !== symbolSearchRequestId) return;
-    cacheSymbolSearch(q, structured.results);
-    setSearchResults(structured.results, q);
-    scheduleSymbolPrefetch(structured.results, q);
+    let results = mergeSearchResults(structured.results, q);
+    if (!results.length) {
+      const normalized = normalizeSymbolInput(q);
+      if (normalized && normalized !== q.toUpperCase()) {
+        const normalizedResult = await callTool("search_symbols", { query: normalized, limit: 8 });
+        const normalizedData = normalizedResult?.structuredContent || normalizedResult || {};
+        if (!normalizedResult?.isError && normalizedData.ok) results = mergeSearchResults(normalizedData.results, q);
+      }
+    }
+    cacheSymbolSearch(q, results);
+    setSearchResults(results, q);
+    scheduleSymbolPrefetch(results, q);
   } catch (error) {
     if (requestId !== symbolSearchRequestId) return;
     showError(`${t("search")}：${String(error?.message || error)}`);
@@ -4864,8 +5474,10 @@ async function searchSymbols(query) {
   }
 }
 async function openSymbol(symbol, name, options = {}) {
-  if (!symbol) return;
-  if (isFtshareIntradayUnavailable(symbol, currentRangeKey)) {
+  const identity = resolveSymbolIdentity(symbol, name);
+  const requestedSymbol = identity.symbol || String(symbol || "").trim().toUpperCase();
+  if (!requestedSymbol) return;
+  if (isFtshareIntradayUnavailable(requestedSymbol, currentRangeKey)) {
     showFtshareIntradayUnavailable();
     syncTimeControls();
     return false;
@@ -4881,7 +5493,7 @@ async function openSymbol(symbol, name, options = {}) {
   }
   try {
     const intraday = isIntradayRange();
-    const candleRequest = candleFetchArgs(symbol);
+    const candleRequest = candleFetchArgs(requestedSymbol);
     let fetched = freshPrefetchedCandle(candleRequest);
     if (!fetched) {
       const pending = pendingCandlePrefetch(candleRequest);
@@ -4906,11 +5518,14 @@ async function openSymbol(symbol, name, options = {}) {
       market_status: fetched.market_status || "",
       exchange_timezone: fetched.exchange_timezone || "Asia/Shanghai",
     };
-    currentSymbol = fetched.symbol || symbol;
-    currentName = fetched.name || name || symbol;
+    currentSymbol = fetched.symbol || requestedSymbol;
+    // The local directory result carries the human-readable name. Prefer it
+    // over a provider response that may only echo the symbol code.
+    currentName = preferredSymbolName(identity.name, name, fetched.name, currentSymbol);
     applyMarketPalette(currentSymbol);
     const nextSymbol = String(currentSymbol || "").trim().toUpperCase();
     if (!previousSymbol || previousSymbol !== nextSymbol) {
+      clearRangePick();
       lastMarks = [];
       lastLines = [];
     }
@@ -4927,8 +5542,8 @@ async function openSymbol(symbol, name, options = {}) {
     return true;
   } catch (error) {
     if (requestId !== symbolOpenRequestId) return;
-    const preserve = Boolean(options.preserveOnFailure) && currentSymbol === symbol && currentCandles.length;
-    const request = { symbol, name: name || currentName || symbol, rangeKey: currentRangeKey, interval: currentInterval };
+    const preserve = Boolean(options.preserveOnFailure) && currentSymbol === requestedSymbol && currentCandles.length;
+    const request = { symbol: requestedSymbol, name: name || currentName || requestedSymbol, rangeKey: currentRangeKey, interval: currentInterval };
     showDataFetchError(error, request);
     if (preserve) {
       updateChartDataState({}, true);
@@ -4985,15 +5600,26 @@ async function handleToolResult(result) {
       sourceCandleInterval = String(structured.interval || sourceCandleInterval || "day");
       localChartDataMeta = structured.data_meta || structured.dataMeta || localChartDataMeta;
     }
+    const previousSymbol = String(currentSymbol || "").trim().toUpperCase();
     currentSymbol = structured.symbol || currentSymbol;
-    currentName = structured.name || currentName || currentSymbol;
+    if (previousSymbol && previousSymbol !== String(currentSymbol || "").trim().toUpperCase()) {
+      clearRangePick();
+    }
+    const identity = resolveSymbolIdentity(currentSymbol, structured.name);
+    currentName = preferredSymbolName(structured.name, currentName, identity.name, currentSymbol);
     applyMarketPalette(currentSymbol);
     currentInterval = structured.interval || currentInterval;
     currentRangeKey = structured.range_key || currentRangeKey;
     updateChartDataState(structured.data_meta || structured.dataMeta || { source: "mcp", updated_at: Math.floor(Date.now() / 1000) });
     syncTimeControls();
-    // Sync toggle state from returned indicators if present
-    if (Array.isArray(structured.indicators)) {
+    // Sync provider-supplied state, but never let an older local render undo a
+    // more recent click. KLineCharts creates indicators asynchronously, so a
+    // fast MA/VWAP toggle can otherwise arrive out of order.
+    const localIndicatorVersion = Number(structured.indicator_state_version);
+    const maySyncLocalIndicators = !structured.local_render
+      || !Number.isFinite(localIndicatorVersion)
+      || localIndicatorVersion >= indicatorStateVersion;
+    if (Array.isArray(structured.indicators) && maySyncLocalIndicators) {
       const set = new Set(structured.indicators.map(String));
       maVisible = set.has("ma");
       vwapVisible = set.has("vwap");
@@ -5014,7 +5640,6 @@ async function handleToolResult(result) {
     }
     rememberWorkspaceTab(structured);
     renderHeader(currentName, currentSymbol, rows);
-    syncWatchlistButton();
     renderWatchlist();
     saveWorkspacePreferences();
     await applyChartCommands(structured);
@@ -5057,23 +5682,23 @@ async function handleToolResult(result) {
   // calc_range payload → cards + table
   if (structured.return_pct !== undefined && structured.bars !== undefined) {
     renderCards([
-      { id: "return", title: "区间涨跌", value: structured.return_pct, unit: "%" },
-      { id: "amp", title: "振幅", value: structured.amplitude_pct, unit: "%" },
-      { id: "dd", title: "最大回撤", value: structured.max_drawdown?.max_drawdown_pct, unit: "%" },
-      { id: "bars", title: "K线数", value: structured.bars, unit: "" },
-      { id: "days", title: "日历天", value: structured.duration_days, unit: "天" },
-      { id: "up", title: "阳/阴", value: `${structured.up_bars}/${structured.down_bars}`, unit: "" },
+      { id: "return", title: rt("return"), value: structured.return_pct, unit: "%" },
+      { id: "amp", title: rt("amplitude"), value: structured.amplitude_pct, unit: "%" },
+      { id: "dd", title: rt("drawdown"), value: structured.max_drawdown?.max_drawdown_pct, unit: "%" },
+      { id: "bars", title: rt("bars"), value: structured.bars, unit: "" },
+      { id: "days", title: rt("days"), value: structured.duration_days, unit: viewLanguage === "zh" ? "天" : "" },
+      { id: "up", title: rt("upDown"), value: `${structured.up_bars}/${structured.down_bars}`, unit: "" },
     ]);
     renderTables([{
-      title: "区间明细",
-      headers: ["字段", "值"],
+      title: rt("detail"),
+      headers: [viewLanguage === "zh" ? "字段" : "Field", viewLanguage === "zh" ? "值" : "Value"],
       rows: [
-        ["起点", fmtDate(structured.start_time)],
-        ["终点", fmtDate(structured.end_time)],
-        ["开/收", `${structured.open} / ${structured.close}`],
-        ["高/低", `${structured.high} / ${structured.low}`],
-        ["连涨/连跌", `${structured.max_up_streak} / ${structured.max_down_streak}`],
-        ["均量", structured.avg_volume],
+        [rt("start"), fmtDate(structured.start_time)],
+        [rt("end"), fmtDate(structured.end_time)],
+        [rt("openClose"), `${structured.open} / ${structured.close}`],
+        [rt("highLow"), `${structured.high} / ${structured.low}`],
+        [rt("streak"), `${structured.max_up_streak} / ${structured.max_down_streak}`],
+        [rt("averageVolume"), structured.avg_volume],
       ],
     }]);
     revealAnalysisResults();
@@ -5177,7 +5802,7 @@ function onCandleBarClick(data) {
     drawSelectionHighlight(candle);
     publishSelection(candleSelection(candle));
     drawRangeHighlight();
-    setChartStatus(`起点 ${fmtDate(point.time)}（再点终点）`);
+    setChartStatus(`${rt("start")} ${fmtDate(point.time)}${rt("pickNext")}`);
     setTimeout(() => setChartStatus(""), 1500);
   } else {
     if (point.time < rangePickStart.time) {
@@ -5203,12 +5828,43 @@ function selectionAnalysisPrompt(selection) {
   }
   return `请分析我引用的分析标记“${selection.marker.text || selection.marker.label || "标记"}”，结合它所在位置前后的行情。`;
 }
-async function submitSelectionAnalysis() {
-  setChartStatus("请回到 dsh 对话继续分析");
+async function analyzeKeyLevels() {
+  if (!currentSymbol) {
+    setChartStatus(t("keyLevelsFailed"));
+    return;
+  }
+  const button = document.getElementById("keyLevelsBtn");
+  if (button) button.disabled = true;
+  setChartStatus(t("keyLevelsLoading"));
+  showActivityNotice(t("keyLevelsLoading"));
+  try {
+    const intraday = isIntradayRange();
+    const result = await callMarketTool("analyze_kline", {
+      symbol: currentSymbol,
+      interval: intraday ? "minute" : currentInterval,
+      interval_value: intraday ? intradayIntervalValue() : 1,
+      session_count: intraday ? intradaySessionCount() : undefined,
+      limit: rangeFetchLimit(),
+      adjust: "none",
+      indicators: activeIndicators(),
+      metrics: ["support_resistance"],
+      mark_support_resistance: true,
+    });
+    await handleToolResult(result);
+    setChartStatus(t("keyLevelsReady"));
+    finishActivityNotice(t("keyLevelsReady"));
+    window.setTimeout(() => setChartStatus(""), 1200);
+  } catch (error) {
+    console.warn("key-level analysis", error);
+    setChartStatus(t("keyLevelsFailed"));
+    finishActivityNotice(t("keyLevelsFailed"), true);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 async function submitRangeAnalyze() {
   if (!rangePickStart || !rangePickEnd || !currentCandles.length) return;
-  setChartStatus("区间统计中…");
+  setChartStatus(rt("calculating"));
   try {
     const res = await callTool("calc_range", {
       rows: currentCandles,
@@ -5218,7 +5874,7 @@ async function submitRangeAnalyze() {
     await handleToolResult(res);
     setChartStatus("");
   } catch (e) {
-    showError("区间统计失败：" + String(e));
+    showError(`${rt("failed")}：${String(e)}`);
     setChartStatus("失败");
   }
 }
@@ -5228,14 +5884,26 @@ async function redrawWithIndicators() {
   // Host-provided local renders may populate currentCandles without retaining
   // a separate sourceCandles buffer. Indicator toggles must still redraw that
   // already-visible chart.
-  if ((!sourceCandles.length && !currentCandles.length) || redrawing) return;
+  if (!sourceCandles.length && !currentCandles.length) return;
+  if (redrawing) {
+    indicatorRedrawPending = true;
+    return;
+  }
   redrawing = true;
-  setChartStatus("更新指标…");
+  setChartStatus(rt("updating"));
   try {
-    await renderCurrentViewLocally();
+    do {
+      indicatorRedrawPending = false;
+      const renderVersion = indicatorStateVersion;
+      await renderCurrentViewLocally();
+      // Allow KLineCharts' queued indicator creation to settle before deciding
+      // whether a later click requires another pass.
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      if (renderVersion !== indicatorStateVersion) indicatorRedrawPending = true;
+    } while (indicatorRedrawPending);
   } catch (e) {
     console.warn("redraw", e);
-    showError("重绘失败：" + String(e));
+    showError(`${rt("redrawFailed")}：${String(e)}`);
   } finally {
     redrawing = false;
     setChartStatus("");
@@ -5246,6 +5914,7 @@ function wireToggle(btnId, getter, setter) {
   if (!button) return;
   button.onclick = () => {
     const name = btnId.replace(/Btn$/, "");
+    indicatorStateVersion += 1;
     setter(!getter());
     saveWorkspacePreferences();
     syncToggleButtons();
@@ -5257,6 +5926,7 @@ function wireToggle(btnId, getter, setter) {
 }
 
 /* ---------- events ---------- */
+mountSettingsRail();
 document.getElementById("clearBtn").addEventListener("click", () => {
   clearOverlays();
   lastMarks = [];
@@ -5270,8 +5940,15 @@ document.getElementById("volumeUnitBtn").addEventListener("click", () => {
 document.getElementById("themeToggle").addEventListener("click", () => {
   toggleTheme().catch(console.warn);
 });
-document.getElementById("languageToggle").addEventListener("click", () => {
-  toggleLanguage().catch(console.warn);
+document.getElementById("languageToggle").addEventListener("change", (event) => {
+  setLanguage(event.currentTarget.value).catch(console.warn);
+});
+document.getElementById("exportLocalDataBtn")?.addEventListener("click", exportLocalData);
+document.getElementById("importLocalDataBtn")?.addEventListener("click", () => document.getElementById("importLocalDataInput")?.click());
+document.getElementById("importLocalDataInput")?.addEventListener("change", (event) => {
+  const file = event.currentTarget.files?.[0];
+  if (file) importLocalData(file).catch(console.warn);
+  event.currentTarget.value = "";
 });
 document.getElementById("symbolSearchForm").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -5286,22 +5963,35 @@ document.getElementById("symbolSearchInput").addEventListener("keydown", (event)
 });
 document.getElementById("watchlistRailToggle").addEventListener("click", () => setWatchlistRail(!watchlistRailOpen));
 document.getElementById("watchlistRailCloseBtn").addEventListener("click", () => setWatchlistRail(false));
-document.getElementById("watchlistBtn").addEventListener("click", (event) => {
-  event.stopPropagation();
-  const popover = document.getElementById("watchlistPopover");
-  const open = !popover.classList.contains("open");
-  popover.classList.toggle("open", open);
-  event.currentTarget.setAttribute("aria-expanded", String(open));
-});
-document.getElementById("watchCurrentBtn").addEventListener("click", () => {
-  toggleWatchlist();
-});
 document.getElementById("watchlistSortSelect").addEventListener("change", (event) => {
   watchlistSort = event.currentTarget?.value || "manual";
   saveWatchlist();
   renderWatchlist();
 });
 document.getElementById("watchlistBatchOpenBtn").addEventListener("click", () => openSelectedWatchlistSymbols().catch(console.warn));
+document.getElementById("settingsBtn").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const popover = document.getElementById("settingsPopover");
+  setSettingsOpen(!popover.classList.contains("open"));
+});
+document.getElementById("settingsCloseBtn").addEventListener("click", () => {
+  setSettingsOpen(false);
+  document.getElementById("settingsBtn")?.focus();
+});
+document.querySelectorAll("[data-settings-section]").forEach((button) => {
+  button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection || ""));
+});
+document.getElementById("ftshareConfigureBtn").addEventListener("click", () => configureFtshareFromSettings().catch(console.warn));
+document.getElementById("ftshareClearBtn").addEventListener("click", () => clearFtshareFromSettings().catch(console.warn));
+document.getElementById("ftshareApiKeyInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); configureFtshareFromSettings().catch(console.warn); }
+});
+document.getElementById("welcomeCloseBtn").addEventListener("click", closeWelcome);
+document.getElementById("welcomeLaterBtn").addEventListener("click", closeWelcome);
+document.getElementById("welcomeConfigureBtn").addEventListener("click", openSettingsFromWelcome);
+document.getElementById("welcomeDialog").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeWelcome();
+});
 document.getElementById("alertMenuBtn").addEventListener("click", (event) => {
   event.stopPropagation();
   const popover = document.getElementById("alertPopover");
@@ -5365,19 +6055,10 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
   if (button) removeUserDrawing(button.getAttribute("data-remove-drawing-id"));
 });
 document.getElementById("contextAddWatchBtn").addEventListener("click", () => {
-  if (currentSymbol && !watchedSymbol(currentSymbol)) toggleWatchlist(currentSymbol, currentName);
+  if (currentSymbol) toggleWatchlist(currentSymbol, currentName);
   hideChartContextMenu();
 });
-document.getElementById("contextAnalyzeBtn").addEventListener("click", () => {
-  if (contextMenuCandle) {
-    clearSelectionVisuals();
-    drawSelectionHighlight(contextMenuCandle);
-    publishSelection(candleSelection(contextMenuCandle));
-    submitSelectionAnalysis().catch(console.warn);
-  }
-  hideChartContextMenu();
-});
-for (const suffix of ["", "Rail"]) {
+for (const suffix of ["Rail"]) {
   document.getElementById(`watchlist${suffix}GroupSelect`).addEventListener("change", (event) => setActiveWatchlistGroup(event.currentTarget?.value));
   document.getElementById(`watchlist${suffix}GroupAddBtn`).addEventListener("click", (event) => { event.stopPropagation(); addWatchlistGroup(); });
   document.getElementById(`watchlist${suffix}GroupDeleteBtn`).addEventListener("click", (event) => { event.stopPropagation(); deleteActiveWatchlistGroup(); });
@@ -5390,7 +6071,6 @@ document.getElementById("groupDialogForm").addEventListener("submit", (event) =>
 document.getElementById("groupDialog").addEventListener("pointerdown", (event) => {
   if (event.target === event.currentTarget) closeWatchlistGroupDialog();
 });
-document.getElementById("watchlistPopover").addEventListener("click", (event) => handleWatchlistItemsClick(event, { closePopover: true }));
 document.getElementById("watchlistRailItems").addEventListener("click", (event) => handleWatchlistItemsClick(event));
 document.getElementById("watchlistRailItems").addEventListener("change", (event) => handleWatchlistItemsClick(event));
 document.getElementById("rangeControls").addEventListener("click", (event) => {
@@ -5435,6 +6115,8 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     resetChartViewport();
   } else if (event.key === "Escape") {
+    const welcome = document.getElementById("welcomeDialog");
+    if (welcome && !welcome.hidden) { closeWelcome(); return; }
     hideChartContextMenu();
     document.getElementById("alertPopover")?.classList.remove("open");
     document.getElementById("alertMenuBtn")?.setAttribute("aria-expanded", "false");
@@ -5442,6 +6124,7 @@ document.addEventListener("keydown", (event) => {
     document.getElementById("compareMenuBtn")?.setAttribute("aria-expanded", "false");
     document.getElementById("drawingPopover")?.classList.remove("open");
     document.getElementById("drawingMenuBtn")?.setAttribute("aria-expanded", "false");
+    setSettingsOpen(false);
     closeWatchlistGroupDialog();
   }
 });
@@ -5458,6 +6141,9 @@ document.addEventListener("pointerdown", (event) => {
   if (!target?.closest(".drawing-menu-wrap")) {
     document.getElementById("drawingPopover")?.classList.remove("open");
     document.getElementById("drawingMenuBtn")?.setAttribute("aria-expanded", "false");
+  }
+  if (!target?.closest(".settings-menu-wrap, #settingsPopover")) {
+    setSettingsOpen(false);
   }
   if (!target?.closest("#chartContextMenu")) hideChartContextMenu();
 });
@@ -5496,6 +6182,7 @@ document.getElementById("indicatorPopover").addEventListener("click", (event) =>
 document.getElementById("applyIndicatorBtn").addEventListener("click", () => {
   const previous = new Set(activeIndicators());
   syncIndicatorConfigFromInputs();
+  indicatorStateVersion += 1;
   saveWorkspacePreferences();
   document.getElementById("indicatorPopover").classList.remove("open");
   document.getElementById("indicatorMenuBtn").setAttribute("aria-expanded", "false");
@@ -5512,20 +6199,13 @@ document.addEventListener("click", () => {
 document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest("#symbolSearch")) closeSearchResults();
-  if (!target?.closest(".watchlist-wrap")) {
-    document.getElementById("watchlistPopover").classList.remove("open");
-    document.getElementById("watchlistBtn").setAttribute("aria-expanded", "false");
-  }
   if (!target?.closest("#timebar")) document.getElementById("customRangePopover").classList.remove("open");
-});
-document.getElementById("expandBtn").addEventListener("click", () => {
-  toggleExpandedView().catch(console.warn);
 });
 document.getElementById("rangeAnalyzeBtn").addEventListener("click", () => {
   submitRangeAnalyze().catch(console.warn);
 });
-document.getElementById("selectionAnalyzeBtn").addEventListener("click", () => {
-  submitSelectionAnalysis().catch(console.warn);
+document.getElementById("keyLevelsBtn")?.addEventListener("click", () => {
+  analyzeKeyLevels().catch(console.warn);
 });
 document.getElementById("rangeClearBtn").addEventListener("click", () => {
   clearRangePick();
@@ -5558,8 +6238,8 @@ async function init() {
   if (window.ResizeObserver) {
     viewResizeObserver = new ResizeObserver(() => {
       applyViewportHeight(null);
-      if (isCanvasExpanded()) recalcChartHeight();
-      else { reportSize(); scheduleChartResize(); }
+      reportSize();
+      scheduleChartResize();
     });
     viewResizeObserver.observe(document.getElementById("viewShell"));
     viewResizeObserver.observe(document.getElementById("viewContent"));
@@ -5574,6 +6254,7 @@ async function init() {
   await handleToolResult({ structuredContent: payload });
   startMarketTickerRefresh();
   startWatchlistQuoteRefresh();
+  window.setTimeout(showWelcomeIfFirstRun, 300);
   scheduleSymbolDirectoryRefresh();
   scheduleCommonIndexPrefetch();
   reportSize();

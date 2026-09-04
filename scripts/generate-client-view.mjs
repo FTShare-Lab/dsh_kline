@@ -5,11 +5,12 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const sourcePath = `${root}/view/kline.html`
 const outputPath = `${root}/src/client/generated-view.ts`
 const html = await readFile(sourcePath, 'utf8')
+const packageJson = JSON.parse(await readFile(`${root}/package.json`, 'utf8'))
 
 const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1]
 const body = html.match(/<body>([\s\S]*?)<\/body>/)?.[1]
 const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)]
-const runtime = scripts.at(-1)?.[1]
+const runtime = scripts.at(-1)?.[1]?.replaceAll('__DSH_KLINE_VERSION__', String(packageJson.version || '0.0.0'))
 
 if (!style || !body || !runtime) throw new Error('view/kline.html does not contain the expected style, body, and runtime script')
 

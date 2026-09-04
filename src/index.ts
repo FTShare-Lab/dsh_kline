@@ -18,6 +18,9 @@ const CHART_ACTIONS = new Set([
   'market_ticker',
   'search_symbols',
   'symbol_directory',
+  'data_source_status',
+  'configure_ftshare',
+  'test_ftshare_connection',
 ])
 
 interface WebServerContext {
@@ -59,13 +62,14 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       return
     }
     if (pathname === '/dsh-kline/session' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const { service_url: _serviceUrl, ...publicSession } = session
+      const { service_url: _serviceUrl, service_token: _serviceToken, ...publicSession } = session
       sendJson(response, 200, publicSession, request.method === 'HEAD')
       return
     }
     if (pathname === '/dsh-kline/data' && (request.method === 'GET' || request.method === 'HEAD')) {
       await proxyJson(response, `${serviceOrigin(session)}/api/session/${encodeURIComponent(session.session)}`, {
         method: request.method,
+        headers: chartServiceHeaders(session),
       })
       return
     }
@@ -78,7 +82,7 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       const body = await readRequestBody(request)
       await proxyJson(response, `${serviceOrigin(session)}/api/tools/${encodeURIComponent(action)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...chartServiceHeaders(session), 'Content-Type': 'application/json' },
         body: body.toString('utf8'),
       })
       return
@@ -107,7 +111,12 @@ interface RuntimeSession extends Record<string, unknown> {
   process_id: number
   session: string
   service_url: string
+  service_token: string
   published_at: number
+}
+
+function chartServiceHeaders(session: RuntimeSession): Record<string, string> {
+  return { 'X-DSH-Kline-Token': session.service_token }
 }
 
 async function readLiveSession(): Promise<RuntimeSession | undefined> {
@@ -148,10 +157,12 @@ function isLiveSession(value: unknown): boolean {
     candidate.ok !== true
     || typeof candidate.session !== 'string'
     || typeof candidate.service_url !== 'string'
+    || typeof candidate.service_token !== 'string'
     || typeof candidate.process_id !== 'number'
     || typeof candidate.published_at !== 'number'
     || !Number.isSafeInteger(candidate.process_id)
     || candidate.process_id <= 0
+    || candidate.service_token.length < 32
     || !Number.isSafeInteger(candidate.published_at)
     || candidate.published_at <= 0
     || Math.abs(Date.now() / 1000 - candidate.published_at) > MAX_SESSION_AGE_SECONDS

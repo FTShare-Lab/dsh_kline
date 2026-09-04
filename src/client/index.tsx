@@ -24,6 +24,15 @@ interface ChartSession {
   published_at: number
 }
 
+function isSymbolLikeName(value: string | undefined, symbol: string | undefined): boolean {
+  const text = String(value ?? '').trim()
+  const normalizedSymbol = String(symbol ?? '').trim().toUpperCase()
+  if (!text) return true
+  if (normalizedSymbol && text.toUpperCase() === normalizedSymbol) return true
+  const bareSymbol = normalizedSymbol.split('.', 1)[0]
+  return text.toUpperCase() === bareSymbol
+}
+
 
 declare global {
   interface Window {
@@ -167,8 +176,8 @@ function KlineSidebar() {
         )}
         <header className="dsh-kline-header">
           <div>
-            <strong>{session?.name || session?.symbol || 'K 线分析'}</strong>
-            {session?.name && session.symbol && <small>{session.symbol}</small>}
+            <strong>{session?.name && !isSymbolLikeName(session.name, session.symbol) ? session.name : 'K 线分析'}</strong>
+            {session?.symbol && <small>{session.symbol}</small>}
           </div>
           <button type="button" aria-label="关闭 K 线侧栏" title="关闭" onClick={() => setOpen(false)}>x</button>
         </header>
@@ -180,7 +189,7 @@ function KlineSidebar() {
         )}
         <div className="dsh-kline-content">
           {session ? (
-            <NativeKlineApp key={session.session} session={session} />
+            <NativeKlineApp session={session} />
           ) : (
             <div className="dsh-kline-empty" role="status">
               <strong>{available ? '暂无 K 线图' : '图表服务未连接'}</strong>

@@ -17,6 +17,8 @@ import os
 import json
 import re
 import sys
+import stat
+import tempfile
 import time
 from copy import deepcopy
 from datetime import datetime, time as clock_time, timedelta, timezone
@@ -37,7 +39,30 @@ _security_workspace_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 # substitute for live provider data.
 _CANDLE_CACHE_FRESH_SECONDS = 45.0
 _CANDLE_CACHE_TTL_SECONDS = 15 * 60.0
-_candle_cache: dict[tuple[str, str, int, int, int, str], tuple[float, dict[str, Any]]] = {}
+_candle_cache: dict[tuple[str, str, int, int, int, str, str], tuple[float, dict[str, Any]]] = {}
+_LAST_FTSHARE_CAPABILITIES: dict[str, str] = {}
+_FTSHARE_TRANSPORT_STATE: dict[str, dict[str, Any]] = {}
+
+# This is deliberately a small, explicit registry rather than a runtime
+# discovery mechanism.  Only paths verified against the FTShare gateway docs
+# are candidates for automatic fallback; an upstream response can never add a
+# new URL or execute code in this process.
+FT_CONTRACTS: dict[str, dict[str, Any]] = {
+    "daily_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/owq0364i",
+        "tier": "free",
+        "verified_sdk_version": "0.1.1",
+        "candidates": ["http_get", "sdk"],
+        "candidate_verification": {"http_get": True, "sdk": True},
+    },
+    "history_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/z9lsvrvu",
+        "tier": "base+",
+        "verified_sdk_version": "0.1.1",
+        "candidates": ["http_get", "sdk"],
+        "candidate_verification": {"http_get": False, "sdk": False},
+    },
+}
 SYMBOL_DIRECTORY_VERSION = 4
 SYMBOL_DIRECTORY_TTL_SECONDS = 24 * 60 * 60
 SYMBOL_DIRECTORY_RETRY_SECONDS = 60 * 60
@@ -73,6 +98,10 @@ _SYMBOL_DIRECTORY_SEED = (
     {"symbol": "MSFT.US", "name": "Microsoft", "market": "US"},
     {"symbol": "NVDA.US", "name": "NVIDIA", "market": "US"},
     {"symbol": "AMD.US", "name": "超威半导体", "market": "US"},
+    {"symbol": "601899.XSHG", "name": "紫金矿业", "market": "CN"},
+    {"symbol": "600519.XSHG", "name": "贵州茅台", "market": "CN"},
+    {"symbol": "601318.XSHG", "name": "中国平安", "market": "CN"},
+    {"symbol": "600036.XSHG", "name": "招商银行", "market": "CN"},
 )
 _BUILTIN_SEARCH_ALIASES = {
     **{item["symbol"]: item["aliases"] for item in CN_BROAD_INDEXES},
@@ -83,6 +112,10 @@ _BUILTIN_SEARCH_ALIASES = {
     "MSFT.US": "微软 microsoft",
     "NVDA.US": "英伟达 英伟达公司 nvidia",
     "AMD.US": "超威半导体 超微半导体 amd advanced micro devices",
+    "601899.XSHG": "紫金 紫金矿业 zijin mining",
+    "600519.XSHG": "茅台 贵州茅台 moutai",
+    "601318.XSHG": "平安 中国平安 ping an",
+    "600036.XSHG": "招行 招商银行 cmb",
 }
 
 
@@ -138,7 +171,82 @@ def _maybe_inject_local_ftshare() -> str | None:
 _INJECTED_FTSHARE_PATH = _maybe_inject_local_ftshare()
 
 
+def _ftshare_key_path() -> Path:
+    configured = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
+
+
+def _valid_ftshare_key(value: Any) -> str:
+    key = str(value or "").strip()
+    if not key or len(key) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in key):
+        return ""
+    return key
+
+
+def _read_persisted_ftshare_key() -> str:
+    path = _ftshare_key_path()
+    try:
+        if not path.is_file() or path.is_symlink():
+            return ""
+        if stat.S_IMODE(path.stat().st_mode) & 0o077:
+            return ""
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, Mapping) or payload.get("version") != 1:
+            return ""
+        return _valid_ftshare_key(payload.get("api_key"))
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def _load_persisted_ftshare_key() -> bool:
+    if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
+        return False
+    value = _read_persisted_ftshare_key()
+    if not value:
+        return False
+    os.environ["FTSHARE_API_KEY"] = value
+    return True
+
+
+def _write_persisted_ftshare_key(value: str) -> None:
+    path = _ftshare_key_path()
+    if path.is_symlink():
+        raise OSError("FTShare credential path must not be a symbolic link")
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            json.dump({"version": 1, "api_key": value}, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+        os.chmod(path, 0o600)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+
+
+def _remove_persisted_ftshare_key() -> None:
+    path = _ftshare_key_path()
+    if path.is_symlink():
+        raise OSError("FTShare credential path must not be a symbolic link")
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def ftshare_available() -> bool:
+    _load_persisted_ftshare_key()
     try:
         import ftshare  # noqa: F401
 
@@ -153,13 +261,152 @@ def ftshare_available() -> bool:
             return False
 
 
+def _ftshare_market_api(timeout: float) -> Any:
+    """Create an SDK client with the process key attached to every request."""
+    import ftshare as ft
+
+    key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    headers = {"FTSHARE_API_KEY": key} if key else None
+    return ft.market_api(timeout=timeout, headers=headers)
+
+
+def _ftshare_contract_status() -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "doc": spec["doc"],
+            "tier": spec["tier"],
+            "transport": _FTSHARE_TRANSPORT_STATE.get(name, {}).get("transport"),
+            "last_ok": bool(_FTSHARE_TRANSPORT_STATE.get(name, {}).get("last_ok")),
+            "verified_sdk_version": spec["verified_sdk_version"],
+            "candidate_verification": dict(spec.get("candidate_verification") or {}),
+        }
+        for name, spec in FT_CONTRACTS.items()
+    }
+
+
+def ftshare_contract_status() -> dict[str, dict[str, Any]]:
+    """Expose safe transport/contract diagnostics without credentials."""
+    return deepcopy(_ftshare_contract_status())
+
+
+def _preferred_ftshare_transport(contract: str) -> str:
+    state = _FTSHARE_TRANSPORT_STATE.get(contract) or {}
+    transport = state.get("transport")
+    return transport if transport in FT_CONTRACTS.get(contract, {}).get("candidates", []) else "auto"
+
+
+def _is_retryable_ftshare_status(exc: Exception) -> bool:
+    raw = str(exc or "")
+    return bool(re.search(r"HTTP(?:\s+Error)?\s+(?:404|405|429|5\d\d)", raw, re.IGNORECASE))
+
+
+def _is_ftshare_contract_mismatch(exc: Exception) -> bool:
+    if isinstance(exc, (AttributeError, TypeError)):
+        return True
+    raw = str(exc or "").lower()
+    return any(marker in raw for marker in ("unexpected keyword", "no such endpoint", "method not allowed"))
+
+
+def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -> Any:
+    """Try only registered transports with bounded, auditable fallback.
+
+    Authentication/plan failures stay on the current transport.  A 429 is
+    retried on that same transport; contract/path failures may advance to the
+    next registered candidate.  This is intentionally not self-modifying.
+    """
+    spec = FT_CONTRACTS[contract]
+    candidates = list(spec["candidates"])
+    preferred = _preferred_ftshare_transport(contract)
+    if preferred != "auto":
+        candidates.remove(preferred)
+        candidates.insert(0, preferred)
+    last_error: Exception | None = None
+    for transport in candidates:
+        if transport == "http_get":
+            get_method = getattr(market, "get", None)
+            if not callable(get_method):
+                last_error = AttributeError("FTShare GET transport is unavailable")
+                continue
+        for retry in range(3):
+            try:
+                request_params = dict(params)
+                as_dataframe = request_params.pop("as_dataframe", False)
+                if contract == "daily_candles":
+                    path = "api/v1/market/data/stock-candlesticks"
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.stock_candlesticks(**params)
+                else:
+                    if transport == "http_get":
+                        path = "api/v2/market/data/stock_minutes"
+                        request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    elif callable(getattr(market, "stock_minutes", None)):
+                        request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
+                        result = market.stock_minutes(**request_params)
+                    else:
+                        legacy_params = dict(params)
+                        legacy_params.setdefault("interval_unit", "Minute")
+                        result = market.stock_candlesticks(**legacy_params)
+                _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": True}
+                return result
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                status, _message = _classify_ftshare_error(exc)
+                if status in {"auth_required", "invalid_key", "capability_limited"}:
+                    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": False}
+                    raise
+                if status == "rate_limited":
+                    if retry < 2:
+                        time.sleep(0.25 * (2**retry))
+                        continue
+                    # A rate limit belongs to this transport/account; changing
+                    # method would only multiply the upstream load.
+                    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": False}
+                    raise
+                if _is_ftshare_contract_mismatch(exc) or _is_retryable_ftshare_status(exc):
+                    break
+                break
+    if last_error is None:
+        last_error = RuntimeError(f"FTShare {contract} has no available transport")
+    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": None, "last_ok": False}
+    raise last_error
+
+
+def _ftshare_stock_candlesticks(market: Any, **params: Any) -> Any:
+    """Call verified daily-K candidates with bounded fallback."""
+    return _adaptive_ftshare_call("daily_candles", market, params)
+
+
+def _short_mainland_symbol(symbol: str) -> str:
+    suffixes = {
+        ".XSHG": ".SH",
+        ".XSHE": ".SZ",
+        ".BJSE": ".BJ",
+    }
+    for long_suffix, short_suffix in suffixes.items():
+        if symbol.endswith(long_suffix):
+            return symbol[: -len(long_suffix)] + short_suffix
+    return symbol
+
+
+def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
+    """Call verified historical minute-K candidates with bounded fallback."""
+    return _adaptive_ftshare_call("history_minute_candles", market, params)
+
+
 def ftshare_status() -> dict[str, Any]:
     """Debug helper for hosts / ops."""
+    _load_persisted_ftshare_key()
     ok = ftshare_available()
     info: dict[str, Any] = {
         "available": ok,
+        "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
+        "persistent": bool(_read_persisted_ftshare_key()),
         "python": sys.executable,
         "injected_path": _INJECTED_FTSHARE_PATH,
+        "contracts": _ftshare_contract_status(),
     }
     if ok:
         try:
@@ -172,7 +419,172 @@ def ftshare_status() -> dict[str, Any]:
                 info["distribution_version"] = None
         except Exception as exc:  # noqa: BLE001
             info["import_error"] = str(exc)
+    info["sdk_version"] = info.get("distribution_version")
     return info
+
+
+def clear_provider_caches() -> None:
+    """Drop provider-backed caches after a runtime configuration change."""
+    _symbol_search_cache.clear()
+    _security_workspace_cache.clear()
+    _candle_cache.clear()
+
+
+def _set_ftshare_capabilities(capabilities: dict[str, str]) -> None:
+    _LAST_FTSHARE_CAPABILITIES.clear()
+    _LAST_FTSHARE_CAPABILITIES.update({str(k): str(v) for k, v in capabilities.items()})
+
+
+def ftshare_capabilities() -> dict[str, str]:
+    """Return the last safe capability result without exposing credentials."""
+    if _LAST_FTSHARE_CAPABILITIES:
+        return dict(_LAST_FTSHARE_CAPABILITIES)
+    return {"daily": "available" if ftshare_available() else "unavailable", "minute": "not_tested"}
+
+
+def configure_ftshare_api_key(
+    api_key: str | None,
+    *,
+    test_connection: bool = True,
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Configure FTShare for this process and optionally persist it locally."""
+    value = (api_key or "").strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 包含不可用字符"}
+    if len(value) > 512:
+        return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 长度不受支持"}
+    try:
+        if value and persist:
+            _write_persisted_ftshare_key(value)
+        else:
+            _remove_persisted_ftshare_key()
+    except OSError:
+        return {"ok": False, "error": "credential_persist_failed", "message": "无法保存 FTShare 本机配置"}
+    if value:
+        os.environ["FTSHARE_API_KEY"] = value
+    else:
+        os.environ.pop("FTSHARE_API_KEY", None)
+    clear_provider_caches()
+
+    result: dict[str, Any] = {
+        "ok": True,
+        "configured": bool(value),
+        "source": "ftshare",
+        "persistent": bool(value and persist),
+    }
+    if not test_connection:
+        result["message"] = "FTShare 配置已更新（已保存到本机）" if value and persist else "FTShare 配置已更新（仅当前 dsh 进程有效）"
+        return result
+    connection = test_ftshare_connection()
+    result.update({key: value for key, value in connection.items() if key != "ok"})
+    result["connection_ok"] = bool(connection.get("ok"))
+    result["key_saved"] = bool(value and persist)
+    result["ok"] = bool(connection.get("ok"))
+    if result["ok"]:
+        result["message"] = _ftshare_capability_message(
+            connection.get("capabilities") or {},
+            persistent=bool(result["persistent"]),
+        )
+    if not result["ok"]:
+        result["message"] = (
+            f"FTShare API Key 已{'保存' if result['key_saved'] else '配置'}，但校验失败："
+            f"{connection.get('message') or '请检查 Key 和数据权限。'}"
+        )
+    return result
+
+
+def _ftshare_capability_message(capabilities: dict[str, str], *, persistent: bool) -> str:
+    saved = "已保存" if persistent else "已配置"
+    daily = capabilities.get("daily")
+    minute = capabilities.get("minute")
+    if daily == "available" and minute in {"insufficient_quota", "capability_limited"}:
+        return f"FTShare API Key {saved}并验证通过。当前套餐可使用日 K；分钟 K 暂未开通，请按需升级对应套餐。"
+    if daily == "available" and minute == "available":
+        return f"FTShare API Key {saved}并验证通过，当前日 K 与分钟 K 均可用。"
+    return f"FTShare API Key {saved}并验证通过；具体数据能力取决于当前套餐。"
+
+
+def test_ftshare_connection() -> dict[str, Any]:
+    """Probe basic daily access first, then separately probe minute access."""
+    if not ftshare_available():
+        return {"ok": False, "error": "ftshare_not_installed", "message": "FTShare SDK 未安装"}
+    capabilities: dict[str, str] = {"daily": "unavailable", "minute": "not_tested"}
+    try:
+        market = _ftshare_market_api(timeout=8)
+        now = int(time.time() * 1000)
+        _ftshare_stock_candlesticks(
+            market,
+            symbol="600519.XSHG", interval_unit="Day", interval_value=1,
+            adjust_kind="none", since_ts_millis=now - 14 * 86_400_000,
+            until_ts_millis=now, limit=2, as_dataframe=False,
+        )
+        capabilities["daily"] = "available"
+        try:
+            _ftshare_stock_minutes(
+                market, symbol="600519.XSHG", interval_value=1,
+                adjust_kind="none", since_ts_millis=now - 2 * 86_400_000,
+                until_ts_millis=now, limit=1, as_dataframe=False,
+            )
+            capabilities["minute"] = "available"
+        except Exception as exc:  # noqa: BLE001
+            minute_error, _minute_message = _classify_ftshare_error(exc)
+            if minute_error in {"auth_required", "invalid_key", "ftshare_connection_failed"}:
+                raise
+            capabilities["minute"] = "insufficient_quota"
+        _set_ftshare_capabilities(capabilities)
+        return {
+            "ok": True,
+            "message": _ftshare_capability_message(
+                capabilities, persistent=bool(_read_persisted_ftshare_key())
+            ),
+            "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
+            "capabilities": capabilities,
+        }
+    except Exception as exc:  # noqa: BLE001
+        error, message = _classify_ftshare_error(exc)
+        _set_ftshare_capabilities(capabilities)
+        return {
+            "ok": False,
+            "error": error,
+            "message": message,
+            "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
+            "capabilities": capabilities,
+        }
+
+
+def _classify_ftshare_error(exc: Exception) -> tuple[str, str]:
+    """Turn provider auth failures into stable machine codes and Chinese text."""
+    raw = str(exc or "").strip()
+    configured_key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    safe_raw = raw.replace(configured_key, "<redacted>") if configured_key else raw
+    status_match = re.search(r"HTTP(?:\s+Error)?\s+(\d{3})", safe_raw, re.IGNORECASE)
+    status = status_match.group(1) if status_match else ""
+    if status in {"401", "403"}:
+        if re.search(r"未携带|缺少|missing|required|not provided", raw, re.IGNORECASE):
+            return "auth_required", "FTShare 未收到 API Key，请检查配置后重试。"
+        if re.search(r"格式|非法|invalid|malformed", raw, re.IGNORECASE):
+            return "invalid_key", "FTShare API Key 校验失败，请检查 Key 是否完整后重试。"
+        if re.search(r"额度|配额|quota|permission|权限|订阅|套餐|upgrade|plan", safe_raw, re.IGNORECASE):
+            return "capability_limited", "FTShare API Key 有效，但当前套餐未开通此项数据能力。"
+        return "auth_required", "FTShare API Key 未通过校验，请检查配置或数据权限。"
+    if status == "429":
+        return "rate_limited", "FTShare 请求过于频繁，请稍后重试。"
+    if status.startswith("5"):
+        return "upstream_error", "FTShare 服务暂时不可用，请稍后重试。"
+    if isinstance(exc, (TimeoutError, ConnectionError)) or re.search(
+        r"timed out|timeout|connection reset|connection refused|name or service not known",
+        safe_raw,
+        re.IGNORECASE,
+    ):
+        return "upstream_unavailable", "FTShare 暂时无法连接，请检查网络后重试。"
+    if isinstance(exc, (AttributeError, TypeError)) or re.search(
+        r"unexpected keyword|no attribute|contract mismatch", safe_raw, re.IGNORECASE
+    ):
+        return "sdk_contract_mismatch", "FTShare SDK 与当前接口契约不一致，请升级插件后重试。"
+    if status == "405":
+        return "ftshare_endpoint_unavailable", "FTShare 分钟线校验接口暂不可用，请稍后重试。"
+    return "ftshare_connection_failed", f"FTShare 连接失败：{safe_raw}"
 
 
 def _interval_to_sdk(unit: str) -> str:
@@ -482,7 +894,7 @@ def _fetch_generic_history(
 
     for _page in range(max_pages):
         since_ms = max(0, until_ms - window_days * 86_400_000)
-        raw = market.stock_candlesticks(
+        raw = _ftshare_stock_candlesticks(market,
             symbol=symbol,
             interval_unit=interval_unit,
             interval_value=interval_value,
@@ -523,39 +935,8 @@ def _symbol_name(market: Any, symbol: str) -> str:
         if normalized == str(item["symbol"]).upper():
             return str(item["name"])
     try:
-        code = str(symbol or "").split(".")[0]
-        rows = market.search(query=code, limit=8, as_dataframe=False)
-        fallback: str | None = None
-        for row in rows if isinstance(rows, list) else []:
-            if not isinstance(row, Mapping):
-                continue
-            name: str | None = None
-            for key in ("name", "stock_name", "security_name", "index_name", "symbol_name"):
-                if row.get(key):
-                    name = str(row[key]).strip()
-                    break
-            if not name or name.upper() in {normalized, code.upper()}:
-                continue
-            row_symbol = _canonical_market_symbol(
-                _canonical_directory_symbol(
-                    row.get("symbol")
-                    or row.get("symbol_id")
-                    or row.get("stock_code")
-                    or row.get("index_code")
-                    or row.get("ticker")
-                    or row.get("code"),
-                    market=row.get("market") or row.get("board"),
-                )
-            )
-            if row_symbol == normalized:
-                return name
-            fallback = fallback or name
-        if fallback:
-            return fallback
-    except Exception:
-        pass
-    try:
         cached = _read_symbol_directory_cache()
+        code = str(symbol or "").split(".")[0]
         for item in list(cached.get("items") or []) if isinstance(cached, Mapping) else []:
             if not isinstance(item, Mapping):
                 continue
@@ -570,6 +951,19 @@ def _symbol_name(market: Any, symbol: str) -> str:
                 return candidate_name
     except Exception:
         pass
+    # The directory refresh runs in the background. Resolve a just-opened
+    # mainland symbol immediately when it is not in the previous snapshot,
+    # instead of making the chart wait for a full directory rebuild.
+    if market is not None and re.fullmatch(r"\d{6}\.(XSHG|XSHE|BJSE)", normalized):
+        try:
+            lookup = getattr(market, "company_list", None)
+            rows = lookup(stock_code=normalized.split(".", 1)[0], as_dataframe=False) if callable(lookup) else []
+            for item in _rows_from_directory_response(rows):
+                candidate_name = str(item.get("stock_name") or item.get("name") or "").strip()
+                if candidate_name and candidate_name.upper() not in {normalized, normalized.split(".", 1)[0]}:
+                    return candidate_name
+        except Exception:
+            pass
     return symbol
 
 
@@ -591,8 +985,9 @@ def _ftshare_unavailable_result() -> dict[str, Any]:
 
 
 def _candle_cache_key(
-    symbol: str, interval: str, interval_value: int, session_count: int, limit: int, adjust: str
-) -> tuple[str, str, int, int, int, str]:
+    symbol: str, interval: str, interval_value: int, session_count: int, limit: int, adjust: str,
+    transport: str = "auto",
+) -> tuple[str, str, int, int, int, str, str]:
     return (
         str(symbol).strip().upper(),
         str(interval).strip().lower(),
@@ -600,17 +995,18 @@ def _candle_cache_key(
         int(session_count),
         int(limit),
         str(adjust).strip().lower(),
+        str(transport or "auto").strip().lower(),
     )
 
 
-def _cache_candles(key: tuple[str, str, int, int, int, str], payload: dict[str, Any]) -> None:
+def _cache_candles(key: tuple[str, str, int, int, int, str, str], payload: dict[str, Any]) -> None:
     if payload.get("ok") and isinstance(payload.get("rows"), list) and len(payload["rows"]) >= 2:
         _candle_cache[key] = (time.time(), deepcopy(payload))
 
 
 def _compatible_candle_cache_entry(
-    key: tuple[str, str, int, int, int, str],
-) -> tuple[tuple[str, str, int, int, int, str], tuple[float, dict[str, Any]]] | None:
+    key: tuple[str, str, int, int, int, str, str],
+) -> tuple[tuple[str, str, int, int, int, str, str], tuple[float, dict[str, Any]]] | None:
     """Return the exact or smallest compatible larger candle response."""
     cached = _candle_cache.get(key)
     if cached:
@@ -622,8 +1018,9 @@ def _compatible_candle_cache_entry(
     compatible = [
         (candidate_key, candidate)
         for candidate_key, candidate in _candle_cache.items()
-        if candidate_key[:4] == key[:4]
+        if candidate_key[:5] == key[:5]
         and candidate_key[5] == key[5]
+        and candidate_key[6] == key[6]
         and candidate_key[4] >= key[4]
     ]
     if not compatible:
@@ -631,7 +1028,7 @@ def _compatible_candle_cache_entry(
     return min(compatible, key=lambda item: (item[0][4] - key[4], -item[1][0]))
 
 
-def _recent_candle_cache(key: tuple[str, str, int, int, int, str]) -> dict[str, Any] | None:
+def _recent_candle_cache(key: tuple[str, str, int, int, int, str, str]) -> dict[str, Any] | None:
     """Return a compatible provider result only while it is still hot."""
     match = _compatible_candle_cache_entry(key)
     if match is None:
@@ -656,7 +1053,7 @@ def _recent_candle_cache(key: tuple[str, str, int, int, int, str]) -> dict[str, 
 
 
 def _cached_candle_fallback(
-    key: tuple[str, str, int, int, int, str], error: Exception | str
+    key: tuple[str, str, int, int, int, str, str], error: Exception | str
 ) -> dict[str, Any] | None:
     match = _compatible_candle_cache_entry(key)
     if match is None:
@@ -737,7 +1134,17 @@ def _canonical_directory_symbol(symbol: Any, *, market: Any = None, default_mark
     if default_text == "US" or market_text == "105" or value.upper().startswith("105."):
         code = value.split(".", 1)[1] if "." in value else value
         return f"{code.upper()}.US"
-    return value
+    # FTShare's directory commonly uses .SH/.SZ/.BJ while candle requests and
+    # the browser workspace use .XSHG/.XSHE/.BJSE. Normalize once at the
+    # directory boundary so names resolve consistently everywhere.
+    canonical = _canonical_market_symbol(value)
+    # `company_list` returns bare mainland codes. Here the source is an equity
+    # directory (not an ambiguous user request), so conventional exchange
+    # routing is safe and lets its names match candle symbols.
+    if (default_text == "CN" or market_text == "CN") and re.fullmatch(r"\d{6}", canonical):
+        suffix = "XSHG" if canonical.startswith(("6", "9")) else "BJSE" if canonical.startswith(("4", "8")) else "XSHE"
+        return f"{canonical}.{suffix}"
+    return canonical
 
 
 def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
@@ -908,11 +1315,12 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
             "message": "FTShare unavailable; using the last local symbol directory.",
         }
 
-    import ftshare as ft
-
-    market = ft.market_api(timeout=20)
+    market = _ftshare_market_api(timeout=20)
     source_specs = (
-        ("stock_list", "CN", {}, True),
+        # The default endpoint page is intentionally small. Request all pages
+        # so a code-only chart can still be labelled from the local directory
+        # without making a second lookup during rendering.
+        ("company_list", "CN", {"all_pages": True, "page_size": 200}, True),
         ("index_description_all", "CN_INDEX", {}, True),
         # The installed FTShare endpoint caps a single page at 200. The SDK
         # paginates when ``all_pages`` is set, so 200 retains complete coverage
@@ -986,7 +1394,7 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
 
 
 def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
-    """Search FTShare securities for the chart workspace symbol picker."""
+    """Search the locally available security directory without a provider call."""
     q = str(query or "").strip()
     if not q:
         return {"ok": False, "error": "invalid_query", "message": "query is required"}
@@ -1042,36 +1450,26 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
                 result[key] = "US" if key == "market" and str(item[key]).strip() == "105" else item[key]
         results.append(result)
 
-    # Always keep essential indices and common U.S./HK names discoverable even
-    # when a vendor directory is partial or a multilingual vendor search misses
-    # an alias such as "英伟达".
-    for item in _SYMBOL_DIRECTORY_SEED:
+    # Use the last local directory snapshot first. It is available without an
+    # API key and avoids sending every search to FTShare's keyed search route.
+    # Search must stay local and fast. The app refreshes this directory in the
+    # background; never block a keystroke on a full provider-directory request.
+    directory = _read_symbol_directory_cache()
+    directory_items = directory.get("items") if isinstance(directory, Mapping) else None
+    searchable_items = directory_items if isinstance(directory_items, list) else list(_SYMBOL_DIRECTORY_SEED)
+    # Keep built-in aliases in the fallback path and include the seed as a
+    # supplement when a provider directory is partial.
+    for item in [*searchable_items, *_SYMBOL_DIRECTORY_SEED]:
+        if not isinstance(item, Mapping):
+            continue
         searchable = "".join(
-            f"{item['symbol']} {item['name']} {_BUILTIN_SEARCH_ALIASES.get(item['symbol'], '')}".casefold().split()
+            f"{item.get('symbol', '')} {item.get('name', '')} {_BUILTIN_SEARCH_ALIASES.get(str(item.get('symbol') or ''), '')}".casefold().split()
         )
         if query_text and query_text in searchable:
             add(item)
 
-    source = "builtin"
-    warning = None
-    if ftshare_available():
-        import ftshare as ft
-
-        market = ft.market_api(timeout=20)
-        try:
-            raw = market.search(query=q, limit=lim, as_dataframe=False)
-            for row in raw if isinstance(raw, list) else []:
-                if isinstance(row, Mapping):
-                    add(row)
-            source = "ftshare+builtin"
-        except Exception as exc:  # noqa: BLE001
-            warning = f"ftshare search failed: {exc}"
-    else:
-        warning = "FTShare unavailable; showing built-in symbol matches only."
-
+    source = "directory" if isinstance(directory_items, list) else "builtin"
     payload = {"ok": True, "query": q, "count": len(results), "results": results, "source": source}
-    if warning:
-        payload["warning"] = warning
     _symbol_search_cache[cache_key] = (now, payload)
     if len(_symbol_search_cache) > _SYMBOL_SEARCH_CACHE_MAX_ENTRIES:
         oldest_key = min(_symbol_search_cache, key=lambda key: _symbol_search_cache[key][0])
@@ -1212,9 +1610,7 @@ def fetch_market_ticker() -> dict[str, Any]:
             "status": "unavailable",
         }
 
-    import ftshare as ft
-
-    market = ft.market_api(timeout=8)
+    market = _ftshare_market_api(timeout=8)
     items: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
     for source in MARKET_TICKER_SOURCES:
@@ -1355,12 +1751,16 @@ def fetch_candles(
             "next_action": "Use daily-or-larger Hong Kong candles, or pass verified minute rows from another provider.",
             "retryable": False,
         }
-    cache_key = _candle_cache_key(sym, normalized_interval, step, sessions, lim, adjust)
+    contract_name = "history_minute_candles" if normalized_interval == "minute" else "daily_candles"
+    cache_key = _candle_cache_key(
+        sym, normalized_interval, step, sessions, lim, adjust,
+        _preferred_ftshare_transport(contract_name),
+    )
     fresh_cache = _recent_candle_cache(cache_key)
     if fresh_cache is not None:
         return fresh_cache
 
-    market = ft.market_api(timeout=20)
+    market = _ftshare_market_api(timeout=20)
     raw: Any = None
     fetch_error: Exception | None = None
     us_daily_history_error: Exception | None = None
@@ -1414,9 +1814,9 @@ def fetch_candles(
                 page_window_days = 2
                 max_pages = max(6, sessions * 2 + 2)
                 for _page in range(max_pages):
-                    page = market.stock_candlesticks(
+                    page = _ftshare_stock_minutes(
+                        market,
                         symbol=sym,
-                        interval_unit="Minute",
                         interval_value=step,
                         adjust_kind=adj,
                         since_ts_millis=max(
@@ -1464,10 +1864,12 @@ def fetch_candles(
         fallback = _cached_candle_fallback(cache_key, fetch_error)
         if fallback is not None:
             return fallback
+        provider_error, provider_message = _classify_ftshare_error(fetch_error)
         return {
             "ok": False,
-            "error": "fetch_failed",
-            "message": f"ftshare stock_candlesticks failed: {fetch_error}",
+            "error": provider_error,
+            "error_code": provider_error,
+            "message": provider_message,
             "symbol": sym,
             "source": "ftshare",
             "updated_at": fetched_at,
@@ -1491,25 +1893,38 @@ def fetch_candles(
             if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in selected_dates
         ]
     if _is_us_symbol(sym) and normalized_interval != "minute":
-        rows = _aggregate_interval(rows[-lim:], interval, timezone_name=exchange_timezone)
+        # Aggregate the complete daily history first, then apply the requested
+        # number of bars.  Trimming raw days before aggregation makes the
+        # oldest requested week/month/quarter/year incomplete.
+        rows = _aggregate_interval(rows, interval, timezone_name=exchange_timezone)[-lim:]
     elif normalized_interval == "quarter":
         rows = _aggregate_quarters(rows, timezone_name=exchange_timezone)[-lim:]
     elif not _is_hk_symbol(sym) and normalized_interval != "minute" and len(rows) > lim:
         rows = rows[-lim:]
     if len(rows) < 2:
-        empty_error = "FTShare returned fewer than two valid candles"
+        market_data_unavailable = (
+            (_is_hk_symbol(sym) or _is_us_symbol(sym))
+            and normalized_interval != "minute"
+        )
+        empty_error = (
+            "当前 FTShare 暂未返回该港股/美股市场的足够日线数据，请配置 FTSHARE_API_KEY 后重试，"
+            "或切换到其他数据源。"
+            if market_data_unavailable
+            else "当前数据源返回的有效 K 线不足两根，请检查标的代码、数据权限或切换数据源后重试。"
+        )
         fallback = _cached_candle_fallback(cache_key, empty_error)
         if fallback is not None:
             return fallback
         result = {
             "ok": False,
-            "error": "insufficient_candles",
+            "error": "market_data_unavailable" if market_data_unavailable else "insufficient_candles",
             "message": empty_error,
             "symbol": sym,
             "source": "ftshare",
             "updated_at": fetched_at,
             "status": "delayed",
             "market_status": _symbol_market_status(sym),
+            "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport"),
         }
         if hk_history_error is not None:
             result["warning"] = "FTShare HK history was stale or unavailable; generic candle fallback had insufficient data."
@@ -1525,7 +1940,11 @@ def fetch_candles(
         "interval": normalized_interval,
         "interval_value": step,
         "session_count": sessions if normalized_interval == "minute" else None,
-        "adjust": (adjust or "none").strip().lower(),
+        "adjust": (
+            "none"
+            if _is_us_symbol(sym) and normalized_interval != "minute"
+            else (adjust or "none").strip().lower()
+        ),
         "count": len(rows),
         "rows": rows,
         "source": "ftshare",
@@ -1535,11 +1954,15 @@ def fetch_candles(
         "exchange_timezone": freshness["exchange_timezone"],
         "as_of": freshness["as_of"],
         "freshness": freshness["freshness"],
+        "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport", "sdk"),
     }
     if us_daily_history_error is not None:
         result["warning"] = "FTShare US daily history endpoint failed; used generic candle fallback."
         result["upstream_error"] = str(us_daily_history_error)[:500]
         result["fallback"] = "generic_stock_candlesticks"
+    if _is_us_symbol(sym) and normalized_interval != "minute" and (adjust or "none").strip().lower() != "none":
+        result["adjust_requested"] = (adjust or "none").strip().lower()
+        result["warning"] = "FTShare US daily history is returned unadjusted; adjust was not applied."
     if hk_history_error is not None:
         result["warning"] = "FTShare HK history endpoint failed; used generic candle fallback."
         result["upstream_error"] = str(hk_history_error)[:500]
@@ -1827,9 +2250,7 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
     if not ftshare_available():
         return _ftshare_unavailable_result()
 
-    import ftshare as ft
-
-    market = ft.market_api(timeout=12)
+    market = _ftshare_market_api(timeout=12)
     display_name = str(name or sym)
     market_name = _workspace_market(sym)
     try:

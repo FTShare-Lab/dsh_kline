@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Standalone DeepSeek Harness K-line MCP server.
 
-This server owns the FTShare fetch adapter and deterministic indicator layer.
+This server owns the optional FTShare fetch adapter and deterministic indicator layer.
 It does not spawn, import, or discover another MCP server.
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from typing import Annotated, Any, Literal
 
 from mcp import types
@@ -35,24 +36,36 @@ from core.calc import (
     series_vol_ma,
 )
 from chart_service import publish_chart
+from core.rows import RowsValidationError, validate_rows
 from tools.calc import run_calc_metrics
 from tools.draw import draw_kline
-from tools.fetch import fetch_candles, ftshare_status
+from tools.fetch import (
+    _canonical_market_symbol,
+    configure_ftshare_api_key,
+    fetch_candles,
+    ftshare_capabilities,
+    ftshare_status,
+    search_symbols as search_symbol_directory,
+    test_ftshare_connection,
+)
 
 
 mcp = FastMCP(
     "dsh_kline",
     instructions=(
         "IMPORTANT workflow policy: For ordinary K-line requests, call analyze_kline "
-        "exactly once. It performs the FTShare fetch, deterministic calculations, "
-        "and chart generation against one row set. Never call health, fetch_candles, "
+        "exactly once. It performs one configured-source fetch, deterministic calculations, "
+        "and chart generation against one row set. FTShare is optional: when another tool "
+        "or application already has OHLCV rows, call analyze_kline_rows exactly once. "
+        "Never call health, fetch_candles, "
         "or calc_metrics as a preflight or follow-up; never use shell, filesystem, "
         "scripts, web probes, or another chart generator for the same request. Do "
         "not switch providers or reconstruct market rows. If the provider rejects a "
         "symbol or interval, explain that error and stop; do not probe other symbols "
         "or substitute another interval unless the user explicitly asks. Use "
         "fetch_candles only when raw OHLCV rows are explicitly requested, and use "
-        "calc_metrics only for caller-supplied rows. Only calculate and annotate support "
+        "calc_metrics only for caller-supplied rows. analyze_kline_rows accepts OHLCV rows "
+        "from any user-selected data source without persisting provider state. Only calculate and annotate support "
         "and resistance when the user explicitly requests it: pass metrics including "
         "support_resistance or set mark_support_resistance=true. "
         " In DeepSeek Harness, say that the interactive chart is open in the right "
@@ -62,10 +75,66 @@ mcp = FastMCP(
         "indicator values exactly as returned; do not infer a different bar count "
         "from the selected timeframe. Keep support/resistance labels from the "
         "metrics, but describe whether each level is above or below the latest "
-        "close instead of calling an above-price support a current support."
+        "close instead of calling an above-price support a current support. "
+        "Use data_source_status, configure_ftshare, or test_ftshare_connection only "
+        "when the user explicitly asks to inspect or configure a data source. "
+        "Market data may be delayed, incomplete, or unavailable; results and indicators "
+        "are informational and do not constitute investment advice."
     ),
     json_response=True,
 )
+
+
+_SUPPORTED_INDICATORS = frozenset({"ma", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"})
+_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9_-]{0,15}(?:\.[A-Z]{2,6})?$", re.IGNORECASE)
+
+
+def _resolve_symbol_input(value: Any) -> tuple[str | None, str | None, dict[str, Any] | None]:
+    """Resolve a local-directory name/code without making a provider request."""
+    raw = str(value or "").strip()
+    if not raw:
+        return None, None, {
+            "error": "invalid_symbol",
+            "message": "请输入标的代码或名称，例如 600519.SH、00700.HK、NVDA.US。",
+        }
+    directory = search_symbol_directory(raw, limit=8)
+    results = directory.get("results") if isinstance(directory, dict) else None
+    if isinstance(results, list) and results:
+        folded = raw.casefold()
+        exact = next(
+            (item for item in results if str(item.get("symbol") or "").casefold() == folded
+             or str(item.get("name") or "").casefold() == folded),
+            results[0],
+        )
+        symbol = str(exact.get("symbol") or "").strip().upper()
+        if symbol:
+            return symbol, str(exact.get("name") or symbol), None
+    normalized = _canonical_market_symbol(raw)
+    # Keep provider-specific symbols usable even when the local directory has
+    # not been refreshed yet; reject unresolved natural-language names with a
+    # useful, actionable message instead of a cryptic upstream error.
+    if _SYMBOL_PATTERN.fullmatch(normalized):
+        return normalized, None, None
+    return None, None, {
+        "error": "invalid_symbol",
+        "message": f"未找到标的“{raw}”。请使用代码或完整代码格式，例如 600519.SH、00700.HK、NVDA.US。",
+        "query": raw,
+        "candidates": results[:5] if isinstance(results, list) else [],
+    }
+
+
+def _normalized_indicators(values: list[str] | None) -> tuple[list[str], list[str]]:
+    requested = [str(value).strip().lower() for value in (values or ["ma", "vol", "macd", "rsi"])]
+    active = list(dict.fromkeys(value for value in requested if value in _SUPPORTED_INDICATORS))
+    unknown = list(dict.fromkeys(value for value in requested if value not in _SUPPORTED_INDICATORS))
+    return active, unknown
+
+
+def _normalized_ma_periods(values: list[int] | None) -> list[int]:
+    periods = [int(value) for value in (values or DEFAULT_MA_PERIODS)]
+    if not 1 <= len(periods) <= 8 or any(period < 2 or period > 400 for period in periods):
+        raise ValueError("ma_periods must contain 1-8 values between 2 and 400")
+    return list(dict.fromkeys(periods))
 
 
 def _result(payload: dict[str, Any], text: str, *, error: bool = False) -> types.CallToolResult:
@@ -191,14 +260,179 @@ def _chart_spec(
     }
 
 
+def _analysis_from_rows(
+    rows: list[dict[str, Any]],
+    *,
+    symbol: str,
+    name: str | None,
+    interval: str,
+    limit: int,
+    adjust: str,
+    indicators: list[str] | None,
+    metrics: list[str] | None,
+    mark_support_resistance: bool,
+    ma_periods: list[int] | None,
+    rsi_period: int,
+    boll_period: int,
+    boll_std: float,
+    volume_ma: int,
+    atr_period: int,
+    data_source: str | None,
+    data_source_url: str | None,
+    security_workspace: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Run the complete chart workflow on caller-supplied rows."""
+    normalized = validate_rows(rows, min_len=2)
+    selected = normalized[-max(2, min(int(limit), 4000)):]
+    active_indicators, unknown_indicators = _normalized_indicators(indicators)
+    periods = _normalized_ma_periods(ma_periods)
+    requested_metrics = [str(value).lower() for value in metrics] if metrics is not None else ["rsi"]
+    should_mark_levels = mark_support_resistance or "support_resistance" in requested_metrics
+    if mark_support_resistance and "support_resistance" not in requested_metrics:
+        requested_metrics.append("support_resistance")
+    metric_data = run_calc_metrics(
+        selected,
+        metrics=requested_metrics,
+        rsi_period=rsi_period,
+        boll_period=boll_period,
+        boll_std=boll_std,
+        atr_period=atr_period,
+        volume_ma=volume_ma,
+        ma_periods=periods,
+    )
+    analysis_marks = _support_resistance_marks(metric_data) if should_mark_levels else []
+    previous = float(selected[-2]["close"])
+    latest = dict(selected[-1])
+    latest["change"] = round(float(latest["close"]) - previous, 6)
+    latest["change_pct"] = round((float(latest["close"]) / previous - 1) * 100, 4) if previous else None
+    source = str(data_source or "external").strip()[:120] or "external"
+    chart_payload = draw_kline(
+        selected,
+        indicators=active_indicators,
+        ma_periods=periods,
+        marks=analysis_marks,
+        security_workspace=security_workspace,
+        symbol=symbol,
+        name=name or symbol,
+        data_source=source,
+        data_source_url=data_source_url,
+        interval=interval,
+        boll_period=boll_period,
+        boll_std=boll_std,
+        volume_ma=volume_ma,
+        rsi_period=rsi_period,
+        atr_period=atr_period,
+    )
+    chart = _chart_spec(selected, active_indicators, periods, interval, analysis_marks)
+    chart_session: str | None = None
+    chart_service_status: dict[str, Any]
+    try:
+        chart_session, _service_url = publish_chart(chart_payload)
+        chart["session_id"] = chart_session
+        chart_service_status = {"ok": True}
+    except Exception as exc:  # noqa: BLE001
+        chart_service_status = {"ok": False, "error": "chart_service_unavailable", "message": str(exc)}
+    return {
+        "ok": True,
+        "workflow": "provided_rows_analyze_chart_session",
+        "provider_mode": "external",
+        "symbol": symbol,
+        "name": name or symbol,
+        "interval": interval,
+        "adjust": adjust,
+        "source": source,
+        "status": "provided",
+        "count": len(selected),
+        "fetched_count": len(normalized),
+        "freshness": "provided_by_caller",
+        "chart_session": chart_session,
+        "chart_ready": bool(chart_session and chart_service_status.get("ok")),
+        "chart_service": chart_service_status,
+        "latest": latest,
+        "indicator_last": _indicator_last(
+            selected,
+            active_indicators,
+            ma_periods=periods,
+            rsi_period=rsi_period,
+            boll_period=boll_period,
+            boll_std=boll_std,
+            volume_ma=volume_ma,
+            atr_period=atr_period,
+        ),
+        "metrics": metric_data,
+        "chart": chart,
+        "warnings": ([f"ignored unsupported indicators: {', '.join(unknown_indicators)}"] if unknown_indicators else []),
+    }
+
+
 @mcp.tool(name="health")
 async def health() -> types.CallToolResult:
     """Check runtime health only when the user explicitly asks for a health check."""
-    data = {"ok": True, "server": "dsh_kline", "ftshare": ftshare_status()}
-    available = bool(data["ftshare"].get("available"))
-    data["ok"] = available
-    text = f"health {'ok' if available else 'failed'} · ftshare={'available' if available else 'missing'}"
-    return _result(data, text, error=not available)
+    ftshare = ftshare_status()
+    data = {
+        "ok": True,
+        "server": "dsh_kline",
+        "capabilities": {"external_rows": True, "ftshare_adapter": bool(ftshare.get("available"))},
+        "ftshare": ftshare,
+    }
+    state = "available" if data["capabilities"]["ftshare_adapter"] else "optional/missing"
+    return _result(data, f"health ok · external_rows=available · ftshare={state}")
+
+
+@mcp.tool(name="data_source_status")
+async def data_source_status() -> types.CallToolResult:
+    """Return safe data-source capability/configuration status for the UI."""
+    ftshare = ftshare_status()
+    data = {
+        "ok": True,
+        "external_rows": True,
+        "providers": {
+            "ftshare": {
+                "available": bool(ftshare.get("available")),
+                    "configured": bool(ftshare.get("configured")),
+                    "persistent": bool(ftshare.get("persistent")),
+                    "capabilities": ftshare_capabilities(),
+                    "sdk_version": ftshare.get("sdk_version"),
+                    "contracts": ftshare.get("contracts", {}),
+                    "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
+            }
+        },
+    }
+    return _result(data, "data_source_status ok")
+
+
+@mcp.tool(name="search_symbols")
+async def search_symbols_tool(
+    query: Annotated[str, Field(description="标的代码、名称或常用简称")],
+    limit: Annotated[int, Field(ge=1, le=20, description="最多返回的候选数量")] = 8,
+) -> types.CallToolResult:
+    """Search the local symbol directory; this does not call a market provider."""
+    data = search_symbol_directory(query, limit=limit)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "搜索失败"), error=True)
+    return _result(data, f"search_symbols ok · {data.get('count', 0)} results")
+
+
+@mcp.tool(name="configure_ftshare")
+async def configure_ftshare(
+    api_key: Annotated[str | None, Field(description="FTShare API Key；留空可清除当前配置")]=None,
+    test_connection: Annotated[bool, Field(description="配置后是否发起一次最小连接测试")]=True,
+    persist: Annotated[bool, Field(description="是否保存到本机，默认保存")]=True,
+) -> types.CallToolResult:
+    """Configure FTShare without returning the key; results include safe capability status."""
+    data = configure_ftshare_api_key(api_key, test_connection=test_connection, persist=persist)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "FTShare 配置失败"), error=True)
+    return _result(data, str(data.get("message") or "FTShare 配置已更新"))
+
+
+@mcp.tool(name="test_ftshare_connection")
+async def test_ftshare_connection_tool() -> types.CallToolResult:
+    """Test the current anonymous/API-key FTShare connection without changing it."""
+    data = test_ftshare_connection()
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "FTShare 连接失败"), error=True)
+    return _result(data, str(data.get("message") or "FTShare 连接成功"))
 
 
 @mcp.tool(name="fetch_candles")
@@ -211,8 +445,11 @@ async def fetch_candles_tool(
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式")] = "none",
 ) -> types.CallToolResult:
     """Fetch raw OHLCV rows only when the user explicitly requests raw candle data."""
+    resolved_symbol, _resolved_name, symbol_error = _resolve_symbol_input(symbol)
+    if symbol_error:
+        return _result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
     data = fetch_candles(
-        symbol,
+        resolved_symbol or symbol,
         interval=interval,
         interval_value=interval_value,
         session_count=session_count,
@@ -238,6 +475,12 @@ async def calc_metrics(
     volume_ma: Annotated[int, Field(ge=2, le=200)] = DEFAULT_VOLUME_MA,
 ) -> types.CallToolResult:
     """Calculate metrics only for rows explicitly supplied by the caller."""
+    if not isinstance(rows, list):
+        data = {"ok": False, "error": "invalid_external_rows", "message": "rows must be a list"}
+        return _result(data, data["message"], error=True)
+    if len(rows) > 12000:
+        data = {"ok": False, "error": "too_many_rows", "message": "rows exceeds the 12000-item input safety limit"}
+        return _result(data, data["message"], error=True)
     try:
         data = run_calc_metrics(
             rows,
@@ -250,7 +493,69 @@ async def calc_metrics(
         )
     except Exception as exc:  # noqa: BLE001
         return _result({"ok": False, "error": "calc_failed", "message": str(exc)}, str(exc), error=True)
-    return _result(data, f"calc_metrics ok · bars={data['count']} · computed={','.join(data['metrics_computed'])}")
+    unknown = data.get("metrics_unknown") or []
+    warning = f" · warnings=ignored unsupported metrics: {','.join(unknown)}" if unknown else ""
+    return _result(data, f"calc_metrics ok · bars={data['count']} · computed={','.join(data['metrics_computed'])}{warning}")
+
+
+@mcp.tool(name="analyze_kline_rows")
+async def analyze_kline_rows(
+    rows: Annotated[list[dict[str, Any]], Field(description="来自任意数据源的 OHLCV 行；time 可为 Unix 秒或毫秒")],
+    symbol: Annotated[str, Field(description="标的代码或名称")],
+    name: Annotated[str | None, Field(description="标的名称")] = None,
+    interval: Annotated[Literal["minute", "day", "week", "month", "quarter", "year"], Field(description="K 线周期")] = "day",
+    limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
+    adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式或外部数据源的标记")] = "none",
+    indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
+    metrics: Annotated[list[str] | None, Field(description="指标摘要子集，可选：" + ", ".join(AVAILABLE_METRICS))] = None,
+    mark_support_resistance: Annotated[bool, Field(description="仅在用户明确要求支撑位/压力位时设为 true")] = False,
+    ma_periods: Annotated[list[int] | None, Field(description=f"MA 周期，默认 {DEFAULT_MA_PERIODS}")] = None,
+    rsi_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_RSI_PERIOD,
+    boll_period: Annotated[int, Field(ge=2, le=200)] = DEFAULT_BOLL_PERIOD,
+    boll_std: Annotated[float, Field(ge=0.5, le=5.0)] = DEFAULT_BOLL_STD,
+    volume_ma: Annotated[int, Field(ge=2, le=200)] = DEFAULT_VOLUME_MA,
+    atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
+    data_source: Annotated[str | None, Field(description="数据源名称，不要放 API key 或其他秘密")] = None,
+    data_source_url: Annotated[str | None, Field(description="可选的 HTTPS 数据源说明链接")] = None,
+    security_workspace: Annotated[dict[str, Any] | None, Field(description="可选的标准化新闻/简况数据")] = None,
+) -> types.CallToolResult:
+    """Analyze caller-supplied OHLCV rows and open the native chart sidebar."""
+    if not isinstance(rows, list):
+        data = {"ok": False, "error": "invalid_external_rows", "message": "rows must be a list"}
+        return _result(data, data["message"], error=True)
+    if len(rows) > 12000:
+        data = {"ok": False, "error": "too_many_rows", "message": "rows exceeds the 12000-item input safety limit"}
+        return _result(data, data["message"], error=True)
+    try:
+        # In external-rows mode the symbol is only a display label.  Do not
+        # resolve it through the local directory: BTC, TEST.X, backtest labels,
+        # and custom Chinese names must remain completely provider-independent.
+        resolved_symbol = str(symbol or "external").strip() or "external"
+        resolved_name = name or resolved_symbol
+        data = _analysis_from_rows(
+            rows,
+            symbol=resolved_symbol or symbol,
+            name=name or resolved_name,
+            interval=interval,
+            limit=limit,
+            adjust=adjust,
+            indicators=indicators,
+            metrics=metrics,
+            mark_support_resistance=mark_support_resistance,
+            ma_periods=ma_periods,
+            rsi_period=rsi_period,
+            boll_period=boll_period,
+            boll_std=boll_std,
+            volume_ma=volume_ma,
+            atr_period=atr_period,
+            data_source=data_source,
+            data_source_url=data_source_url,
+            security_workspace=security_workspace,
+        )
+    except (RowsValidationError, TypeError, ValueError) as exc:
+        data = {"ok": False, "error": "invalid_external_rows", "message": str(exc)}
+        return _result(data, data["message"], error=True)
+    return _result(data, f"analyze_kline_rows ok · {data['symbol']} · {data['count']} bars · source={data['source']}")
 
 
 @mcp.tool(name="analyze_kline")
@@ -272,10 +577,13 @@ async def analyze_kline(
     atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
 ) -> types.CallToolResult:
     """Use this single call for ordinary K-line analysis; it also opens the native chart sidebar."""
+    resolved_symbol, resolved_name, symbol_error = _resolve_symbol_input(symbol)
+    if symbol_error:
+        return _result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
     requested = max(2, min(int(limit), 4000))
     fetch_limit = requested if interval == "minute" else min(4000, max(requested, int(requested * 1.8)))
     fetched = fetch_candles(
-        symbol,
+        resolved_symbol or symbol,
         interval=interval,
         interval_value=interval_value,
         session_count=session_count,
@@ -290,12 +598,8 @@ async def analyze_kline(
         data = {"ok": False, "error": "insufficient_candles", "message": "fewer than two candles", "symbol": symbol}
         return _result(data, data["message"], error=True)
 
-    active_indicators = [
-        str(value).lower()
-        for value in (indicators or ["ma", "vol", "macd", "rsi"])
-        if str(value).lower() in {"ma", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"}
-    ]
-    periods = [int(value) for value in (ma_periods or DEFAULT_MA_PERIODS)]
+    active_indicators, unknown_indicators = _normalized_indicators(indicators)
+    periods = _normalized_ma_periods(ma_periods)
     requested_metrics = [str(value).lower() for value in metrics] if metrics is not None else ["rsi"]
     should_mark_levels = mark_support_resistance or "support_resistance" in requested_metrics
     if mark_support_resistance and "support_resistance" not in requested_metrics:
@@ -320,8 +624,8 @@ async def analyze_kline(
         indicators=active_indicators,
         ma_periods=periods,
         marks=analysis_marks,
-        symbol=str(fetched.get("symbol") or symbol),
-        name=str(fetched.get("name") or symbol),
+        symbol=str(fetched.get("symbol") or resolved_symbol or symbol),
+        name=str(fetched.get("name") or resolved_name or symbol),
         data_source=str(fetched.get("source") or "ftshare"),
         interval=interval,
         boll_period=boll_period,
@@ -346,8 +650,8 @@ async def analyze_kline(
     data = {
         "ok": True,
         "workflow": "fetch_analyze_chart_session",
-        "symbol": fetched.get("symbol") or symbol,
-        "name": fetched.get("name") or symbol,
+        "symbol": fetched.get("symbol") or resolved_symbol or symbol,
+        "name": fetched.get("name") or resolved_name or symbol,
         "interval": interval,
         "adjust": fetched.get("adjust") or adjust,
         "source": fetched.get("source") or "ftshare",
@@ -372,6 +676,7 @@ async def analyze_kline(
         ),
         "metrics": metric_data,
         "chart": chart,
+        "warnings": ([f"ignored unsupported indicators: {', '.join(unknown_indicators)}"] if unknown_indicators else []),
     }
     summary = {
         key: data[key]
@@ -387,6 +692,7 @@ async def analyze_kline(
             "indicator_last",
             "metrics",
             "chart_ready",
+            "warnings",
         )
     }
     return _result(data, "analyze_kline ok · " + json.dumps(summary, ensure_ascii=False, separators=(",", ":")))
