@@ -380,5 +380,99 @@ class ProviderNeutralTests(unittest.TestCase):
             _tool_dispatch("configure_ftshare", {"api_key": "", "test_connection": False})
 
 
+class ChartApiAnalyzeTests(unittest.TestCase):
+    """analyze_kline over the loopback chart API (key-level re-analysis)."""
+
+    @staticmethod
+    def wavy_rows(count=140):
+        up = [100, 103, 106, 109, 112, 115, 118, 120]
+        seq = []
+        index = 0
+        while len(seq) < count:
+            chunk = up if index % 2 == 0 else list(reversed(up))
+            seq.extend(chunk)
+            index += 1
+        seq = seq[:count]
+        rows = []
+        for idx, close in enumerate(seq):
+            previous = seq[idx - 1] if idx else close
+            rows.append(
+                {
+                    "time": 1_700_000_000 + idx * 86_400,
+                    "open": previous,
+                    "high": max(previous, close) + 1.0,
+                    "low": min(previous, close) - 1.0,
+                    "close": close,
+                    "volume": 1000 + idx,
+                }
+            )
+        return rows
+
+    @staticmethod
+    def canned_fetch(symbol, **kwargs):
+        return {
+            "ok": True,
+            "symbol": symbol,
+            "name": "贵州茅台" if symbol == "600519.XSHG" else symbol,
+            "interval": kwargs.get("interval", "day"),
+            "interval_value": kwargs.get("interval_value", 1),
+            "session_count": kwargs.get("session_count"),
+            "adjust": kwargs.get("adjust", "none"),
+            "source": "canned",
+            "rows": ChartApiAnalyzeTests.wavy_rows(),
+        }
+
+    def test_chart_api_analyze_kline_returns_level_markers(self):
+        with patch("chart_service.fetch_candles", side_effect=self.canned_fetch):
+            result = _tool_dispatch(
+                "analyze_kline",
+                {
+                    "symbol": "600519.XSHG",
+                    "interval": "day",
+                    "limit": 60,
+                    "indicators": ["ma", "vol"],
+                    "metrics": ["support_resistance"],
+                    "mark_support_resistance": True,
+                },
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["symbol"], "600519.XSHG")
+        commands = result.get("chartCommands")
+        self.assertIsInstance(commands, list)
+        kinds = [command.get("type") for command in commands]
+        self.assertIn("SET_CANDLES", kinds)
+        self.assertIn("TEXT_MARKER", kinds)
+        markers = [command for command in commands if command.get("type") == "TEXT_MARKER"]
+        self.assertTrue(markers, "support/resistance request must emit TEXT_MARKER commands")
+        self.assertTrue(all(marker.get("text") and marker.get("time") for marker in markers))
+        self.assertTrue(any("支撑" in marker.get("text", "") for marker in markers))
+        self.assertGreater(result["count"], 0)
+
+    def test_chart_api_analyze_kline_validates_before_fetch(self):
+        calls = []
+        with patch("chart_service.fetch_candles", side_effect=lambda *a, **k: calls.append(a) or {}):
+            result = _tool_dispatch("analyze_kline", {"symbol": "600519.XSHG", "interval": "1d", "limit": 60})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "unsupported_interval")
+        self.assertEqual(calls, [])
+
+    def test_chart_api_analyze_kline_passes_fetch_errors_through(self):
+        with patch(
+            "chart_service.fetch_candles",
+            return_value={"ok": False, "error": "index_candles_provider_unavailable", "message": "no index history"},
+        ):
+            result = _tool_dispatch("analyze_kline", {"symbol": "000300.XSHG", "interval": "day", "limit": 60})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "index_candles_provider_unavailable")
+
+    def test_data_source_status_reports_index_kline_capability(self):
+        with patch("tools.fetch.ftshare_index_kline_available", return_value=False):
+            status = _tool_dispatch("data_source_status", {})
+        self.assertTrue(status["ok"])
+        ftshare = status["providers"]["ftshare"]
+        self.assertIn("index_kline", ftshare)
+        self.assertFalse(ftshare["index_kline"])
+
+
 if __name__ == "__main__":
     unittest.main()

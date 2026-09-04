@@ -472,6 +472,27 @@
   .user-horizontal-line span { position: absolute; top: -15px; right: 4px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--info); color: #fff; font-size: 10px; }
   .drawing-capture-layer { position: absolute; z-index: 8; inset: 0 64px 0 0; display: none; cursor: crosshair; }
   .drawing-capture-layer.active { display: block; }
+  .level-menu-wrap { position: relative; }
+  .level-popover { display: none; position: absolute; z-index: 22; top: calc(100% + 5px); right: 0; width: 304px; max-height: min(540px, calc(100vh - 150px)); overflow-y: auto; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }
+  .level-popover.open { display: block; }
+  .level-scope-note { margin-bottom: 8px; color: var(--text-soft); font-size: 10px; line-height: 1.5; }
+  .level-add-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 5px; margin-bottom: 6px; }
+  .level-add-row.add-actions { grid-template-columns: minmax(0, 1fr) 60px auto auto; }
+  .level-add-row input, .level-add-row select { min-width: 0; height: 28px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
+  .level-add-row .btn { min-height: 28px; padding: 4px 8px; font-size: 11px; }
+  .level-hint { min-height: 16px; margin-bottom: 4px; color: var(--accent); font-size: 10px; }
+  .level-section-title { margin: 8px 0 4px; padding-top: 7px; border-top: 1px solid var(--border); color: var(--text-soft); font-size: 10px; font-weight: 700; }
+  .level-list { max-height: 172px; overflow-y: auto; }
+  .level-empty { padding: 5px 1px; color: var(--text-soft); font-size: 11px; }
+  .level-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 5px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .level-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, .14); cursor: pointer; }
+  .level-swatch:hover { transform: scale(1.15); }
+  .level-fields { display: grid; gap: 3px; min-width: 0; }
+  .level-fields input { min-width: 0; height: 22px; padding: 2px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 10px; }
+  .level-item-actions { display: flex; gap: 3px; justify-content: flex-end; }
+  .level-item-actions .btn { min-height: 24px; padding: 2px 6px; font-size: 10px; }
+  .level-actions { display: flex; gap: 5px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border); }
+  .level-actions .btn { min-height: 26px; flex: 1; font-size: 11px; }
   .security-nav { display: flex; align-items: center; gap: 18px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .security-nav::-webkit-scrollbar, .company-tabbar::-webkit-scrollbar { display: none; }
   .security-nav-tab { position: relative; flex: 0 0 auto; height: 42px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
@@ -814,6 +835,25 @@
         <div class="drawing-list" id="drawingList"></div>
       </div>
     </div>
+    <div class="level-menu-wrap">
+      <button class="btn" id="levelMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false">点位</button>
+      <div class="level-popover" id="levelPopover" role="dialog" aria-label="点位标注">
+        <div class="level-scope-note">自动 支撑/压力 来自「关键点位」，可在下方改价、改名、删除或转为自定义；自定义点位独立持久保存。</div>
+        <div class="level-add-row"><input id="levelPriceInput" type="number" inputmode="decimal" step="0.01" min="0" placeholder="价格（留空取最新价）" aria-label="点位价格" /><input id="levelNameInput" type="text" maxlength="24" placeholder="名称，如 突破位/止损位" aria-label="点位名称" /></div>
+        <div class="level-add-row">
+          <input id="levelNoteInput" type="text" maxlength="40" placeholder="备注（可选）" aria-label="点位备注" />
+          <select id="levelColorSelect" aria-label="点位颜色"><option value="danger">红</option><option value="success">绿</option><option value="warning">橙</option><option value="info">蓝</option></select>
+          <button class="btn primary" id="addLevelBtn" type="button" title="添加任意价格的水平价位线">+ 价位线</button>
+          <button class="btn" id="addLevelAtCandleBtn" type="button" title="在图表上点选一根 K 线打文本标注">K线标注</button>
+        </div>
+        <div class="level-hint" id="levelPlaceHint"></div>
+        <div class="level-section-title" id="customLevelTitle">我的自定义点位</div>
+        <div class="level-list" id="customLevelList"></div>
+        <div class="level-section-title" id="analysisLevelTitle">自动 支撑 / 压力（可编辑）</div>
+        <div class="level-list" id="analysisLevelList"></div>
+        <div class="level-actions"><button class="btn" id="clearLevelsBtn" type="button">清空我的点位</button><button class="btn" id="reanalyzeLevelsBtn" type="button">重新分析关键点位</button></div>
+      </div>
+    </div>
   </div>
 </div>
 <section class="comparison-performance" id="comparisonPerformance" hidden aria-label="标的对比走势">
@@ -1111,7 +1151,7 @@ const UI_COPY = {
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
     newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组保存在当前浏览器中。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
-    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前数据源不提供此标的的分钟 K，请配置 FTSHARE_API_KEY 后重试，或切换到 30日。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
+    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前数据源不提供此标的的分钟 K，请配置 FTSHARE_API_KEY 后重试，或切换到 30日。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
   },
   en: {
@@ -1129,11 +1169,38 @@ const UI_COPY = {
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
     newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
-    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "This source does not provide minute bars for this symbol. Set FTSHARE_API_KEY and retry, or switch to 30-day.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
+    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "This source does not provide minute bars for this symbol. Set FTSHARE_API_KEY and retry, or switch to 30-day.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
     day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "dsh_kline Chart",
   },
 };
 function t(key) { return UI_COPY[viewLanguage]?.[key] || UI_COPY.zh[key] || key; }
+Object.assign(UI_COPY.zh, {
+  levelMenu: "点位", levelMenuAria: "点位标注",
+  levelScopeNote: "自动 支撑/压力 来自「关键点位」，可在此改价、改名、删除或转为自定义；自定义点位独立保存在本机。",
+  levelPricePlaceholder: "价格（留空取最新价）", levelNamePlaceholder: "名称，如 突破位/止损位", levelNotePlaceholder: "备注（可选）",
+  addLevelBtn: "+ 价位线", addAtCandleBtn: "K线标注", cancelPlaceMode: "取价/标注模式已取消",
+  customLevelTitle: "我的自定义点位", autoLevelTitle: "自动 支撑 / 压力（可编辑）",
+  emptyCustomLevels: "暂无自定义点位：填价格点「+ 价位线」，或在图上一键标注。", emptyAutoLevels: "暂无自动点位：点击「关键点位」生成可编辑的支撑/压力。",
+  levelLineHint: "已在图上取价：点一根 K 线，在该价位生成水平线；点「+ 价位线」取消。",
+  levelMarkerHint: "已在图上取标注点：点一根 K 线放置文本标注；点「K线标注」取消。",
+  levelLineAdded: "已添加自定义价位线", levelMarkerAdded: "已添加文本标注", levelRemoved: "已删除点位",
+  levelsCleared: "已清空我的点位", madeMine: "已转为自定义点位", toMine: "转我的",
+  clearLevelsBtn: "清空我的点位", reanalyzeLevelsBtn: "重新分析关键点位",
+});
+Object.assign(UI_COPY.en, {
+  levelMenu: "Levels", levelMenuAria: "Level annotations",
+  levelScopeNote: "Auto support/resistance comes from “Key levels” and can be renamed, repriced, deleted, or moved to My levels below; custom levels persist locally.",
+  levelPricePlaceholder: "Price (blank = latest)", levelNamePlaceholder: "Name e.g. breakout / stop", levelNotePlaceholder: "Note (optional)",
+  addLevelBtn: "+ Level", addAtCandleBtn: "Mark @ candle", cancelPlaceMode: "Pick/mark mode cancelled",
+  customLevelTitle: "My custom levels", autoLevelTitle: "Auto support / resistance (editable)",
+  emptyCustomLevels: "No custom levels yet: enter a price and hit “+ Level”, or tap a candle on the chart.",
+  emptyAutoLevels: "No auto levels yet: click “Key levels” to generate editable support/resistance.",
+  levelLineHint: "Picking on chart: click a candle to place a level line there; click “+ Level” to cancel.",
+  levelMarkerHint: "Marking on chart: click a candle to drop a text marker; click “Mark @ candle” to cancel.",
+  levelLineAdded: "Custom level line added", levelMarkerAdded: "Text marker added", levelRemoved: "Level removed",
+  levelsCleared: "My levels cleared", madeMine: "Moved to my levels", toMine: "Keep mine",
+  clearLevelsBtn: "Clear my levels", reanalyzeLevelsBtn: "Re-analyze key levels",
+});
 const RANGE_COPY = {
   zh: { detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
   en: { detail: "Range details", return: "Period return", amplitude: "Amplitude", drawdown: "Max drawdown", bars: "Bars", days: "Calendar days", upDown: "Up/down", start: "Start", end: "End", openClose: "Open/close", highLow: "High/low", streak: "Up/down streak", averageVolume: "Average volume", pickNext: " (click the end point)", calculating: "Calculating range…", failed: "Range calculation failed", updating: "Updating indicators…", redrawFailed: "Redraw failed" },
@@ -1148,7 +1215,7 @@ function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || la
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 7,
+      version: 8,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
@@ -1165,13 +1232,15 @@ function saveWorkspacePreferences() {
       comparisons: comparisonSeries.map((item) => ({ symbol: item.symbol, name: item.name })),
       comparisonMode,
       userDrawings,
+      customLevels,
+      analysisLevels,
     }));
   } catch {}
 }
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6, 7].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
     if (parsed.rangeKey === "10d") currentRangeKey = "30d";
     else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
@@ -1230,6 +1299,8 @@ function loadWorkspacePreferences() {
     if (Array.isArray(parsed.userDrawings)) {
       userDrawings = parsed.userDrawings.filter((item) => item?.symbol && item?.type && Array.isArray(item?.points)).slice(0, MAX_USER_DRAWINGS).map((item) => ({ id: String(item.id || `${item.type}:${item.symbol}`), symbol: String(item.symbol), type: String(item.type), name: String(item.name || "").slice(0, 32), points: item.points.slice(0, 2).map((point) => ({ time: Number(point.time), price: Number(point.price) })).filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price)) })).filter((item) => item.points.length >= (item.type === "horizontal" ? 1 : 2));
     }
+    if (Array.isArray(parsed.customLevels)) customLevels = normalizeCustomLevels(parsed.customLevels);
+    if (Array.isArray(parsed.analysisLevels)) analysisLevels = normalizeAutoLevels(parsed.analysisLevels);
     if (parsed.symbol) restoredWorkspaceSymbol = { symbol: String(parsed.symbol), name: String(parsed.name || parsed.symbol) };
   } catch {}
 }
@@ -1316,7 +1387,7 @@ function syncLanguageControls() {
     toolbarHint: t("toolbarHint"), clearBtn: t("clear"),
     indicatorHeading: t("indicatorHeading"), applyIndicatorBtn: t("apply"), applyCustomRangeBtn: t("apply"),
     watchlistRailHeading: t("watchlist"), customRangeBtn: t("custom"), brandProduct: t("productName"),
-    alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), watchlistBatchOpenBtn: t("batchOpen"), clearDrawingsBtn: t("clear"),
+    alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), levelMenuBtn: t("levelMenu"), watchlistBatchOpenBtn: t("batchOpen"), clearDrawingsBtn: t("clear"),
     groupDialogTitle: t("newGroup"), groupDialogCancel: t("cancel"), groupDialogSubmit: t("create"), ftshareConfigureBtn: t("configureAndTest"), ftshareClearBtn: t("clearConfig"),
   };
   for (const [id, value] of Object.entries(values)) {
@@ -1358,6 +1429,9 @@ function syncLanguageControls() {
   if (alertPrice) { alertPrice.placeholder = t("alertPrice"); alertPrice.setAttribute("aria-label", t("alertPrice")); }
   const alertNote = document.getElementById("alertNoteInput");
   if (alertNote) { alertNote.placeholder = t("alertNote"); alertNote.setAttribute("aria-label", t("alertNote")); }
+  const levelButton = document.getElementById("levelMenuBtn");
+  if (levelButton) { levelButton.title = t("levelMenu"); levelButton.setAttribute("aria-label", t("levelMenuAria")); }
+  if (document.getElementById("levelPopover")?.classList.contains("open")) renderLevelsPanel();
   const compareInput = document.getElementById("compareSymbolInput");
   if (compareInput) { compareInput.placeholder = t("comparePlaceholder"); compareInput.setAttribute("aria-label", t("compare")); }
   const drawingName = document.getElementById("drawingNameInput");
@@ -1803,6 +1877,7 @@ function scheduleChartOverlayRender() {
     drawMaLayer();
     drawComparisonLayer();
     drawUserDrawings();
+    drawLevelOverlays();
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
     refreshPercentAxis();
@@ -3119,6 +3194,387 @@ function clearUserDrawingVisuals() {
   const layer = document.getElementById("userDrawingLayer");
   if (layer) layer.innerHTML = "";
 }
+/* ---------- custom + editable levels (点位标注) ---------- */
+let analysisLevels = [];
+let customLevels = [];
+let levelPlaceMode = "";
+const MAX_CUSTOM_LEVELS = 60;
+const LEVEL_COLOR_SEQUENCE = ["danger", "success", "warning", "info"];
+const LEVEL_SWATCH_BG = { danger: "var(--danger)", success: "var(--success)", warning: "var(--warn)", info: "var(--info)" };
+
+function levelColorOf(value) { return LEVEL_SWATCH_BG[value] || "var(--info)"; }
+function allowedLevelColor(value) { return LEVEL_COLOR_SEQUENCE.includes(String(value || "")) ? String(value) : "info"; }
+function activeAutoLevels() { return analysisLevels.filter((item) => item && item.symbol === currentSymbol); }
+function activeCustomLevels() { return customLevels.filter((item) => item && item.symbol === currentSymbol); }
+function defaultAutoLabel(entry) {
+  const side = String(entry.side || "support") === "resistance" ? "压力" : "支撑";
+  let label = `${side} ${formatPrice(entry.price)}`;
+  const touches = Number(entry.touches || 0);
+  if (Number.isFinite(touches) && touches > 0) label += ` · 触及${touches}次`;
+  return label;
+}
+function normalizeCustomLevels(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item && item.symbol && ["line", "marker"].includes(item.kind) && Number.isFinite(Number(item.price)) && Number(item.price) > 0)
+    .slice(0, MAX_CUSTOM_LEVELS)
+    .map((item) => ({
+      id: String(item.id || `${item.kind}:${item.symbol}:${Date.now()}`),
+      symbol: String(item.symbol),
+      kind: item.kind === "line" ? "line" : "marker",
+      price: Number(item.price),
+      time: Number.isFinite(Number(item.time)) && Number(item.time) > 0 ? Number(item.time) : 0,
+      name: String(item.name || "").slice(0, 24),
+      label: String(item.label || item.name || "").slice(0, 60),
+      note: String(item.note || "").slice(0, 64),
+      color: allowedLevelColor(item.color),
+    }));
+}
+function normalizeAutoLevels(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item && item.symbol && Number.isFinite(Number(item.price)) && Number(item.price) > 0 && String(item.markerId || ""))
+    .slice(0, 80)
+    .map((item) => ({
+      id: String(item.id || `${item.side}:${item.time}:${item.price}`),
+      markerId: String(item.markerId || item.id || ""),
+      symbol: String(item.symbol),
+      kind: "auto",
+      side: item.side === "resistance" ? "resistance" : "support",
+      price: Number(item.price),
+      time: Number.isFinite(Number(item.time)) && Number(item.time) > 0 ? Number(item.time) : 0,
+      label: String(item.label || "").slice(0, 60),
+      customLabel: Boolean(item.customLabel),
+      touches: Math.max(0, Number(item.touches) || 0),
+      color: allowedLevelColor(item.color),
+    }));
+}
+function levelDisplayLabel(entry) {
+  if (entry.kind === "auto") return entry.customLabel && entry.label ? entry.label : defaultAutoLabel(entry);
+  return entry.label || entry.name || formatPrice(entry.price);
+}
+function setDrawingCaptureActiveForLevels(active) {
+  const layer = document.getElementById("drawingCaptureLayer");
+  if (!layer) return;
+  layer.classList.toggle("active", active);
+  layer.style.display = active ? "block" : "";
+  layer.style.pointerEvents = active ? "auto" : "";
+}
+function cancelLevelPlace() {
+  if (!levelPlaceMode) return;
+  levelPlaceMode = "";
+  const hint = document.getElementById("levelPlaceHint");
+  if (hint) hint.textContent = "";
+  setDrawingCaptureActiveForLevels(false);
+  setChartStatus("");
+}
+function toggleMarkerPlace() {
+  if (!currentSymbol || currentCandles.length < 2) { setChartStatus(t("keyLevelsNeedData")); return; }
+  levelPlaceMode = levelPlaceMode === "marker" ? "" : "marker";
+  const hint = document.getElementById("levelPlaceHint");
+  if (hint) hint.textContent = levelPlaceMode === "marker" ? t("levelMarkerHint") : "";
+  setDrawingCaptureActiveForLevels(Boolean(levelPlaceMode));
+  setChartStatus(levelPlaceMode === "marker" ? t("levelMarkerHint") : "");
+}
+function levelPayloadFromForm(candle) {
+  const priceRaw = String(document.getElementById("levelPriceInput")?.value || "").trim();
+  const fallback = candle ? Number(candle.close) : Number(currentCandles[currentCandles.length - 1]?.close);
+  const price = priceRaw === "" ? fallback : Number(priceRaw);
+  if (!Number.isFinite(price) || price <= 0) { setChartStatus(t("alertPrice")); return null; }
+  return {
+    price: Math.round(price * 100) / 100,
+    name: String(document.getElementById("levelNameInput")?.value || "").trim().slice(0, 24),
+    note: String(document.getElementById("levelNoteInput")?.value || "").trim().slice(0, 64),
+    color: allowedLevelColor(document.getElementById("levelColorSelect")?.value),
+  };
+}
+function addCustomLevelEntry(entry) {
+  customLevels = [...customLevels.filter((item) => item.id !== entry.id), entry].slice(-MAX_CUSTOM_LEVELS);
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+}
+function addCustomLevelFromForm() {
+  if (!currentSymbol || currentCandles.length < 2) { setChartStatus(t("keyLevelsNeedData")); return; }
+  const payload = levelPayloadFromForm(null);
+  if (!payload) return;
+  const last = currentCandles[currentCandles.length - 1];
+  addCustomLevelEntry({
+    id: `${currentSymbol}:line:${Date.now()}`, symbol: currentSymbol, kind: "line",
+    price: payload.price, time: Number(last.time), name: payload.name, note: payload.note,
+    color: payload.color, label: payload.name || formatPrice(payload.price),
+  });
+  const priceInput = document.getElementById("levelPriceInput");
+  if (priceInput) priceInput.value = "";
+  const nameInput = document.getElementById("levelNameInput");
+  if (nameInput) nameInput.value = "";
+  const noteInput = document.getElementById("levelNoteInput");
+  if (noteInput) noteInput.value = "";
+  cancelLevelPlace();
+  setChartStatus(t("levelLineAdded"));
+  window.setTimeout(() => setChartStatus(""), 1000);
+}
+function finishLevelAtCandle(candle) {
+  if (!candle || levelPlaceMode !== "marker") return;
+  const payload = levelPayloadFromForm(candle);
+  if (!payload) return;
+  addCustomLevelEntry({
+    id: `${currentSymbol}:marker:${Date.now()}`, symbol: currentSymbol, kind: "marker",
+    price: payload.price, time: Number(candle.time), name: payload.name, note: payload.note,
+    color: payload.color, label: payload.name || t("levelMenu") || "标注",
+  });
+  const priceInput = document.getElementById("levelPriceInput");
+  if (priceInput) priceInput.value = "";
+  const nameInput = document.getElementById("levelNameInput");
+  if (nameInput) nameInput.value = "";
+  const noteInput = document.getElementById("levelNoteInput");
+  if (noteInput) noteInput.value = "";
+  cancelLevelPlace();
+  setChartStatus(t("levelMarkerAdded"));
+  window.setTimeout(() => setChartStatus(""), 1000);
+}
+function deleteLevel(origin, id) {
+  if (origin === "auto") analysisLevels = analysisLevels.filter((item) => !(item.id === id && item.symbol === currentSymbol));
+  else customLevels = customLevels.filter((item) => !(item.id === id && item.symbol === currentSymbol));
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+  setChartStatus(t("levelRemoved"));
+  window.setTimeout(() => setChartStatus(""), 800);
+}
+function moveAutoLevelToCustom(id) {
+  const entry = analysisLevels.find((item) => item.id === id && item.symbol === currentSymbol);
+  if (!entry) return;
+  addCustomLevelEntry({
+    id: `${currentSymbol}:marker:${Date.now()}`, symbol: entry.symbol, kind: "marker",
+    price: entry.price, time: entry.time, name: entry.customLabel && entry.label ? entry.label : "",
+    note: "", color: entry.color, label: entry.customLabel && entry.label ? entry.label : defaultAutoLabel(entry),
+  });
+  analysisLevels = analysisLevels.filter((item) => item.id !== id);
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+  setChartStatus(t("madeMine"));
+  window.setTimeout(() => setChartStatus(""), 900);
+}
+function updateLevelValue(origin, id, field, value) {
+  const list = origin === "auto" ? analysisLevels : customLevels;
+  const entry = list.find((item) => item.id === id && item.symbol === currentSymbol);
+  if (!entry) return;
+  if (field === "price") {
+    const price = Number(value);
+    if (!Number.isFinite(price) || price <= 0) return;
+    entry.price = Math.round(price * 100) / 100;
+    if (origin === "auto" && !entry.customLabel) entry.label = defaultAutoLabel(entry);
+  } else if (field === "name") {
+    const text = String(value || "").trim().slice(0, 24);
+    entry.name = text;
+    if (origin === "auto") { entry.customLabel = Boolean(text); entry.label = text || defaultAutoLabel(entry); }
+    else { entry.label = text || formatPrice(entry.price); }
+  }
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+}
+function cycleLevelColor(id) {
+  const entry = customLevels.find((item) => item.id === id && item.symbol === currentSymbol);
+  if (!entry) return;
+  const index = LEVEL_COLOR_SEQUENCE.indexOf(entry.color);
+  entry.color = LEVEL_COLOR_SEQUENCE[(index + 1) % LEVEL_COLOR_SEQUENCE.length];
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+}
+function clearCurrentCustomLevels() {
+  customLevels = customLevels.filter((item) => item.symbol !== currentSymbol);
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+  setChartStatus(t("levelsCleared"));
+  window.setTimeout(() => setChartStatus(""), 900);
+}
+function syncAutoLevelsFromPayload(payload) {
+  const structured = payload?.structuredContent || payload || {};
+  const commands = Array.isArray(structured.chartCommands) ? structured.chartCommands : [];
+  const symbol = String(structured.symbol || currentSymbol || "");
+  if (!symbol) return;
+  const marks = commands.filter((cmd) => cmd?.type === "TEXT_MARKER" && cmd?.time && cmd?.price != null).slice(0, 80);
+  const next = marks.map((cmd) => {
+    const rawText = String(cmd.text || "");
+    const isResistance = /压力/.test(rawText);
+    const match = /触及(\d+)次/.exec(rawText);
+    return {
+      id: String(cmd.id || `${cmd.time}:${cmd.price}`),
+      markerId: String(cmd.id || ""),
+      symbol,
+      kind: "auto",
+      side: isResistance ? "resistance" : "support",
+      price: Number(cmd.price),
+      time: Number(cmd.time),
+      label: rawText,
+      customLabel: false,
+      touches: match ? Number(match[1]) : 0,
+      color: isResistance ? "danger" : "success",
+    };
+  });
+  analysisLevels = normalizeAutoLevels(next);
+  // Auto markers are now owned by the editable list; drop raw TEXT_MARKER
+  // commands so later local redraws never resurrect deleted/edited levels.
+  lastMarks = lastMarks.filter((cmd) => cmd && cmd.type !== "TEXT_MARKER");
+  renderLevelsPanel();
+  drawLevelOverlays();
+  saveWorkspacePreferences();
+}
+function levelRowHtml(origin, entry) {
+  const idAttr = escapeHtml(entry.id);
+  const price = escapeHtml(String(Number(entry.price)));
+  const name = escapeHtml(entry.kind === "auto" ? (entry.customLabel && entry.label ? entry.label : defaultAutoLabel(entry)) : (entry.name || entry.label || ""));
+  const swatchColor = levelColorOf(entry.color);
+  const swatch = origin === "custom"
+    ? `<span class="level-swatch" data-level-swatch="true" title="${escapeHtml(t("levelMenuAria"))}: color" style="background:${swatchColor}"></span>`
+    : `<span class="level-swatch" style="background:${swatchColor}"></span>`;
+  const actions = origin === "auto"
+    ? `<div class="level-item-actions"><button class="btn" type="button" data-level-mine="true">${escapeHtml(t("toMine"))}</button><button class="btn icon-btn" type="button" data-level-delete="true" aria-label="${escapeHtml(t("levelRemoved"))}" title="${escapeHtml(t("levelRemoved"))}">&times;</button></div>`
+    : `<div class="level-item-actions"><button class="btn icon-btn" type="button" data-level-delete="true" aria-label="${escapeHtml(t("levelRemoved"))}" title="${escapeHtml(t("levelRemoved"))}">&times;</button></div>`;
+  return `<div class="level-item" data-level-item="${escapeHtml(origin)}" data-level-id="${idAttr}">${swatch}<div class="level-fields"><input type="number" inputmode="decimal" step="0.01" min="0" data-level-input="price" value="${price}" aria-label="price" /><input type="text" maxlength="24" data-level-input="name" value="${name}" aria-label="name" /></div>${actions}</div>`;
+}
+function renderLevelsPanel() {
+  if (!document.getElementById("levelPopover")) return;
+  const customTitle = document.getElementById("customLevelTitle");
+  if (customTitle) customTitle.textContent = t("customLevelTitle");
+  const autoTitle = document.getElementById("analysisLevelTitle");
+  if (autoTitle) autoTitle.textContent = t("autoLevelTitle");
+  const priceInput = document.getElementById("levelPriceInput");
+  if (priceInput) priceInput.placeholder = t("levelPricePlaceholder");
+  const nameInput = document.getElementById("levelNameInput");
+  if (nameInput) nameInput.placeholder = t("levelNamePlaceholder");
+  const noteInput = document.getElementById("levelNoteInput");
+  if (noteInput) noteInput.placeholder = t("levelNotePlaceholder");
+  const scopeNote = document.querySelector("#levelPopover .level-scope-note");
+  if (scopeNote) scopeNote.textContent = t("levelScopeNote");
+  const customList = document.getElementById("customLevelList");
+  const autoList = document.getElementById("analysisLevelList");
+  const custom = activeCustomLevels();
+  const auto = activeAutoLevels();
+  if (customList) customList.innerHTML = custom.length ? custom.map((entry) => levelRowHtml("custom", entry)).join("") : `<div class="level-empty">${escapeHtml(t("emptyCustomLevels"))}</div>`;
+  if (autoList) autoList.innerHTML = auto.length ? auto.map((entry) => levelRowHtml("auto", entry)).join("") : `<div class="level-empty">${escapeHtml(t("emptyAutoLevels"))}</div>`;
+  const colorSelect = document.getElementById("levelColorSelect");
+  if (colorSelect && !colorSelect.value) colorSelect.value = "danger";
+}
+function levelMarkerCommand(entry, first, last) {
+  const label = levelDisplayLabel(entry);
+  if (entry.kind === "line") {
+    const from = { time: Number(entry.time) || Number(first.time), price: entry.price };
+    const to = { time: Number(last.time), price: entry.price };
+    return { id: entry.id, type: "DRAW_TREND_LINE", text: label, label, color: entry.color, from, to };
+  }
+  return { id: entry.id, type: "TEXT_MARKER", text: label, label, color: entry.color, time: Number(entry.time) || Number(first.time), price: entry.price };
+}
+function drawLevelOverlays() {
+  if (!kchart || !currentCandles.length) return;
+  try { kchart.removeOverlay({ groupId: "levelMarks" }); } catch {}
+  const first = currentCandles[0];
+  const last = currentCandles[currentCandles.length - 1];
+  // Edited/deleted auto markers must replace the payload-drawn raw markers.
+  for (const entry of activeAutoLevels()) {
+    if (entry.markerId) { try { kchart.removeOverlay({ id: entry.markerId }); } catch {} }
+    try {
+      const command = levelMarkerCommand(entry, first, last);
+      kchart.createOverlay({
+        name: "ftvTextMarker",
+        groupId: "levelMarks",
+        paneId: "candle_pane",
+        lock: true,
+        points: [{ timestamp: Number(command.time) * 1000, value: Number(command.price) }],
+        extendData: { text: command.text, colorName: command.color },
+        onClick: () => { levelPublish(command); return true; },
+      });
+    } catch (error) { console.warn("auto level overlay", error); }
+  }
+  for (const entry of activeCustomLevels()) {
+    try {
+      const command = levelMarkerCommand(entry, first, last);
+      if (entry.kind === "line") {
+        const points = [
+          { timestamp: Number(command.from.time) * 1000, value: Number(command.from.price) },
+          { timestamp: Number(command.to.time) * 1000, value: Number(command.to.price) },
+        ];
+        kchart.createOverlay({
+          name: "ftvTrendLine",
+          id: `clvl:${entry.id}`,
+          groupId: "levelMarks",
+          paneId: "candle_pane",
+          lock: true,
+          points,
+          extendData: { label: command.text, colorName: entry.color },
+          onClick: () => { levelPublish(command); return true; },
+        });
+      } else {
+        kchart.createOverlay({
+          name: "ftvTextMarker",
+          id: `clvl:${entry.id}`,
+          groupId: "levelMarks",
+          paneId: "candle_pane",
+          lock: true,
+          points: [{ timestamp: Number(command.time) * 1000, value: Number(command.price) }],
+          extendData: { text: command.text, colorName: entry.color },
+          onClick: () => { levelPublish(command); return true; },
+        });
+      }
+    } catch (error) { console.warn("custom level overlay", error); }
+  }
+}
+function levelPublish(command) {
+  publishSelection(markerSelection(command));
+  const anchor = nearestCandle(Number(command.time || command.from?.time));
+  if (anchor) drawSelectionHighlight(anchor);
+}
+function toggleLevelPopover() {
+  const popover = document.getElementById("levelPopover");
+  const button = document.getElementById("levelMenuBtn");
+  if (!popover || !button) return;
+  const open = !popover.classList.contains("open");
+  popover.classList.toggle("open", open);
+  button.setAttribute("aria-expanded", String(open));
+  if (open) renderLevelsPanel();
+  else cancelLevelPlace();
+}
+function bindLevelEvents() {
+  const button = document.getElementById("levelMenuBtn");
+  button?.addEventListener("click", (event) => { event.stopPropagation(); toggleLevelPopover(); });
+  document.getElementById("levelPopover")?.addEventListener("click", (event) => event.stopPropagation());
+  document.getElementById("addLevelBtn")?.addEventListener("click", () => addCustomLevelFromForm());
+  document.getElementById("addLevelAtCandleBtn")?.addEventListener("click", () => toggleMarkerPlace());
+  document.getElementById("reanalyzeLevelsBtn")?.addEventListener("click", () => analyzeKeyLevels().catch(console.warn));
+  document.getElementById("clearLevelsBtn")?.addEventListener("click", () => clearCurrentCustomLevels());
+  const popover = document.getElementById("levelPopover");
+  if (!popover) return;
+  popover.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const item = target.closest("[data-level-item]");
+    const input = target.closest("[data-level-input]");
+    if (item && input) {
+      updateLevelValue(item.dataset.levelItem, item.dataset.levelId, input.dataset.levelInput, input.value);
+      event.preventDefault();
+    }
+  });
+  popover.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const item = target.closest("[data-level-item]");
+    if (!item) return;
+    if (target.closest("[data-level-delete]")) {
+      deleteLevel(item.dataset.levelItem, item.dataset.levelId);
+      event.preventDefault();
+    } else if (target.closest("[data-level-mine]") && item.dataset.levelItem === "auto") {
+      moveAutoLevelToCustom(item.dataset.levelId);
+      event.preventDefault();
+    } else if (target.closest("[data-level-swatch]") && item.dataset.levelItem === "custom") {
+      cycleLevelColor(item.dataset.levelId);
+      event.preventDefault();
+    }
+  });
+}
+
 function renderUserDrawings() {
   const list = document.getElementById("drawingList");
   if (!list) return;
@@ -3382,9 +3838,11 @@ function initChartContextMenu() {
   chartEl.dataset.contextMenuBound = "true";
   const drawingLayer = document.getElementById("drawingCaptureLayer");
   drawingLayer?.addEventListener("pointerdown", (event) => {
-    if (!drawingMode) return;
+    if (!drawingMode && !levelPlaceMode) return;
     const candle = candleAtChartPoint(event.clientX, event.clientY) || crosshairCandle;
-    if (candle) finishDrawing(candle);
+    if (!candle) return;
+    if (levelPlaceMode) { finishLevelAtCandle(candle); return; }
+    finishDrawing(candle);
   });
   chartEl.addEventListener("contextmenu", (event) => {
     const candle = candleAtChartPoint(event.clientX, event.clientY) || crosshairCandle || currentSelection?.candle;
@@ -3748,6 +4206,7 @@ async function applyChartCommands(payload) {
   renderComparisonSummary();
   drawComparisonLayer();
   renderUserDrawings();
+  drawLevelOverlays();
   if (currentSelection?.kind === "range") drawRangeHighlight();
   else if (currentSelection?.candle) drawSelectionHighlight(nearestCandle(currentSelection.candle.time));
   if (!payload.local_render || payload.fit_to_data) {
@@ -4546,6 +5005,8 @@ function exportLocalData() {
     watchlist: { groups: watchlistGroups, items: watchlist, activeGroupId: activeWatchlistGroupId, sort: watchlistSort },
     priceAlerts,
     userDrawings,
+    customLevels,
+    analysisLevels,
     comparisons: comparisonSeries.map((item) => ({ symbol: item.symbol, name: item.name })),
     workspacePreferences,
   };
@@ -4586,6 +5047,8 @@ async function importLocalData(file) {
     applyWatchlistState(watchState);
     priceAlerts = normalizeImportedAlerts(payload.priceAlerts);
     userDrawings = normalizeImportedDrawings(payload.userDrawings);
+    customLevels = normalizeCustomLevels(payload.customLevels);
+    analysisLevels = normalizeAutoLevels(payload.analysisLevels);
     comparisonRestores = (Array.isArray(payload.comparisons) ? payload.comparisons : []).filter((item) => item?.symbol).slice(0, MAX_COMPARISONS).map((item) => ({ symbol: normalizeSymbolInput(item.symbol), name: String(item.name || item.symbol) }));
     saveWatchlist();
     saveWorkspacePreferences();
@@ -4593,6 +5056,8 @@ async function importLocalData(file) {
     renderPriceAlerts();
     drawPriceAlertOverlays();
     renderUserDrawings();
+    drawLevelOverlays();
+    renderLevelsPanel();
     setLocalDataStatus(t("localDataImported"), "success");
   } catch (error) {
     console.warn("import local data", error);
@@ -4960,6 +5425,7 @@ function renderDataSourceStatus(data) {
   };
   setCapabilityState("capDailyState", capabilities.daily);
   setCapabilityState("capMinuteState", capabilities.minute);
+  applyIndexCompareCapability(data);
 }
 async function refreshDataSourceStatus() {
   try {
@@ -4968,6 +5434,30 @@ async function refreshDataSourceStatus() {
     if (data.ok) { renderSettingsSource(); renderDataSourceStatus(data); }
   } catch (error) {
     setFtshareConfigStatus(ftshareConfigErrorMessage(error), "error");
+  }
+}
+function applyIndexCompareCapability(data) {
+  // A-share index presets depend on a verified index K-line history contract
+  // from the active data source. Without that capability the quick buttons are
+  // disabled (with a tooltip) instead of failing on click; the free-text field
+  // stays available and reports any provider error directly.
+  const provider = data?.providers?.ftshare || {};
+  const supported = provider.index_kline === true;
+  const note = supported ? "" : t("compareIndexUnavailable");
+  document.querySelectorAll("[data-compare-symbol]").forEach((button) => {
+    button.disabled = !supported;
+    button.classList.toggle("data-unavailable", !supported);
+    button.title = note;
+    button.setAttribute("aria-disabled", String(!supported));
+  });
+}
+async function refreshIndexCompareCapability() {
+  try {
+    const result = await callTool("data_source_status", {});
+    const data = result?.structuredContent || result || {};
+    if (data.ok) applyIndexCompareCapability(data);
+  } catch {
+    applyIndexCompareCapability({});
   }
 }
 async function configureFtshareFromSettings() {
@@ -5850,7 +6340,11 @@ async function analyzeKeyLevels() {
       metrics: ["support_resistance"],
       mark_support_resistance: true,
     });
+    // Persist the returned level markers so later local redraws (indicator
+    // toggles, resizes) keep re-drawing them instead of dropping the analysis.
+    rememberAnalysisCommands(result);
     await handleToolResult(result);
+    syncAutoLevelsFromPayload(result);
     setChartStatus(t("keyLevelsReady"));
     finishActivityNotice(t("keyLevelsReady"));
     window.setTimeout(() => setChartStatus(""), 1200);
@@ -6123,6 +6617,9 @@ document.addEventListener("keydown", (event) => {
     document.getElementById("compareMenuBtn")?.setAttribute("aria-expanded", "false");
     document.getElementById("drawingPopover")?.classList.remove("open");
     document.getElementById("drawingMenuBtn")?.setAttribute("aria-expanded", "false");
+    document.getElementById("levelPopover")?.classList.remove("open");
+    document.getElementById("levelMenuBtn")?.setAttribute("aria-expanded", "false");
+    cancelLevelPlace();
     setSettingsOpen(false);
     closeWatchlistGroupDialog();
   }
@@ -6140,6 +6637,11 @@ document.addEventListener("pointerdown", (event) => {
   if (!target?.closest(".drawing-menu-wrap")) {
     document.getElementById("drawingPopover")?.classList.remove("open");
     document.getElementById("drawingMenuBtn")?.setAttribute("aria-expanded", "false");
+  }
+  if (!target?.closest(".level-menu-wrap")) {
+    document.getElementById("levelPopover")?.classList.remove("open");
+    document.getElementById("levelMenuBtn")?.setAttribute("aria-expanded", "false");
+    cancelLevelPlace();
   }
   if (!target?.closest(".settings-menu-wrap, #settingsPopover")) {
     setSettingsOpen(false);
@@ -6206,6 +6708,7 @@ document.getElementById("rangeAnalyzeBtn").addEventListener("click", () => {
 document.getElementById("keyLevelsBtn")?.addEventListener("click", () => {
   analyzeKeyLevels().catch(console.warn);
 });
+bindLevelEvents();
 document.getElementById("rangeClearBtn").addEventListener("click", () => {
   clearRangePick();
   setChartStatus("");
@@ -6234,6 +6737,7 @@ async function init() {
   setWatchlistRail(watchlistRailOpen, { persist: false });
   initViewScrollbar();
   initCanvasResizer();
+  refreshIndexCompareCapability();
   if (window.ResizeObserver) {
     viewResizeObserver = new ResizeObserver(() => {
       applyViewportHeight(null);

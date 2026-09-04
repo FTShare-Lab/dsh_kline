@@ -11,6 +11,7 @@ const LOGO_FILE = fileURLToPath(new URL('../view/ft-logo.jpg', import.meta.url))
 const MAX_SESSION_AGE_SECONDS = 7 * 60 * 60
 const MAX_PROXY_BYTES = 8 * 1024 * 1024
 const CHART_ACTIONS = new Set([
+  'analyze_kline',
   'calc_range',
   'fetch_candles',
   'fetch_comparison_candles',

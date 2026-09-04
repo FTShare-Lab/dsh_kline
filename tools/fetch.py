@@ -438,6 +438,18 @@ def ftshare_capabilities() -> dict[str, str]:
     return {"daily": "available" if ftshare_available() else "unavailable", "minute": "not_tested"}
 
 
+def ftshare_index_kline_available() -> bool:
+    """Whether A-share index K-line history is available from the FTShare adapter.
+
+    The adapter only calls verified provider contracts (see
+    docs/provider-adaptation.md). No verified A-share index daily/minute K-line
+    history endpoint is registered yet, so index K-lines are intentionally
+    reported as unavailable instead of being routed to unverified endpoints.
+    Update this single flag when a verified index-history contract is added.
+    """
+    return False
+
+
 def configure_ftshare_api_key(
     api_key: str | None,
     *,

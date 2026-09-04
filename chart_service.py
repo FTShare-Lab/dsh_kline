@@ -22,7 +22,17 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import unquote, urlparse
 
-from core.calc import calc_range
+from core.calc import (
+    DEFAULT_ATR_PERIOD,
+    DEFAULT_BOLL_PERIOD,
+    DEFAULT_BOLL_STD,
+    DEFAULT_MA_PERIODS,
+    DEFAULT_RSI_PERIOD,
+    DEFAULT_VOLUME_MA,
+    calc_range,
+)
+from tools.calc import run_calc_metrics
+from tools.draw import draw_kline
 from tools.fetch import (
     configure_ftshare_api_key,
     fetch_candles,
@@ -30,6 +40,7 @@ from tools.fetch import (
     fetch_market_ticker,
     fetch_security_workspace,
     ftshare_capabilities,
+    ftshare_index_kline_available,
     ftshare_status,
     search_symbols,
     symbol_directory,
@@ -48,6 +59,7 @@ SESSION_TTL_SECONDS = 6 * 60 * 60
 MAX_SESSIONS = 128
 CHART_API_ACTIONS = frozenset(
     {
+        "analyze_kline",
         "calc_range",
         "fetch_candles",
         "fetch_comparison_candles",
@@ -101,7 +113,133 @@ class ChartSessionStore:
             self._items.pop(key, None)
 
 
+def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
+    """analyze_kline over the loopback chart API (key-level re-analysis).
+
+    The MCP module implements the authoritative analyze pipeline; this module is
+    imported by that module, so its helpers are loaded lazily at request time.
+    Only the loopback service publishes chart sessions, so this action redraws
+    through the returned chart payload without touching the shared session.
+    """
+    try:
+        from server import (  # noqa: PLC0415
+            _normalized_indicators,
+            _normalized_ma_periods,
+            _resolve_symbol_input,
+            _support_resistance_marks,
+            _validate_interval,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": "chart_action_failed", "message": f"analyze_kline unavailable: {exc}"}
+
+    def _positive(value: Any, fallback: float, minimum: float, maximum: float) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return fallback
+        if parsed < minimum:
+            return minimum
+        if parsed > maximum:
+            return maximum
+        return parsed
+
+    try:
+        symbol = str(args.get("symbol") or "").strip()
+        if not symbol:
+            return {"ok": False, "error": "invalid_arguments", "message": "symbol is required"}
+        normalized_interval, interval_error = _validate_interval(str(args.get("interval") or "day"))
+        if interval_error:
+            return {"ok": False, **interval_error}
+        interval = normalized_interval or "day"
+        resolved_symbol, resolved_name, symbol_error = _resolve_symbol_input(symbol)
+        if symbol_error:
+            return {"ok": False, **symbol_error}
+        adjust = str(args.get("adjust") or "none").strip().lower()
+        if adjust not in {"none", "forward", "backward"}:
+            adjust = "none"
+        interval_value = int(_positive(args.get("interval_value"), 1, 1, 240))
+        raw_sessions = args.get("session_count")
+        session_count = int(_positive(raw_sessions, 5, 1, 10)) if raw_sessions is not None else None
+        requested = max(2, min(int(args.get("limit") or 60), 4000))
+        fetch_limit = requested if interval == "minute" else min(4000, max(requested, int(requested * 1.8)))
+        fetched = fetch_candles(
+            resolved_symbol or symbol,
+            interval=interval,
+            interval_value=interval_value,
+            session_count=session_count,
+            limit=fetch_limit,
+            adjust=adjust,
+        )
+        if not fetched.get("ok"):
+            return dict(fetched)
+        rows = list(fetched.get("rows") or [])[-requested:]
+        if len(rows) < 2:
+            return {"ok": False, "error": "insufficient_candles", "message": "fewer than two candles", "symbol": symbol}
+
+        active_indicators, unknown_indicators = _normalized_indicators(args.get("indicators"))
+        periods = _normalized_ma_periods(args.get("ma_periods"))
+        requested_metrics = [str(value).lower() for value in args["metrics"]] if isinstance(args.get("metrics"), list) else ["rsi"]
+        should_mark_levels = bool(args.get("mark_support_resistance")) or "support_resistance" in requested_metrics
+        if args.get("mark_support_resistance") and "support_resistance" not in requested_metrics:
+            requested_metrics.append("support_resistance")
+        boll_period = int(_positive(args.get("boll_period"), DEFAULT_BOLL_PERIOD, 2, 200))
+        boll_std = float(_positive(args.get("boll_std"), DEFAULT_BOLL_STD, 0.5, 5.0))
+        rsi_period = int(_positive(args.get("rsi_period"), DEFAULT_RSI_PERIOD, 2, 100))
+        atr_period = int(_positive(args.get("atr_period"), DEFAULT_ATR_PERIOD, 2, 100))
+        volume_ma = int(_positive(args.get("volume_ma"), DEFAULT_VOLUME_MA, 2, 200))
+        metric_data = run_calc_metrics(
+            rows,
+            metrics=requested_metrics,
+            rsi_period=rsi_period,
+            boll_period=boll_period,
+            boll_std=boll_std,
+            atr_period=atr_period,
+            volume_ma=volume_ma,
+            ma_periods=periods,
+        )
+        analysis_marks = _support_resistance_marks(metric_data) if should_mark_levels else []
+        payload = draw_kline(
+            rows,
+            indicators=active_indicators,
+            ma_periods=periods,
+            marks=analysis_marks,
+            symbol=str(fetched.get("symbol") or resolved_symbol or symbol),
+            name=str(fetched.get("name") or resolved_name or symbol),
+            data_source=str(fetched.get("source") or "ftshare"),
+            interval=interval,
+            boll_period=boll_period,
+            boll_std=boll_std,
+            volume_ma=volume_ma,
+            rsi_period=rsi_period,
+            atr_period=atr_period,
+        )
+        previous = float(rows[-2]["close"])
+        latest = dict(rows[-1])
+        latest["change"] = round(float(latest["close"]) - previous, 6)
+        latest["change_pct"] = round((float(latest["close"]) / previous - 1) * 100, 4) if previous else None
+        payload.update(
+            {
+                "ok": True,
+                "workflow": "chart_api_analyze_key_levels",
+                "adjust": adjust,
+                "source": str(fetched.get("source") or "ftshare"),
+                "count": len(rows),
+                "fetched_count": len(fetched.get("rows") or []),
+                "latest": latest,
+                "metrics": metric_data,
+                "warnings": ([f"ignored unsupported indicators: {', '.join(unknown_indicators)}"] if unknown_indicators else []),
+            }
+        )
+        return payload
+    except TypeError as exc:
+        return {"ok": False, "error": "invalid_arguments", "message": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": "chart_action_failed", "message": str(exc)}
+
+
 def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    if name == "analyze_kline":
+        return _http_analyze_kline(args)
     if name == "symbol_directory":
         return symbol_directory(force_refresh=bool(args.get("refresh") or args.get("force_refresh")))
     if name == "data_source_status":
@@ -115,6 +253,7 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
                     "configured": bool(ftshare.get("configured")),
                     "persistent": bool(ftshare.get("persistent")),
                     "capabilities": ftshare_capabilities(),
+                    "index_kline": ftshare_index_kline_available(),
                     "sdk_version": ftshare.get("sdk_version"),
                     "contracts": ftshare.get("contracts", {}),
                     "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
