@@ -4028,7 +4028,7 @@ function applyIndicatorSeries(cmd) {
       if (activeMaGroupName) {
         kchart.createIndicator(
           { name: activeMaGroupName, extendData: { maps, mapNames: maEntries.slice(0, 6).map(([mapName]) => mapName) } },
-          false,
+          true,
           { id: "candle_pane" }
         );
       }
@@ -4053,7 +4053,7 @@ function applyIndicatorSeries(cmd) {
     try {
       kchart.createIndicator(
         { name: "ftvBOLL", extendData: { maps } },
-        false,
+        true,
         { id: "candle_pane" }
       );
     } catch (e) { console.warn("ftvBOLL", e); }
