@@ -204,13 +204,17 @@
   .market-ticker-track { display: flex; align-items: center; min-width: max-content; gap: 22px; padding: 0 13px; white-space: nowrap; }
   .market-ticker-track.scrolling { animation: ticker-scroll 28s linear infinite; }
   .market-ticker:hover .market-ticker-track { animation-play-state: paused; }
-  .ticker-item { display: inline-flex; align-items: baseline; gap: 5px; }
+  .ticker-item { display: inline-flex; align-items: baseline; gap: 5px; margin: 0; padding: 2px 6px; border: 0; border-radius: 4px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+  .ticker-item:hover { background: color-mix(in srgb, var(--bg-soft) 80%, transparent); }
+  .ticker-item:focus-visible { outline: 2px solid var(--info); outline-offset: 0; }
   .ticker-market { color: var(--text-soft); font-size: 9px; font-weight: 700; letter-spacing: .2px; }
   .ticker-name { color: var(--text); font-weight: 650; }
   .ticker-price { color: var(--text); }
   .ticker-change.up { color: var(--up); }
   .ticker-change.down { color: var(--down); }
   .market-ticker-meta { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-height: 22px; margin-right: 8px; padding-left: 7px; border-left: 1px solid var(--border); color: var(--text-soft); font-size: 10px; white-space: nowrap; }
+  .ticker-source-badge { padding: 1px 5px; border-radius: 3px; color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .ticker-source-badge:hover { text-decoration: underline; }
   .ticker-state { padding: 1px 4px; border-radius: 3px; background: var(--bg-soft); font-weight: 700; }
   .ticker-state.delayed { color: var(--warn); }
   .ticker-state.closed, .ticker-state.stale { color: var(--text-soft); }
@@ -1107,6 +1111,7 @@ let marketTickerStatus = "unavailable";
 let marketTickerStale = false;
 let marketTickerRefreshTimer = null;
 let marketTickerRefreshInFlight = false;
+let marketTickerSource = "";
 const MARKET_TICKER_REFRESH_MS = 60_000;
 let chartDataSource = "mcp";
 let chartDataSourceUrl = "";
@@ -1159,7 +1164,7 @@ const UI_COPY = {
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘",
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
-    closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
+    closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
     newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组保存在当前浏览器中。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前数据源不提供此标的的分钟 K，请配置 FTSHARE_API_KEY 后重试，或切换到 30日。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
@@ -1177,7 +1182,7 @@ const UI_COPY = {
     maPeriods: "MA periods (comma-separated)", volumeMa: "VOL MA period", bollPeriod: "BOLL period", bollStd: "BOLL std. dev.", rsiPeriod: "RSI period", atrPeriod: "ATR period",
     volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close",
     switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
-    closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
+    closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", sourceEastmoneyFree: "Eastmoney free quotes", sourceTencentFree: "Tencent free quotes", openIndexChart: "Open {name} chart", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
     newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
     rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "This source does not provide minute bars for this symbol. Set FTSHARE_API_KEY and retry, or switch to 30-day.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
@@ -5437,6 +5442,8 @@ function marketDataSourcePresentation(source, sourceUrl = "") {
   const value = raw.toLowerCase().replace(/[ _]/g, "-");
   if (["ftshare", "ftshare-sdk", "ftshare-python-sdk"].includes(value)) return { label: "FTShare", url: FTSHARE_SDK_URL };
   if (["ftshare-mcp", "ftsharemcp"].includes(value)) return { label: "FTShare-MCP", url: FTSHARE_MCP_URL };
+  if (["eastmoney-free", "eastmoneyfree", "eastmoney_free"].includes(value)) return { label: t("sourceEastmoneyFree"), url: "https://quote.eastmoney.com/" };
+  if (["tencent-free", "tencentfree", "tencent_free"].includes(value)) return { label: t("sourceTencentFree"), url: "https://gu.qq.com/" };
   if (value === "mock") return { label: "Mock", url: "" };
   if (value === "mcp") return { label: "MCP", url: safeSourceUrl(sourceUrl) };
   return { label: raw.slice(0, 120), url: safeSourceUrl(sourceUrl) };
@@ -5657,11 +5664,20 @@ function renderMarketTicker() {
   const itemHtml = valid.map((item) => {
     const change = Number(item.change_pct);
     const direction = change >= 0 ? "up" : "down";
-    return `<span class="ticker-item"><span class="ticker-market">${escapeHtml(item.market || "")}</span><span class="ticker-name">${escapeHtml(item.name || item.symbol || "")}</span><span class="ticker-price">${formatTickerNumber(item.close)}</span><span class="ticker-change ${direction}">${change >= 0 ? "+" : ""}${change.toFixed(2)}%</span></span>`;
+    const symbol = String(item.symbol || "");
+    const name = String(item.name || item.symbol || "");
+    const openTitle = symbol ? t("openIndexChart").replace("{name}", name) : "";
+    return `<button type="button" class="ticker-item" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}" ${symbol ? `title="${escapeHtml(openTitle)}"` : ""} aria-label="${escapeHtml(symbol ? `${openTitle}` : "")}"><span class="ticker-market">${escapeHtml(item.market || "")}</span><span class="ticker-name">${escapeHtml(name)}</span><span class="ticker-price">${formatTickerNumber(item.close)}</span><span class="ticker-change ${direction}">${change >= 0 ? "+" : ""}${change.toFixed(2)}%</span></button>`;
   }).join("");
   track.innerHTML = itemHtml;
+  track.classList.toggle("clickable", valid.some((item) => item.symbol));
+  const sourcePresentation = marketDataSourcePresentation(marketTickerSource || "");
+  const freeBadge = marketTickerSource && marketTickerSource.indexOf("free") >= 0 && sourcePresentation && sourcePresentation.label && sourcePresentation.label !== marketTickerSource
+    ? `<a class="ticker-source-badge" href="${escapeHtml(sourcePresentation.url || "")}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("source"))}">${escapeHtml(sourcePresentation.label)}</a>`
+    : "";
   const label = tickerStatusLabel(marketTickerStatus, marketTickerStale);
-  meta.innerHTML = `<span>${escapeHtml(t("marketUpdated"))} ${escapeHtml(t("beijingTime"))} ${escapeHtml(formatTickerUpdatedAt(marketTickerUpdatedAt))}</span>` +
+  meta.innerHTML = (freeBadge ? `${freeBadge}` : "") +
+    `<span>${escapeHtml(t("marketUpdated"))} ${escapeHtml(t("beijingTime"))} ${escapeHtml(formatTickerUpdatedAt(marketTickerUpdatedAt))}</span>` +
     (label ? `<span class="ticker-state ${marketTickerStale ? "stale" : escapeHtml(marketTickerStatus)}">${escapeHtml(label)}</span>` : "");
   bar.classList.add("visible");
   bar.classList.remove("placeholder");
@@ -5682,6 +5698,7 @@ async function loadMarketTicker() {
       marketTickerItems = valid;
       marketTickerUpdatedAt = Number(structured.updated_at) || Math.floor(Date.now() / 1000);
       marketTickerStatus = structured.status === "closed" ? "closed" : "delayed";
+      marketTickerSource = String(structured.source || "");
       marketTickerStale = false;
     } else if (marketTickerItems.length) {
       marketTickerStale = true;
@@ -5697,6 +5714,15 @@ function startMarketTickerRefresh() {
   loadMarketTicker().catch(() => {});
   if (marketTickerRefreshTimer) return;
   marketTickerRefreshTimer = window.setInterval(() => loadMarketTicker().catch(() => {}), MARKET_TICKER_REFRESH_MS);
+}
+async function openTickerSymbolChart(symbol, name) {
+  // Broad indices are served as daily free data; a 1D/5D range would request
+  // minute bars the free tier cannot provide. Switch to a daily range first.
+  if (!symbol) return;
+  if (isIntradayRange()) {
+    await setRange("1y");
+  }
+  await openSymbol(symbol, name);
 }
 
 /* ---------- workspace tabs + symbol search ---------- */
@@ -6636,6 +6662,14 @@ document.getElementById("groupDialog").addEventListener("pointerdown", (event) =
 });
 document.getElementById("watchlistRailItems").addEventListener("click", (event) => handleWatchlistItemsClick(event));
 document.getElementById("watchlistRailItems").addEventListener("change", (event) => handleWatchlistItemsClick(event));
+document.getElementById("marketTickerTrack").addEventListener("click", (event) => {
+  const item = event.target instanceof Element ? event.target.closest("[data-ticker-symbol]") : null;
+  if (!item) return;
+  const symbol = item.getAttribute("data-ticker-symbol");
+  const name = item.getAttribute("data-ticker-name") || symbol;
+  if (!symbol) return;
+  openTickerSymbolChart(symbol, name).catch(console.warn);
+});
 document.getElementById("rangeControls").addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-range]") : null;
   if (button) setRange(button.getAttribute("data-range")).catch(console.warn);

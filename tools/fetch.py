@@ -27,6 +27,27 @@ from pathlib import Path
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
+try:  # Built-in free fallback source; never required for the FTShare path.
+    from tools.free_sources import (
+        EM_INDEX_NAMES,
+        SOURCE_LABEL,
+        SOURCE_URL,
+        TENCENT_LABEL,
+        TENCENT_SOURCE_URL,
+        fetch_em_index_daily,
+        fetch_tencent_index_daily,
+        fetch_tencent_ticker_items,
+    )
+except Exception:  # noqa: BLE001 - degrade to FTShare-only when the module is missing
+    EM_INDEX_NAMES = {}
+    SOURCE_LABEL = ""
+    SOURCE_URL = ""
+    TENCENT_LABEL = ""
+    TENCENT_SOURCE_URL = ""
+    fetch_em_index_daily = None
+    fetch_tencent_index_daily = None
+    fetch_tencent_ticker_items = None
+
 
 _SYMBOL_SEARCH_CACHE_TTL_SECONDS = 300.0
 _SYMBOL_SEARCH_CACHE_MAX_ENTRIES = 96
@@ -51,30 +72,39 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "daily_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/owq0364i",
         "tier": "free",
-        "verified_sdk_version": "0.1.1",
+        "verified_sdk_version": "1.0.3",
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": True, "sdk": True},
     },
     "history_minute_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/z9lsvrvu",
         "tier": "base+",
-        "verified_sdk_version": "0.1.1",
+        "verified_sdk_version": "1.0.3",
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": False, "sdk": False},
     },
     "index_daily_candles": {
-        "doc": "https://market.ft.tech/gateway/doc/ (SDK endpoint: index_candlesticks)",
+        "doc": "https://market.ft.tech/gateway/doc/p/gr2q0bjx",
         "tier": "free",
-        "verified_sdk_version": "1.0.0",
+        "verified_sdk_version": "1.0.3",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
     "index_history_minute_candles": {
-        "doc": "https://market.ft.tech/gateway/doc/ (SDK endpoint: index_minutes)",
+        "doc": "https://market.ft.tech/gateway/doc/p/ls85mq5n",
         "tier": "base+",
-        "verified_sdk_version": "1.0.0",
+        "verified_sdk_version": "1.0.3",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": False},
+    },
+    # 全球指数日K线（FTShare 免费版套餐内含，覆盖 100.HSI/100.NDX 等）。
+    # 该端点只回日K，周/月/季/年在 fetch.py 本地聚合。
+    "global_index_daily": {
+        "doc": "https://market.ft.tech/gateway/doc/p/pb8eizu3",
+        "tier": "free",
+        "verified_sdk_version": "1.0.3",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
     },
 }
 SYMBOL_DIRECTORY_VERSION = 4
@@ -358,11 +388,13 @@ def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -
                     else:
                         result = market.index_candlesticks(**params)
                 elif contract == "index_history_minute_candles":
-                    path = "api/v3/market/data/index_minutes"
+                    path = "api/v2/market/data/index_minutes"
+                    request_params.pop("adjust_kind", None)
+                    request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
                     if transport == "http_get":
                         result = get_method(path, as_dataframe=as_dataframe, **request_params)
                     else:
-                        result = market.index_minutes(**request_params)
+                        result = market.index_minutes(as_dataframe=as_dataframe, **request_params)
                 else:
                     if transport == "http_get":
                         path = "api/v2/market/data/stock_minutes"
@@ -370,7 +402,7 @@ def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -
                         result = get_method(path, as_dataframe=as_dataframe, **request_params)
                     elif callable(getattr(market, "stock_minutes", None)):
                         request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
-                        result = market.stock_minutes(**request_params)
+                        result = market.stock_minutes(as_dataframe=as_dataframe, **request_params)
                     else:
                         legacy_params = dict(params)
                         legacy_params.setdefault("interval_unit", "Minute")
@@ -423,12 +455,12 @@ def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
 
 
 def _ftshare_index_candlesticks(market: Any, **params: Any) -> Any:
-    """Call the verified A-share index K-line endpoint (SDK >= 1.0.0)."""
+    """Call the verified A-share index K-line endpoint (SDK >= 1.0.3)."""
     return _adaptive_ftshare_call("index_daily_candles", market, params)
 
 
 def _ftshare_index_minutes(market: Any, **params: Any) -> Any:
-    """Call the A-share index minute endpoint (SDK >= 1.0.0, plan dependent)."""
+    """Call the A-share index minute endpoint (SDK >= 1.0.3, plan dependent)."""
     return _adaptive_ftshare_call("index_history_minute_candles", market, params)
 
 
@@ -478,7 +510,7 @@ def ftshare_index_kline_available() -> bool:
     """Whether A-share index K-line history is available from the FTShare adapter.
 
     The adapter only calls verified provider contracts (see
-    docs/provider-adaptation.md). Since FTShare SDK 1.0.0 the SDK exposes the
+    docs/provider-adaptation.md). Since FTShare SDK 1.0.3 the SDK exposes the
     documented A-share index endpoint ``index_candlesticks``
     (api/v1/market/data/index-candlesticks) which was verified with live
     daily data (free tier) and registered in FT_CONTRACTS, so daily-or-larger
@@ -970,6 +1002,40 @@ def _fetch_generic_history(
     return [rows_by_time[key] for key in sorted(rows_by_time)]
 
 
+def _fetch_global_index_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch FTShare global-index history (endpoint global_index_daily_kline).
+
+    The endpoint only serves daily bars for secids like ``100.HSI`` /
+    ``100.NDX``. Larger periods are aggregated by the caller from this daily
+    series, so we fetch a generous daily window and let the shared
+    ``_aggregate_interval`` trim to the requested bar count.
+
+    Returns SDK rows (pre-normalization), newest-first as delivered.
+    """
+    requested = max(2, int(limit or 220))
+    # Daily lookback factor per requested period: ~1 day bar per calendar day
+    # is not enough for weekly/monthly aggregation, so overfetch generously.
+    days_per_bar = {
+        "day": 2,
+        "week": 12,
+        "month": 50,
+        "quarter": 150,
+        "year": 560,
+    }.get(str(interval or "day").strip().lower(), 2)
+    daily_limit = min(5000, max(requested * days_per_bar, requested + 10))
+    return market.global_index_daily_kline(
+        secid=symbol,
+        limit=daily_limit,
+        as_dataframe=False,
+    )
+
+
 def _fetch_index_history(
     market: Any,
     *,
@@ -1272,14 +1338,17 @@ def _write_symbol_directory_cache(payload: dict[str, Any]) -> None:
         return
 
 
-def _rows_from_directory_response(raw: Any) -> list[Mapping[str, Any]]:
+def _rows_from_directory_response(raw: Any, *, _depth: int = 0) -> list[Mapping[str, Any]]:
+    """Extract provider rows from the bounded envelope shapes seen in SDK 1.0.3."""
     if isinstance(raw, list):
         return [item for item in raw if isinstance(item, Mapping)]
-    if isinstance(raw, Mapping):
-        for key in ("items", "data", "results", "rows", "list"):
-            value = raw.get(key)
-            if isinstance(value, list):
-                return [item for item in value if isinstance(item, Mapping)]
+    if isinstance(raw, Mapping) and _depth < 4:
+        for key in ("records", "items", "data", "results", "rows", "list"):
+            if key not in raw:
+                continue
+            rows = _rows_from_directory_response(raw.get(key), _depth=_depth + 1)
+            if rows:
+                return rows
     return []
 
 
@@ -1641,7 +1710,20 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
 MARKET_TICKER_SOURCES = (
     {"market": "HK", "name": "恒生指数", "symbol": "100.HSI", "kind": "global", "timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"},
     {"market": "US", "name": "纳斯达克", "symbol": "100.NDX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+    {"market": "CN", "name": "上证指数", "symbol": "000001.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "沪深300", "symbol": "000300.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "深证成指", "symbol": "399001.XSHE", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
 )
+# Global index identities (secid "100.*") served by the official FTShare
+# `global_index_daily_kline` endpoint (free tier, per FTShare docs). Kept as a
+# small explicit registry; never auto-extended from upstream responses.
+GLOBAL_INDEX_SOURCES = {
+    "100.HSI": "恒生指数",
+    "100.NDX": "纳斯达克",
+    "100.SPX": "标普500",
+    "100.DJIA": "道琼斯",
+    "100.N225": "日经225",
+}
 # Kept as a public compatibility name for integrations that read this mapping.
 COMPARISON_INDEX_NAMES = {item["symbol"]: item["name"] for item in CN_BROAD_INDEXES}
 
@@ -1755,40 +1837,89 @@ def _candle_freshness(symbol: str, rows: list[dict[str, Any]], *, now: datetime 
     }
 
 
+def _ftshare_ticker_rows(market: Any, source_info: Mapping[str, Any]) -> list[dict[str, Any]] | None:
+    """Official FTShare rows for one bottom-strip index.
+
+    A-share indices use ``index_candlesticks``; global indices (100.*) use
+    ``global_index_daily_kline``. Rows are normalized to the canonical shape
+    and sorted ascending by time, so ``_ticker_item`` can derive the change.
+    """
+    kind = str(source_info.get("kind") or "")
+    try:
+        if kind == "global":
+            raw = market.global_index_daily_kline(secid=source_info["symbol"], limit=5, as_dataframe=False)
+        else:
+            until_ms = _until_ms()
+            raw = market.index_candlesticks(
+                symbol=source_info["symbol"],
+                interval_unit="Day",
+                interval_value=1,
+                adjust_kind="none",
+                since_ts_millis=until_ms - 15 * 86_400_000,
+                until_ts_millis=until_ms,
+                limit=6,
+                as_dataframe=False,
+            )
+    except Exception:  # noqa: BLE001 - per-source official ticker failure
+        return None
+    rows = _normalize_raw(raw)
+    return rows if len(rows) >= 2 else None
+
+
 def fetch_market_ticker() -> dict[str, Any]:
     """Fetch a compact A/HK/US index ticker, degrading silently per source.
 
-    The view only renders when this returns one or more valid points. This
-    deliberately keeps a transient vendor error out of the user-facing chart.
+    FTShare official feeds are tried first for every strip entry: A-share
+    indices via ``index_candlesticks`` and global indices via
+    ``global_index_daily_kline`` (both are in the FTShare free tier, so any
+    configured Key keeps the strip fully official). When the official feeds
+    fail (anonymous / no Key / transient error), the built-in Tencent free
+    quote feed fills the strip so it is never empty. The returned ``source``
+    tells the view which feed produced the points.
     """
     fetched_at = int(time.time())
-    if not ftshare_available():
-        return {
-            "ok": True,
-            "items": [],
-            "source": "ftshare_unavailable",
-            "updated_at": fetched_at,
-            "status": "unavailable",
-        }
-
-    market = _ftshare_market_api(timeout=8)
     items: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
-    for source in MARKET_TICKER_SOURCES:
+
+    if ftshare_available():
         try:
-            raw = market.global_index_daily_kline(
-                secid=source["symbol"],
-                as_dataframe=False,
-            )
+            market = _ftshare_market_api(timeout=8)
+            for source_info in MARKET_TICKER_SOURCES:
+                rows = _ftshare_ticker_rows(market, source_info)
+                if rows is None:
+                    continue
+                item = _ticker_item(source_info, rows)
+                if item is not None:
+                    item["status"] = _market_status(source_info, now)
+                    items.append(item)
+            # Prefer official whenever it covers most of the strip; a lone
+            # failure should not downgrade a paying user to the free feed.
+            if len(items) >= max(2, len(MARKET_TICKER_SOURCES) - 1):
+                statuses = {item.get("status") for item in items}
+                status = "delayed" if "delayed" in statuses else "closed" if statuses else "closed"
+                return {"ok": True, "items": items, "source": "ftshare", "updated_at": fetched_at, "status": status}
         except Exception:
-            continue
-        item = _ticker_item(source, raw)
-        if item is not None:
-            item["status"] = _market_status(source, now)
-            items.append(item)
-    statuses = {item.get("status") for item in items}
+            # Any FTShare failure falls through to the free ticker below.
+            items = []
+
+    if fetch_tencent_ticker_items is None:
+        return {"ok": True, "items": [], "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
+    try:
+        free_items = fetch_tencent_ticker_items()
+    except Exception:  # noqa: BLE001
+        free_items = []
+    if not free_items:
+        return {"ok": True, "items": [], "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
+    for item in free_items:
+        session_source = {
+            "timezone": item.get("session_timezone") or "Asia/Shanghai",
+            "open": item.get("session_open") or "09:30",
+            "close": item.get("session_close") or "15:00",
+        }
+        item["status"] = _market_status(session_source, now)
+    statuses = {item.get("status") for item in free_items}
     status = "delayed" if "delayed" in statuses else "closed" if statuses else "unavailable"
-    return {"ok": True, "items": items, "source": "ftshare", "updated_at": fetched_at, "status": status}
+    return {"ok": True, "items": free_items, "source": "tencent_free", "updated_at": fetched_at, "status": status}
 
 
 def _latest_session_close_millis(timezone_name: str) -> int:
@@ -1850,7 +1981,7 @@ def _annotate_intraday_rows(rows: list[dict[str, Any]], *, timezone_name: str, i
     return rows
 
 
-def fetch_candles(
+def _fetch_candles_ftshare(
     symbol: str,
     *,
     interval: str = "day",
@@ -1859,7 +1990,10 @@ def fetch_candles(
     limit: int = 220,
     adjust: str = "none",
 ) -> dict[str, Any]:
-    """Fetch OHLCV via ftshare SDK.
+    """Fetch OHLCV via ftshare SDK (primary implementation).
+
+    Kept under a private name: ``fetch_candles`` (the public entry) adds a
+    built-in free fallback for broad-market indices on top of this path.
 
     Notes:
     - The SDK accepts lowercase adjustment enum values: none/forward/backward.
@@ -1890,6 +2024,9 @@ def fetch_candles(
     # (SDK index_candlesticks >= 1.0.0) and must never fall back to a
     # same-code equity.
     is_index = _broad_index_for_symbol(sym) is not None
+    # Global indices (100.HSI / 100.NDX / 100.SPX …) use the dedicated
+    # FTShare `global_index_daily_kline` endpoint (free tier per docs).
+    is_global_index = sym in GLOBAL_INDEX_SOURCES
 
     fetched_at = int(time.time())
     if not ftshare_available():
@@ -1914,8 +2051,21 @@ def fetch_candles(
             "next_action": "Use daily-or-larger Hong Kong candles, or pass verified minute rows from another provider.",
             "retryable": False,
         }
+    if normalized_interval == "minute" and is_global_index:
+        return {
+            "ok": False,
+            "error": "intraday_provider_unavailable",
+            "error_code": "intraday_provider_unavailable",
+            "message": "FTShare global-index K-lines are daily only; minute bars are not served for this index.",
+            "symbol": sym,
+            "source": "ftshare",
+            "next_action": "Use daily-or-larger candles for the global index, or pass verified minute rows from another provider.",
+            "retryable": False,
+        }
     if is_index:
         contract_name = "index_history_minute_candles" if normalized_interval == "minute" else "index_daily_candles"
+    elif is_global_index:
+        contract_name = "global_index_daily"
     else:
         contract_name = "history_minute_candles" if normalized_interval == "minute" else "daily_candles"
     cache_key = _candle_cache_key(
@@ -1954,6 +2104,16 @@ def fetch_candles(
                         adjust_kind=adj,
                         limit=lim,
                     )
+            elif is_global_index:
+                # Global index daily history: the FTShare endpoint returns
+                # daily bars only; weekly/monthly/quarterly/yearly views are
+                # aggregated locally below, mirroring the US daily-only path.
+                raw = _fetch_global_index_history(
+                    market,
+                    symbol=sym,
+                    interval=normalized_interval,
+                    limit=lim,
+                )
             elif _is_us_symbol(sym) and normalized_interval != "minute":
                 try:
                     raw = _fetch_us_daily_candles(market, sym, lim)
@@ -2079,7 +2239,7 @@ def fetch_candles(
             for row in rows
             if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in selected_dates
         ]
-    if _is_us_symbol(sym) and normalized_interval != "minute":
+    if (_is_us_symbol(sym) or is_global_index) and normalized_interval != "minute":
         # Aggregate the complete daily history first, then apply the requested
         # number of bars.  Trimming raw days before aggregation makes the
         # oldest requested week/month/quarter/year incomplete.
@@ -2118,7 +2278,7 @@ def fetch_candles(
             result["upstream_error"] = str(hk_history_error)[:500]
             result["fallback"] = "generic_stock_candlesticks"
         return result
-    name = _symbol_name(market, sym)
+    name = GLOBAL_INDEX_SOURCES.get(sym) or _symbol_name(market, sym)
     freshness = _candle_freshness(sym, rows)
     result = {
         "ok": True,
@@ -2160,6 +2320,118 @@ def fetch_candles(
         result["sessions"] = sessions_seen
     _cache_candles(cache_key, result)
     return result
+
+
+def _free_index_candles_result(
+    symbol: str, *, interval: str, limit: int, adjust: str
+) -> dict[str, Any] | None:
+    """Built-in free fallback for broad-market index daily K-lines.
+
+    Used only when FTShare cannot serve a broad-market index (anonymous/free
+    tier). Returns None when the symbol is not covered or the free source is
+    unavailable, so the caller keeps its original FTShare error untouched.
+    """
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return None
+    if fetch_em_index_daily is None and fetch_tencent_index_daily is None:
+        return None
+    normalized_interval = (interval or "day").strip().lower()
+    if normalized_interval not in {"day", "week", "month", "quarter", "year"}:
+        return None
+    if str(sym).upper() not in EM_INDEX_NAMES:
+        return None
+    fetched_at = int(time.time())
+    # Try Eastmoney first, then Tencent: two independent public feeds make the
+    # free tier resilient to either vendor's transient throttling.
+    free_rows: list[dict[str, Any]] | None = None
+    source_name = ""
+    source_url = ""
+    source_label = ""
+    if fetch_em_index_daily is not None:
+        try:
+            free_rows = fetch_em_index_daily(sym, limit=max(2, min(int(limit), 4000)))
+        except Exception:  # noqa: BLE001 - free fallback degrades silently
+            free_rows = None
+        if free_rows and len(free_rows) >= 2:
+            source_name, source_url, source_label = "eastmoney_free", SOURCE_URL, SOURCE_LABEL
+    if (not free_rows or len(free_rows) < 2) and fetch_tencent_index_daily is not None:
+        try:
+            free_rows = fetch_tencent_index_daily(sym, limit=max(2, min(int(limit), 4000)))
+        except Exception:  # noqa: BLE001
+            free_rows = None
+        if free_rows and len(free_rows) >= 2:
+            source_name, source_url, source_label = "tencent_free", TENCENT_SOURCE_URL, TENCENT_LABEL
+    if not free_rows or len(free_rows) < 2:
+        return None
+    # Aggregation helpers mirror the FTShare path (week/month/quarter/year).
+    rows = list(free_rows)
+    if normalized_interval == "quarter":
+        rows = _aggregate_quarters(rows, timezone_name="Asia/Shanghai")
+    elif normalized_interval in {"week", "month", "year"}:
+        rows = _aggregate_interval(rows, normalized_interval, timezone_name="Asia/Shanghai")
+    rows = rows[-max(2, min(int(limit), 4000)):]
+    if len(rows) < 2:
+        return None
+    name = EM_INDEX_NAMES.get(str(sym).upper()) or sym
+    freshness = _candle_freshness(sym, rows)
+    return {
+        "ok": True,
+        "symbol": sym,
+        "name": name,
+        "interval": normalized_interval,
+        "interval_value": 1,
+        "session_count": None,
+        "adjust": (adjust or "none").strip().lower(),
+        "count": len(rows),
+        "rows": rows,
+        "source": source_name,
+        "source_url": source_url,
+        "updated_at": fetched_at,
+        "status": freshness["status"],
+        "market_status": _symbol_market_status(sym),
+        "exchange_timezone": freshness["exchange_timezone"],
+        "as_of": freshness["as_of"],
+        "freshness": freshness["freshness"],
+        "notice": (
+            f"当前展示为{source_label}数据（免费大盘行情）。"
+            "接入 FTShare Key 后可获得分钟K、新闻与官方数据能力。"
+        ),
+        "fallback_from": "ftshare",
+    }
+
+
+def fetch_candles(
+    symbol: str,
+    *,
+    interval: str = "day",
+    interval_value: int = 1,
+    session_count: int | None = None,
+    limit: int = 220,
+    adjust: str = "none",
+) -> dict[str, Any]:
+    """Public candle entry: FTShare first, built-in free fallback for indices.
+
+    FTShare remains the promoted provider and is always tried first. When it
+    cannot return a broad-market index (anonymous/free tier), and the requested
+    symbol is covered by the built-in free source, this transparently serves
+    the daily index series with ``source="eastmoney_free"`` so charts and
+    comparison features stay usable for free users.
+    """
+    primary = _fetch_candles_ftshare(
+        symbol,
+        interval=interval,
+        interval_value=interval_value,
+        session_count=session_count,
+        limit=limit,
+        adjust=adjust,
+    )
+    if primary.get("ok"):
+        return primary
+    fallback = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
+    if fallback is not None:
+        return fallback
+    return primary
 
 
 def _workspace_rows(raw: Any) -> list[dict[str, Any]]:

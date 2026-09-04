@@ -21,7 +21,8 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 ## Features
 
 - **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.
-- **Index quotes**: A-share index daily K-lines are served through the FTShare 1.0.0 SDK; overlay CSI 300, SSE Composite and peers in Compare (intraday index data depends on the plan).
+- **Index quotes**: A-share index daily K-lines are served through the FTShare 1.0.3 SDK; overlay CSI 300, SSE Composite and peers in Compare (historical intraday index data is a Base-tier capability). The bottom market strip shows HSI, NDX, SSE Composite, CSI 300 and SZSE Component quotes; click any index to open its own K-line chart.
+- **Broad-market fallback**: with an FTShare Key configured, all index data comes from the official feeds; without a Key or when the official feeds are unavailable, a built-in free quote source (public Eastmoney/Tencent endpoints, clearly labeled) keeps broad-market data visible for free users.
 - **Search and watchlists**: search symbols, save the current symbol, and organize watchlists into groups with quote refresh, sorting, and batch opening. A star next to the symbol name favorites/unfavorites the current symbol with one click.
 - **Interactive charts**: daily, weekly, monthly, quarterly, yearly, and intraday K-lines with zoom, pan, crosshair, and responsive layout.
 - **Technical indicators**: K-line, MA, VOL, and MACD are shown by default; KDJ, RSI, BOLL, ATR, and VWAP can be switched on as needed.
@@ -42,7 +43,7 @@ Enable `dsh_kline` in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 
 After the analysis, use the sidebar to switch timeframes and indicators or explore news and company information. To view range statistics, click two candles in sequence.
 Use the search box for a company name or ticker, then select the star to add it to a watchlist. Watchlists support groups, sorting, and batch opening, and are stored locally in the current browser.
-The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. Without a key, mainland China daily, weekly, monthly, quarterly, and yearly bars remain available, along with indicators computed from them; Hong Kong and US daily bars, and minute bars for any market, depend on the permissions in the active FTShare tier. A key identifies the account but does not automatically grant every capability; news and realtime data follow the tier shown for each API. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Other sources can continue to provide normalized rows through `analyze_kline_rows`.
+The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. The current official tier table lists stock and index candles under Free, stock/index historical minute candles and Hong Kong candles under Base, semantic news search under Advanced, and realtime candles under Professional; the official endpoint documentation remains authoritative. A key identifies the account but does not automatically grant every capability. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Other sources can continue to provide normalized rows through `analyze_kline_rows`.
 
 ## MCP Tools
 

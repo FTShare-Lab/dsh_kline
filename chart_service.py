@@ -245,22 +245,25 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return symbol_directory(force_refresh=bool(args.get("refresh") or args.get("force_refresh")))
     if name == "data_source_status":
         ftshare = ftshare_status()
-        return {
-            "ok": True,
-            "external_rows": True,
-            "providers": {
-                "ftshare": {
-                    "available": bool(ftshare.get("available")),
-                    "configured": bool(ftshare.get("configured")),
-                    "persistent": bool(ftshare.get("persistent")),
-                    "capabilities": ftshare_capabilities(),
-                    "index_kline": ftshare_index_kline_available(),
-                    "sdk_version": ftshare.get("sdk_version"),
-                    "contracts": ftshare.get("contracts", {}),
-                    "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
-                }
-            },
+        providers: dict[str, Any] = {
+            "ftshare": {
+                "available": bool(ftshare.get("available")),
+                "configured": bool(ftshare.get("configured")),
+                "persistent": bool(ftshare.get("persistent")),
+                "capabilities": ftshare_capabilities(),
+                "index_kline": ftshare_index_kline_available(),
+                "sdk_version": ftshare.get("sdk_version"),
+                "contracts": ftshare.get("contracts", {}),
+                "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
+            }
         }
+        try:
+            from tools.free_sources import free_source_status as _builtin_free_status  # noqa: PLC0415
+
+            providers["builtin_free"] = _builtin_free_status()
+        except Exception:  # noqa: BLE001
+            providers["builtin_free"] = {"available": False, "source": "builtin_free"}
+        return {"ok": True, "external_rows": True, "providers": providers}
     if name == "configure_ftshare":
         return configure_ftshare_api_key(
             args.get("api_key"),

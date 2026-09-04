@@ -14,9 +14,12 @@ from chart_service import ChartService, _tool_dispatch
 from server import _analysis_from_rows, _normalized_indicators, analyze_kline_rows
 from tools.draw import draw_kline
 from tools.fetch import (
+    FT_CONTRACTS,
     _classify_ftshare_error,
+    _ftshare_index_minutes,
     _ftshare_stock_candlesticks,
     _ftshare_market_api,
+    _rows_from_directory_response,
     _symbol_name,
     configure_ftshare_api_key,
     fetch_candles,
@@ -304,6 +307,85 @@ class ProviderNeutralTests(unittest.TestCase):
             )
         self.assertEqual(len(result), 1)
         self.assertEqual(calls, [("http_get", "api/v1/market/data/stock-candlesticks"), ("sdk", "Day")])
+
+    def test_ftshare_103_contract_metadata_matches_official_tiers(self):
+        self.assertEqual({spec["verified_sdk_version"] for spec in FT_CONTRACTS.values()}, {"1.0.3"})
+        self.assertEqual(FT_CONTRACTS["daily_candles"]["tier"], "free")
+        self.assertEqual(FT_CONTRACTS["index_daily_candles"]["tier"], "free")
+        self.assertEqual(FT_CONTRACTS["history_minute_candles"]["tier"], "base+")
+        self.assertEqual(FT_CONTRACTS["index_history_minute_candles"]["tier"], "base+")
+        self.assertEqual(
+            FT_CONTRACTS["index_history_minute_candles"]["doc"],
+            "https://market.ft.tech/gateway/doc/p/ls85mq5n",
+        )
+
+    def test_installed_ftshare_103_sdk_surface_matches_registered_contracts(self):
+        from importlib.metadata import version
+
+        import ftshare
+        from ftshare.config import DEFAULT_BASE_URL
+        from ftshare.endpoints import ENDPOINTS
+
+        self.assertEqual(version("ftshare"), "1.0.3")
+        self.assertEqual(DEFAULT_BASE_URL, "https://market.ft.tech/gateway/")
+        expected_paths = {
+            "stock_candlesticks": "api/v1/market/data/stock-candlesticks",
+            "stock_minutes": "api/v2/market/data/stock_minutes",
+            "index_candlesticks": "api/v1/market/data/index-candlesticks",
+            "index_minutes": "api/v2/market/data/index_minutes",
+            "hk_candlesticks": "api/v2/market/data/hk/hk-candlesticks",
+            "eastmoney_us_stock_list": "api/v1/market/data/eastmoney-us-stock-list",
+            "eastmoney_us_stock_daily_ohlc": "api/v1/market/data/eastmoney-us-stock-daily-ohlc",
+        }
+        client = ftshare.market_api(timeout=1)
+        for method_name, path in expected_paths.items():
+            self.assertEqual(ENDPOINTS[method_name].path, path)
+            self.assertTrue(callable(getattr(client, method_name, None)))
+
+    def test_index_minutes_uses_103_contract_shape(self):
+        calls = []
+
+        class FakeMarket:
+            def index_minutes(self, **kwargs):
+                calls.append(kwargs)
+                return []
+
+        _ftshare_index_minutes(
+            FakeMarket(),
+            symbol="000300.XSHG",
+            interval_value=5,
+            adjust_kind="none",
+            since_ts_millis=1,
+            until_ts_millis=2,
+            limit=50,
+            as_dataframe=False,
+        )
+        self.assertEqual(
+            calls,
+            [{
+                "symbol": "000300.SH",
+                "interval_value": 5,
+                "since_ts_millis": 1,
+                "until_ts_millis": 2,
+                "limit": 50,
+                "as_dataframe": False,
+            }],
+        )
+
+    def test_ftshare_103_nested_directory_envelope_is_unwrapped(self):
+        payload = {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "code": 200,
+                "message": "success",
+                "data": {"records": [{"symbol": "000300.SZ", "name": "沪深300"}]},
+            },
+        }
+        self.assertEqual(
+            _rows_from_directory_response(payload),
+            [{"symbol": "000300.SZ", "name": "沪深300"}],
+        )
 
     def test_ftshare_contract_does_not_switch_transport_on_auth_failure(self):
         calls = []

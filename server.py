@@ -49,6 +49,10 @@ from tools.fetch import (
     search_symbols as search_symbol_directory,
     test_ftshare_connection,
 )
+try:  # Built-in free fallback feeds (optional; independent of FTShare)
+    from tools.free_sources import free_source_status as builtin_free_source_status
+except Exception:  # noqa: BLE001
+    builtin_free_source_status = None
 
 
 mcp = FastMCP(
@@ -400,21 +404,27 @@ async def health() -> types.CallToolResult:
 async def data_source_status() -> types.CallToolResult:
     """Return safe data-source capability/configuration status for the UI."""
     ftshare = ftshare_status()
+    providers: dict[str, Any] = {
+        "ftshare": {
+            "available": bool(ftshare.get("available")),
+                "configured": bool(ftshare.get("configured")),
+                "persistent": bool(ftshare.get("persistent")),
+                "capabilities": ftshare_capabilities(),
+                "index_kline": ftshare_index_kline_available(),
+                "sdk_version": ftshare.get("sdk_version"),
+                "contracts": ftshare.get("contracts", {}),
+                "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
+        }
+    }
+    if builtin_free_source_status is not None:
+        try:
+            providers["builtin_free"] = builtin_free_source_status()
+        except Exception:  # noqa: BLE001
+            providers["builtin_free"] = {"available": False, "source": "builtin_free"}
     data = {
         "ok": True,
         "external_rows": True,
-        "providers": {
-            "ftshare": {
-                "available": bool(ftshare.get("available")),
-                    "configured": bool(ftshare.get("configured")),
-                    "persistent": bool(ftshare.get("persistent")),
-                    "capabilities": ftshare_capabilities(),
-                    "index_kline": ftshare_index_kline_available(),
-                    "sdk_version": ftshare.get("sdk_version"),
-                    "contracts": ftshare.get("contracts", {}),
-                    "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
-            }
-        },
+        "providers": providers,
     }
     return _result(data, "data_source_status ok")
 
