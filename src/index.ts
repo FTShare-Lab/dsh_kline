@@ -62,7 +62,12 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       return
     }
     if (pathname === '/dsh-kline/session' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const { service_url: _serviceUrl, service_token: _serviceToken, ...publicSession } = session
+      const {
+        service_url: _serviceUrl,
+        service_token: _serviceToken,
+        process_id: _processId,
+        ...publicSession
+      } = session
       sendJson(response, 200, publicSession, request.method === 'HEAD')
       return
     }

@@ -183,6 +183,14 @@ class ProviderNeutralTests(unittest.TestCase):
             self.assertFalse(credential_file.exists())
             self.assertNotIn("FTSHARE_API_KEY", os.environ)
 
+    def test_ftshare_status_never_exposes_host_details(self):
+        with patch.dict("os.environ", {"DSH_KLINE_DEBUG": "1"}, clear=False), patch(
+            "tools.fetch.ftshare_available", return_value=False
+        ):
+            status = ftshare_status()
+        for field in ("python", "injected_path", "module_file", "import_error"):
+            self.assertNotIn(field, status)
+
     def test_ftshare_persisted_key_lifecycle_after_validation(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             "os.environ", {"FTSHARE_API_KEY_FILE": str(Path(directory) / "credentials.json")}, clear=True

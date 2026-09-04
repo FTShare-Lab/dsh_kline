@@ -397,12 +397,7 @@ def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
 
 
 def ftshare_status() -> dict[str, Any]:
-    """Safe debug helper: never leaks interpreter paths or module locations.
-
-    Host-environment details (``python``, ``injected_path``, ``module_file``)
-    are only included when ``DSH_KLINE_DEBUG`` is set, so ordinary status and
-    health payloads do not expose machine-local absolute paths.
-    """
+    """Return safe provider status without host paths or module locations."""
     _load_persisted_ftshare_key()
     ok = ftshare_available()
     info: dict[str, Any] = {
@@ -421,15 +416,6 @@ def ftshare_status() -> dict[str, Any]:
     except Exception:
         info["distribution_version"] = None
     info["sdk_version"] = info.get("distribution_version")
-    if os.environ.get("DSH_KLINE_DEBUG"):
-        info["python"] = sys.executable
-        info["injected_path"] = _INJECTED_FTSHARE_PATH
-        try:
-            import ftshare
-
-            info["module_file"] = getattr(ftshare, "__file__", None)
-        except Exception as exc:  # noqa: BLE001
-            info["import_error"] = str(exc)
     return info
 
 
@@ -981,8 +967,7 @@ def _ftshare_unavailable_result() -> dict[str, Any]:
     """Return one consistent optional-dependency error for data tools.
 
     The message intentionally exposes no interpreter path or candidate
-    directory list; hosts that need details can read ``ftshare_status`` with
-    ``DSH_KLINE_DEBUG`` set.
+    directory list; host-specific diagnostics are intentionally not returned.
     """
     return {
         "ok": False,
