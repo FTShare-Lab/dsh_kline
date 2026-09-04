@@ -160,6 +160,14 @@
   .watchlist-remove { align-self: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-soft); cursor: pointer; font-size: 17px; line-height: 1; }
   .watchlist-remove:hover { color: var(--down); background: var(--bg-soft); }
   .watchlist-toggle.watched { color: var(--accent); border-color: var(--accent); }
+  .watch-current-star { width: 26px; min-width: 26px; height: 26px; padding: 0; display: inline-grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: var(--bg); color: var(--text-soft); cursor: pointer; }
+  .watch-current-star .icon-glyph { width: 16px; height: 16px; flex: 0 0 16px; }
+  .watch-current-star:hover { color: var(--accent); border-color: var(--accent); }
+  .watch-current-star.watched { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+  .watch-current-star.watched svg path { fill: currentColor; }
+  .watch-current-star:disabled { opacity: .5; cursor: default; }
+  .watch-current-star:disabled:hover { color: var(--text-soft); border-color: var(--border); }
+  .watch-current-star:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .watchlist-rail-toggle {
     position: static; z-index: 26; width: 30px; min-width: 30px; height: 30px;
     display: inline-grid; place-items: center; padding: 0; border-radius: 4px;
@@ -734,6 +742,9 @@
   <div class="row">
     <span class="title" id="name">dsh_kline</span>
     <span class="chip" id="symbolChip">—</span>
+    <button class="watch-current-star" id="watchCurrentBtn" type="button" aria-label="收藏当前标的" title="收藏当前标的" aria-pressed="false" disabled>
+      <span class="icon-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="m12 3.8 2.55 5.17 5.7.83-4.12 4.02.97 5.68L12 16.82l-5.1 2.68.97-5.68L3.75 9.8l5.7-.83L12 3.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+    </button>
   </div>
   <div class="quote">
     <span class="close" id="qClose">--</span>
@@ -5070,6 +5081,23 @@ function activeWatchlistGroup() {
 function watchedSymbol(symbol, groupId = activeWatchlistGroupId) {
   return watchlist.some((item) => item.symbol === symbol && item.groupId === groupId);
 }
+function refreshWatchCurrentButton() {
+  const btn = document.getElementById("watchCurrentBtn");
+  if (!btn) return;
+  const hasSymbol = Boolean(currentSymbol);
+  btn.disabled = !hasSymbol;
+  if (!hasSymbol) {
+    btn.classList.remove("watched");
+    btn.setAttribute("aria-pressed", "false");
+    return;
+  }
+  const watched = watchedSymbol(currentSymbol);
+  btn.classList.toggle("watched", watched);
+  btn.setAttribute("aria-pressed", String(watched));
+  const label = t(watched ? "removeWatch" : "addWatch");
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+}
 function setWatchlistRail(open, { persist = true } = {}) {
   const supported = window.matchMedia?.("(min-width: 981px)")?.matches !== false;
   watchlistRailOpen = Boolean(open && supported);
@@ -5138,6 +5166,7 @@ function renderWatchlist() {
   const railItems = document.getElementById("watchlistRailItems");
   if (railItems) railItems.innerHTML = watchlistItemsMarkup(groupItems, true);
   renderWatchlistSummary(groupItems);
+  refreshWatchCurrentButton();
 }
 function toggleWatchlist(symbol = currentSymbol, name = currentName) {
   if (!symbol) return;
@@ -6550,6 +6579,9 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
 document.getElementById("contextAddWatchBtn").addEventListener("click", () => {
   if (currentSymbol) toggleWatchlist(currentSymbol, currentName);
   hideChartContextMenu();
+});
+document.getElementById("watchCurrentBtn")?.addEventListener("click", () => {
+  if (currentSymbol) toggleWatchlist(currentSymbol, currentName);
 });
 for (const suffix of ["Rail"]) {
   document.getElementById(`watchlist${suffix}GroupSelect`).addEventListener("change", (event) => setActiveWatchlistGroup(event.currentTarget?.value));
