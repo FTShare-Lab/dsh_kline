@@ -87,6 +87,19 @@ mcp = FastMCP(
 
 _SUPPORTED_INDICATORS = frozenset({"ma", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"})
 _SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9_-]{0,15}(?:\.[A-Z]{2,6})?$", re.IGNORECASE)
+_SUPPORTED_INTERVALS = ("minute", "day", "week", "month", "quarter", "year")
+
+
+def _validate_interval(value: Any) -> tuple[str | None, dict[str, Any] | None]:
+    """Return a normalized interval and a user-facing error without Pydantic internals."""
+    raw = str(value or "").strip().lower()
+    if raw in _SUPPORTED_INTERVALS:
+        return raw, None
+    return None, {
+        "error": "unsupported_interval",
+        "message": f"不支持的 K 线周期“{value}”。请选择：{'、'.join(_SUPPORTED_INTERVALS)}。",
+        "supported_intervals": list(_SUPPORTED_INTERVALS),
+    }
 
 
 def _resolve_symbol_input(value: Any) -> tuple[str | None, str | None, dict[str, Any] | None]:
@@ -438,19 +451,22 @@ async def test_ftshare_connection_tool() -> types.CallToolResult:
 @mcp.tool(name="fetch_candles")
 async def fetch_candles_tool(
     symbol: Annotated[str, Field(description="标的代码，如 00700.HK / 600519.XSHG / NVDA.US")],
-    interval: Annotated[Literal["minute", "day", "week", "month", "quarter", "year"], Field(description="K 线周期")] = "day",
+    interval: Annotated[str, Field(description="K 线周期：minute / day / week / month / quarter / year")] = "day",
     interval_value: Annotated[int, Field(ge=1, le=240, description="分钟粒度")] = 1,
     session_count: Annotated[int | None, Field(ge=1, le=10, description="分钟 K 的交易日数量")] = None,
     limit: Annotated[int, Field(ge=2, le=4000, description="回看窗口")] = 220,
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式")] = "none",
 ) -> types.CallToolResult:
     """Fetch raw OHLCV rows only when the user explicitly requests raw candle data."""
+    normalized_interval, interval_error = _validate_interval(interval)
+    if interval_error:
+        return _result({"ok": False, **interval_error}, interval_error["message"], error=True)
     resolved_symbol, _resolved_name, symbol_error = _resolve_symbol_input(symbol)
     if symbol_error:
         return _result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
     data = fetch_candles(
         resolved_symbol or symbol,
-        interval=interval,
+        interval=normalized_interval or "day",
         interval_value=interval_value,
         session_count=session_count,
         limit=limit,
@@ -503,7 +519,7 @@ async def analyze_kline_rows(
     rows: Annotated[list[dict[str, Any]], Field(description="来自任意数据源的 OHLCV 行；time 可为 Unix 秒或毫秒")],
     symbol: Annotated[str, Field(description="标的代码或名称")],
     name: Annotated[str | None, Field(description="标的名称")] = None,
-    interval: Annotated[Literal["minute", "day", "week", "month", "quarter", "year"], Field(description="K 线周期")] = "day",
+    interval: Annotated[str, Field(description="K 线周期：minute / day / week / month / quarter / year")] = "day",
     limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
     adjust: Annotated[Literal["none", "forward", "backward"], Field(description="复权方式或外部数据源的标记")] = "none",
     indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
@@ -520,6 +536,9 @@ async def analyze_kline_rows(
     security_workspace: Annotated[dict[str, Any] | None, Field(description="可选的标准化新闻/简况数据")] = None,
 ) -> types.CallToolResult:
     """Analyze caller-supplied OHLCV rows and open the native chart sidebar."""
+    normalized_interval, interval_error = _validate_interval(interval)
+    if interval_error:
+        return _result({"ok": False, **interval_error}, interval_error["message"], error=True)
     if not isinstance(rows, list):
         data = {"ok": False, "error": "invalid_external_rows", "message": "rows must be a list"}
         return _result(data, data["message"], error=True)
@@ -536,7 +555,7 @@ async def analyze_kline_rows(
             rows,
             symbol=resolved_symbol or symbol,
             name=name or resolved_name,
-            interval=interval,
+            interval=normalized_interval or "day",
             limit=limit,
             adjust=adjust,
             indicators=indicators,
@@ -561,7 +580,7 @@ async def analyze_kline_rows(
 @mcp.tool(name="analyze_kline")
 async def analyze_kline(
     symbol: Annotated[str, Field(description="标的代码，如 00700.HK / 600519.XSHG / NVDA.US")],
-    interval: Annotated[Literal["minute", "day", "week", "month", "quarter", "year"], Field(description="K 线周期")] = "day",
+    interval: Annotated[str, Field(description="K 线周期：minute / day / week / month / quarter / year")] = "day",
     interval_value: Annotated[int, Field(ge=1, le=240, description="分钟粒度；非分钟周期通常为 1")] = 1,
     session_count: Annotated[int | None, Field(ge=1, le=10, description="分钟 K 的最近交易日数量")] = None,
     limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
@@ -577,14 +596,17 @@ async def analyze_kline(
     atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
 ) -> types.CallToolResult:
     """Use this single call for ordinary K-line analysis; it also opens the native chart sidebar."""
+    normalized_interval, interval_error = _validate_interval(interval)
+    if interval_error:
+        return _result({"ok": False, **interval_error}, interval_error["message"], error=True)
     resolved_symbol, resolved_name, symbol_error = _resolve_symbol_input(symbol)
     if symbol_error:
         return _result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
     requested = max(2, min(int(limit), 4000))
-    fetch_limit = requested if interval == "minute" else min(4000, max(requested, int(requested * 1.8)))
+    fetch_limit = requested if normalized_interval == "minute" else min(4000, max(requested, int(requested * 1.8)))
     fetched = fetch_candles(
         resolved_symbol or symbol,
-        interval=interval,
+        interval=normalized_interval or "day",
         interval_value=interval_value,
         session_count=session_count,
         limit=fetch_limit,
@@ -627,14 +649,14 @@ async def analyze_kline(
         symbol=str(fetched.get("symbol") or resolved_symbol or symbol),
         name=str(fetched.get("name") or resolved_name or symbol),
         data_source=str(fetched.get("source") or "ftshare"),
-        interval=interval,
+        interval=normalized_interval or "day",
         boll_period=boll_period,
         boll_std=boll_std,
         volume_ma=volume_ma,
         rsi_period=rsi_period,
         atr_period=atr_period,
     )
-    chart = _chart_spec(rows, active_indicators, periods, interval, analysis_marks)
+    chart = _chart_spec(rows, active_indicators, periods, normalized_interval or "day", analysis_marks)
     chart_session: str | None = None
     chart_service_status: dict[str, Any]
     try:
@@ -652,7 +674,7 @@ async def analyze_kline(
         "workflow": "fetch_analyze_chart_session",
         "symbol": fetched.get("symbol") or resolved_symbol or symbol,
         "name": fetched.get("name") or resolved_name or symbol,
-        "interval": interval,
+        "interval": normalized_interval or "day",
         "adjust": fetched.get("adjust") or adjust,
         "source": fetched.get("source") or "ftshare",
         "status": fetched.get("status"),

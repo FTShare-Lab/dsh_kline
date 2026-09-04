@@ -1716,7 +1716,7 @@ def fetch_candles(
         return {
             "ok": False,
             "error": "unsupported_interval",
-            "message": f"unsupported interval: {interval}",
+            "message": f"不支持的 K 线周期“{interval}”。请选择：{'、'.join(sorted(supported_intervals))}。",
             "supported_intervals": sorted(supported_intervals),
         }
     ambiguous = _ambiguous_broad_index_result(sym)

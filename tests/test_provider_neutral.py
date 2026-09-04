@@ -89,6 +89,21 @@ class ProviderNeutralTests(unittest.TestCase):
         self.assertEqual(result.structuredContent["symbol"], "TEST.X")
         self.assertEqual(result.structuredContent["name"], "测试股")
 
+    def test_invalid_interval_returns_actionable_chinese_error(self):
+        async def run():
+            return await analyze_kline_rows(
+                sample_rows(8), symbol="TEST.X", name="测试股", interval="1d", limit=8,
+            )
+
+        result = asyncio.run(run())
+        payload = result.structuredContent
+        self.assertTrue(result.isError)
+        self.assertEqual(payload["error"], "unsupported_interval")
+        self.assertEqual(payload["supported_intervals"], ["minute", "day", "week", "month", "quarter", "year"])
+        self.assertIn("请选择", payload["message"])
+        self.assertNotIn("pydantic", result.content[0].text.lower())
+        self.assertNotIn("errors.pydantic.dev", result.content[0].text)
+
     def test_external_rows_bypass_ftshare_adapter(self):
         async def run():
             with patch("server.publish_chart", return_value=("session-bypass", "http://127.0.0.1:8765")), patch(
