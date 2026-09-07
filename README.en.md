@@ -14,7 +14,13 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 
 ## Plugin marketplace
 
-`dsh_kline` is available in the DeepSeek Harness plugin marketplace. Search for `dsh_kline` or `kline` in Harness to install it. After a new release, refresh the marketplace from the same settings area to sync and update the installed plugin.
+`dsh_kline` can be installed from the DeepSeek Harness plugin marketplace. If the catalog has not refreshed yet, install it directly from GitHub:
+
+```bash
+dsh plugin --profile web add github:FTShare-Lab/dsh_kline
+```
+
+The first launch prepares an isolated Python runtime. Users installed from GitHub or the marketplace can check for updates there after a release; a `link:` development install always follows its local checkout and is never replaced automatically by an online version.
 
 ![Install and update dsh_kline from the plugin marketplace](docs/images/dsh-market.png)
 

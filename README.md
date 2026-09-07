@@ -14,7 +14,13 @@
 
 ## 插件市场
 
-`dsh_kline` 已接入 DeepSeek Harness 插件市场。用户可以在 Harness 的“插件市场”中搜索 `dsh_kline` 或 `kline`，直接安装插件；发布新版本后，在同一处更新插件市场即可同步并更新已安装插件。
+`dsh_kline` 可通过 DeepSeek Harness 插件市场安装。若市场目录尚未刷新，也可直接从 GitHub 安装：
+
+```bash
+dsh plugin --profile web add github:FTShare-Lab/dsh_kline
+```
+
+首次启动会准备独立的 Python 运行环境。发布新版本后，已从 GitHub 或市场安装的用户可在同一处检查并更新；`link:` 本地开发安装始终跟随本机目录，不会被线上版本自动覆盖。
 
 ![在插件市场安装和更新 dsh_kline](docs/images/dsh-market.png)
 

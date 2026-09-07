@@ -1,3 +1,30 @@
 - insert:
+    # This row lives in the bundle patch so `dsh plugin add github:…` gets
+    # both the sidebar and its MCP service. `ctx.baseUrl` is the profile's
+    # cordis.yml URL, making the installed package root independent of the
+    # caller's workspace directory.
+    - id: mcp-dsh-kline
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: dsh-kline
+        transport: stdio
+        command: /bin/bash
+        args:
+          - scripts/run-dsh-kline.sh
+        cwd: !!js new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname
+        env:
+          DSH_KLINE_PYTHON: !!js process.env.DSH_KLINE_PYTHON || ''
+          DSH_KLINE_CHART_HOST: !!js process.env.DSH_KLINE_CHART_HOST || '127.0.0.1'
+          DSH_KLINE_CHART_PORT: !!js process.env.DSH_KLINE_CHART_PORT || '8765'
+          FTSHARE_SDK_SRC: !!js process.env.FTSHARE_SDK_SRC || ''
+          FTSHARE_API_KEY: !!js process.env.FTSHARE_API_KEY || ''
+          FTSHARE_API_KEY_FILE: !!js process.env.FTSHARE_API_KEY_FILE || ''
+        toolCallTimeoutMs: 120000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          initialDelayMs: 500
+          maxDelayMs: 30000
+          maxAttempts: 10
     - id: dsh-kline-sidebar
       name: '@ftshare-lab/dsh-kline'
