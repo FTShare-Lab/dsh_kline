@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>dsh_kline Chart</title>
-<!-- The local chart server injects the vendored library and session payload. -->
-<script id="klinecharts-vendor">/*__KLINECHARTS_VENDOR_JS__*/</script>
+<!-- Standalone preview path. The DSH client passes the same vendored library explicitly. -->
+<script id="klinecharts-vendor" src="./vendor/klinecharts.min.js"></script>
 <style>
   :root {
     --bg: #ffffff;
@@ -2907,7 +2907,7 @@ function initChart() {
       ? `vendor 执行异常：${vendor.error}`
       : vendor.started
         ? "vendor 已执行但未导出 window.klinecharts"
-        : "vendor 注入代码未执行";
+        : "图表依赖未加载";
     const el = document.getElementById("klineChart");
     el.textContent = `klinecharts 加载失败：${reason}`;
     return;

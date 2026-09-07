@@ -6,6 +6,14 @@
 
 （新版本变更将集中在此。）
 
+## 0.1.5 - 2026-09-07
+
+### Fixed
+
+- Pass the loaded KLineCharts dependency explicitly into the scoped chart runtime instead of relying on a cross-realm global lookup.
+- Ship the browser runtime in the repository so direct GitHub installs and updates do not depend on blocked lifecycle build scripts.
+- Make failed vendor loads retryable and replace the obsolete inline vendor placeholder with a working standalone preview script.
+
 ## [0.1.4] - 2026-09-05
 
 ### Added

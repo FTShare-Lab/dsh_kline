@@ -244,11 +244,11 @@ function NativeKlineApp({ session }: { session: ChartSession }) {
     Promise.all([
       fetch('/dsh-kline/data', { cache: 'no-store' }).then(response => response.json()),
       loadKlinecharts(),
-    ]).then(([result]) => {
+    ]).then(([result, klinecharts]) => {
       if (!active || !host.current) return
       if (!result?.ok || !result?.payload) throw new Error(result?.message || '图表会话不可用')
       const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
-      dispose = mountKlineView(root, result.payload)
+      dispose = mountKlineView(root, result.payload, { klinecharts })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
@@ -264,15 +264,21 @@ function NativeKlineApp({ session }: { session: ChartSession }) {
 }
 
 function loadKlinecharts(): Promise<any> {
-  if (window.klinecharts) return Promise.resolve(window.klinecharts)
+  const loaded = () => typeof window.klinecharts?.init === 'function' ? window.klinecharts : undefined
+  if (loaded()) return Promise.resolve(loaded())
   if (window.__dshKlineVendorPromise) return window.__dshKlineVendorPromise
   window.__dshKlineVendorPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = '/dsh-kline/vendor/klinecharts.min.js'
     script.async = true
-    script.onload = () => window.klinecharts ? resolve(window.klinecharts) : reject(new Error('KLineCharts 未加载'))
+    script.dataset.dshKlineVendor = 'true'
+    script.onload = () => loaded() ? resolve(loaded()) : reject(new Error('KLineCharts 已下载但没有正确初始化'))
     script.onerror = () => reject(new Error('KLineCharts 加载失败'))
     document.head.appendChild(script)
+  }).catch(error => {
+    window.__dshKlineVendorPromise = undefined
+    document.querySelector('script[data-dsh-kline-vendor="true"]')?.remove()
+    throw error
   })
   return window.__dshKlineVendorPromise
 }

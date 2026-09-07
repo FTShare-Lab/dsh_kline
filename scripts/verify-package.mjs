@@ -1,0 +1,27 @@
+import { access, readFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+const root = fileURLToPath(new URL('..', import.meta.url))
+const requiredFiles = [
+  'lib/index.js',
+  'lib/client.js',
+  'view/vendor/klinecharts.min.js',
+]
+
+for (const relativePath of requiredFiles) {
+  await access(`${root}/${relativePath}`, constants.R_OK)
+}
+
+const client = await readFile(`${root}/lib/client.js`, 'utf8')
+for (const marker of [
+  '/dsh-kline/vendor/klinecharts.min.js',
+  'client_dependency',
+  'dependencies.klinecharts',
+]) {
+  if (!client.includes(marker)) {
+    throw new Error(`built client is missing required marker: ${marker}`)
+  }
+}
+
+console.log('DSH K-line package artifacts verified')

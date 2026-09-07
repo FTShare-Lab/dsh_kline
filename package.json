@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
@@ -52,7 +52,8 @@
   "scripts": {
     "bootstrap": "bash ./scripts/bootstrap.sh",
     "generate:client-view": "node ./scripts/generate-client-view.mjs",
-    "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts",
+    "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts && pnpm verify:package",
+    "verify:package": "node ./scripts/verify-package.mjs",
     "dsh:web": "bash ./scripts/run-dsh-web.sh"
   },
   "devDependencies": {

@@ -34,11 +34,11 @@ const generated = `// @ts-nocheck
 const VIEW_STYLE = ${JSON.stringify(scopedStyle)}
 const VIEW_MARKUP = ${JSON.stringify(markup)}
 
-export function mountKlineView(root, payload) {
+export function mountKlineView(root, payload, dependencies = {}) {
   const host = root.host
   root.innerHTML = \`<style>\${VIEW_STYLE}</style><div class="dsh-kline-view-body">\${VIEW_MARKUP}</div>\`
   const body = root.querySelector('.dsh-kline-view-body')
-  const lifecycle = createScopedWindow(host, payload)
+  const lifecycle = createScopedWindow(host, payload, dependencies)
   const window = lifecycle.window
   const document = createScopedDocument(root, host, body)
   const fetch = (input, init) => {
@@ -74,9 +74,13 @@ function createScopedDocument(root, host, body) {
   })
 }
 
-function createScopedWindow(host, payload) {
+function createScopedWindow(host, payload, dependencies) {
   const realWindow = globalThis.window
   const local = new Map([['__DSH_CHART_SESSION__', payload]])
+  if (dependencies.klinecharts) {
+    local.set('klinecharts', dependencies.klinecharts)
+    local.set('__FTV_KLINECHARTS_VENDOR__', { started: true, source: 'client_dependency' })
+  }
   const listeners = []
   const intervals = new Set()
   const timeouts = new Set()
