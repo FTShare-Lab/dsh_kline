@@ -32,6 +32,7 @@ from core.calc import (
     calc_range,
 )
 from tools.calc import run_calc_metrics
+from core.rows import validate_rows, RowsValidationError
 from tools.draw import draw_kline
 from tools.fetch import (
     configure_ftshare_api_key,
@@ -60,6 +61,7 @@ MAX_SESSIONS = 128
 CHART_API_ACTIONS = frozenset(
     {
         "analyze_kline",
+        "analyze_key_levels",
         "calc_range",
         "fetch_candles",
         "fetch_comparison_candles",
@@ -111,6 +113,26 @@ class ChartSessionStore:
         expired = [key for key, value in self._items.items() if now - value.created_at > self.ttl_seconds]
         for key in expired:
             self._items.pop(key, None)
+
+
+def _http_key_levels(args: dict[str, Any]) -> dict[str, Any]:
+    """Analyze the displayed bars only; never fetch or replace market data."""
+    from server import _support_resistance_marks
+
+    raw = args.get("rows")
+    if not isinstance(raw, list) or len(raw) > 12000:
+        return {"ok": False, "error": "invalid_rows", "message": "请提供不超过 12000 根的 K 线数据。"}
+    try:
+        rows = validate_rows(raw, min_len=1)
+    except RowsValidationError:
+        return {"ok": False, "error": "invalid_rows", "message": "K 线数据无效，请重新加载行情。"}
+    if len(rows) < 5:
+        return {"ok": False, "error": "insufficient_candles", "message": "关键点位分析至少需要 5 根有效 K 线，请扩大时间范围。"}
+    metrics = run_calc_metrics(rows, metrics=["support_resistance"])
+    marks = [{"type": "TEXT_MARKER", **mark} for mark in _support_resistance_marks(metrics)]
+    return {"ok": True, "symbol": str(args.get("symbol") or ""),
+            "count": len(rows), "chartCommands": marks, "metrics": metrics,
+            "status": "ready" if marks else "no_levels"}
 
 
 def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
@@ -239,6 +261,8 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    if name == "analyze_key_levels":
+        return _http_key_levels(args)
     if name == "analyze_kline":
         return _http_analyze_kline(args)
     if name == "symbol_directory":
@@ -418,14 +442,25 @@ def _write_runtime_session(token: str, service_url: str, service_token: str, pay
         "name": str(payload.get("name") or ""),
         "published_at": int(time.time()),
     }
-    descriptor, temp_name = tempfile.mkstemp(prefix="chart-session-", suffix=".json", dir=RUNTIME_DIR)
+    # Immutable, token-addressed snapshots survive MCP restarts. The legacy
+    # manifest is only a service locator, never the UI's chart selection.
+    sessions_dir = RUNTIME_DIR / "sessions"
+    sessions_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    snapshot = sessions_dir / f"{token}.json"
+    _atomic_runtime_json(snapshot, {**document, "payload": payload})
+    _atomic_runtime_json(RUNTIME_SESSION_FILE, document)
+
+
+def _atomic_runtime_json(destination: Path, document: dict[str, Any]) -> None:
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix="chart-session-", suffix=".json", dir=destination.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             json.dump(document, handle, ensure_ascii=False, separators=(",", ":"))
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temp_name, 0o600)
-        os.replace(temp_name, RUNTIME_SESSION_FILE)
+        os.replace(temp_name, destination)
     finally:
         try:
             os.unlink(temp_name)
@@ -462,3 +497,13 @@ def ensure_chart_service() -> ChartService:
 
 def publish_chart(payload: dict[str, Any]) -> tuple[str, str]:
     return ensure_chart_service().publish(payload)
+
+
+def start_chart_service() -> None:
+    """Refresh only the service locator after restart; no chart is selected."""
+    service = ensure_chart_service()
+    _atomic_runtime_json(RUNTIME_SESSION_FILE, {
+        "ok": True, "session": "", "process_id": os.getpid(),
+        "service_url": f"http://{service.host}:{service.port}",
+        "service_token": service.auth_token, "published_at": int(time.time()),
+    })

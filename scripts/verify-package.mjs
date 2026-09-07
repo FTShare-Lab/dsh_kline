@@ -7,6 +7,7 @@ const requiredFiles = [
   'lib/index.js',
   'lib/client.js',
   'view/vendor/klinecharts.min.js',
+  'config/basic-symbols.json',
 ]
 
 for (const relativePath of requiredFiles) {

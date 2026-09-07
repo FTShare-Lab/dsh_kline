@@ -1,0 +1,168 @@
+import json
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
+
+import pytest
+
+import chart_service
+import server
+import tools.fetch as f
+from core.calc import calc_metrics, series_rsi
+
+
+def bars(count=40, trend=0):
+    return [dict(time=1700000000 + i * 86400, open=100+i*trend,
+                 high=100+i*trend, low=100+i*trend, close=100+i*trend, volume=100)
+            for i in range(count)]
+
+
+def test_key_levels_use_supplied_rows_without_market_requests():
+    rows = bars()
+    with patch.object(chart_service, 'fetch_candles', side_effect=AssertionError('must not fetch')), \
+         patch.object(server, '_resolve_symbol_input', side_effect=AssertionError('must not resolve')):
+        result = chart_service._tool_dispatch('analyze_key_levels', {'symbol': 'EXTERNAL', 'rows': rows})
+    assert result['ok']
+    assert result['metrics'] == chart_service.run_calc_metrics(rows, metrics=['support_resistance'])
+    assert result['chartCommands'] == [{"type": "TEXT_MARKER", **m} for m in server._support_resistance_marks(result['metrics'])]
+    assert all(cmd['type'] == 'TEXT_MARKER' for cmd in result['chartCommands'])
+    assert 'chart_session' not in result
+
+
+@pytest.mark.parametrize('rows,error', [(bars(4), 'insufficient_candles'), (None, 'invalid_rows'),
+                                       ([], 'invalid_rows'), (bars(12001), 'invalid_rows')])
+def test_key_levels_validate_local_input(rows, error):
+    assert chart_service._http_key_levels({'rows': rows})['error'] == error
+
+
+def test_key_levels_no_levels_is_success():
+    result = chart_service._http_key_levels({'symbol': 'X', 'rows': bars(trend=2)})
+    assert result['ok']
+    assert result['status'] == 'no_levels'
+    assert result['chartCommands'] == []
+
+
+@pytest.mark.parametrize('trend,expected', [(0, 50), (1, 100), (-1, 0)])
+def test_rsi_degenerate_series(trend, expected):
+    assert set(series_rsi(bars(trend=trend)).values()) == {expected}
+    if trend == 0:
+        assert calc_metrics(bars(), ['rsi'])['rsi']['overbought'] == []
+
+
+@pytest.mark.parametrize('interval,limit', [('day', 1000), ('week', 200), ('month', 120), ('quarter', 40), ('year', 200)])
+@pytest.mark.parametrize('adapter', [f._fetch_generic_history, f._fetch_index_history])
+def test_calendar_pagination_matches_daily_reference(interval, limit, adapter):
+    start = datetime(2016, 1, 1, 15, tzinfo=ZoneInfo('Asia/Shanghai'))
+    source = []
+    for i in range(3900):
+        day = start + timedelta(days=i)
+        if day.weekday() < 5:
+            source.append(dict(time=int(day.timestamp()), open=i+1, high=i+3,
+                               low=i, close=i+2, volume=i+100))
+    calls = []
+
+    def fetch_page(_market, **kwargs):
+        calls.append(kwargs)
+        assert kwargs['interval_unit'] == 'Day'
+        assert kwargs['adjust_kind'] == 'forward'
+        assert kwargs['until_ts_millis'] - kwargs['since_ts_millis'] <= 360 * 86400000
+        return [r for r in source if kwargs['since_ts_millis'] <= r['time']*1000 <= kwargs['until_ts_millis']]
+
+    endpoint = '_ftshare_index_candlesticks' if adapter is f._fetch_index_history else '_ftshare_stock_candlesticks'
+    with patch.object(f, endpoint, side_effect=fetch_page), patch.object(f, '_until_ms', return_value=(source[-1]['time']+86400)*1000):
+        actual = adapter(None, symbol='600519.XSHG', interval=interval, interval_unit='ignored',
+                         interval_value=1, adjust_kind='forward', limit=limit)
+    expected = f._aggregate_interval(source, interval, timezone_name='Asia/Shanghai')[-limit:]
+    assert actual == expected
+    assert len(calls) > 1
+
+
+def test_short_page_does_not_end_history():
+    pages = [bars(1), [{**bars(1)[0], 'time': 1600000000}], []]
+    with patch.object(f, '_ftshare_stock_candlesticks', side_effect=pages):
+        result = f._fetch_generic_history(None, symbol='X', interval='year', interval_unit='Year',
+                                         interval_value=1, adjust_kind='none', limit=200)
+    assert len(result) == 2
+
+
+def test_calendar_uses_exchange_timezone_at_us_month_end():
+    jan = int(datetime(2024, 1, 31, 16, tzinfo=ZoneInfo('America/New_York')).timestamp())
+    feb = int(datetime(2024, 2, 1, 16, tzinfo=ZoneInfo('America/New_York')).timestamp())
+    rows = [{**bars(1)[0], 'time': stamp} for stamp in [jan, feb]]
+    with patch.object(f, '_ftshare_stock_candlesticks', side_effect=[rows, []]):
+        result = f._fetch_generic_history(None, symbol='NVDA.US', interval='month', interval_unit='Month',
+                                         interval_value=1, adjust_kind='none', limit=200)
+    assert len(result) == 2
+
+
+@pytest.mark.parametrize('error,state', [('HTTP 401 missing API Key', 'auth_required'),
+                                        ('HTTP 429', 'rate_limited'), ('timeout', 'upstream_unavailable')])
+def test_daily_success_survives_minute_failure(error, state):
+    with patch.object(f, 'ftshare_available', return_value=True), patch.object(f, '_ftshare_market_api'), \
+         patch.object(f, '_ftshare_stock_candlesticks', return_value=bars(2)), \
+         patch.object(f, '_ftshare_stock_minutes', side_effect=RuntimeError(error)), \
+         patch.object(f, '_read_persisted_ftshare_key', return_value=''), patch.dict('os.environ', {'FTSHARE_API_KEY': ''}):
+        result = f.test_ftshare_connection()
+    assert result['ok']
+    assert result['status'] == 'partial'
+    assert result['capabilities'] == {'daily': 'available', 'minute': state}
+    assert '已配置并验证通过' not in result['message']
+
+
+def test_empty_daily_probe_is_not_available():
+    with patch.object(f, 'ftshare_available', return_value=True), patch.object(f, '_ftshare_market_api'), \
+         patch.object(f, '_ftshare_stock_candlesticks', return_value=[]):
+        assert not f.test_ftshare_connection()['ok']
+
+
+@pytest.mark.parametrize('query,expected', [('平安银行', '000001.XSHE'), ('工商银行', '601398.XSHG'),
+    ('民生银行', '600016.XSHG'), ('五粮液', '000858.XSHE'), ('比亚迪', '002594.XSHE'),
+    ('万科A', '000002.XSHE'), ('招商银行', '600036.XSHG'), ('小米', '01810.HK'), ('601398', '601398.XSHG')])
+def test_first_install_search_offline(query, expected):
+    f._symbol_search_cache.clear()
+    with patch.object(f, '_read_symbol_directory_cache', return_value=None), patch.object(f, '_ftshare_market_api', side_effect=AssertionError('search must stay offline')):
+        result = f.search_symbols(query)
+    assert expected in [r['symbol'] for r in result['results']]
+    assert result['partial']
+
+
+def test_ambiguous_code_requires_choice():
+    f._symbol_search_cache.clear()
+    with patch.object(f, '_read_symbol_directory_cache', return_value=None):
+        assert server._resolve_symbol_input('000001')[2]['error'] == 'ambiguous_symbol'
+        assert server._resolve_symbol_input('000001.SZ')[0] == '000001.XSHE'
+
+
+def test_unknown_search_and_explicit_code_fallback():
+    f._symbol_search_cache.clear()
+    with patch.object(f, '_read_symbol_directory_cache', return_value=None):
+        assert '目录' in f.search_symbols('不存在的名字')['message']
+        assert f.search_symbols('603123.SH')['results'][0]['symbol'] == '603123.XSHG'
+
+
+def test_history_depth_is_disclosed():
+    with patch.object(f, '_fetch_candles_ftshare', return_value={'ok': True, 'rows': bars(2), 'count': 2}):
+        result = f.fetch_candles('600519.XSHG', limit=4000)
+    assert result['requested_count'] == 4000
+    assert not result['history_complete']
+    assert result['warnings']
+
+
+def test_published_charts_are_independent_and_persistent():
+    with tempfile.TemporaryDirectory() as directory, patch.object(chart_service, 'RUNTIME_DIR', Path(directory)), \
+         patch.object(chart_service, 'RUNTIME_SESSION_FILE', Path(directory)/'chart-session.json'):
+        service = chart_service.ChartService('127.0.0.1', 0)
+        try:
+            a, _ = service.publish({'symbol': '601899.XSHG', 'name': '紫金矿业'})
+            b, _ = service.publish({'symbol': '600519.XSHG', 'name': '贵州茅台'})
+            assert a != b
+            assert service.store.get(a)['symbol'] == '601899.XSHG'
+            assert service.store.get(b)['symbol'] == '600519.XSHG'
+            saved_a = json.loads((Path(directory)/'sessions'/f'{a}.json').read_text())
+            assert saved_a['payload']['symbol'] == '601899.XSHG'
+            assert ((Path(directory)/'sessions'/f'{a}.json').stat().st_mode & 0o777) == 0o600
+        finally:
+            service.httpd.shutdown()
+            service.httpd.server_close()

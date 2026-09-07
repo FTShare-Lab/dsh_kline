@@ -1,19 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { mountKlineView } from './generated-view'
+import { mountKlineView, PACKAGE_VERSION } from './generated-view'
+import { chartStorageKey, latestChart, latestChartFromEvents, type ChartReference, type Sessions } from './conversation'
 
-export const inject: string[] = []
+export const inject: string[] = ['sessions']
 
 const PANEL_MIN = 420
 const PANEL_MAX = 920
 const PANEL_DEFAULT = 680
 const SESSION_ENDPOINT = '/dsh-kline/session'
 const STORAGE_KEY = 'dsh-kline:sidebar:v1'
-const CURRENT_VERSION = '0.1.4'
+const CURRENT_VERSION = PACKAGE_VERSION
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/FTShare-Lab/dsh_kline/releases/latest'
 
 interface ClientContext {
   effect(callback: () => () => void, label: string): void
+  sessions: Sessions
 }
 
 interface ChartSession {
@@ -22,6 +24,34 @@ interface ChartSession {
   symbol?: string
   name?: string
   published_at: number
+}
+
+interface ChartIdentity {
+  symbol?: string
+  name?: string
+}
+
+// The chart view can load data itself through the loopback tool proxy.  It
+// therefore does not need an AI-produced chart session to present its search
+// workspace; only AI-produced snapshots need the opaque session reference.
+const STANDALONE_CHART_PAYLOAD = {
+  ok: true,
+  workspace_mode: 'launcher',
+  default_symbol: '000001.XSHG',
+  default_name: '上证指数',
+  symbol: '',
+  name: '',
+  interval: 'day',
+  range_key: 'ytd',
+  chartCommands: [],
+}
+
+function standaloneChartSession(conversationId?: string): string {
+  return `standalone:${conversationId ?? 'global'}`
+}
+
+function standaloneWorkspaceScope(conversationId?: string): string {
+  return `direct:${conversationId ?? 'global'}`
 }
 
 function isSymbolLikeName(value: string | undefined, symbol: string | undefined): boolean {
@@ -59,7 +89,7 @@ export function apply(ctx: ClientContext): void {
     host.dataset.dshKlineSidebar = ''
     document.body.appendChild(host)
     const root = createRoot(host)
-    root.render(<KlineSidebar />)
+    root.render(<ConversationSidebar sessions={ctx.sessions} />)
     return () => {
       root.unmount()
       host.remove()
@@ -69,9 +99,47 @@ export function apply(ctx: ClientContext): void {
   }, 'dsh-kline: sidebar mount')
 }
 
-function KlineSidebar() {
+function ConversationSidebar({ sessions }: { sessions: Sessions }) {
+  const list = useSyncExternalStore(listener => sessions.list.subscribe(listener), () => sessions.list.getSnapshot())
+  return <KlineSidebar key={list.current ?? 'no-conversation'} conversationId={list.current} sessions={sessions} />
+}
+
+const EMPTY_CONVERSATION = { nodes: [] }
+const EMPTY_EVENTS = { entries: [] }
+function KlineSidebar({ conversationId, sessions }: { conversationId?: string; sessions: Sessions }) {
+  const mountedAt = useRef(Date.now())
+  const binding = conversationId ? sessions.binding(conversationId) : undefined
+  const face = binding?.eventSource ? undefined : binding?.session
+  const conversation = useSyncExternalStore(
+    listener => face?.subscribe(listener) ?? (() => {}),
+    () => face?.getSnapshot() ?? EMPTY_CONVERSATION,
+  )
+  const eventSource = binding?.eventSource
+  const events = useSyncExternalStore(
+    listener => eventSource?.subscribe(listener) ?? (() => {}),
+    () => eventSource?.getSnapshot() ?? EMPTY_EVENTS,
+  )
+  const discovered = useMemo(() => eventSource
+    ? latestChartFromEvents(events.entries)
+    : latestChart(conversation.nodes ?? []), [eventSource, events.entries, conversation.nodes])
+  const [reference, setReference] = useState<ChartReference | undefined>(() => {
+    if (!conversationId) return undefined
+    try {
+      const value = JSON.parse(localStorage.getItem(chartStorageKey(conversationId)) ?? 'null')
+      return /^[A-Za-z0-9_-]{32}$/.test(value?.session) ? value : undefined
+    } catch { return undefined }
+  })
+  useEffect(() => {
+    if (!conversationId || !discovered || (reference && reference.order >= discovered.order)) return
+    setReference(discovered)
+    // Reveal results produced while this conversation is on screen. Merely
+    // reopening historical messages must not override the user's closed panel.
+    if (discovered.order >= mountedAt.current) setState(current => ({ ...current, open: true }))
+    try { localStorage.setItem(chartStorageKey(conversationId), JSON.stringify(discovered)) } catch {}
+  }, [conversationId, discovered?.session, discovered?.order, reference])
   const [state, setState] = useState<SidebarState>(readState)
   const [session, setSession] = useState<ChartSession>()
+  const [workspaceIdentity, setWorkspaceIdentity] = useState<ChartIdentity>()
   const [available, setAvailable] = useState(true)
   const [update, setUpdate] = useState<ReleaseUpdate>()
   const drag = useRef<{ startX: number; startWidth: number }>()
@@ -86,10 +154,12 @@ function KlineSidebar() {
 
   useEffect(() => {
     let active = true
-    let timer: number | undefined
+    const controller = new AbortController()
+    setSession(undefined)
+    if (!reference) return
     const refresh = async () => {
       try {
-        const response = await fetch(SESSION_ENDPOINT, { cache: 'no-store' })
+        const response = await fetch(`${SESSION_ENDPOINT}?session=${encodeURIComponent(reference.session)}`, { cache: 'no-store', signal: controller.signal })
         const payload = await response.json() as Partial<ChartSession> & { ok?: boolean }
         if (!active) return
         if (response.ok && payload.ok === true && typeof payload.session === 'string') {
@@ -100,16 +170,14 @@ function KlineSidebar() {
         }
       } catch {
         if (active) setAvailable(false)
-      } finally {
-        if (active) timer = window.setTimeout(refresh, 1200)
       }
     }
     void refresh()
     return () => {
       active = false
-      if (timer !== undefined) window.clearTimeout(timer)
+      controller.abort()
     }
-  }, [])
+  }, [reference?.session])
 
   useEffect(() => {
     let active = true
@@ -122,6 +190,9 @@ function KlineSidebar() {
   }, [])
 
   const setOpen = (open: boolean) => setState(current => ({ ...current, open }))
+  const setStandaloneIdentity = useCallback((symbol?: string, name?: string) => {
+    setWorkspaceIdentity({ symbol, name })
+  }, [])
 
   return (
     <>
@@ -176,8 +247,12 @@ function KlineSidebar() {
         )}
         <header className="dsh-kline-header">
           <div>
-            <strong>{session?.name && !isSymbolLikeName(session.name, session.symbol) ? session.name : 'K 线分析'}</strong>
-            {session?.symbol && <small>{session.symbol}</small>}
+            <strong>{session?.name && !isSymbolLikeName(session.name, session.symbol)
+              ? session.name
+              : workspaceIdentity?.name && !isSymbolLikeName(workspaceIdentity.name, workspaceIdentity.symbol)
+                ? workspaceIdentity.name
+                : 'K 线分析'}</strong>
+            {(session?.symbol ?? workspaceIdentity?.symbol) && <small>{session?.symbol ?? workspaceIdentity?.symbol}</small>}
           </div>
           <button type="button" aria-label="关闭 K 线侧栏" title="关闭" onClick={() => setOpen(false)}>x</button>
         </header>
@@ -189,11 +264,18 @@ function KlineSidebar() {
         )}
         <div className="dsh-kline-content">
           {session ? (
-            <NativeKlineApp session={session} />
+            <NativeKlineApp key={session.session} session={session} conversationId={conversationId ?? 'standalone'}
+              onIdentity={(symbol, name) => setSession(current => current ? { ...current, symbol, name } : current)} />
+          ) : available ? (
+            <StandaloneKlineApp
+              key={standaloneChartSession(conversationId)}
+              conversationId={standaloneWorkspaceScope(conversationId)}
+              onIdentity={setStandaloneIdentity}
+            />
           ) : (
             <div className="dsh-kline-empty" role="status">
-              <strong>{available ? '暂无 K 线图' : '图表服务未连接'}</strong>
-              <span>{available ? '分析完成后将在此显示' : '请检查 dsh_kline MCP 状态'}</span>
+              <strong>图表服务未连接</strong>
+              <span>请检查 dsh_kline MCP 状态</span>
             </div>
           )}
         </div>
@@ -234,27 +316,59 @@ function isNewerVersion(candidate: string, current: string): boolean {
   return false
 }
 
-function NativeKlineApp({ session }: { session: ChartSession }) {
+function NativeKlineApp({ session, conversationId, onIdentity }: { session: ChartSession; conversationId: string; onIdentity: (symbol?: string, name?: string) => void }) {
+  const host = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    let dispose: (() => void) | undefined
+    Promise.all([
+      fetch(`/dsh-kline/data?session=${encodeURIComponent(session.session)}`, { cache: 'no-store', signal: controller.signal }).then(response => response.json()),
+      loadKlinecharts(),
+    ]).then(([result, klinecharts]) => {
+      if (!active || !host.current) return
+      if (!result?.ok || !result?.payload) throw new Error(result?.message || '图表会话不可用')
+      const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
+      dispose = mountKlineView(root, result.payload, { klinecharts, conversationId, chartSession: session.session, onIdentity })
+    }).catch(reason => active && setError(String(reason?.message || reason)))
+    return () => {
+      active = false
+      controller.abort()
+      dispose?.()
+    }
+  }, [session.session, conversationId])
+
+  return (
+    <div className="dsh-kline-native-host" ref={host}>
+      {error && <div className="dsh-kline-error" role="alert">{error}</div>}
+    </div>
+  )
+}
+
+function StandaloneKlineApp({ conversationId, onIdentity }: { conversationId: string; onIdentity: (symbol?: string, name?: string) => void }) {
   const host = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
     let dispose: (() => void) | undefined
-    Promise.all([
-      fetch('/dsh-kline/data', { cache: 'no-store' }).then(response => response.json()),
-      loadKlinecharts(),
-    ]).then(([result, klinecharts]) => {
+    loadKlinecharts().then(klinecharts => {
       if (!active || !host.current) return
-      if (!result?.ok || !result?.payload) throw new Error(result?.message || '图表会话不可用')
       const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
-      dispose = mountKlineView(root, result.payload, { klinecharts })
+      dispose = mountKlineView(root, STANDALONE_CHART_PAYLOAD, {
+        klinecharts,
+        conversationId,
+        chartSession: standaloneChartSession(conversationId),
+        onIdentity,
+      })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
       dispose?.()
     }
-  }, [session.session])
+  }, [conversationId, onIdentity])
 
   return (
     <div className="dsh-kline-native-host" ref={host}>

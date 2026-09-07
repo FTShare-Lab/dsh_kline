@@ -1,6 +1,8 @@
+import { type Sessions } from './conversation';
 export declare const inject: string[];
 interface ClientContext {
     effect(callback: () => () => void, label: string): void;
+    sessions: Sessions;
 }
 declare global {
     interface Window {

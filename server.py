@@ -35,7 +35,7 @@ from core.calc import (
     series_vwap,
     series_vol_ma,
 )
-from chart_service import publish_chart
+from chart_service import publish_chart, start_chart_service
 from core.rows import RowsValidationError, validate_rows
 from tools.calc import run_calc_metrics
 from tools.draw import draw_kline
@@ -118,6 +118,9 @@ def _resolve_symbol_input(value: Any) -> tuple[str | None, str | None, dict[str,
     directory = search_symbol_directory(raw, limit=8)
     results = directory.get("results") if isinstance(directory, dict) else None
     if isinstance(results, list) and results:
+        exact_codes = [item for item in results if str(item.get("symbol", "")).split(".")[0] == raw]
+        if len(exact_codes) > 1:
+            return None, None, {"error": "ambiguous_symbol", "message": "该代码对应多个市场或标的，请选择完整代码。", "candidates": exact_codes}
         folded = raw.casefold()
         exact = next(
             (item for item in results if str(item.get("symbol") or "").casefold() == folded
@@ -135,7 +138,7 @@ def _resolve_symbol_input(value: Any) -> tuple[str | None, str | None, dict[str,
         return normalized, None, None
     return None, None, {
         "error": "invalid_symbol",
-        "message": f"未找到标的“{raw}”。请使用代码或完整代码格式，例如 600519.SH、00700.HK、NVDA.US。",
+        "message": f"未找到标的“{raw}”。" + (str(directory.get("message")) if directory.get("message") else "请使用完整代码，例如 600519.SH、00700.HK、NVDA.US。"),
         "query": raw,
         "candidates": results[:5] if isinstance(results, list) else [],
     }
@@ -344,6 +347,7 @@ def _analysis_from_rows(
         rsi_period=rsi_period,
         atr_period=atr_period,
     )
+    chart_payload["adjust"] = adjust
     chart = _chart_spec(selected, active_indicators, periods, interval, analysis_marks)
     chart_session: str | None = None
     chart_service_status: dict[str, Any]
@@ -438,7 +442,8 @@ async def search_symbols_tool(
     data = search_symbol_directory(query, limit=limit)
     if not data.get("ok"):
         return _result(data, str(data.get("message") or data.get("error") or "搜索失败"), error=True)
-    return _result(data, f"search_symbols ok · {data.get('count', 0)} results")
+    candidates = "；".join(f"{item['name']} ({item['symbol']})" for item in data.get("results", [])[:5])
+    return _result(data, f"search_symbols · {candidates or data.get('message') or '未找到匹配标的'}")
 
 
 @mcp.tool(name="configure_ftshare")
@@ -589,7 +594,7 @@ async def analyze_kline_rows(
     except (RowsValidationError, TypeError, ValueError) as exc:
         data = {"ok": False, "error": "invalid_external_rows", "message": str(exc)}
         return _result(data, data["message"], error=True)
-    return _result(data, f"analyze_kline_rows ok · {data['symbol']} · {data['count']} bars · source={data['source']}")
+    return _result(data, f"analyze_kline_rows ok · {data['symbol']} · {data['count']} bars · source={data['source']} · chart_session={data['chart_session']}")
 
 
 @mcp.tool(name="analyze_kline")
@@ -672,6 +677,7 @@ async def analyze_kline(
         rsi_period=rsi_period,
         atr_period=atr_period,
     )
+    chart_payload["adjust"] = adjust
     chart = _chart_spec(rows, active_indicators, periods, normalized_interval or "day", analysis_marks)
     chart_session: str | None = None
     chart_service_status: dict[str, Any]
@@ -696,6 +702,7 @@ async def analyze_kline(
         "status": fetched.get("status"),
         "count": len(rows),
         "fetched_count": len(fetched.get("rows") or []),
+        "history_warnings": fetched.get("warnings", []),
         "as_of": fetched.get("as_of"),
         "freshness": fetched.get("freshness"),
         "chart_session": chart_session,
@@ -730,7 +737,9 @@ async def analyze_kline(
             "indicator_last",
             "metrics",
             "chart_ready",
+            "chart_session",
             "warnings",
+            "history_warnings",
         )
     }
     return _result(data, "analyze_kline ok · " + json.dumps(summary, ensure_ascii=False, separators=(",", ":")))
@@ -741,6 +750,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--http", action="store_true", help="Run streamable HTTP instead of stdio")
     parser.add_argument("--port", type=int, default=8010)
     args = parser.parse_args(argv)
+    start_chart_service()
     if args.http:
         mcp.settings.host = "127.0.0.1"
         mcp.settings.port = args.port

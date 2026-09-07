@@ -147,6 +147,8 @@ _SYMBOL_DIRECTORY_SEED = (
     {"symbol": "601318.XSHG", "name": "中国平安", "market": "CN"},
     {"symbol": "600036.XSHG", "name": "招商银行", "market": "CN"},
 )
+_BASIC_DIRECTORY = json.loads((Path(__file__).resolve().parent.parent / "config" / "basic-symbols.json").read_text(encoding="utf-8"))
+_SYMBOL_DIRECTORY_SEED = (*_SYMBOL_DIRECTORY_SEED, *_BASIC_DIRECTORY["items"])
 _BUILTIN_SEARCH_ALIASES = {
     **{item["symbol"]: item["aliases"] for item in CN_BROAD_INDEXES},
     "100.HSI": "恒指 hang seng hsi",
@@ -503,7 +505,7 @@ def ftshare_capabilities() -> dict[str, str]:
     """Return the last safe capability result without exposing credentials."""
     if _LAST_FTSHARE_CAPABILITIES:
         return dict(_LAST_FTSHARE_CAPABILITIES)
-    return {"daily": "available" if ftshare_available() else "unavailable", "minute": "not_tested"}
+    return {"daily": "not_tested" if ftshare_available() else "unavailable", "minute": "not_tested"}
 
 
 def ftshare_index_kline_available() -> bool:
@@ -576,11 +578,15 @@ def _ftshare_capability_message(capabilities: dict[str, str], *, persistent: boo
     saved = "已保存" if persistent else "已配置"
     daily = capabilities.get("daily")
     minute = capabilities.get("minute")
+    if daily == "available" and minute == "auth_required":
+        return "FTShare 日 K 已验证可用；分钟 K 需要配置有效 API Key 及相应数据权限。"
     if daily == "available" and minute in {"insufficient_quota", "capability_limited"}:
         return f"FTShare API Key {saved}并验证通过。当前套餐可使用日 K；分钟 K 暂未开通，请按需升级对应套餐。"
     if daily == "available" and minute == "available":
         return f"FTShare API Key {saved}并验证通过，当前日 K 与分钟 K 均可用。"
-    return f"FTShare API Key {saved}并验证通过；具体数据能力取决于当前套餐。"
+    if daily == "available":
+        return "FTShare 日 K 已验证可用；分钟 K 暂未验证成功，请稍后重试。"
+    return "FTShare 尚未验证到可用行情，请检查连接状态。"
 
 
 def test_ftshare_connection() -> dict[str, Any]:
@@ -591,12 +597,15 @@ def test_ftshare_connection() -> dict[str, Any]:
     try:
         market = _ftshare_market_api(timeout=8)
         now = int(time.time() * 1000)
-        _ftshare_stock_candlesticks(
+        daily_rows = _ftshare_stock_candlesticks(
             market,
             symbol="600519.XSHG", interval_unit="Day", interval_value=1,
             adjust_kind="none", since_ts_millis=now - 14 * 86_400_000,
             until_ts_millis=now, limit=2, as_dataframe=False,
         )
+        if not _normalize_raw(daily_rows):
+            _set_ftshare_capabilities(capabilities)
+            return {"ok": False, "error": "empty_daily_data", "message": "连接成功，但未返回有效日 K 数据，尚不能确认行情可用。", "capabilities": capabilities}
         capabilities["daily"] = "available"
         try:
             _ftshare_stock_minutes(
@@ -607,9 +616,9 @@ def test_ftshare_connection() -> dict[str, Any]:
             capabilities["minute"] = "available"
         except Exception as exc:  # noqa: BLE001
             minute_error, _minute_message = _classify_ftshare_error(exc)
-            if minute_error in {"auth_required", "invalid_key", "ftshare_connection_failed"}:
+            if minute_error == "invalid_key":
                 raise
-            capabilities["minute"] = "insufficient_quota"
+            capabilities["minute"] = "insufficient_quota" if minute_error == "capability_limited" else minute_error
         _set_ftshare_capabilities(capabilities)
         return {
             "ok": True,
@@ -618,6 +627,7 @@ def test_ftshare_connection() -> dict[str, Any]:
             ),
             "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
             "capabilities": capabilities,
+            "status": "available" if capabilities["minute"] == "available" else "partial",
         }
     except Exception as exc:  # noqa: BLE001
         error, message = _classify_ftshare_error(exc)
@@ -940,6 +950,45 @@ def _history_since_ms(limit: int, interval: str) -> int:
     return max(_until_ms() - lookback_days * 86_400_000, 0)
 
 
+def _fetch_calendar_history(
+    fetch_page: Any, market: Any, *, symbol: str, interval: str,
+    adjust_kind: str, limit: int,
+) -> list[dict[str, Any]]:
+    """Page disjoint daily history, then aggregate once in exchange time.
+
+    Provider weekly/monthly bars can represent overlapping partial periods at
+    page boundaries. They cannot safely be summed or timestamp-deduplicated.
+    One extra output bucket ensures the oldest requested period is complete.
+    Empty history, no progress, and bounded work are the only stop conditions;
+    a short page is not evidence that older history does not exist.
+    """
+    requested = max(2, int(limit or 220))
+    until_ms = _until_ms()
+    by_time: dict[int, dict[str, Any]] = {}
+    aggregated: list[dict[str, Any]] = []
+    for _page in range(64):
+        raw = fetch_page(
+            market, symbol=symbol, interval_unit="Day", interval_value=1,
+            adjust_kind=adjust_kind, since_ts_millis=max(0, until_ms - 360 * 86_400_000),
+            until_ts_millis=until_ms, limit=4000, as_dataframe=False,
+        )
+        chunk = _normalize_raw(raw)
+        if not chunk:
+            break
+        previous_count = len(by_time)
+        by_time.update((int(row["time"]), row) for row in chunk)
+        daily = [by_time[key] for key in sorted(by_time)]
+        aggregated = _aggregate_interval(daily, interval, timezone_name=_exchange_timezone(symbol))
+        target = requested if interval == "day" else requested + 1
+        if len(aggregated) >= target:
+            break
+        next_until = min(int(row["time"]) for row in chunk) * 1000 - 1
+        if len(by_time) == previous_count or next_until <= 0 or next_until >= until_ms:
+            break
+        until_ms = next_until
+    return aggregated[-requested:]
+
+
 def _fetch_generic_history(
     market: Any,
     *,
@@ -950,56 +999,11 @@ def _fetch_generic_history(
     adjust_kind: str,
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Page daily-or-larger history without exceeding FTShare's 12-month window."""
-    normalized = str(interval or "day").strip().lower()
-    requested = max(2, int(limit or 220))
-    # Quarter candles are assembled from monthly rows, so collect three times
-    # the requested output count before aggregation.
-    target_rows = min(12_000, requested * 3 if normalized == "quarter" else requested)
-    days_per_bar = {
-        "day": 3,
-        "week": 10,
-        "month": 32,
-        "quarter": 32,
-        "year": 360,
-    }.get(normalized, 3)
-    window_days = min(360, max(30, requested * days_per_bar))
-    estimated_rows_per_page = max(1, window_days // max(1, days_per_bar))
-    max_pages = min(32, max(1, (target_rows + estimated_rows_per_page - 1) // estimated_rows_per_page + 1))
-    page_limit = min(4000, max(2, target_rows))
-    until_ms = _until_ms()
-    rows_by_time: dict[int, dict[str, Any]] = {}
-
-    for _page in range(max_pages):
-        since_ms = max(0, until_ms - window_days * 86_400_000)
-        raw = _ftshare_stock_candlesticks(market,
-            symbol=symbol,
-            interval_unit=interval_unit,
-            interval_value=interval_value,
-            adjust_kind=adjust_kind,
-            since_ts_millis=since_ms,
-            until_ts_millis=until_ms,
-            limit=page_limit,
-            as_dataframe=False,
-        )
-        chunk = _normalize_raw(raw)
-        if not chunk:
-            break
-        previous_count = len(rows_by_time)
-        for row in chunk:
-            rows_by_time[int(row["time"])] = row
-        if len(rows_by_time) >= target_rows:
-            break
-        minimum_full_page = max(2, min(target_rows, estimated_rows_per_page) * 3 // 4)
-        if len(chunk) < minimum_full_page:
-            break
-        earliest_ms = min(int(row["time"]) for row in chunk) * 1000
-        next_until_ms = earliest_ms - 1
-        if len(rows_by_time) == previous_count or next_until_ms <= 0 or next_until_ms >= until_ms:
-            break
-        until_ms = next_until_ms
-
-    return [rows_by_time[key] for key in sorted(rows_by_time)]
+    """Fetch authoritative daily rows before any calendar aggregation."""
+    return _fetch_calendar_history(
+        _ftshare_stock_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
 
 
 def _fetch_global_index_history(
@@ -1048,57 +1052,12 @@ def _fetch_index_history(
 ) -> list[dict[str, Any]]:
     """Page A-share index daily-or-larger history (SDK endpoint index_candlesticks).
 
-    Same 12-month windowing and de-duplication as the stock path. Quarter
-    candles arrive as monthly rows and are aggregated by the shared caller.
+    Same daily pagination and exchange-calendar aggregation as the stock path.
     """
-    normalized = str(interval or "day").strip().lower()
-    requested = max(2, int(limit or 220))
-    target_rows = min(12_000, requested * 3 if normalized == "quarter" else requested)
-    days_per_bar = {
-        "day": 3,
-        "week": 10,
-        "month": 32,
-        "quarter": 32,
-        "year": 370,
-    }.get(normalized, 3)
-    window_days = min(360, max(30, requested * days_per_bar))
-    estimated_rows_per_page = max(1, window_days // max(1, days_per_bar))
-    max_pages = min(32, max(1, (target_rows + estimated_rows_per_page - 1) // estimated_rows_per_page + 1))
-    page_limit = min(4000, max(2, target_rows))
-    until_ms = _until_ms()
-    rows_by_time: dict[int, dict[str, Any]] = {}
-
-    for _page in range(max_pages):
-        since_ms = max(0, until_ms - window_days * 86_400_000)
-        raw = _ftshare_index_candlesticks(
-            market,
-            symbol=symbol,
-            interval_unit=interval_unit,
-            interval_value=interval_value,
-            adjust_kind=adjust_kind,
-            since_ts_millis=since_ms,
-            until_ts_millis=until_ms,
-            limit=page_limit,
-            as_dataframe=False,
-        )
-        chunk = _normalize_raw(raw)
-        if not chunk:
-            break
-        previous_count = len(rows_by_time)
-        for row in chunk:
-            rows_by_time[int(row["time"])] = row
-        if len(rows_by_time) >= target_rows:
-            break
-        minimum_full_page = max(2, min(target_rows, estimated_rows_per_page) * 3 // 4)
-        if len(chunk) < minimum_full_page:
-            break
-        earliest_ms = min(int(row["time"]) for row in chunk) * 1000
-        next_until_ms = earliest_ms - 1
-        if len(rows_by_time) == previous_count or next_until_ms <= 0 or next_until_ms >= until_ms:
-            break
-        until_ms = next_until_ms
-
-    return [rows_by_time[key] for key in sorted(rows_by_time)]
+    return _fetch_calendar_history(
+        _ftshare_index_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
 
 
 def _fetch_index_history_minutes(
@@ -1698,8 +1657,22 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
         if query_text and query_text in searchable:
             add(item)
 
+    if not results:
+        canonical = _canonical_market_symbol(q)
+        # Explicit market identity is usable even if its directory row is
+        # missing. Never guess a market for an ambiguous bare numeric code.
+        if re.fullmatch(r"(?:\d{6}\.(?:XSHG|XSHE|BJSE)|\d{5}\.HK|[A-Z][A-Z0-9.-]{0,15}\.US)", canonical):
+            add({"symbol": canonical, "name": canonical})
+            results[-1]["verified"] = False
     source = "directory" if isinstance(directory_items, list) else "builtin"
-    payload = {"ok": True, "query": q, "count": len(results), "results": results, "source": source}
+    partial = not directory or not directory.get("coverage") or bool(directory.get("stale")) or any(
+        not item.get("complete") for item in (directory.get("coverage") or {}).values()
+    )
+    stale = not directory or bool(directory.get("stale")) or int(directory.get("expires_at") or 0) < time.time()
+    payload = {"ok": True, "query": q, "count": len(results), "results": results, "source": source,
+               "stale": stale, "partial": partial, "basic_directory_version": _BASIC_DIRECTORY["version"]}
+    if not results and (partial or stale):
+        payload["message"] = "本地证券目录尚不完整，未匹配不代表标的不存在。请尝试完整代码（如 601398.SH），或稍后刷新目录。"
     _symbol_search_cache[cache_key] = (now, payload)
     if len(_symbol_search_cache) > _SYMBOL_SEARCH_CACHE_MAX_ENTRIES:
         oldest_key = min(_symbol_search_cache, key=lambda key: _symbol_search_cache[key][0])
@@ -2427,6 +2400,12 @@ def fetch_candles(
         adjust=adjust,
     )
     if primary.get("ok"):
+        actual = len(primary.get("rows") or [])
+        primary = {**primary, "requested_count": limit, "history_complete": actual >= limit}
+        if actual < limit and primary.get("rows"):
+            start = int(primary["rows"][0]["time"])
+            primary["history_start"] = start
+            primary["warnings"] = [*primary.get("warnings", []), f"请求 {limit} 根，实际获得 {actual} 根；最早数据为 {datetime.fromtimestamp(start, tz=ZoneInfo('Asia/Shanghai')).date()}。历史覆盖不足，原因尚未确认。"]
         return primary
     fallback = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
     if fallback is not None:
@@ -2643,6 +2622,8 @@ def _workspace_overview_details(
         details.append({"label": label, "value": rendered, "group": group})
 
     row: Mapping[str, Any] = basic
+    add("所属板块", None, "bk", group="公司档案")
+    add("主要产品", None, "business_products", group="公司档案")
     add("成立日期", None, "establish_date", "found_date", "setup_date", "founded_date", group="公司档案")
     add("注册资本", None, "registered_capital", "reg_capital", "register_capital", style="number", group="公司档案")
     add("法人代表", None, "legal_representative", "legal_person", "chairman", "representative", group="公司档案")
@@ -2690,7 +2671,7 @@ def _workspace_optional_rows(market: Any, method_name: str, **kwargs: Any) -> li
     return _workspace_rows(method(as_dataframe=False, **kwargs))
 
 
-def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[str, Any]:
+def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: bool = False) -> dict[str, Any]:
     """Load FTShare news and company data into the provider-neutral app schema.
 
     This is deliberately independent from ``fetch_candles``: a slow or missing
@@ -2704,8 +2685,23 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
     key = sym.upper()
     cached = _security_workspace_cache.get(key)
     now = time.time()
-    if cached and now - cached[0] < _SECURITY_WORKSPACE_CACHE_TTL_SECONDS:
+    if not refresh and cached and now - cached[0] < _SECURITY_WORKSPACE_CACHE_TTL_SECONDS:
         return {"ok": True, "cached": True, "security_workspace": cached[1]}
+    index = _broad_index_for_symbol(sym) or GLOBAL_INDEX_SOURCES.get(key)
+    if index:
+        if not isinstance(index, Mapping):
+            index = next((item for item in _SYMBOL_DIRECTORY_SEED if item["symbol"] == key), {})
+        workspace = {
+            "symbol": sym, "instrument_type": "index",
+            "source": {"name": "本地标的目录", "status": "reference"},
+            "overview": {"company_name": name or index.get("name") or sym,
+                         "market": index.get("market") or "--", "metrics": [], "details": [],
+                         "description": "此标的是指数，不是上市公司，不适用公司财报、主营业务或公司股东资料。当前未接入指数编制说明和成分股资料。"},
+            "news": [], "financials": {}, "holders": {}, "errors": [],
+            "sections": {"overview": {"state": "available"}, "news": {"state": "unsupported"},
+                         "financials": {"state": "not_applicable"}, "holders": {"state": "not_applicable"}},
+        }
+        return {"ok": True, "cached": False, "security_workspace": workspace}
     if not ftshare_available():
         return _ftshare_unavailable_result()
 
@@ -2719,6 +2715,19 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
     except Exception:
         pass
     errors: list[str] = []
+    section_errors: dict[str, list[dict[str, str]]] = {}
+
+    def read_section(section: str, method_name: str, **kwargs: Any) -> list[dict[str, Any]]:
+        try:
+            method = getattr(market, method_name, None)
+            if not callable(method):
+                raise AttributeError(f"missing endpoint: {method_name}")
+            return _workspace_rows(method(as_dataframe=False, **kwargs))
+        except Exception as exc:
+            code, message = _classify_ftshare_error(exc)
+            section_errors.setdefault(section, []).append({"code": code, "message": message})
+            errors.append(f"{method_name}: {message}")
+            return []
     news_rows: list[dict[str, Any]] = []
     financial_rows: list[dict[str, Any]] = []
     holder_rows: list[dict[str, Any]] = []
@@ -2728,57 +2737,34 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
     holder_count_rows: list[dict[str, Any]] = []
     pledge_rows: list[dict[str, Any]] = []
     share_change_rows: list[dict[str, Any]] = []
-    try:
-        # Include the stable symbol in the semantic query. Provider-specific
-        # adapters can later replace this with a direct entity/article endpoint.
-        news_query = f"{display_name} {sym}" if display_name != sym else sym
-        news_rows = _workspace_rows(market.semantic_search_news(query=news_query, limit=12, as_dataframe=False))
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"news: {exc}")
-    try:
-        if market_name == "US":
-            bare = _bare_us_symbol(sym)
-            basic_rows = _workspace_rows(market.us_basic(stock_code=bare, limit=1, as_dataframe=False))
-            # FTShare U.S. income data is a narrow indicator table. Request
-            # enough records for several reports, then pivot it before the
-            # shared overview/financial renderer consumes it.
-            financial_rows = _pivot_us_income_rows(
-                _workspace_rows(market.us_income(stock_code=bare, limit=200, as_dataframe=False))
-            )
-        elif market_name == "CN":
-            code = _cn_stock_code(sym)
-            basic_rows = _workspace_optional_rows(market, "company_list", stock_code=code, limit=1)
-            financial_rows = _workspace_rows(market.income(stock_code=code, limit=8, as_dataframe=False))
-            holder_rows = _workspace_rows(market.stock_holders(stock_code=code, limit=10, as_dataframe=False))
-        else:
-            errors.append("company: HK company adapter is not implemented")
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"company: {exc}")
+    news_query = f"{display_name} {sym}" if display_name != sym else sym
+    news_rows = read_section("news", "semantic_search_news", query=news_query, limit=12)
+    if market_name == "US":
+        bare = _bare_us_symbol(sym)
+        basic_rows = read_section("overview", "us_basic", stock_code=bare, limit=1)
+        financial_rows = _pivot_us_income_rows(read_section("financials", "us_income", stock_code=bare, limit=200))
+    elif market_name == "CN":
+        code = _cn_stock_code(sym)
+        # Company lookup requires a bare code; financial endpoints use .SH/.SZ.
+        basic_rows = read_section("overview", "company_list", stock_code=code.split(".")[0], limit=1)
+        financial_rows = read_section("financials", "income", stock_code=code, limit=8)
+        holder_rows = read_section("holders", "stock_holders", stock_code=code, limit=10)
     if market_name == "CN":
         code = _cn_stock_code(sym)
-        try:
-            balance_rows = _workspace_rows(market.balance(stock_code=code, limit=8, as_dataframe=False))
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"balance: {exc}")
-        try:
-            cashflow_rows = _workspace_rows(market.cashflow(stock_code=code, limit=8, as_dataframe=False))
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"cashflow: {exc}")
+        balance_rows = read_section("overview", "balance", stock_code=code, limit=8)
+        cashflow_rows = read_section("overview", "cashflow", stock_code=code, limit=8)
         for label, method_name, kwargs in (
             ("holder_count", "stock_holders_number", {"stock_code": code, "limit": 2}),
             ("pledge", "stock_pledge_detail", {"stock_code": code, "limit": 1}),
             ("share_change", "stock_share_chg", {"stock_code": code, "limit": 1}),
         ):
-            try:
-                rows = _workspace_optional_rows(market, method_name, **kwargs)
-                if label == "holder_count":
-                    holder_count_rows = rows
-                elif label == "pledge":
-                    pledge_rows = rows
-                else:
-                    share_change_rows = rows
-            except Exception as exc:  # noqa: BLE001
-                errors.append(f"{label}: {exc}")
+            rows = read_section("overview", method_name, **kwargs)
+            if label == "holder_count":
+                holder_count_rows = rows
+            elif label == "pledge":
+                pledge_rows = rows
+            else:
+                share_change_rows = rows
     basic = basic_rows[0] if basic_rows else {}
     financials = _workspace_financials(financial_rows)
     overview_metrics = _workspace_overview_metrics(financials, balance_rows, cashflow_rows)
@@ -2798,13 +2784,18 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
         "listing_date": str(_workspace_value(basic, "listing_date", "list_date", "ipo_date") or "--"),
         "website": str(_workspace_value(basic, "website", "url", "company_website") or "--"),
         "employees": str(_workspace_value(basic, "employees", "employee_count") or "--"),
-        "description": str(_workspace_value(basic, "description", "business_scope", "introduction") or "--"),
+        "description": str(_workspace_value(basic, "company_profile", "description", "introduction", "business_scope") or "--"),
         # Company profile fields are not available for every FTShare market
         # adapter. Reuse factual, latest reported financial metrics rather
         # than rendering an empty Company page in that case.
         "metrics": overview_metrics,
         "details": overview_details,
     }
+    def section_state(section: str, available: bool, unsupported: bool = False) -> dict[str, Any]:
+        failures = section_errors.get(section, [])
+        return {"state": ("partial" if failures else "available") if available else
+                ("unsupported" if unsupported else "error" if failures else "empty"), "errors": failures}
+
     workspace = {
         "symbol": sym,
         "source": {
@@ -2820,13 +2811,15 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None) -> dict[st
         "holders": _workspace_holders(holder_rows),
         "errors": errors,
         "sections": {
-            "news": {"state": "available" if news_rows else "empty"},
-            "overview": {"state": "available" if (basic_rows or overview_metrics) else ("unsupported" if market_name == "HK" else "empty")},
-            "financials": {"state": "available" if financials["metrics"] else ("unsupported" if market_name == "HK" else "empty")},
-            "holders": {"state": "available" if holder_rows else ("unsupported" if market_name in {"HK", "US"} else "empty")},
+            "news": section_state("news", bool(news_rows)),
+            "overview": section_state("overview", bool(basic_rows or overview_metrics or overview_details), market_name == "HK"),
+            "financials": section_state("financials", bool(financials["metrics"]), market_name == "HK"),
+            "holders": section_state("holders", bool(holder_rows), market_name in {"HK", "US"}),
         },
     }
-    _security_workspace_cache[key] = (now, workspace)
+    # Failed requests are retryable, not five-minute negative-cache entries.
+    if not errors:
+        _security_workspace_cache[key] = (now, workspace)
     return {"ok": True, "cached": False, "security_workspace": workspace}
 
 

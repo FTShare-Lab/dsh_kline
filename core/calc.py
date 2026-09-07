@@ -313,7 +313,7 @@ def series_rsi(
     avg_gain = gains / period
     avg_loss = losses / period
     if avg_loss == 0:
-        rsi = 100.0
+        rsi = 50.0 if avg_gain == 0 else 100.0
     else:
         rs = avg_gain / avg_loss
         rsi = 100.0 - 100.0 / (1 + rs)
@@ -325,7 +325,7 @@ def series_rsi(
         avg_gain = (avg_gain * (period - 1) + gain) / period
         avg_loss = (avg_loss * (period - 1) + loss) / period
         if avg_loss == 0:
-            rsi = 100.0
+            rsi = 50.0 if avg_gain == 0 else 100.0
         else:
             rs = avg_gain / avg_loss
             rsi = 100.0 - 100.0 / (1 + rs)

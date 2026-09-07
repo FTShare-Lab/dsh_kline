@@ -30,12 +30,37 @@ const markup = body
 
 const generated = `// @ts-nocheck
 // Generated from view/kline.html by scripts/generate-client-view.mjs.
+export const PACKAGE_VERSION = ${JSON.stringify(packageJson.version)}
 
 const VIEW_STYLE = ${JSON.stringify(scopedStyle)}
 const VIEW_MARKUP = ${JSON.stringify(markup)}
 
 export function mountKlineView(root, payload, dependencies = {}) {
   const host = root.host
+  const storagePrefix = 'dsh-kline:conversation:' + encodeURIComponent(dependencies.conversationId || '')
+  const viewKey = storagePrefix + ':view'
+  let restored = false
+  try {
+    const saved = JSON.parse(globalThis.localStorage.getItem(viewKey) || 'null')
+    if (saved?.session === dependencies.chartSession && Array.isArray(saved.payload?.chartCommands)) {
+      payload = saved.payload
+      restored = true
+    }
+  } catch {}
+  const controller = new AbortController()
+  dependencies.restored = restored
+  dependencies.saveView = next => {
+    if (controller.signal.aborted) return
+    dependencies.onIdentity?.(next.symbol, next.name)
+    try { globalThis.localStorage.setItem(viewKey, JSON.stringify({ session: dependencies.chartSession, payload: next })) } catch {}
+  }
+  dependencies.storage = {
+    getItem: key => globalThis.localStorage.getItem(key === 'dsh-kline.workspace.v1' ? storagePrefix + ':workspace' : key),
+    setItem: (key, value) => {
+      if (!controller.signal.aborted) globalThis.localStorage.setItem(key === 'dsh-kline.workspace.v1' ? storagePrefix + ':workspace' : key, value)
+    },
+    removeItem: key => globalThis.localStorage.removeItem(key === 'dsh-kline.workspace.v1' ? storagePrefix + ':workspace' : key),
+  }
   root.innerHTML = \`<style>\${VIEW_STYLE}</style><div class="dsh-kline-view-body">\${VIEW_MARKUP}</div>\`
   const body = root.querySelector('.dsh-kline-view-body')
   const lifecycle = createScopedWindow(host, payload, dependencies)
@@ -43,7 +68,7 @@ export function mountKlineView(root, payload, dependencies = {}) {
   const document = createScopedDocument(root, host, body)
   const fetch = (input, init) => {
     if (typeof input === 'string' && input.startsWith('/api/tools/')) {
-      return globalThis.fetch('/dsh-kline/api/tools/' + input.slice('/api/tools/'.length), init)
+      return globalThis.fetch('/dsh-kline/api/tools/' + input.slice('/api/tools/'.length), { ...init, signal: controller.signal })
     }
     return globalThis.fetch(input, init)
   }
@@ -52,6 +77,7 @@ ${runtime}
 
   return () => {
     lifecycle.dispose()
+    controller.abort()
     root.innerHTML = ''
   }
 }
@@ -77,6 +103,10 @@ function createScopedDocument(root, host, body) {
 function createScopedWindow(host, payload, dependencies) {
   const realWindow = globalThis.window
   const local = new Map([['__DSH_CHART_SESSION__', payload]])
+  local.set('localStorage', dependencies.storage)
+  local.set('__DSH_KLINE_RESTORED__', dependencies.restored)
+  local.set('__DSH_KLINE_SAVE_VIEW__', dependencies.saveView)
+  local.set('__DSH_KLINE_DISPOSED__', false)
   if (dependencies.klinecharts) {
     local.set('klinecharts', dependencies.klinecharts)
     local.set('__FTV_KLINECHARTS_VENDOR__', { started: true, source: 'client_dependency' })
@@ -94,6 +124,7 @@ function createScopedWindow(host, payload, dependencies) {
       }
       if (property === 'removeEventListener') return (type, listener, options) => target.removeEventListener(type, listener, options)
       if (property === 'setInterval') return (handler, timeout, ...args) => {
+        if (local.get('__DSH_KLINE_DISPOSED__')) return undefined
         const id = target.setInterval(handler, timeout, ...args)
         intervals.add(id)
         return id
@@ -103,6 +134,7 @@ function createScopedWindow(host, payload, dependencies) {
         target.clearInterval(id)
       }
       if (property === 'setTimeout') return (handler, timeout, ...args) => {
+        if (local.get('__DSH_KLINE_DISPOSED__')) return undefined
         const id = target.setTimeout(handler, timeout, ...args)
         timeouts.add(id)
         return id
@@ -122,6 +154,7 @@ function createScopedWindow(host, payload, dependencies) {
   return {
     window: proxy,
     dispose() {
+      local.set('__DSH_KLINE_DISPOSED__', true)
       for (const [type, listener] of listeners) {
         if (type === 'beforeunload') {
           try { listener(new Event('beforeunload')) } catch {}

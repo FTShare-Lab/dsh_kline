@@ -33,7 +33,7 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 
 ## How To Use
 
-Enable `dsh_kline` in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), then ask as you would an analyst. You do not need to memorize ticker formats.
+Enable `dsh_kline` in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), then either ask as you would an analyst or click the K button on the right and search by company name or ticker. You do not need to memorize ticker formats.
 
 - `Show the K-line chart for Zijin Mining`
 - `Show Tencent's daily chart and mark support and resistance`
@@ -41,9 +41,9 @@ Enable `dsh_kline` in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 - `Show the latest news and fundamentals for this company`
 - `Switch to the weekly chart and assess the trend`
 
-After the analysis, use the sidebar to switch timeframes and indicators or explore news and company information. To view range statistics, click two candles in sequence.
+After the analysis, use the sidebar to switch timeframes and indicators or explore news and company information. Symbols opened directly from search use the same workspace. To view range statistics, click two candles in sequence.
 Use the search box for a company name or ticker, then select the star to add it to a watchlist. Watchlists support groups, sorting, and batch opening, and are stored locally in the current browser.
-The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. The current official tier table lists stock and index candles under Free, stock/index historical minute candles and Hong Kong candles under Base, semantic news search under Advanced, and realtime candles under Professional; the official endpoint documentation remains authoritative. A key identifies the account but does not automatically grant every capability. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Other sources can continue to provide normalized rows through `analyze_kline_rows`.
+The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. The current Free tier includes stock candles, company and financial basics, A-share market lists, funds, and indices, but it still requires registration and an API Key. Historical minute bars, Hong Kong candles, announcements/reports, and news are available according to the current plan; official endpoint documentation remains authoritative. A key grants only the capabilities enabled for that account. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Without FTShare, built-in public quote fallbacks and `analyze_kline_rows` remain available.
 
 ## MCP Tools
 

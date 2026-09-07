@@ -56,7 +56,7 @@
   body { display: flex; flex-direction: column; min-height: auto; }
   #viewShell {
     position: relative; display: flex; flex-direction: column;
-    width: 100%; height: min(1120px, 100vh); min-height: 500px; max-height: 1120px;
+    width: 100%; height: 100dvh; min-height: 0;
     overflow: hidden; background: var(--bg);
   }
   #viewScroll {
@@ -249,6 +249,13 @@
   .toolbar-hint { color: var(--text-soft); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; flex: 0 0 auto; }
   .indicator-menu-wrap { position: relative; }
+  .clear-menu-wrap { position: relative; }
+  .clear-popover { display: none; position: absolute; top: calc(100% + 5px); left: 0; z-index: 25; width: 240px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow); }
+  .clear-popover.open { display: grid; gap: 6px; }
+  .clear-popover .btn { text-align: left; }
+  .clear-scope { color: var(--muted); font-size: 11px; padding: 4px; line-height: 1.5; }
+  #clearConfirm[hidden] { display: none; }
+  #clearConfirm { border-top: 1px solid var(--border); padding-top: 8px; }
   .indicator-popover {
     position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(336px, calc(100vw - 34px));
     display: none; padding: 10px; border: 1px solid var(--border); border-radius: 6px;
@@ -348,15 +355,18 @@
   .price-alert-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--warn); }
   .price-alert-line span { position: absolute; top: -15px; right: 4px; max-width: 185px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 4px; border-radius: 2px; background: var(--warn); color: #fff; font-size: 10px; }
   .canvas-resizer {
-    position: relative; height: 10px; margin: -1px 0 0; border-top: 1px solid var(--border);
+    position: relative; height: 14px; margin: 0; border-top: 1px solid var(--border);
     background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none;
   }
   .canvas-resizer::before {
-    content: ""; position: absolute; left: 50%; top: 3px; width: 42px; height: 2px;
+    content: ""; position: absolute; left: 50%; top: 5px; width: 32px; height: 2px;
     transform: translateX(-50%); border-radius: 2px; background: var(--text-soft); opacity: .72;
   }
   .canvas-resizer:hover::before, .canvas-resizer.dragging::before { background: var(--accent); opacity: 1; }
   .canvas-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .settings-height-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
+  #canvasHeightStatus { color: var(--text-soft); }
+  #canvasAutoHeightBtn:disabled { opacity: .45; cursor: default; }
   .chart-status {
     position: absolute; top: 6px; right: calc(var(--chart-right-gutter, 96px) + 8px); font-size: 11px; color: var(--text-soft);
     background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
@@ -671,6 +681,7 @@
           <button class="settings-menu-item" type="button" data-settings-section="help" aria-expanded="false">帮助 <span class="settings-row-label-en">Help</span></button>
           <button class="settings-menu-item" type="button" data-settings-section="feedback" aria-expanded="false">反馈 <span class="settings-row-label-en">Feedback</span></button>
           <button class="settings-menu-item" type="button" data-settings-section="theme" aria-expanded="false">主题 <span class="settings-row-label-en">Theme</span></button>
+          <button class="settings-menu-item" type="button" data-settings-section="display" aria-expanded="false">图表显示 <span class="settings-row-label-en">Chart layout</span></button>
           <button class="settings-menu-item" type="button" data-settings-section="language" aria-expanded="false">语言 <span class="settings-row-label-en">Language</span></button>
         </div>
         <section class="settings-section" id="settingsSectionOverview" hidden>
@@ -707,7 +718,7 @@
             <div class="settings-provider-status-line" id="ftshareAdapterStatus"></div>
             <input class="settings-provider-input" id="ftshareApiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 FTSHARE_API_KEY（可选）" aria-label="FTShare API Key" />
             <label class="settings-provider-persist"><input id="ftsharePersistInput" type="checkbox" checked /><span data-i18n="ftsharePersist">保存到本机（推荐）</span></label>
-            <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
+            <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareTestBtn" type="button">测试当前连接</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
             <div class="settings-provider-status" id="ftshareConfigStatus" role="status" aria-live="polite"></div>
             <div class="settings-provider-note" data-i18n="ftshareConfigNote">Key 不会回显；保存到本机后，重启会自动读取。</div>
             <div class="settings-provider-note" data-i18n="sourceFreeMode">FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。</div>
@@ -731,6 +742,13 @@
         </section>
         <section class="settings-section" id="settingsSectionTheme" hidden>
           <div class="settings-row"><span class="settings-row-label"><span data-i18n="themeCurrent">当前主题</span><span class="settings-row-label-en">Theme</span></span><button class="btn" id="themeToggle" type="button" title="切换至夜间模式" aria-label="切换至夜间模式">切换至夜间模式</button></div>
+        </section>
+        <section class="settings-section" id="settingsSectionDisplay" hidden>
+          <div class="settings-info">
+            <div class="settings-info-title" id="canvasHeightLabel">图表高度</div>
+            <div class="settings-height-control"><span id="canvasHeightStatus" role="status">自适应窗口</span><button class="btn" id="canvasAutoHeightBtn" type="button" disabled>恢复自适应</button></div>
+            <div class="settings-info-hint" id="canvasHeightHint">拖动图表底部横条可调整高度，双击横条可恢复自适应。</div>
+          </div>
         </section>
         <section class="settings-section" id="settingsSectionLanguage" hidden>
           <div class="settings-row"><label class="settings-row-label" for="languageToggle"><span data-i18n="languageCurrent">当前语言</span><span class="settings-row-label-en">Language</span></label><select class="settings-language-select" id="languageToggle" aria-label="语言 / Language"><option value="zh">中文</option><option value="en">English</option></select></div>
@@ -790,7 +808,21 @@
 <div class="toolbar">
   <div class="toolbar-hint" id="toolbarHint">单击引用 K 线 · 再点选区间 · 点击标记引用分析</div>
   <div class="toolbar-actions">
-    <button class="btn" id="clearBtn">清标注</button>
+    <div class="clear-menu-wrap">
+      <button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除标注</button>
+      <div class="clear-popover" id="clearPopover" role="dialog" aria-label="清除标注">
+        <div class="clear-scope" data-i18n="clearScope">仅影响当前对话、当前标的；保留指标和预警。</div>
+        <button class="btn" type="button" data-clear-kind="analysis" data-i18n="clearAnalysis">清除关键点位与分析标注</button>
+        <button class="btn" type="button" data-clear-kind="drawings" data-i18n="clearDrawings">清除手动画线</button>
+        <button class="btn" type="button" data-clear-kind="custom" data-i18n="clearCustom">清除自定义点位</button>
+        <button class="btn" type="button" data-clear-kind="all" data-i18n="clearAll">全部清除…</button>
+        <div id="clearConfirm" hidden>
+          <p class="clear-scope" id="clearConfirmText"></p>
+          <button class="btn" id="cancelClearBtn" type="button" data-i18n="clearCancel">取消</button>
+          <button class="btn primary" id="confirmClearBtn" type="button" data-i18n="clearConfirmAction">确认清除</button>
+        </div>
+      </div>
+    </div>
     <button class="btn" id="keyLevelsBtn" type="button" data-i18n="keyLevels">关键点位</button>
     <button class="btn" id="volumeUnitBtn" title="切换成交量单位" aria-label="成交量单位：万">万</button>
     <button class="btn active" id="maBtn" data-ind="ma">MA</button>
@@ -901,7 +933,7 @@
     <button type="button" id="contextAddWatchBtn" role="menuitem">加入自选</button>
   </div>
 </div>
-<div class="canvas-resizer" id="canvasResizer" role="separator" aria-label="调整画布高度" aria-orientation="horizontal" tabindex="0"></div>
+<div class="canvas-resizer" id="canvasResizer" role="separator" aria-label="调整画布高度" aria-orientation="horizontal" tabindex="0" title="拖动调整高度，双击恢复自适应"></div>
 <div class="cards" id="cards" style="display:none;"></div>
 <div class="tables" id="tables" style="display:none;"></div>
 <div id="errorBox" class="err" style="display:none;"></div>
@@ -955,6 +987,7 @@
 
 <script>
 "use strict";
+let currentAdjust = window.__DSH_CHART_SESSION__?.adjust || "none";
 
 /* ---------- standalone dsh_kline chart API ---------- */
 function sanitizeToolArguments(args = {}) {
@@ -1191,6 +1224,16 @@ const UI_COPY = {
 };
 function t(key) { return UI_COPY[viewLanguage]?.[key] || UI_COPY.zh[key] || key; }
 Object.assign(UI_COPY.zh, {
+  workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用顶部刷新按钮重试。",
+  workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
+  workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
+  workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
+  clearAnnotations: "清除标注", clearScope: "仅影响当前对话、当前标的；保留指标和预警。",
+  clearAnalysis: "清除关键点位与分析标注", clearDrawings: "清除手动画线", clearCustom: "清除自定义点位", clearAll: "全部清除…",
+  clearCancel: "取消", clearConfirmAction: "确认清除", clearConfirmMessage: "确认清除 {symbol} 的全部标注？此操作无法撤销。", clearAllDone: "已清除当前标的的全部标注",
+  keyLevelsInsufficient: "关键点位分析至少需要 5 根有效 K 线，请扩大时间范围。", keyLevelsEmpty: "分析完成：当前数据未识别出有效支撑或压力点位。",
+  keyLevelsLocalFailed: "关键点位计算失败，请检查本地服务连接后重试。",
+  keyLevelsCancelled: "图表已变更，本次分析已取消。",
   levelMenu: "点位", levelMenuAria: "点位标注",
   levelScopeNote: "自动 支撑/压力 来自「关键点位」，可在此改价、改名、删除或转为自定义；自定义点位独立保存在本机。",
   levelPricePlaceholder: "价格（留空取最新价）", levelNamePlaceholder: "名称，如 突破位/止损位", levelNotePlaceholder: "备注（可选）",
@@ -1205,6 +1248,16 @@ Object.assign(UI_COPY.zh, {
   clearMarksDone: "已清空分析标注与选区", clearMarksNone: "没有可清除的分析标注",
 });
 Object.assign(UI_COPY.en, {
+  workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button above to retry.",
+  workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
+  workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
+  workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
+  clearAnnotations: "Clear annotations", clearScope: "Current conversation and symbol only. Indicators and alerts are kept.",
+  clearAnalysis: "Clear analysis annotations", clearDrawings: "Clear drawings", clearCustom: "Clear custom levels", clearAll: "Clear all…",
+  clearCancel: "Cancel", clearConfirmAction: "Confirm clear", clearConfirmMessage: "Clear all annotations for {symbol}? This cannot be undone.", clearAllDone: "All annotations for this symbol cleared",
+  keyLevelsInsufficient: "At least 5 valid candles are needed. Expand the date range.", keyLevelsEmpty: "Analysis complete: no valid support or resistance levels found.",
+  keyLevelsLocalFailed: "Key-level calculation failed. Check the local service connection and retry.",
+  keyLevelsCancelled: "Chart changed; this analysis was cancelled.",
   levelMenu: "Levels", levelMenuAria: "Level annotations",
   levelScopeNote: "Auto support/resistance comes from “Key levels” and can be renamed, repriced, deleted, or moved to My levels below; custom levels persist locally.",
   levelPricePlaceholder: "Price (blank = latest)", levelNamePlaceholder: "Name e.g. breakout / stop", levelNotePlaceholder: "Note (optional)",
@@ -1252,6 +1305,8 @@ function saveWorkspacePreferences() {
       userDrawings,
       customLevels,
       analysisLevels,
+      rangePickStart,
+      rangePickEnd,
     }));
   } catch {}
 }
@@ -1274,7 +1329,7 @@ function loadWorkspacePreferences() {
       document.documentElement.dataset.theme = parsed.theme;
     }
     if (["wan", "k"].includes(parsed.volumeUnit)) volumeUnit = parsed.volumeUnit;
-    if (Number.isFinite(Number(parsed.canvasHeight))) canvasBaseHeightOverride = Math.round(Math.min(CANVAS_BASE_MAX_HEIGHT, Math.max(CANVAS_BASE_MIN_HEIGHT, Number(parsed.canvasHeight))));
+    canvasBaseHeightOverride = restoreCanvasHeight(parsed.canvasHeight);
     const indicators = parsed.indicators || {};
     // v6+ start with a focused layout; since v9 the calm default stack is
     // MA + VOL + MACD. Versions below 9 are migrated to that stack once so a
@@ -1321,6 +1376,10 @@ function loadWorkspacePreferences() {
     if (Array.isArray(parsed.customLevels)) customLevels = normalizeCustomLevels(parsed.customLevels);
     if (Array.isArray(parsed.analysisLevels)) analysisLevels = normalizeAutoLevels(parsed.analysisLevels);
     if (parsed.symbol) restoredWorkspaceSymbol = { symbol: String(parsed.symbol), name: String(parsed.name || parsed.symbol) };
+    if (window.__DSH_KLINE_RESTORED__) {
+      rangePickStart = parsed.rangePickStart || null;
+      rangePickEnd = parsed.rangePickEnd || null;
+    }
   } catch {}
 }
 function scheduleWorkspaceSymbolRestore() {
@@ -1401,9 +1460,10 @@ function syncThemeToggle() {
   button.setAttribute("aria-label", label);
 }
 function syncLanguageControls() {
+  syncCanvasHeightControls();
   document.documentElement.lang = viewLanguage === "en" ? "en" : "zh-CN";
   const values = {
-    toolbarHint: t("toolbarHint"), clearBtn: t("clear"),
+    toolbarHint: t("toolbarHint"), clearBtn: t("clearAnnotations"),
     indicatorHeading: t("indicatorHeading"), applyIndicatorBtn: t("apply"), applyCustomRangeBtn: t("apply"),
     watchlistRailHeading: t("watchlist"), customRangeBtn: t("custom"), brandProduct: t("productName"),
     alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), levelMenuBtn: t("levelMenu"), watchlistBatchOpenBtn: t("batchOpen"), clearDrawingsBtn: t("clear"),
@@ -1623,8 +1683,32 @@ function chartStyles() {
 }
 
 /* ---------- chart sizing + dual axis ---------- */
+function restoreCanvasHeight(value) {
+  // null means automatic, not zero. Preserve genuine manual pixel settings.
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(Math.min(CANVAS_BASE_MAX_HEIGHT, Math.max(CANVAS_BASE_MIN_HEIGHT, value))) : null;
+}
+function autoChartBaseHeight(availableHeight, chromeHeight, indicatorHeight) {
+  return Math.max(CANVAS_BASE_MIN_HEIGHT, Math.floor(availableHeight - chromeHeight - indicatorHeight));
+}
 function chartBaseHeight() {
-  const configured = canvasBaseHeightOverride === null ? CHART_BASE_HEIGHT : canvasBaseHeightOverride;
+  if (canvasBaseHeightOverride === null) {
+    const scroll = document.getElementById("viewScroll");
+    const content = document.getElementById("viewContent");
+    const wrap = document.querySelector(".chart-wrap");
+    if (scroll?.clientHeight && content && wrap?.getClientRects().length) {
+      const top = wrap.getBoundingClientRect().top - content.getBoundingClientRect().top;
+      let footer = 1; // chart-wrap's bottom border
+      for (let sibling = wrap.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+        footer += sibling.getBoundingClientRect().height;
+      }
+      const indicators = (volVisible ? PANE_HEIGHTS.vol : 0) + (macdVisible ? PANE_HEIGHTS.macd : 0)
+        + (kdjVisible ? PANE_HEIGHTS.kdj : 0) + (rsiVisible ? PANE_HEIGHTS.rsi : 0) + (atrVisible ? PANE_HEIGHTS.atr : 0);
+      return autoChartBaseHeight(scroll.clientHeight, top + footer, indicators);
+    }
+    return CHART_BASE_HEIGHT;
+  }
+  const configured = canvasBaseHeightOverride;
   const paneCount = [volVisible, macdVisible, kdjVisible, rsiVisible, atrVisible].filter(Boolean).length;
   return Math.round(Math.min(CANVAS_BASE_MAX_HEIGHT, Math.max(CANVAS_BASE_MIN_HEIGHT, configured - paneCount * PANE_SHRINK_STEP)));
 }
@@ -1738,20 +1822,18 @@ function refreshPercentAxis() {
 
 /* ---------- size ---------- */
 // Keep a multi-pane chart inside a scrollable viewport.
-const VIEWPORT_MAX_HEIGHT = 1120;
 const MIN_CHART_RENDER_WIDTH = 280;
 const VIEW_SCROLLBAR_INSET = 2;
 const VIEW_SCROLLBAR_MIN_THUMB = 40;
-let viewportMaxHeight = Math.min(VIEWPORT_MAX_HEIGHT, Math.max(500, window.innerHeight || VIEWPORT_MAX_HEIGHT));
+let viewportMaxHeight = Math.max(1, window.innerHeight || 800);
 let lastReported = { w: 0, h: 0 };
 let viewResizeObserver = null;
 function applyViewportHeight(context) {
   const cd = context?.containerDimensions;
-  const modeMaxHeight = VIEWPORT_MAX_HEIGHT;
   const hostHeight = Number(cd?.height) || Number(cd?.maxHeight) || 0;
   const windowHeight = Number(window.innerHeight) || 0;
-  const availableHeight = hostHeight || windowHeight || modeMaxHeight;
-  viewportMaxHeight = Math.min(modeMaxHeight, Math.max(500, availableHeight));
+  const availableHeight = hostHeight || windowHeight || 800;
+  viewportMaxHeight = Math.max(1, Math.floor(availableHeight));
   const shellEl = document.getElementById("viewShell");
   if (shellEl) {
     shellEl.style.height = viewportMaxHeight + "px";
@@ -1861,6 +1943,7 @@ function initViewScrollbar() {
   syncViewScrollbar();
 }
 function recalcChartHeight() {
+  syncCanvasHeightControls();
   let h = chartBaseHeight();
   if (volVisible) h += PANE_HEIGHTS.vol;
   if (macdVisible) h += PANE_HEIGHTS.macd;
@@ -1913,6 +1996,14 @@ function initCanvasResizer() {
     recalcChartHeight();
     saveWorkspacePreferences();
   };
+  const resetHeight = () => {
+    canvasBaseHeightOverride = null;
+    recalcChartHeight();
+    saveWorkspacePreferences();
+  };
+  document.getElementById("canvasAutoHeightBtn")?.addEventListener("click", resetHeight);
+  handle.addEventListener("dblclick", resetHeight);
+  syncCanvasHeightControls();
   const stop = (event) => {
     if (event.pointerId !== activePointerId) return;
     handle.classList.remove("dragging");
@@ -1944,13 +2035,28 @@ function initCanvasResizer() {
   handle.addEventListener("keydown", (event) => {
     const paneCount = [volVisible, macdVisible, kdjVisible, rsiVisible, atrVisible].filter(Boolean).length;
     const current = chartBaseHeight() + paneCount * PANE_SHRINK_STEP;
-    if (event.key === "ArrowUp") applyHeight(current - 24);
+    if (event.key === "Escape") resetHeight();
+    else if (event.key === "ArrowUp") applyHeight(current - 24);
     else if (event.key === "ArrowDown") applyHeight(current + 24);
     else if (event.key === "Home") applyHeight(CANVAS_BASE_MIN_HEIGHT);
     else if (event.key === "End") applyHeight(CANVAS_BASE_MAX_HEIGHT);
     else return;
     event.preventDefault();
   });
+}
+
+function syncCanvasHeightControls() {
+  const button = document.getElementById("canvasAutoHeightBtn");
+  if (!button) return;
+  const automatic = canvasBaseHeightOverride === null;
+  const english = viewLanguage === "en";
+  button.textContent = english ? "Reset auto height" : "恢复自适应";
+  button.disabled = automatic;
+  document.getElementById("canvasHeightLabel").textContent = english ? "Chart height" : "图表高度";
+  document.getElementById("canvasHeightStatus").textContent = english ? (automatic ? "Fit to window" : "Manually adjusted") : (automatic ? "自适应窗口" : "手动调整");
+  const hint = english ? "Drag the handle below the chart to resize; double-click to fit the window." : "拖动图表底部横条可调整高度，双击横条可恢复自适应。";
+  document.getElementById("canvasHeightHint").textContent = hint;
+  document.getElementById("canvasResizer")?.setAttribute("title", hint);
 }
 
 /* ---------- helpers ---------- */
@@ -2241,6 +2347,19 @@ function companyHoldersMarkup(data) {
 function insightEmptyMarkup(title, hint = "") {
   return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</div>`;
 }
+function workspaceSectionNotice(data, section) {
+  const status = data?.sections?.[section] || {};
+  if (status.state === "not_applicable") return insightEmptyMarkup(t("workspaceNotApplicable"));
+  if (status.state === "unsupported") return insightEmptyMarkup(t("workspaceUnsupported"));
+  if (["error", "partial"].includes(status.state)) {
+    const codes = (status.errors || []).map(error => error.code);
+    const reason = codes.includes("rate_limited") ? t("workspaceRateLimited")
+      : codes.some(code => ["auth_required", "invalid_key", "capability_limited"].includes(code)) ? t("workspaceAuthRequired") : t("workspaceRequestFailed");
+    return insightEmptyMarkup(t(status.state === "partial" ? "workspacePartial" : "workspaceLoadFailed"), `${reason} ${t("workspaceRefreshHint")}`);
+  }
+  if (status.state === "empty") return insightEmptyMarkup(t(section === "news" ? "newsEmpty" : "companyEmpty"), t("workspaceRefreshHint"));
+  return "";
+}
 function renderSecurityWorkspace() {
   const data = currentSecurityWorkspace();
   syncSecurityNavigation(data);
@@ -2251,10 +2370,10 @@ function renderSecurityWorkspace() {
   if (!data) {
     newsPanel.innerHTML = securityWorkspaceLoading
       ? insightEmptyMarkup(t("workspaceLoading"))
-      : insightEmptyMarkup(t("newsUnavailable"), t("newsUnavailableHint"));
+      : workspaceSectionNotice({ sections: { news: { state: "error" } } }, "news");
     companyPanel.innerHTML = securityWorkspaceLoading
       ? insightEmptyMarkup(t("workspaceLoading"))
-      : insightEmptyMarkup(t("companyUnavailable"), t("companyUnavailableHint"));
+      : workspaceSectionNotice({ sections: { overview: { state: "error" } } }, "overview");
     return;
   }
   const news = Array.isArray(data.news) ? data.news : [];
@@ -2264,27 +2383,33 @@ function renderSecurityWorkspace() {
     const titleMarkup = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title;
     return `<article class="news-item"><div class="news-item-title"><span class="news-kind">${escapeHtml(item.kind || "资讯")}</span>${titleMarkup}</div><time class="news-meta">${escapeHtml(item.time || "--")}</time><div class="news-item-summary">${escapeHtml(item.summary || "")}</div></article>`;
   }).join("");
-  const newsContent = newsMarkup || insightEmptyMarkup(t("newsEmpty"), t("newsEmptyHint"));
+  const newsContent = workspaceSectionNotice(data, "news") + (newsMarkup || (data.sections?.news ? "" : insightEmptyMarkup(t("newsEmpty"))));
   newsPanel.innerHTML = `<div class="news-list">${newsContent}</div>${sourceFooter}`;
   const companySection = activeCompanyTab === "financials" ? "financials" : activeCompanyTab === "holders" ? "holders" : "overview";
-  let content = ["unsupported", "empty"].includes(workspaceSectionState(data, companySection))
-    ? insightEmptyMarkup(t("companyEmpty"), t("companyEmptyHint"))
-    : activeCompanyTab === "financials" ? companyFinancialsMarkup(data) : activeCompanyTab === "holders" ? companyHoldersMarkup(data) : companyOverviewMarkup(data);
+  const blocked = ["unsupported", "empty", "error", "not_applicable"].includes(workspaceSectionState(data, companySection));
+  let content = workspaceSectionNotice(data, companySection) + (blocked ? ""
+    : activeCompanyTab === "financials" ? companyFinancialsMarkup(data) : activeCompanyTab === "holders" ? companyHoldersMarkup(data) : companyOverviewMarkup(data));
   companyPanel.innerHTML = `${companyTabsMarkup()}${content}${sourceFooter}`;
 }
 function workspaceHasContent(data) {
   if (!data || typeof data !== "object") return false;
   return Boolean(
     (Array.isArray(data.news) && data.news.length) ||
+    (data?.overview?.description && data.overview.description !== "--") ||
+    (data?.overview?.listing_date && data.overview.listing_date !== "--") ||
     (Array.isArray(data?.overview?.metrics) && data.overview.metrics.length) ||
     (Array.isArray(data?.overview?.details) && data.overview.details.length) ||
     (Array.isArray(data?.financials?.rows) && data.financials.rows.length) ||
     (Array.isArray(data?.holders?.items) && data.holders.items.length)
   );
 }
-async function loadSecurityWorkspace(symbol, name) {
+async function loadSecurityWorkspace(symbol, name, refresh = false) {
   const tabId = String(symbol || "");
-  const warmedWorkspace = freshPrefetchedWorkspace(tabId);
+  if (refresh) {
+    prefetchedWorkspaces.delete(tabId.toUpperCase());
+    workspacePrefetchTasks.delete(tabId.toUpperCase());
+  }
+  const warmedWorkspace = refresh ? null : freshPrefetchedWorkspace(tabId);
   if (warmedWorkspace) {
     const tab = workspaceTabForSymbol(tabId);
     if (tab) {
@@ -2313,11 +2438,11 @@ async function loadSecurityWorkspace(symbol, name) {
     showActivityNotice(t("workspaceLoading"));
   }
   try {
-    const pending = workspacePrefetchTasks.get(tabId.toUpperCase());
+    const pending = refresh ? null : workspacePrefetchTasks.get(tabId.toUpperCase());
     const warmed = pending ? await pending : null;
     const result = warmed
       ? { structuredContent: { ok: true, security_workspace: warmed } }
-      : await callMarketTool("fetch_security_workspace", { symbol, name });
+      : await callMarketTool("fetch_security_workspace", { symbol, name, refresh });
     const structured = result?.structuredContent || result || {};
     if (securityWorkspaceRequestTokens.get(tabId) !== requestId) return;
     const target = workspaceTabForSymbol(tabId);
@@ -3410,24 +3535,50 @@ function clearCurrentCustomLevels() {
   setChartStatus(t("levelsCleared"));
   window.setTimeout(() => setChartStatus(""), 900);
 }
+function persistAnnotationRemoval(types) {
+  if (!lastChartPayload || lastChartPayload.symbol !== currentSymbol) return;
+  lastChartPayload = { ...lastChartPayload, chartCommands: (lastChartPayload.chartCommands || []).filter(cmd => !types.includes(cmd.type)) };
+  rememberWorkspaceTab(lastChartPayload);
+  window.__DSH_KLINE_SAVE_VIEW__?.({ ...lastChartPayload, local_render: false, indicators_explicit: false });
+}
 function clearAnalysisAnnotations() {
   // “清标注” clears analysis-produced annotations only: auto support /
   // resistance levels, ephemeral analysis overlays/lines and the current
   // selection. User-created custom levels and drawings keep their own
   // explicit clear buttons (点位 → 清空我的点位, 画线 → 清除).
-  const hadAuto = analysisLevels.some((item) => item.symbol === currentSymbol);
+  keyLevelsRequestVersion += 1;
+  const hadAuto = analysisLevels.some((item) => item.symbol === currentSymbol) || lastMarks.length || lastLines.length || rangePickStart;
   clearRangePick();
   clearOverlays();
   lastMarks = [];
   lastLines = [];
+  persistAnnotationRemoval(["TEXT_MARKER", "DRAW_TREND_LINE"]);
   if (hadAuto) {
     analysisLevels = analysisLevels.filter((item) => item.symbol !== currentSymbol);
-    saveWorkspacePreferences();
   }
+  saveWorkspacePreferences();
   drawLevelOverlays();
   renderLevelsPanel();
   setChartStatus(t(hadAuto ? "clearMarksDone" : "clearMarksNone"));
   window.setTimeout(() => setChartStatus(""), 1500);
+}
+let clearConfirmationSymbol = null;
+function closeClearPopover() {
+  document.getElementById("clearPopover")?.classList.remove("open");
+  document.getElementById("clearBtn")?.setAttribute("aria-expanded", "false");
+  document.getElementById("clearConfirm").hidden = true;
+  clearConfirmationSymbol = null;
+}
+function clearAnnotationsByKind(kind) {
+  if (!currentSymbol) return;
+  if (kind === "analysis" || kind === "all") clearAnalysisAnnotations();
+  if (kind === "drawings" || kind === "all") clearCurrentUserDrawings();
+  if (kind === "custom" || kind === "all") {
+    cancelLevelPlace();
+    clearCurrentCustomLevels();
+  }
+  if (kind === "all") setChartStatus(t("clearAllDone"));
+  closeClearPopover();
 }
 function syncAutoLevelsFromPayload(payload) {
   const structured = payload?.structuredContent || payload || {};
@@ -3453,10 +3604,11 @@ function syncAutoLevelsFromPayload(payload) {
       color: isResistance ? "danger" : "success",
     };
   });
-  analysisLevels = normalizeAutoLevels(next);
+  analysisLevels = normalizeAutoLevels([...analysisLevels.filter(item => item.symbol !== symbol), ...next]);
   // Auto markers are now owned by the editable list; drop raw TEXT_MARKER
   // commands so later local redraws never resurrect deleted/edited levels.
   lastMarks = lastMarks.filter((cmd) => cmd && cmd.type !== "TEXT_MARKER");
+  persistAnnotationRemoval(["TEXT_MARKER"]);
   renderLevelsPanel();
   drawLevelOverlays();
   saveWorkspacePreferences();
@@ -4358,6 +4510,7 @@ function renderTables(tables) {
 }
 function showError(msg) {
   const el = document.getElementById("errorBox");
+  if (!el || window.__DSH_KLINE_DISPOSED__) return;
   if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
   el.style.display = "block";
   el.textContent = msg;
@@ -4476,7 +4629,7 @@ function candleFetchArgs(symbol, { rangeKey = currentRangeKey, fullHistory = fal
     interval: intraday ? "minute" : "day",
     interval_value: intraday ? intradayIntervalValue(rangeKey) : 1,
     limit: intraday ? rangeFetchLimit(rangeKey) : (fullHistory ? PREFETCH_DAILY_LIMIT : rangeFetchLimit(rangeKey)),
-    adjust: "none",
+    adjust: currentAdjust,
   };
   if (intraday) request.session_count = intradaySessionCount(rangeKey);
   return request;
@@ -4554,14 +4707,14 @@ async function prefetchSecurityWorkspace(symbol, name) {
     .then((result) => {
       const payload = result?.structuredContent || result || {};
       const workspace = !result?.isError && payload.ok ? payload.security_workspace : null;
-      if (workspace) prefetchedWorkspaces.set(key, { at: Date.now(), workspace });
+      if (workspace && !workspace.errors?.length && workspacePrefetchTasks.get(key) === promise) prefetchedWorkspaces.set(key, { at: Date.now(), workspace });
       return workspace;
     })
     .catch((error) => {
       console.info("security workspace prefetch deferred", { symbol, error: String(error?.message || error) });
       return null;
     })
-    .finally(() => workspacePrefetchTasks.delete(key));
+    .finally(() => { if (workspacePrefetchTasks.get(key) === promise) workspacePrefetchTasks.delete(key); });
   workspacePrefetchTasks.set(key, promise);
   return promise;
 }
@@ -4806,12 +4959,12 @@ function buildLocalIndicatorCommands(rows) {
         gains += Math.max(change, 0); losses += Math.max(-change, 0);
       }
       let averageGain = gains / period, averageLoss = losses / period;
-      values[period] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+      values[period] = averageLoss === 0 ? (averageGain === 0 ? 50 : 100) : 100 - 100 / (1 + averageGain / averageLoss);
       for (let index = period + 1; index < closes.length; index += 1) {
         const change = closes[index] - closes[index - 1];
         averageGain = (averageGain * (period - 1) + Math.max(change, 0)) / period;
         averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
-        values[index] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+        values[index] = averageLoss === 0 ? (averageGain === 0 ? 50 : 100) : 100 - 100 / (1 + averageGain / averageLoss);
       }
     }
     commands.push({ type: "SET_INDICATOR_SERIES", name: "rsi", pane: "rsi", params: { period }, data: { rsi: localFiniteMap(source, values, 4) } });
@@ -4872,6 +5025,7 @@ function buildLocalChartPayload(rows, overrides = {}) {
     name: overrides.name || currentName || currentSymbol,
     interval: overrides.interval || currentInterval,
     range_key: currentRangeKey,
+    adjust: currentAdjust,
     fit_to_data: Boolean(overrides.fitToData),
     indicator_state_version: indicatorStateVersion,
     indicators: activeIndicators(),
@@ -5490,7 +5644,7 @@ function renderDataSourceStatus(data) {
     if (!element || value === undefined) return;
     element.textContent = value === "available"
       ? t("capAvailable")
-      : (value === "insufficient_quota" || value === "capability_limited")
+      : (value === "insufficient_quota" || value === "capability_limited" || value === "auth_required")
         ? t("capLocked")
         : t("capNotTested");
     element.classList.toggle("capability-limited", value !== "available");
@@ -5552,7 +5706,7 @@ async function configureFtshareFromSettings() {
       return;
     }
     if (input) input.value = "";
-    setFtshareConfigStatus(data.persistent ? t("ftshareConfiguredSaved") : t("ftshareConfigured"), "success");
+    setFtshareConfigStatus(data.message || (data.persistent ? t("ftshareConfiguredSaved") : t("ftshareConfigured")), "success");
     renderDataSourceStatus({ providers: { ftshare: { available: true, configured: true, persistent: Boolean(data.persistent), capabilities: data.capabilities || {} } } });
     chartDataSource = "ftshare";
     chartDataSourceUrl = FTSHARE_SDK_URL;
@@ -5639,7 +5793,10 @@ async function refreshMarketData(isRetry = false) {
   if (!isRetry) setChartStatus(t("refreshing"));
   try {
     const updates = [loadMarketTicker()];
-    if (currentSymbol) updates.push(openSymbol(currentSymbol, currentName, { preserveOnFailure: true, showLoading: !isRetry }));
+    if (currentSymbol) {
+      updates.push(openSymbol(currentSymbol, currentName, { preserveOnFailure: true, showLoading: !isRetry, refresh: !isRetry, skipWorkspace: !isRetry }));
+      if (!isRetry) updates.push(loadSecurityWorkspace(currentSymbol, currentName, true));
+    }
     await Promise.all(updates);
   } finally {
     chartDataRefreshInFlight = false;
@@ -6047,6 +6204,9 @@ async function searchSymbols(query) {
     }
     cacheSymbolSearch(q, results);
     setSearchResults(results, q);
+    if (!results.length && structured.message && resultsEl) {
+      resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(structured.message)}</div>`;
+    }
     scheduleSymbolPrefetch(results, q);
   } catch (error) {
     if (requestId !== symbolSearchRequestId) return;
@@ -6075,8 +6235,8 @@ async function openSymbol(symbol, name, options = {}) {
   try {
     const intraday = isIntradayRange();
     const candleRequest = candleFetchArgs(requestedSymbol);
-    let fetched = freshPrefetchedCandle(candleRequest);
-    if (!fetched) {
+    let fetched = options.refresh ? null : freshPrefetchedCandle(candleRequest);
+    if (!fetched && !options.refresh) {
       const pending = pendingCandlePrefetch(candleRequest);
       if (pending) await pending;
       fetched = freshPrefetchedCandle(candleRequest);
@@ -6088,7 +6248,7 @@ async function openSymbol(symbol, name, options = {}) {
     if (fetchedResult?.isError || !fetched.ok || !Array.isArray(fetched.rows)) {
       throw new Error(fetched.message || fetched.error || "fetch failed");
     }
-    if (requestId !== symbolOpenRequestId) return;
+    if (window.__DSH_KLINE_DISPOSED__ || requestId !== symbolOpenRequestId) return;
     sourceCandles = fetched.rows.slice();
     sourceCandleInterval = String(fetched.interval || (intraday ? "minute" : currentInterval) || "day");
     localChartDataMeta = {
@@ -6119,10 +6279,10 @@ async function openSymbol(symbol, name, options = {}) {
     scheduleLocalIndicatorWarmup();
     // The data workspace is intentionally non-blocking: K lines should be
     // visible even when a news or fundamental endpoint is slow or unavailable.
-    loadSecurityWorkspace(currentSymbol, currentName).catch(console.warn);
+    if (!options.skipWorkspace) loadSecurityWorkspace(currentSymbol, currentName).catch(console.warn);
     return true;
   } catch (error) {
-    if (requestId !== symbolOpenRequestId) return;
+    if (window.__DSH_KLINE_DISPOSED__ || requestId !== symbolOpenRequestId) return;
     const preserve = Boolean(options.preserveOnFailure) && currentSymbol === requestedSymbol && currentCandles.length;
     const request = { symbol: requestedSymbol, name: name || currentName || requestedSymbol, rangeKey: currentRangeKey, interval: currentInterval };
     showDataFetchError(error, request);
@@ -6229,6 +6389,7 @@ async function handleToolResult(result) {
     renderWatchlist();
     saveWorkspacePreferences();
     await applyChartCommands(structured);
+    window.__DSH_KLINE_SAVE_VIEW__?.({ ...structured, local_render: false, indicators_explicit: false });
     // A host can send draw_kline without the optional security_workspace
     // payload. Start that non-blocking request here as well as after search so
     // News and Company do not remain blank just because this was the first
@@ -6414,41 +6575,43 @@ function selectionAnalysisPrompt(selection) {
   }
   return `请分析我引用的分析标记“${selection.marker.text || selection.marker.label || "标记"}”，结合它所在位置前后的行情。`;
 }
+let keyLevelsRequestVersion = 0;
 async function analyzeKeyLevels() {
-  if (!currentSymbol || currentCandles.length < 2) {
-    setChartStatus(t("keyLevelsNeedData"));
+  if (!currentSymbol || currentCandles.length < 5) {
+    setChartStatus(t("keyLevelsInsufficient"));
     return;
   }
+  const version = ++keyLevelsRequestVersion;
+  const rows = currentCandles;
+  const symbol = currentSymbol;
+  const interval = currentInterval;
+  const range = currentRangeKey;
+  const adjust = currentAdjust;
+  const isCurrent = () => !window.__DSH_KLINE_DISPOSED__ && version === keyLevelsRequestVersion
+    && rows === currentCandles && symbol === currentSymbol && interval === currentInterval
+    && range === currentRangeKey && adjust === currentAdjust;
   const button = document.getElementById("keyLevelsBtn");
   if (button) button.disabled = true;
   setChartStatus(t("keyLevelsLoading"));
   showActivityNotice(t("keyLevelsLoading"));
   try {
-    const intraday = isIntradayRange();
-    const result = await callMarketTool("analyze_kline", {
-      symbol: currentSymbol,
-      interval: intraday ? "minute" : currentInterval,
-      interval_value: intraday ? intradayIntervalValue() : 1,
-      session_count: intraday ? intradaySessionCount() : undefined,
-      limit: rangeFetchLimit(),
-      adjust: "none",
-      indicators: activeIndicators(),
-      metrics: ["support_resistance"],
-      mark_support_resistance: true,
-    });
-    // Persist the returned level markers so later local redraws (indicator
-    // toggles, resizes) keep re-drawing them instead of dropping the analysis.
-    rememberAnalysisCommands(result);
-    await handleToolResult(result);
+    const result = await callMarketTool("analyze_key_levels", { symbol, rows }, 1);
+    if (!isCurrent()) return;
+    // Only update annotations. Keep source bars, adjustment, indicators and zoom.
     syncAutoLevelsFromPayload(result);
-    setChartStatus(t("keyLevelsReady"));
-    finishActivityNotice(t("keyLevelsReady"));
-    window.setTimeout(() => setChartStatus(""), 1200);
+    const message = t((result.structuredContent || result).status === "no_levels" ? "keyLevelsEmpty" : "keyLevelsReady");
+    setChartStatus(message);
+    finishActivityNotice(message);
   } catch (error) {
+    if (!isCurrent()) return;
     console.warn("key-level analysis", error);
-    setChartStatus(t("keyLevelsFailed"));
-    finishActivityNotice(t("keyLevelsFailed"), true);
+    setChartStatus(t("keyLevelsLocalFailed"));
+    finishActivityNotice(t("keyLevelsLocalFailed"), true);
   } finally {
+    if (!window.__DSH_KLINE_DISPOSED__ && !isCurrent()) {
+      if (document.getElementById("activityNoticeText")?.textContent === t("keyLevelsLoading")) finishActivityNotice(t("keyLevelsCancelled"));
+      if (document.getElementById("chartStatus")?.textContent === t("keyLevelsLoading")) setChartStatus(t("keyLevelsCancelled"));
+    }
     if (button) button.disabled = false;
   }
 }
@@ -6517,8 +6680,33 @@ function wireToggle(btnId, getter, setter) {
 
 /* ---------- events ---------- */
 mountSettingsRail();
+// Keep the menu outside the horizontally scrolling toolbar on small hosts.
+document.getElementById("viewShell").appendChild(document.getElementById("clearPopover"));
 document.getElementById("clearBtn").addEventListener("click", () => {
-  clearAnalysisAnnotations();
+  const open = !document.getElementById("clearPopover").classList.contains("open");
+  closeClearPopover();
+  document.getElementById("clearPopover").classList.toggle("open", open);
+  document.getElementById("clearBtn").setAttribute("aria-expanded", String(open));
+  if (open) {
+    const anchor = document.getElementById("clearBtn").getBoundingClientRect();
+    const shell = document.getElementById("viewShell").getBoundingClientRect();
+    const menu = document.getElementById("clearPopover");
+    menu.style.left = `${Math.max(8, Math.min(anchor.left - shell.left, shell.width - 248))}px`;
+    menu.style.top = `${Math.max(8, Math.min(anchor.bottom - shell.top + 5, shell.height - menu.offsetHeight - 8))}px`;
+  }
+});
+document.querySelectorAll("[data-clear-kind]").forEach(button => button.addEventListener("click", () => {
+  if (button.dataset.clearKind !== "all") { clearAnnotationsByKind(button.dataset.clearKind); return; }
+  if (!currentSymbol) return;
+  clearConfirmationSymbol = currentSymbol;
+  document.getElementById("clearConfirmText").textContent = t("clearConfirmMessage").replace("{symbol}", `${currentName || currentSymbol} (${currentSymbol})`);
+  document.getElementById("clearConfirm").hidden = false;
+  document.getElementById("cancelClearBtn").focus();
+}));
+document.getElementById("cancelClearBtn").addEventListener("click", closeClearPopover);
+document.getElementById("confirmClearBtn").addEventListener("click", () => {
+  if (clearConfirmationSymbol === currentSymbol) clearAnnotationsByKind("all");
+  else closeClearPopover();
 });
 document.getElementById("volumeUnitBtn").addEventListener("click", () => {
   toggleVolumeUnit().catch(console.warn);
@@ -6568,6 +6756,18 @@ document.querySelectorAll("[data-settings-section]").forEach((button) => {
   button.addEventListener("click", () => showSettingsSection(button.dataset.settingsSection || ""));
 });
 document.getElementById("ftshareConfigureBtn").addEventListener("click", () => configureFtshareFromSettings().catch(console.warn));
+document.getElementById("ftshareTestBtn").addEventListener("click", async () => {
+  const button = document.getElementById("ftshareTestBtn");
+  button.disabled = true;
+  setFtshareConfigStatus(t("ftshareConfigTesting"));
+  try {
+    const result = await callTool("test_ftshare_connection", {});
+    const data = result?.structuredContent || result || {};
+    setFtshareConfigStatus(data.message || t("ftshareConfigFailed"), data.ok ? "success" : "error");
+    await refreshDataSourceStatus();
+  } catch (error) { setFtshareConfigStatus(ftshareConfigErrorMessage(error), "error"); }
+  finally { button.disabled = false; }
+});
 document.getElementById("ftshareClearBtn").addEventListener("click", () => clearFtshareFromSettings().catch(console.warn));
 document.getElementById("ftshareApiKeyInput").addEventListener("keydown", (event) => {
   if (event.key === "Enter") { event.preventDefault(); configureFtshareFromSettings().catch(console.warn); }
@@ -6712,6 +6912,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     resetChartViewport();
   } else if (event.key === "Escape") {
+    closeClearPopover();
     const welcome = document.getElementById("welcomeDialog");
     if (welcome && !welcome.hidden) { closeWelcome(); return; }
     hideChartContextMenu();
@@ -6730,6 +6931,7 @@ document.addEventListener("keydown", (event) => {
 });
 document.addEventListener("pointerdown", (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest(".clear-menu-wrap, #clearPopover")) closeClearPopover();
   if (!target?.closest(".alert-menu-wrap")) {
     document.getElementById("alertPopover")?.classList.remove("open");
     document.getElementById("alertMenuBtn")?.setAttribute("aria-expanded", "false");
@@ -6820,6 +7022,7 @@ document.getElementById("rangeClearBtn").addEventListener("click", () => {
 
 /* ---------- standalone lifecycle ---------- */
 window.addEventListener("beforeunload", () => {
+  saveWorkspacePreferences();
   viewResizeObserver?.disconnect();
   if (marketTickerRefreshTimer) window.clearInterval(marketTickerRefreshTimer);
   if (chartDataRetryTimer) window.clearTimeout(chartDataRetryTimer);
@@ -6833,7 +7036,7 @@ async function init() {
   loadSymbolDirectory();
   loadWorkspacePreferences();
   // Each chart URL starts from the indicators requested by analyze_kline.
-  resetIndicatorVisibility();
+  if (!window.__DSH_KLINE_RESTORED__) resetIndicatorVisibility();
   initChart();
   syncToggleButtons();
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
@@ -6844,10 +7047,12 @@ async function init() {
   refreshIndexCompareCapability();
   if (window.ResizeObserver) {
     viewResizeObserver = new ResizeObserver(() => {
+      if (window.__DSH_KLINE_DISPOSED__) return;
       applyViewportHeight(null);
-      reportSize();
-      scheduleChartResize();
+      recalcChartHeight();
     });
+    viewResizeObserver.observe(document.documentElement);
+    viewResizeObserver.observe(document.getElementById("viewScroll"));
     viewResizeObserver.observe(document.getElementById("viewShell"));
     viewResizeObserver.observe(document.getElementById("viewContent"));
   }
@@ -6857,17 +7062,43 @@ async function init() {
     showError("图表会话已失效，请在 dsh 中重新运行 analyze_kline。");
     return;
   }
+  // A weekly-or-larger host series is already the requested analysis window.
+  // Do not label ten annual candles as “今年” or silently crop to one candle.
+  if (["week", "month", "quarter", "year"].includes(payload.interval)
+      && ((!window.__DSH_KLINE_RESTORED__ && !payload.range_key)
+          || (payload.interval === "year" && payload.range_key === "ytd"))) {
+    const rows = payload.chartCommands.find(command => command.type === "SET_CANDLES")?.rows || [];
+    if (rows.length > 1) {
+      customRangeStart = dateInputValue(rows[0].time);
+      customRangeEnd = dateInputValue(rows.at(-1).time);
+      currentRangeKey = payload.range_key = "custom";
+    }
+  }
   rememberAnalysisCommands(payload);
   await handleToolResult({ structuredContent: payload });
+  if (window.__DSH_KLINE_DISPOSED__) return;
+  if (rangePickStart && rangePickEnd) {
+    drawRangeHighlight();
+    publishSelection(rangeSelection(rangePickStart.candle, rangePickEnd.candle));
+  }
   startMarketTickerRefresh();
   startWatchlistQuoteRefresh();
   window.setTimeout(showWelcomeIfFirstRun, 300);
   scheduleSymbolDirectoryRefresh();
   scheduleCommonIndexPrefetch();
   reportSize();
-  setChartStatus("");
+  // Older locally saved launchers did not include a default symbol. Keep them
+  // useful after an upgrade instead of restoring the old blank first screen.
+  const launcherSymbol = String(payload.workspace_mode === "launcher" ? payload.default_symbol || "000001.XSHG" : "").trim();
+  if (launcherSymbol && !currentSymbol) {
+    setChartStatus("正在加载上证指数…");
+    await openSymbol(launcherSymbol, String(payload.default_name || launcherSymbol));
+  } else {
+    setChartStatus(payload.workspace_mode === "launcher" ? "搜索股票名称或代码开始查看 K 线" : "");
+  }
 }
 init().catch((error) => {
+  if (window.__DSH_KLINE_DISPOSED__) return;
   console.error("dsh_kline chart init", error);
   showError(`图表初始化失败：${String(error?.message || error)}`);
 });

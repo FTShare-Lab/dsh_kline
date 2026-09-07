@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
@@ -26,7 +26,7 @@
     "client": {
       "platform": "web",
       "inject": [
-        "@deepseek-ai/dsh-client-runtime"
+        "@deepseek-ai/dsh-api-session-controller"
       ]
     }
   },
@@ -57,7 +57,7 @@
     "dsh:web": "bash ./scripts/run-dsh-web.sh"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.1.0-rc.6",
+    "@deepseek-ai/dsh": "0.1.2-rc.1",
     "@types/node": "22.20.0",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",

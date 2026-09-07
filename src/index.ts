@@ -6,12 +6,13 @@ export const name = 'dsh-kline-sidebar'
 export const inject = ['webServer']
 
 const RUNTIME_FILE = fileURLToPath(new URL('../.runtime/chart-session.json', import.meta.url))
+const SESSION_DIR = fileURLToPath(new URL('../.runtime/sessions/', import.meta.url))
 const VENDOR_FILE = fileURLToPath(new URL('../view/vendor/klinecharts.min.js', import.meta.url))
 const LOGO_FILE = fileURLToPath(new URL('../view/ft-logo.jpg', import.meta.url))
-const MAX_SESSION_AGE_SECONDS = 7 * 60 * 60
 const MAX_PROXY_BYTES = 8 * 1024 * 1024
 const CHART_ACTIONS = new Set([
   'analyze_kline',
+  'analyze_key_levels',
   'calc_range',
   'fetch_candles',
   'fetch_comparison_candles',
@@ -44,7 +45,8 @@ export function apply(ctx: WebServerContext): void {
 }
 
 async function serveRuntimeSession(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+  const url = new URL(request.url ?? '/', 'http://localhost')
+  const pathname = url.pathname
   try {
     // Static browser assets must remain available before the first chart session exists.
     if (pathname === '/dsh-kline/vendor/klinecharts.min.js' && (request.method === 'GET' || request.method === 'HEAD')) {
@@ -57,26 +59,30 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       sendBytes(response, 200, body, 'image/jpeg', request.method === 'HEAD')
       return
     }
+    // Never infer a chart from the global latest publication. The browser
+    // obtains this opaque reference from the owning conversation's result.
+    if (pathname === '/dsh-kline/session' || pathname === '/dsh-kline/data') {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        sendJson(response, 405, { ok: false, error: 'method_not_allowed' })
+        return
+      }
+      const token = url.searchParams.get('session') ?? ''
+      if (!/^[A-Za-z0-9_-]{32}$/.test(token)) {
+        sendJson(response, 200, { ok: false, error: 'chart_session_required' })
+        return
+      }
+      const saved = JSON.parse(await readFile(`${SESSION_DIR}${token}.json`, 'utf8')) as RuntimeSession & { payload: unknown }
+      if (saved.session !== token || saved.ok !== true) throw new Error('invalid_chart_snapshot')
+      if (pathname === '/dsh-kline/data') {
+        sendJson(response, 200, { ok: true, session: token, payload: saved.payload }, request.method === 'HEAD')
+      } else {
+        sendJson(response, 200, { ok: true, session: token, symbol: saved.symbol, name: saved.name, published_at: saved.published_at }, request.method === 'HEAD')
+      }
+      return
+    }
     const session = await readLiveSession()
     if (!session) {
       sendJson(response, 200, { ok: false, error: 'chart_session_unavailable' }, request.method === 'HEAD')
-      return
-    }
-    if (pathname === '/dsh-kline/session' && (request.method === 'GET' || request.method === 'HEAD')) {
-      const {
-        service_url: _serviceUrl,
-        service_token: _serviceToken,
-        process_id: _processId,
-        ...publicSession
-      } = session
-      sendJson(response, 200, publicSession, request.method === 'HEAD')
-      return
-    }
-    if (pathname === '/dsh-kline/data' && (request.method === 'GET' || request.method === 'HEAD')) {
-      await proxyJson(response, `${serviceOrigin(session)}/api/session/${encodeURIComponent(session.session)}`, {
-        method: request.method,
-        headers: chartServiceHeaders(session),
-      })
       return
     }
     if (pathname.startsWith('/dsh-kline/api/tools/') && request.method === 'POST') {
@@ -171,7 +177,6 @@ function isLiveSession(value: unknown): boolean {
     || candidate.service_token.length < 32
     || !Number.isSafeInteger(candidate.published_at)
     || candidate.published_at <= 0
-    || Math.abs(Date.now() / 1000 - candidate.published_at) > MAX_SESSION_AGE_SECONDS
   ) return false
   try {
     const serviceUrl = new URL(candidate.service_url)
