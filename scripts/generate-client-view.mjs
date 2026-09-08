@@ -107,6 +107,7 @@ function createScopedWindow(host, payload, dependencies) {
   local.set('__DSH_KLINE_RESTORED__', dependencies.restored)
   local.set('__DSH_KLINE_SAVE_VIEW__', dependencies.saveView)
   local.set('__DSH_KLINE_DISPOSED__', false)
+  local.set('__DSH_KLINE_INTERFACE__', dependencies.interfaceMode)
   if (dependencies.klinecharts) {
     local.set('klinecharts', dependencies.klinecharts)
     local.set('__FTV_KLINECHARTS_VENDOR__', { started: true, source: 'client_dependency' })

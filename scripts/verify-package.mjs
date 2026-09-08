@@ -6,6 +6,10 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const requiredFiles = [
   'lib/index.js',
   'lib/client.js',
+  'lib/client/ClassicShell.js',
+  'lib/client/BetterSidebarTab.js',
+  'lib/client/KlineContent.js',
+  'lib/client/sidebar-integration.js',
   'view/vendor/klinecharts.min.js',
   'config/basic-symbols.json',
 ]
@@ -19,6 +23,8 @@ for (const marker of [
   '/dsh-kline/vendor/klinecharts.min.js',
   'client_dependency',
   'dependencies.klinecharts',
+  'ftshare-kline:chart',
+  'dsh-kline:display-mode:v1',
 ]) {
   if (!client.includes(marker)) {
     throw new Error(`built client is missing required marker: ${marker}`)

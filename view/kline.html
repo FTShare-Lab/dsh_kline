@@ -475,7 +475,7 @@
   .comparison-performance-svg { display: block; width: 100%; height: 112px; }
   .comparison-performance-zero { stroke: var(--border); stroke-dasharray: 3 3; }
   .comparison-performance-value { fill: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
-  @media (max-width: 640px) {
+  @container (max-width: 640px) {
     .comparison-performance { grid-template-columns: 1fr; }
     .comparison-performance-head { min-height: 60px; border-right: 0; border-bottom: 1px solid var(--border); }
   }
@@ -599,7 +599,19 @@
   .welcome-ftshare-title { color: var(--text); font-weight: 700; }
   .welcome-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
   .welcome-actions .btn { min-height: 29px; }
-  @media (max-width: 760px) {
+  .interface-toggle { position: relative; height: 30px; display: inline-flex; align-items: center; gap: 4px; }
+  .interface-new { position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .interface-popover { position: absolute; z-index: 80; top: 45px; right: 12px; width: min(350px, calc(100% - 24px)); max-height: calc(100% - 58px); overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow); }
+  .interface-popover[hidden], .interface-toggle[hidden], .interface-new[hidden], #interfaceFallbackBanner[hidden] { display: none; }
+  .welcome-dialog { max-height: 100%; overflow-y: auto; }
+  .interface-option { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; cursor: pointer; }
+  .interface-option input { margin-top: 4px; accent-color: var(--accent); }
+  .interface-option small { display: block; color: var(--text-soft); margin-top: 3px; }
+  @container (max-width: 520px) { .interface-label { display: none; } }
+  #viewShell { container-type: inline-size; }
+  @container (max-width: 760px) {
+    .market-data-status { flex-wrap: wrap; }
+    .market-data-status > span { white-space: normal; }
     .workspace-bar { flex-wrap: wrap; }
     .brand { min-width: 0; }
     .symbol-search { position: static; width: auto; margin-left: 0; flex: 1 1 180px; min-width: 0; max-width: none; transform: none; }
@@ -614,12 +626,11 @@
     .company-metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
     .holder-layout { grid-template-columns: 1fr; gap: 18px; }
   }
-  @media (max-width: 980px) {
+  @container (max-width: 980px) {
     #viewScroll { padding-left: 0; }
     #viewShell.watchlist-rail-open #viewScroll { padding-left: 0; }
-    .watchlist-rail, .watchlist-rail-toggle { display: none; }
   }
-  @media (max-width: 480px) {
+  @container (max-width: 480px) {
     .workspace-bar { gap: 5px; padding: 6px 8px; }
     .header-controls { gap: 3px; }
     header.bar {
@@ -667,6 +678,7 @@
   </div>
   <div class="header-controls">
     <button class="btn watchlist-rail-toggle" id="watchlistRailToggle" type="button" title="展开自选侧栏" aria-label="展开自选侧栏" aria-expanded="false"><span class="icon-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="m12 3.8 2.55 5.17 5.7.83-4.12 4.02.97 5.68L12 16.82l-5.1 2.68.97-5.68L3.75 9.8l5.7-.83L12 3.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span></button>
+    <button class="btn interface-toggle" id="interfaceBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="interfacePopover" title="图表界面 / Chart interface" aria-label="图表界面 / Chart interface" hidden><span aria-hidden="true">▥</span><span class="interface-label" data-i18n="interfaceLabel">界面</span><i class="interface-new" hidden></i></button>
     <div class="settings-menu-wrap">
       <button class="btn settings-toggle" id="settingsBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="设置" aria-label="设置"><span class="icon-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M9.8 3.9h4.4l.55 2.02c.4.16.78.38 1.13.65l1.98-.68 2.2 3.8-1.43 1.5c.05.43.05.86 0 1.29l1.43 1.5-2.2 3.8-1.98-.68c-.35.27-.73.49-1.13.65l-.55 2.02H9.8l-.55-2.02a6.8 6.8 0 0 1-1.13-.65l-1.98.68-2.2-3.8 1.43-1.5a6.2 6.2 0 0 1 0-1.29l-1.43-1.5 2.2-3.8 1.98.68c.35-.27.73-.49 1.13-.65L9.8 3.9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="11.83" r="2.65" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></span></button>
       <div class="settings-popover" id="settingsPopover" role="dialog" aria-label="设置 / Settings" aria-hidden="true">
@@ -774,6 +786,7 @@
     <span class="quote-meta" id="qMeta"></span>
   </div>
 </header>
+<div id="interfaceFallbackBanner" class="settings-info muted" role="status" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</div>
 <div class="market-data-status" id="marketDataStatus" aria-live="polite"></div>
 <nav class="security-nav" id="securityNav" role="tablist" aria-label="标的内容">
   <button class="security-nav-tab active" id="securityTabChart" type="button" role="tab" aria-selected="true" aria-controls="chartWorkspacePanel" data-security-tab="chart">图表</button>
@@ -960,11 +973,33 @@
     <div class="group-dialog-actions"><button class="btn" id="groupDialogCancel" type="button">取消</button><button class="btn primary" id="groupDialogSubmit" type="submit">创建</button></div>
   </form>
 </div>
+<div class="interface-popover" id="interfacePopover" role="dialog" aria-modal="true" aria-labelledby="interfaceTitle" hidden>
+  <strong id="interfaceTitle" data-i18n="interfaceTitle">图表界面</strong>
+  <p id="interfaceStatus" class="muted"></p>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="auto"><span><b data-i18n="interfaceAuto">自动（推荐）</b><small data-i18n="interfaceAutoHelp">检测到 Better Sidebar 时使用 Tab，否则使用经典侧栏。</small></span></label>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="classic"><span><b data-i18n="interfaceClassic">经典独立侧栏</b><small data-i18n="interfaceClassicHelp">保留右侧 K 按钮和宽度拖动体验。</small></span></label>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="better-sidebar"><span><b>Better Sidebar Tab</b><small data-i18n="interfaceTabHelp">在工作台中使用分栏、底部面板和浮窗。</small></span></label>
+  <p id="interfaceFallback" class="muted" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</p>
+  <label class="interface-option"><input id="interfaceAutoOpen" type="checkbox"><span data-i18n="interfaceAutoOpen">分析完成后自动打开 K 线 Tab（保持面板的展开状态）</span></label>
+  <p id="interfaceSaveStatus" role="status"></p>
+  <div class="welcome-actions"><button class="btn" id="interfaceCancel" type="button" data-i18n="cancel">取消</button><button class="btn primary" id="interfaceSave" type="button" data-i18n="interfaceSave">保存并刷新</button></div>
+</div>
+<div class="welcome-backdrop" id="uiUpgradeDialog" hidden>
+  <section class="welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="uiUpgradeTitle">
+    <button class="welcome-close" id="uiUpgradeClose" type="button" aria-label="关闭 / Close">&times;</button>
+    <h2 id="uiUpgradeTitle" data-i18n="interfaceUpgrade">K 线界面升级</h2>
+    <p data-i18n="interfaceUpgradeHelp">现在可以继续使用经典独立侧栏，也可以在 Better Sidebar 中使用“K线分析”Tab。</p>
+    <p id="uiUpgradeCurrent"></p>
+    <p data-i18n="interfaceWelcomeHint">随时通过右上角“界面”按钮切换显示方式。</p>
+    <div class="welcome-actions"><button class="btn" id="uiUpgradeKeep" type="button" data-i18n="interfaceKeep">保持当前界面</button><button class="btn primary" id="uiUpgradeChoose" type="button" data-i18n="interfaceChoose">查看并选择界面</button></div>
+  </section>
+</div>
 <div class="welcome-backdrop" id="welcomeDialog" hidden>
   <section class="welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
     <button class="welcome-close" id="welcomeCloseBtn" type="button" aria-label="关闭">&times;</button>
     <h2 class="welcome-title" id="welcomeTitle" data-i18n="welcomeTitle">欢迎使用非凸 K 线助手</h2>
     <p class="welcome-lead" data-i18n="welcomeLead">用自然语言查看行情、K 线、指标和标的信息。</p>
+    <p id="interfaceWelcomeCurrent" hidden></p>
     <ul class="welcome-list">
       <li data-i18n="welcomeItemChart">先选择标的，再按需加载数据和分析图表。</li>
       <li data-i18n="welcomeItemLevels">需要时点击“关键点位”，查看支撑位和压力位分析。</li>
@@ -1187,6 +1222,7 @@ const RANGE_PRESETS = {
 };
 const UI_COPY = {
   zh: {
+    interfaceLabel: "界面", interfaceTitle: "图表界面", interfaceAuto: "自动（推荐）", interfaceClassic: "经典独立侧栏", interfaceAutoHelp: "检测到 Better Sidebar 时使用 Tab，否则使用经典侧栏。", interfaceClassicHelp: "保留右侧 K 按钮和宽度拖动体验。", interfaceTabHelp: "在工作台中使用分栏、底部面板和浮窗。", interfaceFallback: "未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。", interfaceAutoOpen: "分析完成后自动打开 K 线 Tab（保持面板的展开状态）", interfaceSave: "保存并刷新", interfaceSaveFailed: "无法保存偏好，请允许浏览器本地存储后重试。", interfaceUpgrade: "K 线界面升级", interfaceUpgradeHelp: "现在可以继续使用经典独立侧栏，也可以在 Better Sidebar 中使用“K线分析”Tab。", interfaceWelcomeHint: "随时通过右上角“界面”按钮切换显示方式。", interfaceKeep: "保持当前界面", interfaceChoose: "查看并选择界面", interfaceCurrent: "当前：{preference} · 正在使用 {mode}",
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
     capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
@@ -1205,6 +1241,7 @@ const UI_COPY = {
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
   },
   en: {
+    interfaceLabel: "Interface", interfaceTitle: "Chart interface", interfaceAuto: "Automatic (recommended)", interfaceClassic: "Classic sidebar", interfaceAutoHelp: "Use a Better Sidebar tab when available, otherwise use the classic sidebar.", interfaceClassicHelp: "Keep the K button and draggable right sidebar.", interfaceTabHelp: "Use workbench splits, the bottom panel and floating windows.", interfaceFallback: "Better Sidebar is unavailable. Using the classic interface until it is installed or enabled and the page is refreshed.", interfaceAutoOpen: "Open the K-line tab after analysis (preserve panel visibility)", interfaceSave: "Save and reload", interfaceSaveFailed: "Could not save preferences. Allow browser local storage and try again.", interfaceUpgrade: "A choice of chart interfaces", interfaceUpgradeHelp: "Keep the familiar classic sidebar, or use the K-line tab in Better Sidebar.", interfaceWelcomeHint: "Change your display mode anytime using Interface in the top-right corner.", interfaceKeep: "Keep this interface", interfaceChoose: "Choose an interface", interfaceCurrent: "Current: {preference} · Using {mode}",
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
     capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
@@ -5532,8 +5569,24 @@ function closeWelcome() {
   const dialog = document.getElementById("welcomeDialog");
   if (dialog) dialog.hidden = true;
   try { window.localStorage?.setItem(WELCOME_STORAGE_KEY, "1"); } catch {}
+  acknowledgeInterface();
+  document.getElementById("interfaceBtn")?.focus();
 }
 function showWelcomeIfFirstRun() {
+  const bridge = window.__DSH_KLINE_INTERFACE__;
+  if (bridge) {
+    const kind = bridge.onboardingKind();
+    if (kind === "none") return;
+    if (kind === "upgrade") {
+      document.getElementById("uiUpgradeCurrent").textContent = interfaceCurrentText();
+      document.getElementById("uiUpgradeDialog").hidden = false;
+      document.getElementById("uiUpgradeKeep").focus();
+      return;
+    }
+    const hint = document.getElementById("interfaceWelcomeCurrent");
+    hint.hidden = false;
+    hint.textContent = interfaceCurrentText() + ". " + t("interfaceWelcomeHint");
+  }
   let seen = false;
   try { seen = window.localStorage?.getItem(WELCOME_STORAGE_KEY) === "1"; } catch {}
   if (seen) return;
@@ -5549,6 +5602,90 @@ function openSettingsFromWelcome() {
   if (!popover || !button) return;
   setSettingsOpen(true);
   showSettingsSection("source");
+}
+function interfaceCurrentText() {
+  const state = window.__DSH_KLINE_INTERFACE__ || { preference: "auto", mode: "classic" };
+  const label = value => value === "auto" ? t("interfaceAuto") : value === "classic" ? t("interfaceClassic") : "Better Sidebar Tab";
+  return t("interfaceCurrent").replace("{preference}", label(state.preference)).replace("{mode}", label(state.mode));
+}
+function acknowledgeInterface() {
+  window.__DSH_KLINE_INTERFACE__?.acknowledgeOnboarding();
+  const badge = document.querySelector(".interface-new");
+  if (badge) badge.hidden = true;
+}
+function closeInterfaceUpgrade() {
+  document.getElementById("uiUpgradeDialog").hidden = true;
+  acknowledgeInterface();
+  document.getElementById("interfaceBtn")?.focus();
+}
+function setInterfaceOpen(open) {
+  const panel = document.getElementById("interfacePopover");
+  panel.hidden = !open;
+  document.getElementById("interfaceBtn").setAttribute("aria-expanded", String(open));
+  if (!open) { document.getElementById("interfaceBtn").focus(); return; }
+  positionInterfacePopover();
+  setSettingsOpen(false);
+  setWatchlistRail(false);
+  const state = window.__DSH_KLINE_INTERFACE__;
+  document.getElementById("interfaceStatus").textContent = interfaceCurrentText();
+  document.getElementById("interfaceFallback").hidden = !!state?.available;
+  let preference = state?.preference || "auto";
+  try {
+    preference = window.localStorage.getItem("dsh-kline:display-mode:v1") || preference;
+    document.getElementById("interfaceAutoOpen").checked = window.localStorage.getItem("dsh-kline:auto-open-after-analysis:v1") !== "false";
+  } catch {}
+  const selected = Array.from(panel.querySelectorAll('input[name="interfaceMode"]')).find(input => input.value === preference);
+  if (selected) { selected.checked = true; selected.focus(); }
+}
+function positionInterfacePopover() {
+  const shell = document.getElementById("viewShell").getBoundingClientRect();
+  const anchor = document.getElementById("interfaceBtn").getBoundingClientRect();
+  const panel = document.getElementById("interfacePopover");
+  const top = Math.max(8, Math.min(anchor.bottom - shell.top + 6, shell.height - 120));
+  panel.style.top = top + "px";
+  panel.style.right = Math.max(12, Math.min(shell.right - anchor.right, shell.width - panel.offsetWidth - 12)) + "px";
+  panel.style.maxHeight = Math.max(80, shell.height - top - 12) + "px";
+}
+function initInterfaceControls() {
+  const state = window.__DSH_KLINE_INTERFACE__;
+  if (!state) return;
+  const button = document.getElementById("interfaceBtn");
+  button.hidden = false;
+  document.getElementById("interfaceFallbackBanner").hidden = state.preference !== "better-sidebar" || state.available;
+  document.querySelector(".interface-new").hidden = state.onboardingKind() === "none";
+  button.addEventListener("click", () => setInterfaceOpen(document.getElementById("interfacePopover").hidden));
+  window.addEventListener("resize", () => { if (!document.getElementById("interfacePopover").hidden) positionInterfacePopover(); });
+  document.getElementById("interfaceCancel").addEventListener("click", () => setInterfaceOpen(false));
+  document.getElementById("interfaceSave").addEventListener("click", () => {
+    const selection = document.querySelector('input[name="interfaceMode"]:checked')?.value;
+    if (!["auto", "classic", "better-sidebar"].includes(selection)) return;
+    try {
+      window.localStorage.setItem("dsh-kline:display-mode:v1", selection);
+      window.localStorage.setItem("dsh-kline:auto-open-after-analysis:v1", String(document.getElementById("interfaceAutoOpen").checked));
+      acknowledgeInterface();
+      window.location.reload();
+    } catch { document.getElementById("interfaceSaveStatus").textContent = t("interfaceSaveFailed"); }
+  });
+  document.getElementById("uiUpgradeClose").addEventListener("click", closeInterfaceUpgrade);
+  document.getElementById("uiUpgradeKeep").addEventListener("click", closeInterfaceUpgrade);
+  document.getElementById("uiUpgradeChoose").addEventListener("click", () => { closeInterfaceUpgrade(); setInterfaceOpen(true); });
+  // Modal keyboard handling runs before chart shortcuts, and returns focus to
+  // the persistent trigger when the user dismisses either surface.
+  document.addEventListener("keydown", event => {
+    const panel = ["interfacePopover", "uiUpgradeDialog", "welcomeDialog"].map(id => document.getElementById(id)).find(node => node && !node.hidden);
+    if (!panel) return;
+    if (event.key === "Escape") {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (panel.id === "interfacePopover") setInterfaceOpen(false);
+      else if (panel.id === "uiUpgradeDialog") closeInterfaceUpgrade();
+      else closeWelcome();
+    } else if (event.key === "Tab") {
+      const focusable = Array.from(panel.querySelectorAll('button, input, a[href], select, [tabindex="0"]')).filter(node => !node.disabled && node.getClientRects().length);
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  }, true);
 }
 function renderHelpPopover() {
   const el = document.getElementById("helpPopover");
@@ -7063,6 +7200,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 async function init() {
+  initInterfaceControls();
   loadWatchlist();
   loadSymbolDirectory();
   loadWorkspacePreferences();

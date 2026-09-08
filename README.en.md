@@ -51,6 +51,16 @@ After the analysis, use the sidebar to switch timeframes and indicators or explo
 Use the search box for a company name or ticker, then select the star to add it to a watchlist. Watchlists support groups, sorting, and batch opening, and are stored locally in the current browser.
 The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. The current Free tier includes stock candles, company and financial basics, A-share market lists, funds, and indices, but it still requires registration and an API Key. Historical minute bars, Hong Kong candles, announcements/reports, and news are available according to the current plan; official endpoint documentation remains authoritative. A key grants only the capabilities enabled for that account. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Without FTShare, built-in public quote fallbacks and `analyze_kline_rows` remain available.
 
+## Dual interfaces (v0.2.0 prerelease)
+
+The default **Automatic** mode uses the **K线分析 / K-line** tab when Better Sidebar is available; select it in the workbench `+` menu after selecting a conversation. Without Better Sidebar, the familiar right-side K button remains. The chart's top-right **Interface** button, between Watchlist and Settings, offers Automatic, Classic sidebar, and Better Sidebar Tab. Save and reload to apply your choice.
+
+Both shells share chart content, watchlists, annotations, conversation-scoped state, and existing data-source configuration. FTShare keys are not changed. If a requested Tab interface is unavailable, the plugin explains the fallback to Classic; it never installs the framework automatically. The tested integration is Better Sidebar `0.18.0`, with Harness unchanged at `0.1.2-rc.1`.
+
+Auto-opening the tab after analysis is a separate preference. It creates or focuses a tab in the owning conversation but preserves a collapsed panel; expand the panel using the framework controls. First-time users see the normal welcome screen; existing users see a one-time interface-upgrade explanation. Interface selection remains accessible afterwards.
+
+`v0.2.0-rc.1` is a prerelease. Stable `v0.1.8` remains available for rollback, without clearing local data.
+
 ## MCP Tools
 
 | Tool | Purpose |
