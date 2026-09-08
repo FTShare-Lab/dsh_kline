@@ -10,7 +10,7 @@ def test_bundle_mounts_sidebar_and_mcp_for_standard_installs():
     assert "id: mcp-dsh-kline" in patch
     assert "name: '@deepseek-ai/dsh-mcp-client'" in patch
     assert "id: dsh-kline-sidebar" in patch
-    assert "new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname" in patch
+    assert "decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)" in patch
 
 
 def test_runner_prepares_a_user_runtime_without_a_project_venv():

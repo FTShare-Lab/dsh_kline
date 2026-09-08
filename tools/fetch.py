@@ -535,10 +535,14 @@ def configure_ftshare_api_key(
     if len(value) > 512:
         return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 长度不受支持"}
     try:
-        if value and persist:
-            _write_persisted_ftshare_key(value)
-        else:
-            _remove_persisted_ftshare_key()
+        # A temporary key only changes this process.  It must not erase the
+        # user's saved credential: that would make a one-off connection test
+        # silently break the next DSH restart.
+        if persist:
+            if value:
+                _write_persisted_ftshare_key(value)
+            else:
+                _remove_persisted_ftshare_key()
     except OSError:
         return {"ok": False, "error": "credential_persist_failed", "message": "无法保存 FTShare 本机配置"}
     if value:
@@ -1077,9 +1081,8 @@ def _fetch_index_history_minutes(
     """
     cutoff = _latest_session_close_millis(exchange_timezone)
     unique: dict[int, dict[str, Any]] = {}
-    previous_earliest: int | None = None
     page_window_days = 2
-    max_pages = max(6, sessions * 2 + 2)
+    max_pages = max(8, sessions * 3 + 2)
     for _page in range(max_pages):
         page = _ftshare_index_minutes(
             market,
@@ -1090,22 +1093,45 @@ def _fetch_index_history_minutes(
             limit=min(500, max(limit, sessions * 250)),
             as_dataframe=False,
         )
-        chunk = _normalize_raw(page)
+        chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=interval_value)
+        complete_dates = _complete_intraday_session_dates(
+            chunk, timezone_name=exchange_timezone, interval_value=interval_value,
+        )
+        chunk = [
+            row for row in chunk
+            if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in complete_dates
+        ]
         if not chunk:
+            # Empty pages also occur on exchange holidays.  Advance by whole
+            # sessions rather than retrying a boundary timestamp indefinitely.
+            cutoff = _previous_weekday_session_close_millis(
+                datetime.fromtimestamp(cutoff / 1000, tz=ZoneInfo(exchange_timezone)).date(),
+                exchange_timezone,
+            )
+            continue
+        chunk_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in chunk
+        }
+        known_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in unique.values()
+        }
+        if known_dates and not (chunk_dates - known_dates):
             break
         for row in chunk:
             unique[int(row["time"])] = row
-        earliest = min(int(row["time"]) for row in chunk)
-        if previous_earliest is not None and earliest >= previous_earliest:
-            break
-        previous_earliest = earliest
         local_dates = {
             datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
             for row in unique.values()
         }
         if len(local_dates) >= sessions:
             break
-        cutoff = earliest * 1000 - 1
+        # Do not page from the first 5-minute bar (09:35).  FTShare then
+        # returns only an overlapping 09:30--09:35 boundary bar.  Page from
+        # the preceding trading-day close so every request starts on a clean
+        # session boundary and can contribute complete historical days.
+        cutoff = _previous_weekday_session_close_millis(min(chunk_dates), exchange_timezone)
     return list(unique.values())
 
 
@@ -1954,6 +1980,80 @@ def _annotate_intraday_rows(rows: list[dict[str, Any]], *, timezone_name: str, i
     return rows
 
 
+def _complete_intraday_bars(rows: list[dict[str, Any]], *, interval_value: int) -> list[dict[str, Any]]:
+    """Exclude provider boundary rows that are shorter than the requested bar."""
+    expected_seconds = max(1, int(interval_value)) * 60
+    complete: list[dict[str, Any]] = []
+    for row in rows:
+        open_time = row.get("open_time")
+        if open_time is not None:
+            try:
+                if int(row["time"]) - int(open_time) != expected_seconds:
+                    continue
+            except (TypeError, ValueError):
+                continue
+        complete.append(row)
+    return complete
+
+
+def _complete_intraday_session_dates(
+    rows: list[dict[str, Any]], *, timezone_name: str, interval_value: int,
+) -> set[Any]:
+    """Return exchange dates that contain a usable, full intraday session.
+
+    The FTShare history API is inclusive at the beginning of a natural-date
+    window.  A request ending on Friday can therefore include only a single
+    15:00 bar from Wednesday.  That bar is a valid candle, but it is *not* a
+    day of history and must neither count toward a 5D chart nor become the
+    cursor for the next page.
+
+    We deliberately use both bar count and elapsed session span.  This rejects
+    an API boundary bar while tolerating a small number of missing/late bars.
+    """
+    timezone_value = ZoneInfo(timezone_name)
+    grouped: dict[Any, list[dict[str, Any]]] = {}
+    for row in rows:
+        try:
+            date_key = datetime.fromtimestamp(int(row["time"]), tz=timezone_value).date()
+        except (KeyError, TypeError, ValueError, OSError):
+            continue
+        grouped.setdefault(date_key, []).append(row)
+
+    # A normal mainland session has 240 trading minutes.  The thresholds for
+    # other exchanges are intentionally conservative because this endpoint can
+    # include pre/post-market rows there.  In all cases a lone boundary row
+    # fails both checks.
+    regular_minutes = {
+        "Asia/Shanghai": 240,
+        "Asia/Hong_Kong": 330,
+        "America/New_York": 390,
+    }.get(timezone_name, 240)
+    minimum_bars = max(2, int((regular_minutes / max(1, int(interval_value))) * 0.65))
+    minimum_span_seconds = 3 * 60 * 60
+    valid_dates: set[Any] = set()
+    for date_key, session_rows in grouped.items():
+        ordered = sorted(session_rows, key=lambda item: int(item["time"]))
+        first_open = int(ordered[0].get("open_time") or ordered[0]["time"])
+        last_close = int(ordered[-1]["time"])
+        if len(ordered) >= minimum_bars and last_close - first_open >= minimum_span_seconds:
+            valid_dates.add(date_key)
+    return valid_dates
+
+
+def _previous_weekday_session_close_millis(session_date: Any, timezone_name: str) -> int:
+    """Return the preceding weekday's exchange close for intraday pagination."""
+    close_by_timezone = {
+        "Asia/Shanghai": (15, 0),
+        "Asia/Hong_Kong": (16, 0),
+        "America/New_York": (20, 0),
+    }
+    hour, minute = close_by_timezone.get(timezone_name, (15, 0))
+    candidate = datetime.combine(session_date, clock_time(hour, minute), tzinfo=ZoneInfo(timezone_name)) - timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return int(candidate.timestamp() * 1000)
+
+
 def _fetch_candles_ftshare(
     symbol: str,
     *,
@@ -2127,12 +2227,11 @@ def _fetch_candles_ftshare(
                 # five sessions even across a weekend.
                 cutoff = _latest_session_close_millis(exchange_timezone)
                 unique: dict[int, dict[str, Any]] = {}
-                previous_earliest: int | None = None
                 # FTShare rejects windows that span more than three natural
                 # days. Keep each page to two days and walk backwards until the
                 # requested number of trading sessions has been collected.
                 page_window_days = 2
-                max_pages = max(6, sessions * 2 + 2)
+                max_pages = max(8, sessions * 3 + 2)
                 for _page in range(max_pages):
                     page = _ftshare_stock_minutes(
                         market,
@@ -2147,22 +2246,39 @@ def _fetch_candles_ftshare(
                         limit=min(500, max(lim, sessions * 250)),
                         as_dataframe=False,
                     )
-                    chunk = _normalize_raw(page)
+                    chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=step)
+                    complete_dates = _complete_intraday_session_dates(
+                        chunk, timezone_name=exchange_timezone, interval_value=step,
+                    )
+                    chunk = [
+                        row for row in chunk
+                        if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in complete_dates
+                    ]
                     if not chunk:
+                        cutoff = _previous_weekday_session_close_millis(
+                            datetime.fromtimestamp(cutoff / 1000, tz=ZoneInfo(exchange_timezone)).date(),
+                            exchange_timezone,
+                        )
+                        continue
+                    chunk_dates = {
+                        datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+                        for row in chunk
+                    }
+                    known_dates = {
+                        datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+                        for row in unique.values()
+                    }
+                    if known_dates and not (chunk_dates - known_dates):
                         break
                     for row in chunk:
                         unique[int(row["time"])] = row
-                    earliest = min(int(row["time"]) for row in chunk)
-                    if previous_earliest is not None and earliest >= previous_earliest:
-                        break
-                    previous_earliest = earliest
                     local_dates = {
                         datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
                         for row in unique.values()
                     }
                     if len(local_dates) >= sessions:
                         break
-                    cutoff = earliest * 1000 - 1
+                    cutoff = _previous_weekday_session_close_millis(min(chunk_dates), exchange_timezone)
                 raw = list(unique.values())
             else:
                 raw = _fetch_generic_history(
@@ -2200,13 +2316,10 @@ def _fetch_candles_ftshare(
     rows = _normalize_raw(raw)
     if normalized_interval == "minute" and rows:
         rows = _annotate_intraday_rows(rows, timezone_name=exchange_timezone, interval_value=step)
-        dates = sorted(
-            {
-                datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
-                for row in rows
-            }
+        complete_dates = _complete_intraday_session_dates(
+            rows, timezone_name=exchange_timezone, interval_value=step,
         )
-        selected_dates = set(dates[-sessions:])
+        selected_dates = set(sorted(complete_dates)[-sessions:])
         rows = [
             row
             for row in rows
@@ -2401,8 +2514,29 @@ def fetch_candles(
     )
     if primary.get("ok"):
         actual = len(primary.get("rows") or [])
-        primary = {**primary, "requested_count": limit, "history_complete": actual >= limit}
-        if actual < limit and primary.get("rows"):
+        is_intraday = str(interval or "").strip().lower() == "minute"
+        if is_intraday:
+            timezone_name = str(primary.get("exchange_timezone") or "Asia/Shanghai")
+            available_sessions = len({
+                datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(timezone_name)).date()
+                for row in primary.get("rows") or []
+            })
+            requested_sessions = max(1, min(int(session_count or 1), 10))
+            primary = {
+                **primary,
+                "requested_count": limit,
+                "requested_sessions": requested_sessions,
+                "available_sessions": available_sessions,
+                "history_complete": available_sessions >= requested_sessions,
+            }
+            if available_sessions < requested_sessions and primary.get("rows"):
+                primary["warnings"] = [
+                    *primary.get("warnings", []),
+                    f"请求 {requested_sessions} 个交易日的分钟线，实际获得 {available_sessions} 个交易日；已仅展示完整分钟 K。",
+                ]
+        else:
+            primary = {**primary, "requested_count": limit, "history_complete": actual >= limit}
+        if not is_intraday and actual < limit and primary.get("rows"):
             start = int(primary["rows"][0]["time"])
             primary["history_start"] = start
             primary["warnings"] = [*primary.get("warnings", []), f"请求 {limit} 根，实际获得 {actual} 根；最早数据为 {datetime.fromtimestamp(start, tz=ZoneInfo('Asia/Shanghai')).date()}。历史覆盖不足，原因尚未确认。"]

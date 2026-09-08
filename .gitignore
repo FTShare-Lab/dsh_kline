@@ -13,4 +13,7 @@ __pycache__/
 .runtime/
 .env
 .env.*
+# macOS/Finder conflict copies use names such as "foo 2.py". They are local
+# recovery artifacts, never source or publishable package contents.
+* 2.*
 INITIAL_PLAN.md

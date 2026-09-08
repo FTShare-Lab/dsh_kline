@@ -150,6 +150,42 @@ def test_history_depth_is_disclosed():
     assert result['warnings']
 
 
+def test_minute_history_keeps_only_complete_requested_bars():
+    base = 1_700_000_000
+    full = {
+        'time': base + 300, 'open_time': base,
+        'open': 10, 'high': 11, 'low': 9, 'close': 10.5, 'volume': 100,
+    }
+    partial = {
+        'time': base + 540, 'open_time': base + 300,
+        'open': 10.5, 'high': 11, 'low': 10, 'close': 10.8, 'volume': 100,
+    }
+    assert f._complete_intraday_bars([full, partial], interval_value=5) == [full]
+
+
+def test_intraday_history_counts_only_full_sessions_and_pages_from_prior_close():
+    zone = ZoneInfo('Asia/Shanghai')
+    day = datetime(2026, 9, 7, 9, 30, tzinfo=zone)  # Monday
+    full_session = [
+        {
+            'time': int((day + timedelta(minutes=(index + 1) * 5)).timestamp()),
+            'open_time': int((day + timedelta(minutes=index * 5)).timestamp()),
+            'open': 10, 'high': 11, 'low': 9, 'close': 10.5, 'volume': 100,
+        }
+        for index in range(48)
+    ]
+    boundary = [{
+        'time': int(datetime(2026, 9, 4, 15, 0, tzinfo=zone).timestamp()),
+        'open_time': int(datetime(2026, 9, 4, 14, 55, tzinfo=zone).timestamp()),
+        'open': 10, 'high': 11, 'low': 9, 'close': 10.5, 'volume': 100,
+    }]
+    assert f._complete_intraday_session_dates(
+        full_session + boundary, timezone_name='Asia/Shanghai', interval_value=5,
+    ) == {day.date()}
+    previous_close = f._previous_weekday_session_close_millis(day.date(), 'Asia/Shanghai')
+    assert datetime.fromtimestamp(previous_close / 1000, tz=zone) == datetime(2026, 9, 4, 15, 0, tzinfo=zone)
+
+
 def test_published_charts_are_independent_and_persistent():
     with tempfile.TemporaryDirectory() as directory, patch.object(chart_service, 'RUNTIME_DIR', Path(directory)), \
          patch.object(chart_service, 'RUNTIME_SESSION_FILE', Path(directory)/'chart-session.json'):

@@ -1152,6 +1152,7 @@ let chartDataUpdatedAt = 0;
 let chartDataStatus = "unavailable";
 let chartDataMarketStatus = "";
 let chartDataStale = false;
+let chartDataRangeFallback = "";
 let chartDataRefreshInFlight = false;
 let chartDataRetryTimer = null;
 let lastDataFetchRequest = null;
@@ -1195,7 +1196,7 @@ const UI_COPY = {
     indicators: "指标", indicatorHeading: "显示指标", apply: "应用",
     maNote: "均线", vwapNote: "成交量加权", volNote: "万股", macdNote: "动能", kdjNote: "随机指标", bollNote: "布林带", rsiNote: "强弱", atrNote: "波动率",
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
-    volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘",
+    volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘", intradayRangeFallback: "{range} 历史分钟数据暂未返回，已切换为 1D",
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
     newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组保存在当前浏览器中。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
@@ -1213,7 +1214,7 @@ const UI_COPY = {
     indicators: "Indicators", indicatorHeading: "Indicators", apply: "Apply",
     maNote: "moving avg", vwapNote: "volume weighted", volNote: "volume", macdNote: "momentum", kdjNote: "stochastic", bollNote: "bands", rsiNote: "strength", atrNote: "volatility",
     maPeriods: "MA periods (comma-separated)", volumeMa: "VOL MA period", bollPeriod: "BOLL period", bollStd: "BOLL std. dev.", rsiPeriod: "RSI period", atrPeriod: "ATR period",
-    volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close",
+    volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close", intradayRangeFallback: "{range} minute history is unavailable; switched to 1D",
     switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", sourceEastmoneyFree: "Eastmoney free quotes", sourceTencentFree: "Tencent free quotes", openIndexChart: "Open {name} chart", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
     newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
@@ -5753,6 +5754,7 @@ function updateChartDataState(meta, stale = false) {
   if (data.status) chartDataStatus = String(data.status);
   else if (chartDataStatus === "unavailable") chartDataStatus = "delayed";
   if (data.market_status) chartDataMarketStatus = String(data.market_status);
+  chartDataRangeFallback = String(data.range_fallback || data.rangeFallback || "");
   if (typeof data.exchange_timezone === "string" && data.exchange_timezone) {
     exchangeTimezone = data.exchange_timezone;
     try { kchart?.setTimezone?.(exchangeTimezone); } catch (error) { console.warn("chart timezone", error); }
@@ -5772,11 +5774,15 @@ function renderMarketDataStatus() {
   const session = chartDataMarketStatus === "open" ? t("open") : chartDataMarketStatus === "closed" ? t("closed") : "";
   const stateClass = chartDataStale ? "stale" : chartDataStatus === "delayed" ? "delayed" : chartDataStatus === "closed" ? "closed" : "live";
   const refreshTitle = chartDataRefreshInFlight ? t("refreshing") : t("refresh");
+  const rangeFallback = chartDataRangeFallback
+    ? t("intradayRangeFallback").replace("{range}", chartDataRangeFallback.toUpperCase())
+    : "";
   el.innerHTML = `<span>${escapeHtml(t("source"))} ${marketDataSourceMarkup(chartDataSource, chartDataSourceUrl)}</span>` +
     `<span class="data-source-hint">${escapeHtml(t("externalDataHint"))}</span>` +
     `<span>${escapeHtml(t("marketUpdated"))} ${escapeHtml(t("beijingTime"))} ${escapeHtml(formatTickerUpdatedAt(chartDataUpdatedAt))}</span>` +
     (state ? `<span class="data-status ${stateClass}">${escapeHtml(state)}</span>` : "") +
     (session ? `<span class="data-status ${chartDataMarketStatus === "open" ? "live" : "closed"}">${escapeHtml(session)}</span>` : "") +
+    (rangeFallback ? `<span class="data-status delayed" title="${escapeHtml(rangeFallback)}">${escapeHtml(rangeFallback)}</span>` : "") +
     `<button class="btn icon-btn market-data-refresh ${chartDataRefreshInFlight ? "loading" : ""}" id="refreshMarketDataBtn" type="button" title="${escapeHtml(refreshTitle)}" aria-label="${escapeHtml(refreshTitle)}" ${chartDataRefreshInFlight ? "disabled" : ""}>&#8635;</button>`;
 }
 function scheduleChartDataRetry() {
@@ -6249,6 +6255,20 @@ async function openSymbol(symbol, name, options = {}) {
       throw new Error(fetched.message || fetched.error || "fetch failed");
     }
     if (window.__DSH_KLINE_DISPOSED__ || requestId !== symbolOpenRequestId) return;
+    const requestedSessions = Number(fetched.requested_sessions || fetched.requestedSessions || 0);
+    const availableSessions = Number(fetched.available_sessions || fetched.availableSessions || 0);
+    // Never leave the 5D control selected while the provider supplied only
+    // one session. Reload the genuine 1D minute series instead of stretching
+    // five-minute bars across a label that promises five days.
+    if (intraday && currentRangeKey === "5d" && requestedSessions > 1 && availableSessions < requestedSessions && !options.rangeFallbackFrom) {
+      currentRangeKey = "1d";
+      syncTimeControls();
+      return await openSymbol(requestedSymbol, name, {
+        ...options,
+        rangeFallbackFrom: "5D",
+        showLoading: false,
+      });
+    }
     sourceCandles = fetched.rows.slice();
     sourceCandleInterval = String(fetched.interval || (intraday ? "minute" : currentInterval) || "day");
     localChartDataMeta = {
@@ -6258,6 +6278,7 @@ async function openSymbol(symbol, name, options = {}) {
       status: fetched.status || "delayed",
       market_status: fetched.market_status || "",
       exchange_timezone: fetched.exchange_timezone || "Asia/Shanghai",
+      range_fallback: options.rangeFallbackFrom || "",
     };
     currentSymbol = fetched.symbol || requestedSymbol;
     // The local directory result carries the human-readable name. Prefer it
@@ -6277,6 +6298,16 @@ async function openSymbol(symbol, name, options = {}) {
       finishActivityNotice(t("dataReady"));
     }
     scheduleLocalIndicatorWarmup();
+    // Warm a genuine five-session minute series as soon as a symbol is open.
+    // The request is non-blocking and cached by both the sidebar and server,
+    // so a later 5D click is instant for accounts with minute-history access.
+    // Unsupported/free accounts simply keep their normal daily experience: the
+    // prefetch failure is swallowed inside prefetchCandleData.
+    if (!intraday && !isFtshareIntradayUnsupportedSymbol(nextSymbol)) {
+      window.setTimeout(() => {
+        prefetchCandleData(candleFetchArgs(nextSymbol, { rangeKey: "5d" }));
+      }, 0);
+    }
     // The data workspace is intentionally non-blocking: K lines should be
     // visible even when a news or fundamental endpoint is slow or unavailable.
     if (!options.skipWorkspace) loadSecurityWorkspace(currentSymbol, currentName).catch(console.warn);

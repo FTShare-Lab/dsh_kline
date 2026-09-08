@@ -212,6 +212,17 @@ class ProviderNeutralTests(unittest.TestCase):
         for field in ("python", "injected_path", "module_file", "import_error"):
             self.assertNotIn(field, status)
 
+    def test_temporary_ftshare_key_keeps_the_saved_credential(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ", {"FTSHARE_API_KEY_FILE": str(Path(directory) / "credentials.json")}, clear=True
+        ):
+            configure_ftshare_api_key("saved-key", test_connection=False, persist=True)
+            credential_file = Path(directory) / "credentials.json"
+            configure_ftshare_api_key("temporary-key", test_connection=False, persist=False)
+            self.assertTrue(credential_file.exists())
+            os.environ.pop("FTSHARE_API_KEY")
+            self.assertTrue(ftshare_status()["persistent"])
+
     def test_ftshare_persisted_key_lifecycle_after_validation(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             "os.environ", {"FTSHARE_API_KEY_FILE": str(Path(directory) / "credentials.json")}, clear=True
