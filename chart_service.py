@@ -58,7 +58,17 @@ HOST_PROCESS_ID = int(os.environ.get("DSH_KLINE_HOST_PID") or os.getppid())
 if HOST_PROCESS_ID <= 0:
     raise ValueError("DSH_KLINE_HOST_PID must be a positive process ID")
 RUNTIME_SESSION_FILE = RUNTIME_DIR / "services" / f"{HOST_PROCESS_ID}.json"
-SERVER_VERSION = "0.1.0"
+def _package_version() -> str:
+    try:
+        version = json.loads((ROOT / "package.json").read_text(encoding="utf-8")).get("version")
+        if isinstance(version, str) and version:
+            return version
+    except (OSError, ValueError, TypeError):
+        pass
+    return "unknown"
+
+
+SERVER_VERSION = _package_version()
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -322,7 +332,7 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 
 class ChartRequestHandler(BaseHTTPRequestHandler):
-    server_version = "dsh-kline-chart/0.1.0"
+    server_version = f"dsh-kline-chart/{SERVER_VERSION}"
 
     @property
     def session_store(self) -> ChartSessionStore:

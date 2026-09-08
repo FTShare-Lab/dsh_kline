@@ -1,6 +1,6 @@
-# RC 用户反馈修复验收（v0.2.0-rc.2）
+# 用户反馈修复验收（v0.2.0）
 
-基于 `v0.2.0-rc.2` 的发布候选完成的本地验收记录。
+基于 `v0.2.0` 完成的本地验收记录。
 
 ## 修复范围
 
@@ -37,4 +37,4 @@
 
 本轮未发起付费模型的双 AI 并发对话，不代替长时间分栏/浮窗组合、真实老用户升级全流程及其他 Better Sidebar 版本的验收。此前报告中的 orphan 会话空态、Router/AutoOpen 组件级联动覆盖及服务版本字符串仍可后续处理。
 
-后续：正式发布验收清单已细化为可执行步骤，见 [release-acceptance-checklist-v0.2.0-rc.2.md](release-acceptance-checklist-v0.2.0-rc.2.md)（A 双 AI 并发 / B 分栏浮窗长时 / C 老用户升级 / D 版本矩阵，待真实环境执行回填）。E 组三项（orphan 空态、Router/AutoOpen 联动、服务版本字符串）按用户决定本轮只记录、不改代码。
+后续：发布后验收清单已细化为可执行步骤，见 [release-acceptance-checklist-v0.2.0.md](release-acceptance-checklist-v0.2.0.md)（A 双 AI 并发 / B 分栏浮窗长时 / C 老用户升级 / D 版本矩阵，待真实环境执行回填）。E 组三项（orphan 空态、Router/AutoOpen 联动、服务版本字符串）按用户决定本轮只记录、不改代码。
