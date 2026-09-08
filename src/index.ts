@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 export const name = 'dsh-kline-sidebar'
 export const inject = ['webServer']
 
-const RUNTIME_FILE = fileURLToPath(new URL('../.runtime/chart-session.json', import.meta.url))
+const RUNTIME_FILE = fileURLToPath(new URL(`../.runtime/services/${process.pid}.json`, import.meta.url))
 const SESSION_DIR = fileURLToPath(new URL('../.runtime/sessions/', import.meta.url))
 const VENDOR_FILE = fileURLToPath(new URL('../view/vendor/klinecharts.min.js', import.meta.url))
 const LOGO_FILE = fileURLToPath(new URL('../view/ft-logo.jpg', import.meta.url))
@@ -82,7 +82,7 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
     }
     const session = await readLiveSession()
     if (!session) {
-      sendJson(response, 200, { ok: false, error: 'chart_session_unavailable' }, request.method === 'HEAD')
+      sendJson(response, 200, unavailableService(), request.method === 'HEAD')
       return
     }
     if (pathname.startsWith('/dsh-kline/api/tools/') && request.method === 'POST') {
@@ -111,11 +111,17 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
       response,
       code === 'ENOENT' ? 200 : 500,
       code === 'ENOENT'
-        ? { ok: false, error: 'chart_session_unavailable' }
+        ? (pathname === '/dsh-kline/data' || pathname === '/dsh-kline/session'
+          ? { ok: false, error: 'chart_session_unavailable', message: '这张图表的快照已不可用，请在当前对话重新分析该标的。' }
+          : unavailableService())
         : { ok: false, error: 'chart_session_manifest_failed' },
       request.method === 'HEAD',
     )
   }
+}
+
+function unavailableService() {
+  return { ok: false, error: 'chart_session_unavailable', message: '当前 DSH 的行情服务尚未就绪，请稍后重试；若持续失败，请重启 dsh web。' }
 }
 
 interface RuntimeSession extends Record<string, unknown> {
@@ -167,6 +173,7 @@ function isLiveSession(value: unknown): boolean {
   const candidate = value as Record<string, unknown>
   if (
     candidate.ok !== true
+    || candidate.host_process_id !== process.pid
     || typeof candidate.session !== 'string'
     || typeof candidate.service_url !== 'string'
     || typeof candidate.service_token !== 'string'

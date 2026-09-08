@@ -97,6 +97,68 @@ def test_calendar_uses_exchange_timezone_at_us_month_end():
     assert len(result) == 2
 
 
+@pytest.mark.parametrize('interval,limit', [('day', 30), ('week', 10), ('month', 4)])
+def test_us_history_supplies_upper_bound_and_aggregates_before_trimming(interval, limit):
+    from unittest.mock import Mock
+    market = Mock()
+    history = bars(180, trend=1)
+
+    def daily(**kwargs):
+        assert kwargs['stock_code'] == 'NVDA'
+        assert kwargs['all_pages'] is True
+        assert 'start_date' not in kwargs  # Paired dates impose a three-day cap.
+        if not kwargs.get('end_date'):
+            return history[-1:]  # Live endpoint's undated snapshot behavior.
+        assert kwargs['end_date'] == datetime.now(ZoneInfo('America/New_York')).date().isoformat()
+        return history
+
+    market.eastmoney_us_stock_daily_ohlc.side_effect = daily
+    f._candle_cache.clear()
+    with patch.object(f, '_ftshare_market_api', return_value=market), \
+         patch.object(f, '_symbol_name', return_value='NVIDIA'):
+        result = f.fetch_candles('NVDA.US', interval=interval, limit=limit)
+    assert result['ok']
+    assert result['rows'] == f._aggregate_interval(history, interval, timezone_name='America/New_York')[-limit:]
+    assert result['count'] == limit
+    f._candle_cache.clear()
+
+
+def test_us_minute_reports_market_limit_without_misdiagnosing_key():
+    with patch.object(f, '_ftshare_market_api', side_effect=AssertionError('unsupported market must not request')):
+        result = f.fetch_candles('NVDA.US', interval='minute')
+    assert result['error'] == 'intraday_provider_unavailable'
+    assert result['retryable'] is False
+    assert '不代表 API Key 无效' in result['message']
+
+
+def test_us_date_only_bars_keep_exchange_day_at_month_boundary():
+    from unittest.mock import Mock
+    market = Mock()
+    source = [{'date': day, 'open': 10, 'high': 11, 'low': 9, 'close': 10, 'volume': 100}
+              for day in ['2026-06-30', '2026-07-01']]
+    market.eastmoney_us_stock_daily_ohlc.return_value = source
+    rows = f._normalize_raw(f._fetch_us_daily_candles(market, 'NVDA.US', 2))
+    assert [datetime.fromtimestamp(row['time'], ZoneInfo('America/New_York')).date().isoformat()
+            for row in rows] == ['2026-06-30', '2026-07-01']
+    assert len(f._aggregate_interval(rows, 'month', timezone_name='America/New_York')) == 2
+    assert all('time' not in row for row in source)
+
+
+def test_hk_history_uses_compact_provider_dates():
+    from unittest.mock import Mock
+    market = Mock()
+    now = int(datetime.now(ZoneInfo('Asia/Hong_Kong')).timestamp())
+    recent = [{**bars(1)[0], 'time': now - offset * 86400} for offset in (2, 1, 0)]
+    market.hk_candlesticks.return_value = recent
+    result = f._fetch_hk_candles(market, '00700.HK', 'day', 60, 'none')
+    assert result == recent
+    request = market.hk_candlesticks.call_args.kwargs
+    assert request['trade_code'] == '00700.HK'
+    assert request['interval_unit'] == 'day'
+    assert request['since_date'].isdigit() and len(request['since_date']) == 8
+    assert request['until_date'].isdigit() and len(request['until_date']) == 8
+
+
 @pytest.mark.parametrize('error,state', [('HTTP 401 missing API Key', 'auth_required'),
                                         ('HTTP 429', 'rate_limited'), ('timeout', 'upstream_unavailable')])
 def test_daily_success_survives_minute_failure(error, state):
@@ -198,6 +260,9 @@ def test_published_charts_are_independent_and_persistent():
             assert service.store.get(b)['symbol'] == '600519.XSHG'
             saved_a = json.loads((Path(directory)/'sessions'/f'{a}.json').read_text())
             assert saved_a['payload']['symbol'] == '601899.XSHG'
+            locator = json.loads(chart_service.RUNTIME_SESSION_FILE.read_text())
+            assert locator['host_process_id'] == chart_service.HOST_PROCESS_ID
+            assert locator['session'] == b
             assert ((Path(directory)/'sessions'/f'{a}.json').stat().st_mode & 0o777) == 0o600
         finally:
             service.httpd.shutdown()

@@ -888,17 +888,31 @@ def _fetch_us_daily_candles(market: Any, symbol: str, limit: int) -> Any:
     """Use FTShare's dedicated US history endpoint instead of stock_candlesticks.
 
     The generic endpoint is optimized for mainland symbols and can return an
-    incomplete US slice.  The dedicated endpoint only permits a three-day
-    start/end span, so requesting a long calendar range silently produces an
-    empty slice.  Page through the endpoint without date filters, then trim
-    after normalization so callers keep the same ``limit`` contract.
+    incomplete US slice. With neither date supplied the live endpoint returns
+    only its latest snapshot, despite the documented full-history default.
+    Supply only the upper bound: the three-day limit applies when BOTH dates
+    are set. Page through that history and trim after interval aggregation.
     """
-    return market.eastmoney_us_stock_daily_ohlc(
+    raw = market.eastmoney_us_stock_daily_ohlc(
         stock_code=_bare_us_symbol(symbol),
+        end_date=datetime.now(ZoneInfo("America/New_York")).date().isoformat(),
         all_pages=True,
         page_size=200,
         as_dataframe=False,
     )
+    # This endpoint emits exchange calendar dates, not timestamps. The shared
+    # date-only ingest defaults to China and would shift US bars back a day.
+    if isinstance(raw, list):
+        raw = [dict(row) if isinstance(row, dict) else row for row in raw]
+        for row in raw:
+            if not isinstance(row, dict) or not row.get("date"):
+                continue
+            try:
+                trading_day = datetime.strptime(str(row["date"])[:10], "%Y-%m-%d")
+                row["time"] = int(trading_day.replace(hour=16, tzinfo=ZoneInfo("America/New_York")).timestamp())
+            except (TypeError, ValueError):
+                continue
+    return raw
 
 
 def _fetch_hk_candles(market: Any, symbol: str, interval: str, limit: int, adjust: str) -> Any:
@@ -907,19 +921,27 @@ def _fetch_hk_candles(market: Any, symbol: str, interval: str, limit: int, adjus
     if not callable(method):
         raise AttributeError("FTShare hk_candlesticks is unavailable")
     normalized = str(interval or "day").strip().lower()
-    if normalized not in {"day", "month", "quarter", "year"}:
+    if normalized not in {"day", "week", "month", "quarter", "year"}:
         raise ValueError(f"HK endpoint does not support {normalized}")
     today = datetime.now(ZoneInfo("Asia/Hong_Kong")).date()
-    days_per_bar = {"day": 1.5, "month": 32, "quarter": 92, "year": 370}[normalized]
+    # Fetch HK daily bars and aggregate locally. Native long-period responses
+    # have been observed stale; daily history is current and also gives one
+    # consistent source for week/month/quarter/year indicators.
+    days_per_bar = {"day": 1.5, "week": 8, "month": 32, "quarter": 92, "year": 370}[normalized]
     lookback_days = max(30, int(int(limit) * days_per_bar))
     adjustment = _adjust_to_sdk(adjust) or "none"
+    # FTShare's HK endpoint accepts compact exchange dates (YYYYMMDD), unlike
+    # its US endpoint. ISO dates yield a 400 even when the account has access.
     raw = method(
         trade_code=symbol,
-        interval_unit=normalized,
-        since_date=(today - timedelta(days=lookback_days)).isoformat(),
-        until_date=today.isoformat(),
+        interval_unit="day",
+        since_date=(today - timedelta(days=lookback_days)).strftime("%Y%m%d"),
+        until_date=today.strftime("%Y%m%d"),
         interval_value=1,
-        limit=max(2, int(limit)),
+        # ``limit`` applies to the daily source rows, not the requested
+        # aggregate bars. Preserve sufficient complete periods before local
+        # aggregation (for example 20 weeks need far more than 20 daily rows).
+        limit=max(2, min(4000, lookback_days)),
         adjust_kind=adjustment,
         as_dataframe=False,
     )
@@ -2113,6 +2135,17 @@ def _fetch_candles_ftshare(
     sessions = max(1, min(int(session_count or 1), 10))
     lim = max(1, min(int(limit or 220), 4000))
     exchange_timezone = _exchange_timezone(sym)
+    if normalized_interval == "minute" and _is_us_symbol(sym):
+        return {
+            "ok": False,
+            "error": "intraday_provider_unavailable",
+            "error_code": "intraday_provider_unavailable",
+            "message": "当前 FTShare 股票分钟接口仅支持沪深北标的，不支持美股；这不代表 API Key 无效。",
+            "symbol": sym,
+            "source": "ftshare",
+            "next_action": "请选择美股日线或更长周期；分时数据可通过其他数据源的 rows 接入。",
+            "retryable": False,
+        }
     if normalized_interval == "minute" and _is_hk_symbol(sym):
         return {
             "ok": False,
@@ -2205,7 +2238,7 @@ def _fetch_candles_ftshare(
                         adjust_kind=adj,
                         limit=lim,
                     )
-            elif _is_hk_symbol(sym) and normalized_interval in {"day", "month", "quarter", "year"}:
+            elif _is_hk_symbol(sym) and normalized_interval in {"day", "week", "month", "quarter", "year"}:
                 try:
                     raw = _fetch_hk_candles(market, sym, normalized_interval, lim, adjust)
                 except Exception as exc:  # noqa: BLE001
@@ -2325,7 +2358,7 @@ def _fetch_candles_ftshare(
             for row in rows
             if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in selected_dates
         ]
-    if (_is_us_symbol(sym) or is_global_index) and normalized_interval != "minute":
+    if (_is_us_symbol(sym) or _is_hk_symbol(sym) or is_global_index) and normalized_interval != "minute":
         # Aggregate the complete daily history first, then apply the requested
         # number of bars.  Trimming raw days before aggregation makes the
         # oldest requested week/month/quarter/year incomplete.
@@ -2340,8 +2373,8 @@ def _fetch_candles_ftshare(
             and normalized_interval != "minute"
         )
         empty_error = (
-            "当前 FTShare 暂未返回该港股/美股市场的足够日线数据，请配置 FTSHARE_API_KEY 后重试，"
-            "或切换到其他数据源。"
+            "当前 FTShare 暂未返回该港股/美股标的的足够日线数据；请检查标的代码、数据覆盖与账户权限，"
+            "或切换到其他数据源。这不一定是 API Key 配置问题。"
             if market_data_unavailable
             else "当前数据源返回的有效 K 线不足两根，请检查标的代码、数据权限或切换数据源后重试。"
         )

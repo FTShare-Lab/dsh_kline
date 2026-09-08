@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { readDisplayMode, resolveDisplayMode, readAutoOpen, DISPLAY_MODE_KEY, UI_SEEN_KEY, AUTO_OPEN_KEY } from '../src/client/mode-preferences.ts'
 import { hasPreviousUsage, classifyOnboarding, acknowledgeOnboarding, ONBOARDING_KEY } from '../src/client/ui-onboarding.ts'
-import { cleanClassicTabs, isSidebarUsable, KLINE_TAB_ID } from '../src/client/sidebar-integration.ts'
+import { cleanClassicTabs, isSidebarUsable, KLINE_TAB_ID, KLINE_TAB_TITLE, migrateKlineTabTitle } from '../src/client/sidebar-integration.ts'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 import { isNewerStableVersion } from '../src/client/version.ts'
 
@@ -52,6 +52,29 @@ test('acknowledging onboarding is once per device and does not erase chart or ke
   assert.equal(s.getItem('credential'), 'unchanged')
 })
 const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
+test('UI entry is text only, remains visible on narrow screens, and retains the product name', () => {
+  const button = html.match(/<button[^>]*id="interfaceBtn"[^>]*>(.*?)<\/button>/)?.[1]
+  assert.equal(button, '<span data-i18n="interfaceLabel">UI</span>')
+  assert.ok(!html.includes('interface-label') && !html.includes('interface-new'))
+  assert.ok(html.includes('productName: "非凸K线助手"'))
+  assert.ok(html.includes('productName: "dsh_kline"'))
+  const tab = readFileSync(new URL('../src/client/BetterSidebarTab.tsx', import.meta.url), 'utf8')
+  assert.ok(tab.includes('title: KLINE_TAB_TITLE'))
+  assert.equal(KLINE_TAB_TITLE, '非凸K线助手 / dsh_kline')
+  assert.ok(tab.includes('const dispose = service.registerTab(') && tab.includes('stopDefaults(); dispose()'))
+})
+test('saved legacy titles migrate only in their own active session and preserve custom names', () => {
+  const updates: unknown[] = []
+  const service = {features:['updateTab','stateSubscription'], getSnapshot:() => ({sessionId:'A'}),
+    updateTab:(...args: unknown[]) => updates.push(args)} as unknown as BetterSidebarService
+  const tab = {id:'kline',type:KLINE_TAB_ID,title:'K线分析 / K-line'}
+  migrateKlineTabTitle(service, tab, 'B')
+  migrateKlineTabTitle(service, {...tab,title:'我的研究'}, 'A')
+  migrateKlineTabTitle(service, {...tab,type:'editor'}, 'A')
+  assert.equal(updates.length, 0)
+  migrateKlineTabTitle(service, tab, 'A')
+  assert.deepEqual(updates, [['kline',{title:KLINE_TAB_TITLE}]])
+})
 test('interface popup stays inside a narrow chart even when the trigger is not at its right edge', () => {
   const start = html.indexOf('function positionInterfacePopover()')
   const end = html.indexOf('\nfunction initInterfaceControls', start)
@@ -87,6 +110,33 @@ test('classic mode removes only owned stale tabs in every public layout and resp
   listener(); dispose(); await Promise.resolve()
   assert.equal(closed.length, 3)
   assert.equal(unsubscribed, true)
+})
+test('classic cleanup tolerates missing, malformed and cyclic layouts without closing foreign tabs', async () => {
+  const cycle: any = {kind:'split', children:[]}
+  cycle.children = [cycle, {tabs:[null, {id:'owned', type:KLINE_TAB_ID}, {id:9, type:KLINE_TAB_ID}, {id:'editor', type:'editor'}]}]
+  const closed: string[] = []
+  let state: any = {splits:cycle, floats:[null, {}, {tab:{id:'float',type:KLINE_TAB_ID}}]}
+  let listener = () => {}
+  const service = {features:['stateSubscription'], getSnapshot: () => ({sessionId:'A', state}),
+    subscribeState: (fn: () => void) => {listener = fn; return () => {}},
+    closeTab: (id: string) => {closed.push(id); if (id === 'owned') throw Error('stale tab')} } as unknown as BetterSidebarService
+  const dispose = cleanClassicTabs(service)
+  await Promise.resolve()
+  assert.deepEqual(closed, ['owned','float'])
+  for (const malformed of [{}, {splits:null}, {splits:{kind:'split'}}, {bottomSplits:{}, floats:{} }]) {
+    state = malformed; listener(); await Promise.resolve()
+  }
+  assert.equal(closed.length, 2)
+  dispose()
+})
+test('classic cleanup contains optional service failures, including teardown', async () => {
+  for (const failSubscription of [true, false]) {
+    const dispose = cleanClassicTabs({features:['stateSubscription'], closeTab() {}, getSnapshot() {throw Error('disposed')},
+      subscribeState() {if (failSubscription) throw Error('unavailable'); return () => {throw Error('disposed')}},
+    } as unknown as BetterSidebarService)
+    await Promise.resolve()
+    assert.doesNotThrow(dispose)
+  }
 })
 test('interface save validates preference, persists separate auto-open and reloads only on success', () => {
   const start = html.indexOf('function initInterfaceControls()')

@@ -51,7 +51,13 @@ from tools.fetch import (
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME_DIR = ROOT / ".runtime"
-RUNTIME_SESSION_FILE = RUNTIME_DIR / "chart-session.json"
+# The same installation can serve multiple Harness profiles at once. Never
+# let a temporary/test MCP replace the live host's service locator. Direct
+# stdio launches inherit the Harness PID as their parent (the runner execs).
+HOST_PROCESS_ID = int(os.environ.get("DSH_KLINE_HOST_PID") or os.getppid())
+if HOST_PROCESS_ID <= 0:
+    raise ValueError("DSH_KLINE_HOST_PID must be a positive process ID")
+RUNTIME_SESSION_FILE = RUNTIME_DIR / "services" / f"{HOST_PROCESS_ID}.json"
 SERVER_VERSION = "0.1.0"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -435,6 +441,7 @@ def _write_runtime_session(token: str, service_url: str, service_token: str, pay
     document = {
         "ok": True,
         "process_id": os.getpid(),
+        "host_process_id": HOST_PROCESS_ID,
         "session": token,
         "service_url": service_url,
         "service_token": service_token,
@@ -442,7 +449,7 @@ def _write_runtime_session(token: str, service_url: str, service_token: str, pay
         "name": str(payload.get("name") or ""),
         "published_at": int(time.time()),
     }
-    # Immutable, token-addressed snapshots survive MCP restarts. The legacy
+    # Immutable, token-addressed snapshots survive MCP restarts. The host's
     # manifest is only a service locator, never the UI's chart selection.
     sessions_dir = RUNTIME_DIR / "sessions"
     sessions_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -504,6 +511,7 @@ def start_chart_service() -> None:
     service = ensure_chart_service()
     _atomic_runtime_json(RUNTIME_SESSION_FILE, {
         "ok": True, "session": "", "process_id": os.getpid(),
+        "host_process_id": HOST_PROCESS_ID,
         "service_url": f"http://{service.host}:{service.port}",
         "service_token": service.auth_token, "published_at": int(time.time()),
     })

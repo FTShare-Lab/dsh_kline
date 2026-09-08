@@ -4,7 +4,8 @@ import type { Sessions } from './conversation'
 import { useChartReference } from './chart-session-resolver'
 import { NativeKlineApp, StandaloneKlineApp, standaloneWorkspaceScope } from './KlineContent'
 import { InterfaceContext, readAutoOpen } from './mode-preferences'
-import { KLINE_TAB_ID } from './sidebar-integration'
+import { KLINE_TAB_ID, KLINE_TAB_TITLE, migrateKlineTabTitle } from './sidebar-integration'
+import { installDefaultKlineTabs } from './default-tab'
 function KlineTabContent({ sessions, conversationId }: { sessions: Sessions; conversationId: string }) {
   const reference = useChartReference(sessions, conversationId)
   const onIdentity = useCallback(() => {}, [])
@@ -19,22 +20,31 @@ function AutoOpen({ service, sessions, conversationId }: { service: BetterSideba
   useChartReference(sessions, conversationId, onNewChart)
   return null
 }
+function KlineTabFrame({service, sessions, scope, tab, visible}: TabComponentProps & {service: BetterSidebarService; sessions: Sessions}) {
+  useEffect(() => migrateKlineTabTitle(service, tab, scope.sessionId), [service, tab.id, tab.title, scope.sessionId])
+  return (
+    <div data-dsh-kline-tab="" style={{width:'100%', height:'100%', minHeight:0, overflow:'hidden'}}>
+      {visible && scope.sessionId && <KlineTabContent key={scope.sessionId} conversationId={scope.sessionId} sessions={sessions} />}
+    </div>
+  )
+}
 export function BetterSidebarBridge({ service, sessions }: { service: BetterSidebarService; sessions: Sessions }) {
   const interfaceState = useContext(InterfaceContext)
   const list = useSyncExternalStore(listener => sessions.list.subscribe(listener), () => sessions.list.getSnapshot())
-  useEffect(() => service.registerTab({
-    id: KLINE_TAB_ID,
-    title: 'K线分析 / K-line',
-    icon: <span aria-hidden="true">K</span>,
-    order: 120,
-    single: true,
-    component: ({ scope, visible }: TabComponentProps) => (
-      <InterfaceContext.Provider value={interfaceState}>
-        <div data-dsh-kline-tab="" style={{ width: '100%', height: '100%', minHeight: 0, overflow: 'hidden' }}>
-          {visible && scope.sessionId && <KlineTabContent key={scope.sessionId} conversationId={scope.sessionId} sessions={sessions} />}
-        </div>
-      </InterfaceContext.Provider>
-    ),
-  }), [service, sessions, interfaceState])
+  useEffect(() => {
+    const dispose = service.registerTab({
+      id: KLINE_TAB_ID,
+      title: KLINE_TAB_TITLE,
+      order: 120,
+      single: true,
+      component: (props: TabComponentProps) => (
+        <InterfaceContext.Provider value={interfaceState}>
+          <KlineTabFrame {...props} service={service} sessions={sessions} />
+        </InterfaceContext.Provider>
+      ),
+    })
+    const stopDefaults = installDefaultKlineTabs(service)
+    return () => { stopDefaults(); dispose() }
+  }, [service, sessions, interfaceState])
   return list.current ? <AutoOpen key={list.current} service={service} sessions={sessions} conversationId={list.current} /> : null
 }

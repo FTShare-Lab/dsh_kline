@@ -17,7 +17,7 @@ PYTHON_BIN="${DSH_KLINE_PYTHON:-$VENV_DIR/bin/python}"
 if [[ ! -x "$PYTHON_BIN" ]]; then
   mkdir -p "$CACHE_HOME"
   printf 'Preparing the dsh_kline Python runtime…\n' >&2
-  DSH_KLINE_VENV="$VENV_DIR" "$PROJECT_ROOT/scripts/bootstrap.sh" >&2
+  DSH_KLINE_VENV="$VENV_DIR" bash "$PROJECT_ROOT/scripts/bootstrap.sh" >&2
 fi
 
 exec "$PYTHON_BIN" "$PROJECT_ROOT/server.py"

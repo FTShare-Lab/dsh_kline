@@ -1,10 +1,24 @@
-# dsh_kline
+# 非凸 K 线助手 / dsh_kline
 
 [简体中文](README.md) | English
 
-An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Ask in natural language to explore prices, technical indicators, news, and company fundamentals in a sidebar chart.
+Explore markets, read charts, and find key price levels inside DeepSeek Harness. Ask AI for an analysis, or open a hands-on workspace to search symbols, change timeframes, and study a chart yourself.
+
+> Quotes and technical analysis are for research and education only, not investment advice.
+
+## What it helps you do
+
+- **Start with a sentence**: ask for a chart, a trend read, or an indicator analysis in natural language.
+- **Explore on your own**: open the K-line workspace, search a name or ticker, and switch among daily, weekly, monthly, quarterly, yearly, and available intraday views.
+- **Read trend and momentum**: use MA, volume, MACD, KDJ, RSI, BOLL, ATR, and VWAP.
+- **Find price areas**: identify support and resistance, or draw and save your own levels and notes.
+- **Compare and review**: overlay indices or symbols, then select a period to inspect return, range, drawdown, and activity.
+- **Add context**: read available news, company summaries, and fundamentals in the same workspace.
+- **Build a watchlist**: save symbols, organize groups, sort, and open several at once. Watchlists stay in your current browser.
 
 ## Preview
+
+![Tab workspace: 非凸 K 线助手 / dsh_kline](docs/images/dsh-kline-tab-workspace.png)
 
 ![K-line chart and key levels](docs/images/kline-support.png)
 
@@ -12,92 +26,69 @@ An interactive K-line analysis plugin for [DeepSeek Harness](https://github.com/
 
 ![News and company overview](docs/images/kline-news.png)
 
-## Plugin marketplace
+## Get started
 
-`dsh_kline` can be installed from the DeepSeek Harness plugin marketplace. If the catalog has not refreshed yet, install it directly from GitHub:
+### 1. Install and enable
+
+Find `dsh_kline` in the DeepSeek Harness plugin marketplace. If the catalog has not refreshed yet, install directly from GitHub:
 
 ```bash
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 ```
 
-The first launch prepares an isolated Python runtime. Users installed from GitHub or the marketplace can check for updates there after a release; a `link:` development install always follows its local checkout and is never replaced automatically by an online version.
+The first launch prepares its runtime automatically. Later, update from the marketplace or Settings when a new version is available.
 
 ![Install and update dsh_kline from the plugin marketplace](docs/images/dsh-market.png)
 
-## Features
+### 2. Choose either entry point
 
-- **Multi-market quotes**: supports Hong Kong, US, and mainland China stocks. Search by company name, ticker, or code.
-- **Index quotes**: A-share index daily K-lines are served through the FTShare 1.0.3 SDK; overlay CSI 300, SSE Composite and peers in Compare (historical intraday index data is a Base-tier capability). The bottom market strip shows HSI, NDX, SSE Composite, CSI 300 and SZSE Component quotes; click any index to open its own K-line chart.
-- **Broad-market fallback**: with an FTShare Key configured, all index data comes from the official feeds; without a Key or when the official feeds are unavailable, a built-in free quote source (public Eastmoney/Tencent endpoints, clearly labeled) keeps broad-market data visible for free users.
-- **Search and watchlists**: search symbols, save the current symbol, and organize watchlists into groups with quote refresh, sorting, and batch opening. A star next to the symbol name favorites/unfavorites the current symbol with one click.
-- **Interactive charts**: daily, weekly, monthly, quarterly, yearly, and intraday K-lines with zoom, pan, crosshair, and responsive layout.
-- **Technical indicators**: K-line, MA, VOL, and MACD are shown by default; KDJ, RSI, BOLL, ATR, and VWAP can be switched on as needed.
-- **Key levels**: when requested, identifies and annotates support, resistance, and touch counts.
-- **Level annotations**: the “Levels” toolbar entry adds full-width level lines at any price or text markers on any candle (name/note/color; reprice, rename, or delete inline). Auto support/resistance can be repriced, renamed, deleted, or moved into your own locally persisted levels.
-- **Range statistics**: click a start and end candle to inspect return, volatility, maximum drawdown, candle count, and trading activity.
-- **Context**: browse stock news, company overview, financials, and shareholder information.
+**Ask AI** in a conversation, for example:
 
-## How To Use
-
-Enable `dsh_kline` in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), then either ask as you would an analyst or click the K button on the right and search by company name or ticker. You do not need to memorize ticker formats.
-
-- `Show the K-line chart for Zijin Mining`
+- `Show the K-line chart for Zijin Mining and its trend over the last month`
 - `Show Tencent's daily chart and mark support and resistance`
 - `Analyze NVIDIA's volume, MACD, and RSI over the past month`
-- `Show the latest news and fundamentals for this company`
-- `Switch to the weekly chart and assess the trend`
+- `What recent news and fundamentals should I know about this company?`
 
-After the analysis, use the sidebar to switch timeframes and indicators or explore news and company information. Symbols opened directly from search use the same workspace. To view range statistics, click two candles in sequence.
-Use the search box for a company name or ticker, then select the star to add it to a watchlist. Watchlists support groups, sorting, and batch opening, and are stored locally in the current browser.
-The top-right Settings menu includes a Data source section where you can paste an FTShare API Key and test the connection. The current Free tier includes stock candles, company and financial basics, A-share market lists, funds, and indices, but it still requires registration and an API Key. Historical minute bars, Hong Kong candles, announcements/reports, and news are available according to the current plan; official endpoint documentation remains authoritative. A key grants only the capabilities enabled for that account. The key takes effect in the current dsh process; when saved locally, it is loaded again after restart. It is never echoed or stored in chart state, and `FTSHARE_API_KEY` can also override it. Without FTShare, built-in public quote fallbacks and `analyze_kline_rows` remain available.
+**Open the workspace directly**: click the K button on the right, or choose **非凸 K 线助手 / dsh_kline** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
 
-## Dual interfaces (v0.2.0 prerelease)
+Both entry points open the same chart experience. Each conversation keeps its own chart state so analyses never overwrite one another, while watchlists, annotations, and preferences remain available.
 
-The default **Automatic** mode uses the **K线分析 / K-line** tab when Better Sidebar is available; select it in the workbench `+` menu after selecting a conversation. Without Better Sidebar, the familiar right-side K button remains. The chart's top-right **Interface** button, between Watchlist and Settings, offers Automatic, Classic sidebar, and Better Sidebar Tab. Save and reload to apply your choice.
+## Using the chart
 
-Both shells share chart content, watchlists, annotations, conversation-scoped state, and existing data-source configuration. FTShare keys are not changed. If a requested Tab interface is unavailable, the plugin explains the fallback to Classic; it never installs the framework automatically. The tested integration is Better Sidebar `0.18.0`, with Harness unchanged at `0.1.2-rc.1`.
+1. Search for a company or ticker at the top.
+2. Pick a time range and candle timeframe. Intraday availability depends on the market and data entitlement.
+3. Enable the indicators you need, then pan, zoom, or use the crosshair for detail.
+4. Select **Key levels** for automatic support and resistance, or **Levels** to add your own price line or note.
+5. Click two candles in sequence to review return, range, drawdown, and trading activity for that interval.
+6. Select the star beside a symbol to add it to a watchlist.
 
-Auto-opening the tab after analysis is a separate preference. It creates or focuses a tab in the owning conversation but preserves a collapsed panel; expand the panel using the framework controls. First-time users see the normal welcome screen; existing users see a one-time interface-upgrade explanation. Interface selection remains accessible afterwards.
+Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspace Tab. Automatic uses the best interface your current Harness supports; when Tabs are unavailable, the regular K-line sidebar continues to work.
 
-`v0.2.0-rc.1` is a prerelease. Stable `v0.1.8` remains available for rollback, without clearing local data.
+## Quotes and data sources
 
-## MCP Tools
+FTShare is the default optional source. After you configure an API key, the plugin exposes the quote, intraday, news, and company-data capabilities available to your account. Availability differs by market and plan.
 
-| Tool | Purpose |
-| --- | --- |
-| `analyze_kline` | Main entry point. Returns quotes, indicators, chart data, and optional support/resistance analysis in one call. |
-| `analyze_kline_rows` | Runs indicators, chart generation, and the sidebar session on caller-supplied normalized OHLCV rows without FTShare. |
-| `fetch_candles` | Retrieves normalized OHLCV candle data. |
-| `calc_metrics` | Calculates technical and statistical metrics from OHLCV data. |
-| `data_source_status` | Returns safe provider installation, configuration, and capability status for the Settings UI. |
-| `configure_ftshare` | Configures or clears an FTShare API Key, can save it locally and test it without returning the key. |
-| `test_ftshare_connection` | Tests the current anonymous/API-key FTShare connection without changing configuration. |
-| `health` | Checks service and data-adapter health. |
+Open **Settings → Data source**, paste your FTShare API key, and test the connection. The key is not shown in charts, conversation content, or exported state. You may use it for the current session only or save it locally for future launches.
 
-Most requests only need `analyze_kline`. The other tools are available for raw data, standalone calculations, and health checks.
+Without a key, some public quote and chart capabilities remain available. When data is delayed, the market is closed, permission is missing, or an upstream source is unavailable, the UI explains the applicable reason and source.
 
-## Data Sources
+## Frequently asked questions
 
-FTShare is an optional default adapter, not a hard dependency of the analysis engine. Access is tiered: a key identifies the account, but it does not grant every API capability. Without FTShare, without a key, or when the upstream is unavailable, callers can pass their own OHLCV rows to `analyze_kline_rows` and keep using indicators, key levels, charts, and the sidebar workspace.
+**Why is an intraday chart unavailable?**
+Intraday access depends on the symbol's market, your account plan, and the source's currently supported coverage. Test the connection in Data source first; daily, weekly, and monthly views are not subject to that same intraday entitlement.
 
-External sources only need `time` (Unix seconds or milliseconds), `open`, `high`, `low`, `close`, and `volume`. dsh_kline sorts, deduplicates, and validates these rows; it does not require registration with a particular provider. `data_source_url` accepts HTTPS links for source attribution.
+**Why do two conversations show different charts?**
+This is intentional: each chart belongs to its conversation, so an analysis in one conversation cannot replace another's chart. Search or start a new analysis in the other conversation when needed.
 
-The FTShare adapter uses only explicitly reviewed official API contracts. Daily and historical minute candles may use a bounded SDK/official-path fallback and record the transport used; authentication, plan limits, and rate limits never trigger blind endpoint guessing. Before upgrading the SDK, follow “official docs → SDK signature and parameters → redacted live check → regression tests”; see the [provider adaptation guide](docs/provider-adaptation.md).
+**Why can data differ slightly from another platform?**
+Quotes can be delayed and may differ with adjustment policy, exchange conventions, market-close state, and upstream services. Use appropriately licensed feeds for commercial, high-frequency, or latency-sensitive work.
 
-For a minimal integration, obtain rows in the host or provider adapter and call `analyze_kline_rows(rows=rows, symbol="BTCUSDT", name="Example asset", data_source="Custom market source", data_source_url="https://example.com")`. News, company data, and market tickers can be supplied separately through the normalized workspace payload.
+## For AI and developers
 
-Symbol lookup is owned by dsh_kline's local security directory and does not call FTShare's search endpoint. The directory refreshes in the background, so users select a symbol first and only then request candles. Minute bars, news, and broader market data depend on the capabilities and permissions of the active source; they do not affect the external OHLCV analysis path.
+Most workflows only need `analyze_kline`. The plugin also exposes `fetch_candles`, `search_symbols`, `calc_metrics`, `analyze_kline_rows`, `data_source_status`, `configure_ftshare`, `test_ftshare_connection`, and `health` for raw data, external OHLCV, configuration, and diagnostics.
 
-## Data And Usage Notes
+FTShare is a default adapter, not a prerequisite for analysis. Callers can pass normalized OHLCV rows to `analyze_kline_rows` and keep using indicators, key levels, charts, and the workspace. See the [provider adaptation guide](docs/provider-adaptation.md).
 
-- Quotes may be delayed, market-closed, or affected by upstream availability.
-- Support, resistance, and indicators are historical technical analysis only and are not investment advice.
-- Commercial, high-frequency, or latency-sensitive use should rely on properly licensed data with an appropriate service level.
+## Updates and license
 
-## Updates
-
-See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for the changelog. The sidebar displays an update notice when a newer stable release is available. Source users can update to the latest version and restart Harness.
-
-## License
-
-Released under the [MIT License](LICENSE). Frontend provenance is documented in [PROVENANCE.md](PROVENANCE.md).
+See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for version history. This project is released under the [MIT License](LICENSE); frontend provenance is in [PROVENANCE.md](PROVENANCE.md).
