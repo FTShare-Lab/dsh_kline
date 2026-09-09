@@ -6801,6 +6801,14 @@ async function openTickerSymbolChart(symbol, name) {
   }
   await openSymbol(symbol, name);
 }
+async function openLauncherDefaultChart() {
+  const launcher = window.__DSH_CHART_SESSION__ || {};
+  if (launcher.workspace_mode !== "launcher" || currentSymbol || openingSymbol) return false;
+  const symbol = String(launcher.default_symbol || "").trim();
+  if (!symbol) return false;
+  await openTickerSymbolChart(symbol, String(launcher.default_name || symbol));
+  return true;
+}
 
 /* ---------- workspace tabs + symbol search ---------- */
 function workspaceTabId(payload) {
@@ -7988,7 +7996,12 @@ document.getElementById("workspaceTabs").addEventListener("click", (event) => {
 });
 document.getElementById("securityNav").addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target.closest("[data-security-tab]") : null;
-  if (target) setSecurityTab(target.getAttribute("data-security-tab"));
+  if (!target) return;
+  const tab = target.getAttribute("data-security-tab");
+  setSecurityTab(tab);
+  // Only a direct user click on an empty launcher chart opens the dormant
+  // default. Programmatic chart navigation already carries an explicit symbol.
+  if (tab === "chart") openLauncherDefaultChart().catch(console.warn);
 });
 wireToggle("maBtn", () => maVisible, (v) => { maVisible = v; });
 wireToggle("vwapBtn", () => vwapVisible, (v) => { vwapVisible = v; });
