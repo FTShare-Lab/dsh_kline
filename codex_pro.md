@@ -199,10 +199,14 @@ Windows CI 最终记录：工作流 [34310033413](https://github.com/FTShare-Lab
 
 ## v0.2.5 图表默认标的回归修复（2026-09-09）
 
-状态：已完成候选修复与本地验证，尚未发布 Release。
+状态：已完成修复、合并、正式发布与发布后验证。
 
 - 保持 v0.2.4 的首页行为：新会话打开侧边插件时首先显示“市场”，不在初始化阶段请求默认 K 线。
 - 启动器保留上证指数 `000001.XSHG` 作为休眠默认标的；只有用户直接点击尚无标的的“图表”页时才懒加载。
 - 搜索、自选、市场卡片和分析结果等已明确标的的跳转仍直接打开该标的，不先并发请求上证指数。
-- 版本号已准备为 `0.2.5`，并更新 Changelog 和构建产物。
+- 修复通过 PR `#6` 合并到 `main`，合并提交为 `a420ae90b052385f41414fdd6445890b12a50765`。
+- 已发布稳定版 `v0.2.5`：`https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.2.5`。
+- Git tag、`package.json` 版本和 GitHub Release 均为 `v0.2.5`，Release 已附加 `dsh-kline.tgz` 及 `dsh-kline.tgz.sha256`。
 - 验证：71 个前端／会话测试全部通过；116 个 Python 测试通过、1 个跳过；隔离发布包的全新虚拟环境、Unicode／空格路径、MCP 14 个必需工具、匿名上证行情均通过。
+- GitHub `main` 的 Ubuntu/Python 3.10 与 Windows/Python 3.12 安装流水线均通过；Release 流水线 `34370312185` 完成并成功上传资产。
+- 已知边界：GitHub 已是最新稳定版，插件市场的可见时间仍取决于 DSH 市场索引和缓存刷新。
