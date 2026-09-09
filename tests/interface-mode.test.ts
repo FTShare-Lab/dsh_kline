@@ -62,6 +62,9 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   assert.ok(tab.includes('title: KLINE_TAB_TITLE'))
   assert.equal(KLINE_TAB_TITLE, '非凸K线助手 / dsh_kline')
   assert.ok(tab.includes('const dispose = service.registerTab(') && tab.includes('stopDefaults(); dispose()'))
+  assert.match(tab, /service\.subscribeState\(listener\)/)
+  assert.match(tab, /sidebar\.sessionId === scope\.sessionId/)
+  assert.match(tab, /only an analysis result that arrives while this view is live may/)
 })
 test('saved legacy titles migrate only in their own active session and preserve custom names', () => {
   const updates: unknown[] = []

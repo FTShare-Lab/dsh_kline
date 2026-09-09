@@ -42,7 +42,10 @@ export function mountKlineView(root, payload, dependencies = {}) {
   let restored = false
   try {
     const saved = JSON.parse(globalThis.localStorage.getItem(viewKey) || 'null')
-    if (saved?.session === dependencies.chartSession && Array.isArray(saved.payload?.chartCommands)) {
+    // A launcher deliberately has no selected instrument. It must never be
+    // replaced by a saved chart payload, even when the host temporarily
+    // reuses the previous conversation scope for its New Session screen.
+    if (payload?.workspace_mode !== 'launcher' && saved?.session === dependencies.chartSession && Array.isArray(saved.payload?.chartCommands)) {
       payload = saved.payload
       restored = true
     }
