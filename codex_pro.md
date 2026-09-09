@@ -27,6 +27,8 @@
 
 Windows CI 首轮记录：构建、Python/Node 测试均通过；首次失败发生在发布打包器直接执行 Unix 风格 `npm` shim，Windows 返回 `spawnSync npm ENOENT`。已改为 Windows 显式使用 `npm.cmd`，并拆分打包、发布包 smoke 和 DSH profile smoke 三个 CI 步骤，等待第二轮验证。
 
+Windows CI 第二轮记录：`npm.cmd` 调用已修复；随后发现 runner 临时目录在 C 盘、仓库在 D 盘，发布包从临时目录 `rename` 到仓库触发 `EXDEV`，已改为跨卷安全的复制。完整测试同时发现两处测试代码的 Unix 假设（系统默认文本编码与固定 `0600` mode），产品代码未失败；已改为显式 UTF-8，并仅在 POSIX 断言 Unix mode。CI 的 Python、Node 与会话测试也拆成独立步骤，避免 PowerShell 继续执行后掩盖前序失败。
+
 ## 目标
 
 让普通用户能够从 DSH 插件市场可靠地找到、安装、首次启动和更新 `dsh_kline`，并能明确看到当前版本与最新稳定版本。

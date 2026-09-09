@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -58,7 +58,7 @@ try {
 
   await mkdir(dirname(destination), { recursive: true })
   await rm(destination, { force: true })
-  await rename(join(scratch, packed.filename), destination)
+  await copyFile(join(scratch, packed.filename), destination)
   console.log(`Release package ready: ${destination}`)
 } finally {
   await rm(scratch, { recursive: true, force: true })
