@@ -17,6 +17,7 @@
 
 - Windows Python 3.10–3.12 保存 FTShare Key 时不再调用尚未支持的 `os.fchmod`，也不再错误套用 POSIX mode-bit 校验。
 - 对 Windows 短暂文件占用增加有上限的重试，降低杀毒软件扫描或文件锁造成的凭据、图表会话写入失败。
+- Windows 首次安装在用户名或插件路径含中文时，Python 与 pip 统一使用 UTF-8，不再因系统默认代码页无法输出路径而中断。
 
 ### Changed
 

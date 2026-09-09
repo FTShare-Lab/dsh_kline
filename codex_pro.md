@@ -18,11 +18,11 @@
 - Release 工作流在上传资产前增加发布包首次启动 smoke test，并校验跨平台入口确实包含在 tarball 中。
 - 本机已从打包后的 `0.2.2` 产物创建隔离 DSH Web profile，完成插件安装、bundle patch 解析、全新 Python venv、MCP 工具发现和图表服务健康检查；未引用开发环境。
 - 本机最终回归：Python `100 passed / 1 Windows-only skipped`，Node/前端 `55 passed`，TypeScript 构建、发布包白名单、匿名行情、loopback 鉴权及隔离 DSH Web 启动均通过。
+- GitHub 原生 Windows Server 2025 最终回归全部通过：构建、Python 行为、Windows 路径、图表会话、跨卷打包、中文/空格路径首次安装，以及隔离 DSH Web profile 启动均为绿色；Ubuntu 同一矩阵同步通过。
 
 尚需完成：
 
-- 等待 GitHub 原生 Windows CI 首次实跑，根据真实文件锁、路径或 Python Launcher 行为修正问题。
-- CI 通过后，在真实 Windows DSH Web 中执行“市场安装 → 首次启动 → 配置 Key → K 线展示 → 升级 → 重启”人工验收。
+- 在真实 Windows 桌面和正式 DSH Web 中执行“市场安装 → 首次启动 → 配置 Key → K 线展示 → 升级 → 重启”人工验收。
 - 人工验收通过前，不在正式 Release 中宣称 Windows 已完整验收。
 
 Windows CI 首轮记录：构建、Python/Node 测试均通过；首次失败发生在发布打包器直接执行 Unix 风格 `npm` shim，Windows 返回 `spawnSync npm ENOENT`。已改为 Windows 显式使用 `npm.cmd`，并拆分打包、发布包 smoke 和 DSH profile smoke 三个 CI 步骤，等待第二轮验证。
@@ -30,6 +30,10 @@ Windows CI 首轮记录：构建、Python/Node 测试均通过；首次失败发
 Windows CI 第二轮记录：`npm.cmd` 调用已修复；随后发现 runner 临时目录在 C 盘、仓库在 D 盘，发布包从临时目录 `rename` 到仓库触发 `EXDEV`，已改为跨卷安全的复制。完整测试同时发现两处测试代码的 Unix 假设（系统默认文本编码与固定 `0600` mode），产品代码未失败；已改为显式 UTF-8，并仅在 POSIX 断言 Unix mode。CI 的 Python、Node 与会话测试也拆成独立步骤，避免 PowerShell 继续执行后掩盖前序失败。
 
 Windows CI 第三轮记录：产品测试、启动器测试、会话测试及跨卷打包均通过；发布包 smoke 的系统 `tar` 无法直接 `chdir` 到中文目录，runner codepage 将路径显示成 `??`。已调整为先在 ASCII 临时目录解压，再用 Node 文件 API 移入中文/空格安装路径；继续保留 Unicode 安装路径的真实运行验证，不把系统 tar 的编码限制绕过为纯 ASCII 测试。
+
+Windows CI 第四轮记录：打包产物已能进入中文安装路径，但 Windows Python Launcher 优先发现 Python 3.13 后，`pip` 使用系统 cp1252 输出该路径时触发 `UnicodeEncodeError`。启动器现对所有受管 Python 子进程强制 UTF-8，并让 pip 使用非交互、无进度条模式；同时保留完整 bootstrap stderr，后续失败不再只有临时日志路径。
+
+Windows CI 最终记录：工作流 [34310033413](https://github.com/FTShare-Lab/dsh_kline/actions/runs/34310033413) 的 Ubuntu/Python 3.10 与 Windows Server 2025/Python 3.12 两个 job 全部通过。Windows runner 实际由 Python Launcher 选择 3.13 创建受管 venv，因此同时覆盖了多版本 Launcher 场景。自动验收已经证明发布包能在中文/空格目录首次安装并初始化 MCP、匿名行情、图表 locator/鉴权，也能安装到隔离 DSH Web profile 并完成工具发现和图表服务健康检查。剩余边界仅为真实 Windows 桌面上的人工交互验收。
 
 ## 目标
 
@@ -49,7 +53,7 @@ Windows CI 第三轮记录：产品测试、启动器测试、会话测试及跨
 | 1. 安装与首次启动自修复 | 已完成，待推送 | 本地实现及测试已完成 |
 | 2. 插件市场版本与更新链路 | 已完成可控部分，待推送 | Release 产物与自动化已完成；市场语义版本受上游能力限制 |
 | 3. 普通用户完整安装验收 | 待开始 | 使用全新环境验证 |
-| 4. 跨平台支持 | 已实现，待原生 CI 与实机验收 | Node 跨平台入口、Windows 路径/凭据与安装测试已加入 |
+| 4. 跨平台支持 | 原生 CI 已通过，待实机人工验收 | Node 跨平台入口、Windows 路径/凭据与完整安装测试已通过 |
 | 5. 发布自动化与长期监控 | 待开始 | 在前面流程稳定后实施 |
 
 ## 第一阶段：安装与首次启动自修复
@@ -157,7 +161,7 @@ Windows CI 第三轮记录：产品测试、启动器测试、会话测试及跨
 
 ## 第四阶段：跨平台支持
 
-实现状态：代码适配完成，待 GitHub 原生 Windows CI 和真实 Windows DSH Web 验收。
+实现状态：代码适配与 GitHub 原生 Windows CI 已完成，待真实 Windows 桌面上的 DSH Web 人工验收。
 
 本插件不负责安装 DSH Web 宿主。普通用户运行入口已经从 Bash 迁移到 Node，并补齐 Windows Python Launcher、用户目录、凭据权限和短暂文件锁处理。只有原生 CI 及实机完整流程均通过后，才能对外标记 Windows supported。
 
