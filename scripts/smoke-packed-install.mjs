@@ -64,8 +64,15 @@ try {
   send({method:'notifications/initialized'})
   console.log('PASS first launch: fresh venv + native Node launcher + Unicode/space path')
   const list = await request('tools/list')
-  assert.equal(list.result?.tools.length, 9)
-  console.log('PASS MCP initialize + 9 tools')
+  const toolNames = new Set((list.result?.tools || []).map(tool => tool.name))
+  const requiredTools = [
+    'health', 'data_source_status', 'search_symbols', 'configure_ftshare',
+    'test_ftshare_connection', 'market_pulse', 'market_board_detail',
+    'security_intelligence', 'get_watchlist', 'save_watchlist', 'fetch_candles',
+    'calc_metrics', 'analyze_kline_rows', 'analyze_kline',
+  ]
+  for (const name of requiredTools) assert.ok(toolNames.has(name), `Missing MCP tool: ${name}`)
+  console.log(`PASS MCP initialize + ${toolNames.size} tools (${requiredTools.length} required)`)
   const candles = await request('tools/call', {name:'fetch_candles', arguments:{symbol:'000001.XSHG', interval:'day',limit:10}})
   assert.equal(candles.result?.isError ?? false, false)
   const payload = candles.result?.structuredContent
