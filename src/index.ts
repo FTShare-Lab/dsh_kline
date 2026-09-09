@@ -1,12 +1,15 @@
 import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 export const name = 'dsh-kline-sidebar'
 export const inject = ['webServer']
 
-const RUNTIME_FILE = fileURLToPath(new URL(`../.runtime/services/${process.pid}.json`, import.meta.url))
-const SESSION_DIR = fileURLToPath(new URL('../.runtime/sessions/', import.meta.url))
+const RUNTIME_DIR = runtimeDirectory()
+const RUNTIME_FILE = join(RUNTIME_DIR, 'services', `${process.pid}.json`)
+const SESSION_DIR = join(RUNTIME_DIR, 'sessions')
 const VENDOR_FILE = fileURLToPath(new URL('../view/vendor/klinecharts.min.js', import.meta.url))
 const LOGO_FILE = fileURLToPath(new URL('../view/ft-logo.jpg', import.meta.url))
 const MAX_PROXY_BYTES = 8 * 1024 * 1024
@@ -71,7 +74,7 @@ async function serveRuntimeSession(request: IncomingMessage, response: ServerRes
         sendJson(response, 200, { ok: false, error: 'chart_session_required' })
         return
       }
-      const saved = JSON.parse(await readFile(`${SESSION_DIR}${token}.json`, 'utf8')) as RuntimeSession & { payload: unknown }
+      const saved = JSON.parse(await readFile(join(SESSION_DIR, `${token}.json`), 'utf8')) as RuntimeSession & { payload: unknown }
       if (saved.session !== token || saved.ok !== true) throw new Error('invalid_chart_snapshot')
       if (pathname === '/dsh-kline/data') {
         sendJson(response, 200, { ok: true, session: token, payload: saved.payload }, request.method === 'HEAD')
@@ -131,6 +134,17 @@ interface RuntimeSession extends Record<string, unknown> {
   service_url: string
   service_token: string
   published_at: number
+}
+
+export function runtimeDirectory(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit = String(env.DSH_KLINE_RUNTIME_DIR || '').trim()
+  if (explicit) return resolve(explicit)
+  if (process.platform === 'win32') {
+    const local = String(env.LOCALAPPDATA || env.APPDATA || '').trim()
+    return join(local || join(homedir(), 'AppData', 'Local'), 'dsh_kline', 'runtime')
+  }
+  const cache = String(env.XDG_CACHE_HOME || '').trim()
+  return join(cache || join(homedir(), '.cache'), 'dsh_kline', 'runtime')
 }
 
 function chartServiceHeaders(session: RuntimeSession): Record<string, string> {

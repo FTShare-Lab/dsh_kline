@@ -6,6 +6,23 @@
 
 （新版本变更将集中在此。）
 
+## 0.2.2 - 2026-09-09
+
+### Added
+
+- 新增原生 Windows 普通用户安装支持：使用 DSH 自带的 Node 启动 MCP，识别 Windows Python Launcher，并适配 `%LOCALAPPDATA%`、`Scripts/python.exe`、空格及中文路径，无需 Git Bash 或 WSL。
+- 新增 Ubuntu/Windows 真实安装 CI；发布包会在隔离 DSH Web profile 中完成首次启动、MCP 和图表服务冒烟验证。
+
+### Fixed
+
+- Windows Python 3.10–3.12 保存 FTShare Key 时不再调用尚未支持的 `os.fchmod`，也不再错误套用 POSIX mode-bit 校验。
+- 对 Windows 短暂文件占用增加有上限的重试，降低杀毒软件扫描或文件锁造成的凭据、图表会话写入失败。
+
+### Changed
+
+- 受管 Python 环境、安装日志与图表运行文件统一放入平台用户目录；可分别使用 `DSH_KLINE_CACHE_DIR` 和 `DSH_KLINE_RUNTIME_DIR` 覆盖。
+- `pnpm bootstrap` 改用跨平台 Node 入口；原有 shell 文件保留为 macOS/Linux 兼容包装。
+
 ## 0.2.1 - 2026-09-09
 
 ### Fixed

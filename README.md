@@ -38,6 +38,8 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 首次启动会自动准备所需运行环境。以后有新版本时，在插件市场或设置页更新即可。
 
+插件支持 macOS、Linux 和原生 Windows。用户需要先安装可运行的 DSH Web，以及 Python 3.10 或更高版本；Windows 推荐使用 [python.org](https://www.python.org/downloads/windows/) 安装包并启用 Python Launcher。插件不要求 Git Bash 或 WSL。首次启动的依赖安装日志位于用户缓存目录下的 `dsh_kline/bootstrap.log`；Windows 默认为 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。
+
 ![在插件市场安装和更新 dsh_kline](docs/images/dsh-market.png)
 
 ### 2. 任选一种入口
@@ -76,6 +78,10 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 **为什么找不到分钟线？**
 分钟行情是否可用取决于标的市场、账户套餐和数据源当前支持范围。请先在“数据源”中测试连接；日、周、月等周期不受此限制。
+
+**Windows 首次启动失败怎么办？**
+
+先在终端执行 `py -3.10 --version`（更高版本也可以），确认 Python Launcher 能找到 Python。然后查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`；如果 Python 安装在自定义位置，可在启动 DSH Web 前设置 `DSH_KLINE_PYTHON` 为 `python.exe` 的完整路径。DSH Web 本身的安装或 Windows sandbox 问题需要参考 DSH 官方文档。
 
 **为什么两个对话显示不同的图？**
 这是刻意设计：图表会绑定各自对话，避免 A 对话的分析覆盖 B 对话。需要在另一个对话查看时，直接搜索或重新发起分析即可。

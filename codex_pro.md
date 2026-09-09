@@ -2,6 +2,29 @@
 
 更新日期：2026-09-09
 
+## Windows 原生适配实施记录（2026-09-09）
+
+范围边界：Linux/Windows 上安装 DSH Web 宿主本身不属于插件职责；用户已有可运行的 DSH Web 后，插件的市场安装、首次启动、配置 Key、升级和卸载属于 `dsh_kline` 兼容范围。npm 发布继续暂缓，不影响 GitHub 安装或 Windows 适配。
+
+本轮已实现：
+
+- 新增跨平台 Node 启动器，由 DSH 自带的 `process.execPath` 启动，不再要求普通用户安装 Bash、Git Bash 或 WSL。
+- Windows 原生识别 Python Launcher 的 3.13/3.12/3.11/3.10，以及 `python`/`python3`；虚拟环境使用 `Scripts/python.exe`。
+- Windows 受管 venv、首次启动日志和图表运行文件使用 `%LOCALAPPDATA%\dsh_kline`；支持空格与中文路径，并可用环境变量显式覆盖。
+- FTShare Key 在 POSIX 继续执行 `0600/0700` 校验；Windows 不再调用 Python 3.10–3.12 不支持的 `os.fchmod`，也不再套用无效的 Unix mode-bit 判断。
+- Windows 原子文件替换加入有上限的短暂重试，降低杀毒软件扫描或短时文件占用导致的首次配置失败。
+- 发布包普通用户 smoke test 改为直接调用跨平台 Node 入口，验证全新 venv、MCP 初始化、匿名行情、图表服务 locator 和鉴权。
+- 新增 `windows-2025` 原生 CI，与 Ubuntu 一起构建、运行 Python/Node 测试并验证发布包首次启动；不能用 Wine 结果替代原生 Windows 验收。
+- Release 工作流在上传资产前增加发布包首次启动 smoke test，并校验跨平台入口确实包含在 tarball 中。
+- 本机已从打包后的 `0.2.2` 产物创建隔离 DSH Web profile，完成插件安装、bundle patch 解析、全新 Python venv、MCP 工具发现和图表服务健康检查；未引用开发环境。
+- 本机最终回归：Python `100 passed / 1 Windows-only skipped`，Node/前端 `55 passed`，TypeScript 构建、发布包白名单、匿名行情、loopback 鉴权及隔离 DSH Web 启动均通过。
+
+尚需完成：
+
+- 等待 GitHub 原生 Windows CI 首次实跑，根据真实文件锁、路径或 Python Launcher 行为修正问题。
+- CI 通过后，在真实 Windows DSH Web 中执行“市场安装 → 首次启动 → 配置 Key → K 线展示 → 升级 → 重启”人工验收。
+- 人工验收通过前，不在正式 Release 中宣称 Windows 已完整验收。
+
 ## 目标
 
 让普通用户能够从 DSH 插件市场可靠地找到、安装、首次启动和更新 `dsh_kline`，并能明确看到当前版本与最新稳定版本。
@@ -20,7 +43,7 @@
 | 1. 安装与首次启动自修复 | 已完成，待推送 | 本地实现及测试已完成 |
 | 2. 插件市场版本与更新链路 | 已完成可控部分，待推送 | Release 产物与自动化已完成；市场语义版本受上游能力限制 |
 | 3. 普通用户完整安装验收 | 待开始 | 使用全新环境验证 |
-| 4. 跨平台支持 | 待评估 | 当前优先 macOS/Linux，Windows 另行确认 |
+| 4. 跨平台支持 | 已实现，待原生 CI 与实机验收 | Node 跨平台入口、Windows 路径/凭据与安装测试已加入 |
 | 5. 发布自动化与长期监控 | 待开始 | 在前面流程稳定后实施 |
 
 ## 第一阶段：安装与首次启动自修复
@@ -128,16 +151,9 @@
 
 ## 第四阶段：跨平台支持
 
-当前脚本使用 Bash，已覆盖 macOS/Linux 的主要流程。Windows 原生 DSH 环境是否属于正式支持范围，需要先确认。
+实现状态：代码适配完成，待 GitHub 原生 Windows CI 和真实 Windows DSH Web 验收。
 
-如果正式支持 Windows，需要补充：
-
-- Windows 启动器和 Python 查找逻辑。
-- 用户缓存目录与日志路径适配。
-- PowerShell/进程退出码/路径转义测试。
-- Windows 全新安装及升级验收。
-
-预计耗时：半天至一天，不包含 DSH 本身的 Windows 兼容问题。
+本插件不负责安装 DSH Web 宿主。普通用户运行入口已经从 Bash 迁移到 Node，并补齐 Windows Python Launcher、用户目录、凭据权限和短暂文件锁处理。只有原生 CI 及实机完整流程均通过后，才能对外标记 Windows supported。
 
 ## 第五阶段：发布自动化与长期监控
 
