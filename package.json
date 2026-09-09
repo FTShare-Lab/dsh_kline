@@ -5,6 +5,25 @@
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
   "type": "module",
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "PROVENANCE.md",
+    "README.en.md",
+    "README.md",
+    "chart_service.py",
+    "config",
+    "cordis.patch.yml",
+    "core",
+    "lib",
+    "requirements.txt",
+    "screenshots.json",
+    "scripts/bootstrap.sh",
+    "scripts/run-dsh-kline.sh",
+    "server.py",
+    "tools",
+    "view"
+  ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -51,6 +70,7 @@
   },
   "scripts": {
     "bootstrap": "bash ./scripts/bootstrap.sh",
+    "pack:release": "node ./scripts/build-release-package.mjs ./release/dsh-kline.tgz",
     "generate:client-view": "node ./scripts/generate-client-view.mjs",
     "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts && pnpm verify:package",
     "verify:package": "node ./scripts/verify-package.mjs",
