@@ -29,6 +29,8 @@ Windows CI 首轮记录：构建、Python/Node 测试均通过；首次失败发
 
 Windows CI 第二轮记录：`npm.cmd` 调用已修复；随后发现 runner 临时目录在 C 盘、仓库在 D 盘，发布包从临时目录 `rename` 到仓库触发 `EXDEV`，已改为跨卷安全的复制。完整测试同时发现两处测试代码的 Unix 假设（系统默认文本编码与固定 `0600` mode），产品代码未失败；已改为显式 UTF-8，并仅在 POSIX 断言 Unix mode。CI 的 Python、Node 与会话测试也拆成独立步骤，避免 PowerShell 继续执行后掩盖前序失败。
 
+Windows CI 第三轮记录：产品测试、启动器测试、会话测试及跨卷打包均通过；发布包 smoke 的系统 `tar` 无法直接 `chdir` 到中文目录，runner codepage 将路径显示成 `??`。已调整为先在 ASCII 临时目录解压，再用 Node 文件 API 移入中文/空格安装路径；继续保留 Unicode 安装路径的真实运行验证，不把系统 tar 的编码限制绕过为纯 ASCII 测试。
+
 ## 目标
 
 让普通用户能够从 DSH 插件市场可靠地找到、安装、首次启动和更新 `dsh_kline`，并能明确看到当前版本与最新稳定版本。

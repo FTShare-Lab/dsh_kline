@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { spawn, execFileSync } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { mkdtemp, mkdir, readFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rename } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -12,10 +12,13 @@ const archive = resolve(process.argv[2] || '')
 assert.ok(process.argv[2]?.endsWith('.tgz'), 'Supply the packed .tgz path')
 const scratch = await mkdtemp(join(tmpdir(), 'dsh-kline-packed-'))
 const root = join(scratch, 'profile 空格', 'node_modules', '@ftshare-lab', 'dsh-kline')
-await mkdir(root, {recursive:true})
+const extracted = join(scratch, 'extracted-package')
+await mkdir(extracted, {recursive:true})
 const entries = execFileSync('tar', ['-tzf', archive], {encoding:'utf8'}).trim().split('\n')
 assert.ok(entries.every(path => !/( 2\.|\.runtime\/|\.venv\/|node_modules\/|credentials|\.env$)/.test(path)), 'Unexpected files in archive')
-execFileSync('tar', ['-xzf', archive, '-C', root, '--strip-components=1'])
+execFileSync('tar', ['-xzf', archive, '-C', extracted, '--strip-components=1'])
+await mkdir(join(root, '..'), {recursive:true})
+await rename(extracted, root)
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('FTSHARE_') && !key.startsWith('DSH_KLINE_')))
 const runtime = join(scratch, '运行 runtime')
 Object.assign(env, {DSH_KLINE_HOST_PID:String(process.pid), DSH_KLINE_CHART_PORT:'0',
