@@ -128,6 +128,7 @@ def test_release_package_is_bounded_and_attached_with_a_stable_name():
     for required in ('"lib"', '"view"', '"requirements.txt"', '"scripts/run-dsh-kline.mjs"'):
         assert required in manifest
     assert "dsh-kline-release-" in packer
+    assert "npm.cmd" in packer
     assert "RELEASE_TAG" in workflow
     assert "does not match package" in workflow
     assert "release/dsh-kline.tgz" in workflow

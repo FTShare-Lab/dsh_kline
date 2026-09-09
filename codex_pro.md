@@ -25,6 +25,8 @@
 - CI 通过后，在真实 Windows DSH Web 中执行“市场安装 → 首次启动 → 配置 Key → K 线展示 → 升级 → 重启”人工验收。
 - 人工验收通过前，不在正式 Release 中宣称 Windows 已完整验收。
 
+Windows CI 首轮记录：构建、Python/Node 测试均通过；首次失败发生在发布打包器直接执行 Unix 风格 `npm` shim，Windows 返回 `spawnSync npm ENOENT`。已改为 Windows 显式使用 `npm.cmd`，并拆分打包、发布包 smoke 和 DSH profile smoke 三个 CI 步骤，等待第二轮验证。
+
 ## 目标
 
 让普通用户能够从 DSH 插件市场可靠地找到、安装、首次启动和更新 `dsh_kline`，并能明确看到当前版本与最新稳定版本。

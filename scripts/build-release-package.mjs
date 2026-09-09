@@ -49,9 +49,9 @@ try {
   }
 
   const output = execFileSync(
-    'npm',
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch],
-    { cwd: packageDir, encoding: 'utf8' },
+    { cwd: packageDir, encoding: 'utf8', shell: process.platform === 'win32' },
   )
   const packed = JSON.parse(output)[0]
   if (typeof packed?.filename !== 'string') throw new Error('npm pack returned no archive filename')
