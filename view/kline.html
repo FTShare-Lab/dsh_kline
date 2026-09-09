@@ -616,6 +616,11 @@
   .market-index-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; min-width: 0; min-height: 74px; padding: 11px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 9px; background: linear-gradient(145deg, color-mix(in srgb, var(--bg-soft) 92%, white), var(--bg-soft)); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
   .market-index-card.up { border-left-color: color-mix(in srgb, var(--up) 65%, var(--border)); }
   .market-index-card.down { border-left-color: color-mix(in srgb, var(--down) 65%, var(--border)); }
+  .market-index-card.loading { cursor: default; }
+  .market-index-card.loading:hover { border-color: var(--border); box-shadow: none; transform: none; }
+  .market-index-skeleton { display: block; height: 11px; border-radius: 999px; background: var(--border); opacity: .55; }
+  .market-index-skeleton.name { width: 62%; } .market-index-skeleton.price { width: 48px; justify-self: end; }
+  .market-index-skeleton.symbol { width: 45%; } .market-index-skeleton.change { width: 38px; justify-self: end; }
   .market-index-card:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 10%, transparent); transform: translateY(-1px); }
   .market-index-name { align-self: center; overflow: hidden; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
   .market-index-symbol { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -629,13 +634,22 @@
   .market-segment:hover { color: var(--text); }
   .market-segment.active { background: var(--bg); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
   .market-leaderboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-  .market-leader { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; min-width: 0; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+  .market-leader { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; min-width: 0; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
   .market-leader:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft)); }
-  .market-leader-name { overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .market-leader-rank { grid-row: 1 / span 2; align-self: center; color: var(--text-soft); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+  .market-leader-rank.top { color: var(--accent); font-weight: 750; }
+  .market-leader-name { grid-column: 2; overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
   .market-leader-price { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
-  .market-leader-meta { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .market-leader-meta { grid-column: 2; overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
   .market-leader-change { font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
   .market-leader-change.up { color: var(--up); } .market-leader-change.down { color: var(--down); }
+  .market-open-all { border: 0; background: transparent; color: var(--accent); cursor: pointer; font: inherit; font-size: 11px; }
+  .dragon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  /* Each side of the dragon-tiger comparison owns one readable card column.
+     Without this override the generic two-column leaderboard nests into a
+     cramped four-column layout in the narrow DSH panel. */
+  .dragon-grid > div > .market-leaderboard { grid-template-columns: minmax(0, 1fr); }
+  .dragon-grid h4 { margin: 10px 0 -2px; color: var(--text-soft); font-size: 11px; font-weight: 650; }
   .intelligence-rank-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
   .intelligence-rank-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; min-width: 0; min-height: 58px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); }
   button.intelligence-rank-item { width: 100%; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
@@ -647,8 +661,8 @@
   .intelligence-flow-fill.up { background: var(--up); } .intelligence-flow-fill.down { background: var(--down); }
   .intelligence-rank-value { color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .intelligence-rank-value.up { color: var(--up); } .intelligence-rank-value.down { color: var(--down); }
-  .intelligence-link-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-  .intelligence-link { display: grid; gap: 3px; min-width: 0; padding: 10px; border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+  .intelligence-link-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .intelligence-link { display: grid; gap: 3px; min-width: 0; min-height: 58px; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
   .intelligence-link:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, var(--bg-soft)); }
   .intelligence-link strong, .intelligence-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .intelligence-link strong { font-size: 12px; } .intelligence-link span { color: var(--text-soft); font-size: 10px; }
@@ -705,6 +719,7 @@
     .market-overview-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .market-index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .market-leaderboard { grid-template-columns: 1fr; }
+    .dragon-grid { grid-template-columns: 1fr; gap: 10px; }
     .intelligence-metric:nth-child(2n) { border-right: 0; }
     .intelligence-metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
     .intelligence-link-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -881,13 +896,14 @@
 <div id="interfaceFallbackBanner" class="settings-info muted" role="status" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</div>
 <div class="market-data-status" id="marketDataStatus" aria-live="polite"></div>
 <nav class="security-nav" id="securityNav" role="tablist" aria-label="标的内容">
-  <button class="security-nav-tab" id="securityTabMarket" type="button" role="tab" aria-selected="false" aria-controls="marketWorkspacePanel" data-security-tab="market">市场</button>
-  <button class="security-nav-tab active" id="securityTabChart" type="button" role="tab" aria-selected="true" aria-controls="chartWorkspacePanel" data-security-tab="chart">图表</button>
+  <button class="security-nav-tab active" id="securityTabMarket" type="button" role="tab" aria-selected="true" aria-controls="marketWorkspacePanel" data-security-tab="market">市场</button>
+  <button class="security-nav-tab" id="securityTabChart" type="button" role="tab" aria-selected="false" aria-controls="chartWorkspacePanel" data-security-tab="chart">图表</button>
   <button class="security-nav-tab" id="securityTabSector" type="button" role="tab" aria-selected="false" aria-controls="sectorWorkspacePanel" data-security-tab="sector">板块</button>
   <button class="security-nav-tab" id="securityTabNews" type="button" role="tab" aria-selected="false" aria-controls="newsWorkspacePanel" data-security-tab="news">资讯</button>
   <button class="security-nav-tab" id="securityTabCompany" type="button" role="tab" aria-selected="false" aria-controls="companyWorkspacePanel" data-security-tab="company">公司</button>
+  <button class="security-nav-tab" id="securityTabDragon" type="button" role="tab" aria-selected="false" aria-controls="dragonWorkspacePanel" data-security-tab="dragon">龙虎榜</button>
 </nav>
-<section class="security-panel" id="chartWorkspacePanel" role="tabpanel" aria-labelledby="securityTabChart">
+<section class="security-panel" id="chartWorkspacePanel" role="tabpanel" aria-labelledby="securityTabChart" hidden>
 <div class="timebar" id="timebar">
   <div class="timebar-group" id="rangeControls" role="tablist" aria-label="时间范围">
     <button class="btn" type="button" data-range="1d">1D</button>
@@ -1049,7 +1065,8 @@
 <div class="tables" id="tables" style="display:none;"></div>
 <div id="errorBox" class="err" style="display:none;"></div>
 </section>
-<section class="security-panel insight-panel" id="marketWorkspacePanel" role="tabpanel" aria-labelledby="securityTabMarket" hidden></section>
+<section class="security-panel insight-panel" id="marketWorkspacePanel" role="tabpanel" aria-labelledby="securityTabMarket"></section>
+<section class="security-panel insight-panel" id="dragonWorkspacePanel" role="tabpanel" aria-labelledby="securityTabDragon" hidden></section>
 <section class="security-panel insight-panel" id="sectorWorkspacePanel" role="tabpanel" aria-labelledby="securityTabSector" hidden></section>
 <section class="security-panel insight-panel" id="newsWorkspacePanel" role="tabpanel" aria-labelledby="securityTabNews" hidden></section>
 <section class="security-panel insight-panel" id="companyWorkspacePanel" role="tabpanel" aria-labelledby="securityTabCompany" hidden></section>
@@ -1220,7 +1237,7 @@ let volumeUnit = "wan";
 let canvasBaseHeightOverride = null;
 let userThemeOverride = null;
 let viewLanguage = "zh";
-let activeSecurityTab = "chart";
+let activeSecurityTab = "market";
 let activeCompanyTab = "overview";
 let securityWorkspaceData = null;
 let securityWorkspaceLoading = false;
@@ -1231,6 +1248,7 @@ let securityIntelligenceLoading = false;
 let marketPulseData = null;
 let marketPulseLoading = false;
 let marketPulseRequestId = 0;
+let marketPulsePendingSections = new Set();
 let marketDirectionMode = "industry";
 let marketRankingMode = "hot";
 let marketBoardDetail = null;
@@ -1445,8 +1463,9 @@ Object.assign(UI_COPY.zh, {
   newsPage: "资讯",
   marketOverview: "市场概览",
   industryHeat: "行业热度",
-  marketDirections: "热门方向",
-  marketIndustry: "行业",
+  dragon: "龙虎榜",
+  marketDirections: "板块排行",
+  marketIndustry: "板块",
   marketConcept: "概念",
   marketRankings: "股票排行",
   marketRankHot: "人气",
@@ -1469,8 +1488,9 @@ Object.assign(UI_COPY.en, {
   newsPage: "News",
   marketOverview: "Market overview",
   industryHeat: "Industry heat",
-  marketDirections: "Market themes",
-  marketIndustry: "Industries",
+  dragon: "Dragon-Tiger List",
+  marketDirections: "Hot boards",
+  marketIndustry: "Boards",
   marketConcept: "Concepts",
   marketRankings: "Stock leaders",
   marketRankHot: "Popular",
@@ -2516,7 +2536,7 @@ function workspaceSourceFooter(data) {
   return `<footer class="insight-source-footer"><span class="insight-source${sourceClass}">${escapeHtml(t("source"))} ${escapeHtml(workspaceSourceText(data))}</span></footer>`;
 }
 function syncSecurityNavigation(data = currentSecurityWorkspace()) {
-  const labelMap = { market: t("market"), chart: t("chart"), sector: t("sector"), news: t("newsPage"), company: t("companyPage") };
+  const labelMap = { market: t("market"), dragon: t("dragon"), chart: t("chart"), sector: t("sector"), news: t("newsPage"), company: t("companyPage") };
   document.querySelectorAll("[data-security-tab]").forEach((button) => {
     const tab = button.dataset.securityTab;
     const active = tab === activeSecurityTab;
@@ -2622,17 +2642,19 @@ function intelligenceTone(item) {
 function intelligenceRankMarkup(items, { limit = 6, boardAction = false } = {}) {
   const rows = (Array.isArray(items) ? items : []).slice(0, limit);
   if (!rows.length) return "";
-  const maximum = Math.max(...rows.map((item) => Math.abs(intelligenceValueNumber(item))), 1);
-  return `<div class="intelligence-rank-list">${rows.map((item, index) => {
-    const value = intelligenceValueNumber(item);
+  // These cards are used for a stock's capital-flow history and a selected
+  // board's history. A relative bar made a dated flow record look like an
+  // unfinished loading placeholder, so use the same concise information-card
+  // grammar as market rankings instead.
+  return `<div class="market-leaderboard intelligence-leaderboard">${rows.map((item, index) => {
     const change = String(item?.change || "");
     const tone = intelligenceTone(item);
-    const width = Math.max(2, Math.round(Math.abs(value) / maximum * 100));
-    const display = [String(item?.value || ""), change].filter(Boolean).join(" · ");
     const boardCode = String(item?.board_code || "");
     const boardKind = String(item?.board_kind || "industry");
-    const content = `<span class="intelligence-rank-index">${index + 1}</span><span class="intelligence-rank-title" title="${escapeHtml(item?.title || "--")}">${escapeHtml(item?.title || "--")}</span><span class="intelligence-flow-track" aria-hidden="true"><span class="intelligence-flow-fill ${tone}" style="width:${width}%"></span></span><span class="intelligence-rank-value ${tone}">${escapeHtml(display || "--")}</span>`;
-    return boardAction && boardCode ? `<button type="button" class="intelligence-rank-item" data-market-board-code="${escapeHtml(boardCode)}" data-market-board-name="${escapeHtml(item?.title || "")}" data-market-board-kind="${escapeHtml(boardKind)}">${content}</button>` : `<div class="intelligence-rank-item">${content}</div>`;
+    const title = String(item?.title || "--");
+    const detail = String(item?.detail || "资金流");
+    const content = `<span class="market-leader-rank ${index < 3 ? "top" : ""}">${index + 1}</span><span class="market-leader-name" title="${escapeHtml(title)}">${escapeHtml(title)}</span><span class="market-leader-price ${tone}">${escapeHtml(String(item?.value || "--"))}</span><span class="market-leader-meta" title="${escapeHtml(detail)}">${escapeHtml(detail)}</span><span class="market-leader-change ${tone}">${escapeHtml(change || "--")}</span>`;
+    return boardAction && boardCode ? `<button type="button" class="market-leader" data-market-board-code="${escapeHtml(boardCode)}" data-market-board-name="${escapeHtml(title)}" data-market-board-kind="${escapeHtml(boardKind)}">${content}</button>` : `<div class="market-leader">${content}</div>`;
   }).join("")}</div>`;
 }
 function marketBoardDetailMarkup(detail) {
@@ -2666,6 +2688,11 @@ function marketIndexGroupsMarkup(items) {
   }).join("");
   return markup ? `<div class="market-index-grid">${markup}</div>` : "";
 }
+function marketIndexLoadingMarkup() {
+  return `<div class="market-index-grid" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 4 }, () =>
+    `<div class="market-index-card loading" aria-hidden="true"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`
+  ).join("")}</div>`;
+}
 function marketSegmentMarkup(kind, selected, availableValues = []) {
   const options = kind === "direction"
     ? [["industry", t("marketIndustry")], ["concept", t("marketConcept")]]
@@ -2677,12 +2704,50 @@ function marketSegmentMarkup(kind, selected, availableValues = []) {
 function marketLeaderboardMarkup(items) {
   const rows = Array.isArray(items) ? items.filter((item) => item?.title && item?.symbol).slice(0, 6) : [];
   if (!rows.length) return "";
-  return `<div class="market-leaderboard">${rows.map((item) => {
+  return `<div class="market-leaderboard">${rows.map((item, index) => {
     const change = String(item.change || "");
     const tone = intelligenceTone(item);
     const name = String(item.title || item.symbol);
     const symbol = String(item.symbol || "");
-    return `<button type="button" class="market-leader" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}"><span class="market-leader-name">${escapeHtml(name)}</span><span class="market-leader-price ${tone}">${escapeHtml(String(item.value || "--"))}</span><span class="market-leader-meta">${escapeHtml(String(item.detail || symbol))}</span><span class="market-leader-change ${tone}">${escapeHtml(change || "--")}</span></button>`;
+    // Provider rank is useful for sorting, but it is not part of a security's identity.
+    // Keep the card's secondary line scannable by showing the symbol, not "#1" metadata.
+    const detail = String(item.detail || symbol).replace(/\s*[·•]\s*#\d+\b/g, "").trim() || symbol;
+    return `<button type="button" class="market-leader" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}"><span class="market-leader-rank ${index < 3 ? "top" : ""}">${index + 1}</span><span class="market-leader-name">${escapeHtml(name)}</span><span class="market-leader-price ${tone}">${escapeHtml(String(item.value || "--"))}</span><span class="market-leader-meta">${escapeHtml(detail)}</span><span class="market-leader-change ${tone}">${escapeHtml(change || "--")}</span></button>`;
+  }).join("")}</div>`;
+}
+function dragonNetValue(item) {
+  const value = Number(item?.five_seat_net_value);
+  return Number.isFinite(value) ? value : null;
+}
+function dragonNetMarkup(items, direction) {
+  const rows = (Array.isArray(items) ? items : [])
+    .filter((item) => direction === "buy" ? dragonNetValue(item) > 0 : dragonNetValue(item) < 0)
+    .sort((left, right) => direction === "buy" ? dragonNetValue(right) - dragonNetValue(left) : dragonNetValue(left) - dragonNetValue(right))
+    .slice(0, 10);
+  if (!rows.length) return { count: 0, markup: "" };
+  return { count: rows.length, markup: `<div class="market-leaderboard dragon-leaderboard">${rows.map((item, index) => {
+    const net = dragonNetValue(item);
+    const tone = net < 0 ? "down" : net > 0 ? "up" : "";
+    const name = String(item.title || item.symbol || "--");
+    const symbol = String(item.symbol || "");
+    const price = String(item.value || "--");
+    const change = String(item.change || "--");
+    const label = String(item.five_seat_label || "五席净额");
+    return `<button type="button" class="market-leader" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}"><span class="market-leader-rank ${index < 3 ? "top" : ""}">${index + 1}</span><span class="market-leader-name">${escapeHtml(name)}</span><span class="market-leader-price">${escapeHtml(price)}</span><span class="market-leader-meta">${escapeHtml(label)} · ${escapeHtml(change)}</span><span class="market-leader-change ${tone}">${net > 0 ? "+" : ""}${escapeHtml(String(item.five_seat_net || "--"))}</span></button>`;
+  }).join("")}</div>` };
+}
+function marketDirectionMarkup(items) {
+  const rows = Array.isArray(items) ? items.filter((item) => item?.title).slice(0, 6) : [];
+  if (!rows.length) return "";
+  return `<div class="market-leaderboard">${rows.map((item, index) => {
+    const tone = intelligenceTone(item);
+    const name = String(item.title || "--");
+    const code = String(item.board_code || "");
+    const kind = String(item.board_kind || "industry");
+    const kindLabel = kind === "concept" ? t("marketConcept") : t("marketIndustry");
+    const change = String(item.change || "");
+    const content = `<span class="market-leader-rank ${index < 3 ? "top" : ""}">${index + 1}</span><span class="market-leader-name">${escapeHtml(name)}</span><span class="market-leader-price ${tone}">${escapeHtml(String(item.value || "--"))}</span><span class="market-leader-meta">${escapeHtml(kindLabel)}</span><span class="market-leader-change ${tone}">${escapeHtml(change || "--")}</span>`;
+    return code ? `<button type="button" class="market-leader" data-market-board-code="${escapeHtml(code)}" data-market-board-name="${escapeHtml(name)}" data-market-board-kind="${escapeHtml(kind)}">${content}</button>` : `<div class="market-leader">${content}</div>`;
   }).join("")}</div>`;
 }
 const INDUSTRY_ETF_REFERENCES = [
@@ -2721,41 +2786,46 @@ function intelligenceSectionMarkup(title, hint, items, status) {
 function renderMarketWorkspace() {
   const panel = document.getElementById("marketWorkspacePanel");
   if (!panel) return;
-  if (marketPulseLoading) {
-    panel.innerHTML = insightEmptyMarkup(t("marketLoading"));
-    return;
-  }
   const pulseResult = marketPulseData || {};
   const pulse = pulseResult.market_pulse || {};
-  if (!marketPulseData) {
-    panel.innerHTML = insightEmptyMarkup(t("marketUnavailable"), t("workspaceRefreshHint"));
+  const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
+  if (marketPulseLoading && !indexGroups && !marketPulseData) {
+    panel.innerHTML = `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${marketIndexLoadingMarkup()}</section></div>`;
     return;
   }
-  const breadth = Array.isArray(pulse.breadth) ? pulse.breadth : [];
-  const flows = Array.isArray(pulse.flows) ? pulse.flows : [];
+  if (!marketPulseData) {
+    // Index quotes are independently available on the free tier. Keep the
+    // market landing page useful even when optional breadth/sector endpoints
+    // are temporarily unavailable, without showing a technical error state.
+    panel.innerHTML = `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || marketIndexLoadingMarkup()}</section></div>`;
+    return;
+  }
   const hotSectors = Array.isArray(pulse.hot_sectors) ? pulse.hot_sectors : [];
   const hotConcepts = Array.isArray(pulse.hot_concepts) ? pulse.hot_concepts : [];
-  const rankings = pulse.rankings && typeof pulse.rankings === "object" ? pulse.rankings : {};
   const abnormalTrading = Array.isArray(pulse.abnormal_trading) ? pulse.abnormal_trading : [];
-  const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
-  const metrics = intelligenceMetricsMarkup([...breadth, ...flows], "market-overview-metrics");
   const directionModes = ["industry", "concept"].filter((mode) => mode === "industry" ? hotSectors.length : hotConcepts.length);
   if (!directionModes.includes(marketDirectionMode)) marketDirectionMode = directionModes[0] || "industry";
   const directionItems = marketDirectionMode === "concept" ? hotConcepts : hotSectors;
-  const directions = intelligenceRankMarkup(directionItems, { boardAction: true });
-  const rankingModes = ["hot", "surging"].filter((mode) => Array.isArray(rankings[mode]) && rankings[mode].length);
-  if (!rankingModes.includes(marketRankingMode)) marketRankingMode = rankingModes[0] || "hot";
-  const activeRanking = marketLeaderboardMarkup(rankings[marketRankingMode]);
+  const directions = marketDirectionMarkup(directionItems);
   const abnormal = marketLeaderboardMarkup(abnormalTrading);
   const noData = `<p class="intelligence-note">${escapeHtml(t("marketUnavailable"))}</p>`;
   panel.innerHTML = `<div class="intelligence-content">` +
     `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
-    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketOverview"))}</h3></div>${metrics || noData}</section>` +
-    (directionModes.length ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || noData}</section>` : "") +
+    `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
-    (rankingModes.length ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketRankings"))}</h3>${marketSegmentMarkup("ranking", marketRankingMode, rankingModes)}</div>${activeRanking || noData}</section>` : "") +
-    (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div>${abnormal}</section>` : "") +
+    (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : "") +
     `</div>${workspaceSourceFooter(pulseResult)}`;
+}
+function renderDragonWorkspace() {
+  const panel = document.getElementById("dragonWorkspacePanel");
+  if (!panel) return;
+  const rows = Array.isArray(marketPulseData?.market_pulse?.abnormal_trading) ? marketPulseData.market_pulse.abnormal_trading : [];
+  const netBuy = dragonNetMarkup(rows, "buy");
+  const netSell = dragonNetMarkup(rows, "sell");
+  const netRankings = netBuy.markup || netSell.markup;
+  panel.innerHTML = rows.length
+    ? `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div>${netRankings ? `<div class="dragon-grid"><div><h4>五席净买入前${netBuy.count || 0}</h4>${netBuy.markup || `<p class="intelligence-note">暂无净买入数据</p>`}</div><div><h4>五席净卖出前${netSell.count || 0}</h4>${netSell.markup || `<p class="intelligence-note">暂无净卖出数据</p>`}</div></div>` : `<div><h4>龙虎榜标的</h4>${marketLeaderboardMarkup(rows)}</div>`}</section></div>${workspaceSourceFooter(marketPulseData)}`
+    : `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><p class="intelligence-note">正在加载龙虎榜</p></section></div>`;
 }
 function renderSecurityIntelligence() {
   const panel = document.getElementById("sectorWorkspacePanel");
@@ -2791,6 +2861,7 @@ function renderSecurityWorkspace() {
   const data = currentSecurityWorkspace();
   syncSecurityNavigation(data);
   renderMarketWorkspace();
+  renderDragonWorkspace();
   const newsPanel = document.getElementById("newsWorkspacePanel");
   const companyPanel = document.getElementById("companyWorkspacePanel");
   if (!newsPanel || !companyPanel) return;
@@ -2895,14 +2966,59 @@ async function loadMarketPulse(refresh = false) {
   if (marketPulseLoading) return;
   const requestId = ++marketPulseRequestId;
   marketPulseLoading = true;
+  marketPulsePendingSections = new Set(["breadth", "flows", "sectors", "concepts", "rankings", "events"]);
+  if (refresh) marketPulseData = null;
   renderMarketWorkspace();
+  const mergePulse = (current, incoming) => {
+    if (!current) return incoming;
+    const currentPulse = current.market_pulse || {};
+    const nextPulse = incoming.market_pulse || {};
+    return {
+      ...current,
+      ...incoming,
+      market_pulse: {
+        ...currentPulse,
+        ...nextPulse,
+        rankings: { ...(currentPulse.rankings || {}), ...(nextPulse.rankings || {}) },
+      },
+      sections: { ...(current.sections || {}), ...(incoming.sections || {}) },
+    };
+  };
+  const loadSection = async (sections) => {
+    try {
+      const result = await callMarketTool("fetch_market_pulse", { refresh, sections });
+      if (requestId !== marketPulseRequestId) return;
+      const structured = result?.structuredContent || result || null;
+      if (!result?.isError && structured?.ok) marketPulseData = mergePulse(marketPulseData, structured);
+    } catch (error) {
+      console.warn("market pulse", error);
+    } finally {
+      (sections || []).forEach((section) => marketPulsePendingSections.delete(section));
+      if (requestId === marketPulseRequestId) {
+        renderMarketWorkspace();
+        reportSize();
+      }
+    }
+  };
   try {
-    const result = await callMarketTool("fetch_market_pulse", { refresh });
+    // Index quotes render before this request. The first data batch gives the
+    // landing view its useful market context; ranks and events then follow
+    // independently and can never block the board view.
+    await loadSection(["breadth", "flows", "sectors", "concepts"]);
     if (requestId !== marketPulseRequestId) return;
-    const structured = result?.structuredContent || result || null;
-    marketPulseData = !result?.isError && structured?.ok ? structured : null;
-  } catch (error) {
-    console.warn("market pulse", error);
+    // Some host/proxy combinations can drop a multi-section response while
+    // returning a successful envelope. Fall back once to the established full
+    // request only when the board payload is actually missing.
+    const firstPulse = marketPulseData?.market_pulse || {};
+    if (!firstPulse.hot_sectors?.length && !firstPulse.hot_concepts?.length) {
+      await loadSection();
+      if (requestId !== marketPulseRequestId) return;
+    }
+    // The host proxy serializes chart actions on some DSH versions, so the
+    // remaining groups are deliberately sent one at a time.
+    await loadSection(["rankings"]);
+    if (requestId !== marketPulseRequestId) return;
+    await loadSection(["events"]);
   } finally {
     if (requestId !== marketPulseRequestId) return;
     marketPulseLoading = false;
@@ -2956,14 +3072,14 @@ async function loadSecurityIntelligence(symbol, name, refresh = false) {
   }
 }
 function setSecurityTab(tab) {
-  if (!new Set(["market", "chart", "sector", "news", "company"]).has(tab)) return;
+  if (!new Set(["market", "dragon", "chart", "sector", "news", "company"]).has(tab)) return;
   activeSecurityTab = tab;
   const workspaceTab = workspaceTabForSymbol();
   if (workspaceTab) {
     workspaceTab.securityTab = tab;
     workspaceTab.companyTab = activeCompanyTab;
   }
-  const panels = { market: "marketWorkspacePanel", chart: "chartWorkspacePanel", sector: "sectorWorkspacePanel", news: "newsWorkspacePanel", company: "companyWorkspacePanel" };
+  const panels = { market: "marketWorkspacePanel", dragon: "dragonWorkspacePanel", chart: "chartWorkspacePanel", sector: "sectorWorkspacePanel", news: "newsWorkspacePanel", company: "companyWorkspacePanel" };
   const selectedPanel = panels[tab];
   new Set(Object.values(panels)).forEach((id) => {
     const panel = document.getElementById(id);
@@ -2972,7 +3088,7 @@ function setSecurityTab(tab) {
     if (id === selectedPanel) panel.setAttribute("aria-labelledby", `securityTab${tab[0].toUpperCase()}${tab.slice(1)}`);
   });
   renderSecurityWorkspace();
-  if (tab === "market" && !marketPulseData && !marketPulseLoading) {
+  if (["market", "dragon"].includes(tab) && !marketPulseData && !marketPulseLoading) {
     loadMarketPulse().catch(console.warn);
   }
   if (tab === "market" && !marketTickerItems.length && !marketTickerRefreshInFlight) {
@@ -6136,7 +6252,7 @@ function handleWatchlistItemsClick(event) {
   }
   const item = target?.closest("[data-watch-open-symbol]");
   if (!item) return;
-  openSymbol(item.getAttribute("data-watch-open-symbol"), item.getAttribute("data-watch-open-name")).catch(console.warn);
+  openTickerSymbolChart(item.getAttribute("data-watch-open-symbol"), item.getAttribute("data-watch-open-name")).catch(console.warn);
 }
 
 function setWatchlistQuote(symbol, rows) {
@@ -6178,6 +6294,7 @@ async function openSelectedWatchlistSymbols() {
   const group = activeWatchlistGroup();
   const entries = group ? watchlist.filter((item) => item.groupId === group.id && selectedWatchSymbols.has(item.symbol)).slice(0, 8) : [];
   if (!entries.length) return;
+  setSecurityTab("chart");
   for (const entry of entries) {
     await openSymbol(entry.symbol, entry.name);
   }
@@ -6678,6 +6795,7 @@ async function openTickerSymbolChart(symbol, name) {
   // Broad indices are served as daily free data; a 1D/5D range would request
   // minute bars the free tier cannot provide. Switch to a daily range first.
   if (!symbol) return;
+  setSecurityTab("chart");
   if (isIntradayRange()) {
     await setRange("1y");
   }
@@ -6756,7 +6874,7 @@ async function selectWorkspaceTab(id) {
   // presenting the company information as one direct, scrollable page.
   const savedCompanyTab = ["overview", "financials", "holders"].includes(tab.companyTab) ? tab.companyTab : "overview";
   activeSecurityTab = ["overview", "financials", "holders", "company"].includes(tab.securityTab)
-    ? "company" : ["market", "chart", "sector", "news"].includes(tab.securityTab) ? tab.securityTab : "chart";
+    ? "company" : ["market", "dragon", "chart", "sector", "news"].includes(tab.securityTab) ? tab.securityTab : "chart";
   activeCompanyTab = savedCompanyTab;
   syncTimeControls();
   renderWorkspaceTabs();
@@ -6977,7 +7095,7 @@ function moveSearchSelection(delta) {
 async function submitSearchSelection() {
   const selected = symbolSearchResults[symbolSearchActiveIndex];
   if (selected?.symbol) {
-    await openSymbol(selected.symbol, selected.name || selected.symbol);
+    await openTickerSymbolChart(selected.symbol, selected.name || selected.symbol);
     return;
   }
   await searchSymbols(document.getElementById("symbolSearchInput")?.value);
@@ -7185,6 +7303,11 @@ async function handleToolResult(result) {
 
   // draw_kline payload
   if (Array.isArray(structured.chartCommands)) {
+    // A newly delivered analysis is a chart task. Existing workspace tabs keep
+    // their selected page, but a new agent result should open directly to K lines.
+    const incomingSymbol = String(structured.symbol || "").trim().toUpperCase();
+    const existingTab = incomingSymbol ? workspaceTabs.find((tab) => tab.id === incomingSymbol) : null;
+    if (!structured.local_render && structured.workspace_mode !== "launcher" && !existingTab) setSecurityTab("chart");
     if (!structured.local_render) {
       const sourceCommand = structured.chartCommands.find((command) => command.type === "SET_CANDLES" && Array.isArray(command.rows));
       if (sourceCommand?.rows?.length) sourceCandles = sourceCommand.rows.slice();
@@ -7733,6 +7856,10 @@ document.getElementById("marketTickerTrack").addEventListener("click", (event) =
   openTickerSymbolChart(symbol, name).catch(console.warn);
 });
 document.getElementById("marketWorkspacePanel").addEventListener("click", (event) => {
+  if (event.target instanceof Element && event.target.closest("[data-market-open-dragon]")) {
+    setSecurityTab("dragon");
+    return;
+  }
   const board = event.target instanceof Element ? event.target.closest("[data-market-board-code]") : null;
   if (board) {
     loadMarketBoardDetail(board.getAttribute("data-market-board-name"), board.getAttribute("data-market-board-code"), board.getAttribute("data-market-board-kind") || "industry").catch(console.warn);
@@ -7786,14 +7913,14 @@ document.getElementById("searchResults").addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-symbol]") : null;
   if (!button) return;
   symbolSearchActiveIndex = Number(button.getAttribute("data-search-index"));
-  openSymbol(button.getAttribute("data-symbol"), button.getAttribute("data-name")).catch(console.warn);
+  openTickerSymbolChart(button.getAttribute("data-symbol"), button.getAttribute("data-name")).catch(console.warn);
 });
 document.getElementById("sectorWorkspacePanel").addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-related-etf-symbol]") : null;
   if (!button) return;
   const symbol = button.getAttribute("data-related-etf-symbol");
   const name = button.getAttribute("data-related-etf-name") || symbol;
-  if (symbol) openSymbol(symbol, name).catch(console.warn);
+  if (symbol) openTickerSymbolChart(symbol, name).catch(console.warn);
 });
 document.addEventListener("keydown", (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
@@ -7967,8 +8094,15 @@ async function init() {
       currentRangeKey = payload.range_key = "custom";
     }
   }
-  rememberAnalysisCommands(payload);
-  await handleToolResult({ structuredContent: payload });
+  const isLauncher = payload.workspace_mode === "launcher";
+  if (isLauncher) {
+    // A launcher has no user-selected instrument. Lead with market context
+    // instead of quietly opening a default index chart.
+    setSecurityTab("market");
+  } else {
+    rememberAnalysisCommands(payload);
+    await handleToolResult({ structuredContent: payload });
+  }
   if (window.__DSH_KLINE_DISPOSED__) return;
   if (rangePickStart && rangePickEnd) {
     drawRangeHighlight();
@@ -7980,15 +8114,7 @@ async function init() {
   scheduleSymbolDirectoryRefresh();
   scheduleCommonIndexPrefetch();
   reportSize();
-  // Older locally saved launchers did not include a default symbol. Keep them
-  // useful after an upgrade instead of restoring the old blank first screen.
-  const launcherSymbol = String(payload.workspace_mode === "launcher" ? payload.default_symbol || "000001.XSHG" : "").trim();
-  if (launcherSymbol && !currentSymbol) {
-    setChartStatus("正在加载上证指数…");
-    await openSymbol(launcherSymbol, String(payload.default_name || launcherSymbol));
-  } else {
-    setChartStatus(payload.workspace_mode === "launcher" ? "搜索股票名称或代码开始查看 K 线" : "");
-  }
+  setChartStatus(isLauncher ? "搜索股票名称或代码开始查看 K 线" : "");
 }
 init().catch((error) => {
   if (window.__DSH_KLINE_DISPOSED__) return;

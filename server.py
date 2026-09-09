@@ -481,9 +481,10 @@ async def test_ftshare_connection_tool() -> types.CallToolResult:
 @mcp.tool(name="market_pulse")
 async def market_pulse(
     refresh: Annotated[bool, Field(description="是否绕过短时缓存并重新拉取")] = False,
+    sections: Annotated[list[str] | None, Field(description="可选：仅加载 breadth、flows、sectors、concepts、rankings、events 中指定分组")]=None,
 ) -> types.CallToolResult:
-    """Read market breadth, capital-flow and hot-sector context as one independent capability."""
-    data = fetch_market_pulse(refresh=refresh)
+    """Read selected market-intelligence sections; callers can load groups progressively."""
+    data = fetch_market_pulse(refresh=refresh, sections=sections)
     if not data.get("ok"):
         return _result(data, str(data.get("message") or data.get("error") or "市场脉搏加载失败"), error=True)
     pulse = data.get("market_pulse") or {}

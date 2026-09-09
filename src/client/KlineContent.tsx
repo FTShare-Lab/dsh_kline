@@ -22,8 +22,12 @@ export interface ChartIdentity {
 const STANDALONE_CHART_PAYLOAD = {
   ok: true,
   workspace_mode: 'launcher',
-  default_symbol: '000001.XSHG',
-  default_name: '上证指数',
+  // A new conversation starts at the Market page. Do not provide a fallback
+  // instrument here: some hosts restore this payload before the view can
+  // apply its launcher routing, which previously made every new tab look like
+  // a Shanghai Composite chart.
+  default_symbol: '',
+  default_name: '',
   symbol: '',
   name: '',
   interval: 'day',

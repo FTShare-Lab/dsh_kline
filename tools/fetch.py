@@ -24,7 +24,7 @@ from copy import deepcopy
 from datetime import datetime, time as clock_time, timedelta, timezone
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 try:  # Built-in free fallback source; never required for the FTShare path.
@@ -56,6 +56,7 @@ _SECURITY_WORKSPACE_CACHE_TTL_SECONDS = 300.0
 _security_workspace_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_PULSE_CACHE_TTL_SECONDS = 90.0
 _market_pulse_cache: tuple[float, dict[str, Any]] | None = None
+_MARKET_PULSE_SECTIONS = frozenset({"breadth", "flows", "sectors", "concepts", "rankings", "events"})
 _SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS = 180.0
 _security_intelligence_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 # A short hot cache serves a search-result prefetch immediately when the user
@@ -1358,6 +1359,18 @@ def _symbol_name(market: Any, symbol: str) -> str:
             rows = lookup(stock_code=normalized.split(".", 1)[0], as_dataframe=False) if callable(lookup) else []
             for item in _rows_from_directory_response(rows):
                 candidate_name = str(item.get("stock_name") or item.get("name") or "").strip()
+                if candidate_name and candidate_name.upper() not in {normalized, normalized.split(".", 1)[0]}:
+                    return candidate_name
+        except Exception:
+            pass
+        # Some newly listed or renamed securities are not yet in the company
+        # directory endpoint. The documented security search is a narrow,
+        # exact-code fallback for presentation labels only.
+        try:
+            search = getattr(market, "search", None)
+            rows = search(query=normalized.split(".", 1)[0], limit=1, as_dataframe=False) if callable(search) else []
+            for item in _workspace_rows(rows):
+                candidate_name = str(_workspace_value(item, "name", "stock_name", "symbol_name") or "").strip()
                 if candidate_name and candidate_name.upper() not in {normalized, normalized.split(".", 1)[0]}:
                     return candidate_name
         except Exception:
@@ -2985,8 +2998,14 @@ def _market_rank_items(rows: list[dict[str, Any]], *, market: str = "CN", limit:
     return items
 
 
-def _abnormal_trading_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, str]]:
-    """Normalize the free 龙虎榜 overview into clickable market activity cards."""
+def _abnormal_trading_items(rows: list[dict[str, Any]], *, market: Any = None, limit: int = 20) -> list[dict[str, str]]:
+    """Normalize 龙虎榜 rows into clickable market activity cards.
+
+    The overview endpoint only provides a list of symbols; the detail endpoint
+    also supplies the brokerage seats needed for a meaningful buy/sell ranking.
+    Keep the compact overview shape when details are unavailable, but expose a
+    five-seat net amount whenever the provider returned one.
+    """
     items: list[dict[str, str]] = []
     for row in rows[:limit]:
         symbol = _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN")
@@ -2994,13 +3013,41 @@ def _abnormal_trading_items(rows: list[dict[str, Any]], *, limit: int = 8) -> li
         if row.get("change_rate") not in (None, "") and change is not None:
             change *= 100
         turnover = _intelligence_number(_workspace_value(row, "turnover", "amount", "volume"))
-        items.append({
-            "title": str(_workspace_value(row, "symbol_name", "stock_name", "name") or symbol or "--"),
+        name = str(_workspace_value(row, "symbol_name", "stock_name", "name") or "").strip()
+        # Detail rows do not always repeat the security name. Prefer the
+        # overview enrichment above, then use the existing local directory / a
+        # targeted FTShare lookup rather than exposing a bare code as a name.
+        if not name or name.upper() in {symbol.upper(), symbol.split(".", 1)[0].upper()}:
+            resolved = _symbol_name(market, symbol)
+            if resolved and str(resolved).upper() not in {symbol.upper(), symbol.split(".", 1)[0].upper()}:
+                name = str(resolved)
+        item: dict[str, Any] = {
+            "title": name or symbol or "--",
             "symbol": symbol,
             "value": _display_number(_intelligence_number(_workspace_value(row, "close", "latest_price", "price"))),
             "change": _display_percent(change) if change is not None else "",
             "detail": f"成交额 {_display_number(turnover)}" if turnover is not None else symbol,
-        })
+        }
+        seat_nets: dict[str, float] = {}
+        for seat in [*_workspace_rows(_workspace_value(row, "top_buyers")), *_workspace_rows(_workspace_value(row, "top_sellers"))]:
+            name = str(_workspace_value(seat, "name", "broker_name", "seat_name") or "").strip()
+            net = _intelligence_number(_workspace_value(seat, "net", "net_amount", "net_buy"))
+            if not name or net is None:
+                continue
+            # A broker can be present in both lists.  It denotes the same seat,
+            # so retain one value rather than counting its net flow twice.
+            previous = seat_nets.get(name)
+            if previous is None or abs(net) > abs(previous):
+                seat_nets[name] = net
+        if seat_nets:
+            five_seat_net = sum(seat_nets.values())
+            item.update({
+                "five_seat_net": _display_number(five_seat_net),
+                "five_seat_net_value": five_seat_net,
+                "five_seat_label": "五席净额",
+                "tone": "up" if five_seat_net > 0 else "down" if five_seat_net < 0 else "",
+            })
+        items.append(item)
     return items
 
 
@@ -3059,7 +3106,7 @@ def _provider_unavailable_intelligence(kind: str, *, symbol: str = "") -> dict[s
     return result
 
 
-def fetch_market_pulse(*, refresh: bool = False) -> dict[str, Any]:
+def fetch_market_pulse(*, refresh: bool = False, sections: Sequence[str] | None = None) -> dict[str, Any]:
     """Return a provider-neutral, best-effort mainland market pulse.
 
     This is a standalone market-intelligence primitive: the chart UI, an agent,
@@ -3068,8 +3115,11 @@ def fetch_market_pulse(*, refresh: bool = False) -> dict[str, Any]:
     pulse look like a failed data source.
     """
     global _market_pulse_cache
+    selected_sections = _MARKET_PULSE_SECTIONS if sections is None else sections
+    requested = {str(section).strip().lower() for section in selected_sections} & _MARKET_PULSE_SECTIONS
+    full_request = requested == _MARKET_PULSE_SECTIONS
     now = time.time()
-    if not refresh and _market_pulse_cache and now - _market_pulse_cache[0] < _MARKET_PULSE_CACHE_TTL_SECONDS:
+    if full_request and not refresh and _market_pulse_cache and now - _market_pulse_cache[0] < _MARKET_PULSE_CACHE_TTL_SECONDS:
         return {**_market_pulse_cache[1], "cached": True}
     if not ftshare_available():
         return _provider_unavailable_intelligence("market_pulse")
@@ -3078,36 +3128,58 @@ def fetch_market_pulse(*, refresh: bool = False) -> dict[str, Any]:
     trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
     rank_trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
     # SDK 1.x uses the documented words rather than the older U/D aliases.
-    up_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="up", trade_date=trade_date)
-    down_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="down", trade_date=trade_date)
+    up_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="up", trade_date=trade_date) if "breadth" in requested else []
+    down_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="down", trade_date=trade_date) if "breadth" in requested else []
     # These endpoints are oldest-first.  Request enough rows to locate the
     # latest market reading rather than displaying January data in September.
-    market_flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_dapan_flow", limit=500)
-    northbound_rows = _read_intelligence_section(market, errors, "flows", "northbound", date=trade_date)
-    southbound_rows = _read_intelligence_section(market, errors, "flows", "southbound", date=trade_date)
-    sector_rows = _read_intelligence_section(market, errors, "sectors", "eastmoney_sector_flow", limit=500)
+    market_flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_dapan_flow", limit=500) if "flows" in requested else []
+    northbound_rows = _read_intelligence_section(market, errors, "flows", "northbound", date=trade_date) if "flows" in requested else []
+    southbound_rows = _read_intelligence_section(market, errors, "flows", "southbound", date=trade_date) if "flows" in requested else []
+    wants_boards = bool({"sectors", "concepts"} & requested)
+    sector_rows = _read_intelligence_section(market, errors, "sectors", "eastmoney_sector_flow", limit=500) if wants_boards else []
     hot_rank_rows = _read_intelligence_section(
         market, errors, "rankings", "eastmoney_rank", rank_group="hot", market="A", trade_date=rank_trade_date,
-    )
+    ) if "rankings" in requested else []
     surging_rank_rows = _read_intelligence_section(
         market, errors, "rankings", "eastmoney_rank", rank_group="up", market="A", trade_date=rank_trade_date,
-    )
+    ) if "rankings" in requested else []
     # Eastmoney's ranking endpoint can be temporarily rate-limited even when
     # its free data exists. Snowball's attention rank is a like-for-like
     # fallback for the *popularity* view only; it is never mislabeled as a
     # price-momentum leaderboard.
     hot_rank_source = "eastmoney"
-    if not hot_rank_rows:
+    if "rankings" in requested and not hot_rank_rows:
         hot_rank_rows = _read_intelligence_section(
             market, errors, "rankings", "xueqiu_rank", rank_group="follow", period="total", limit=8,
         )
         hot_rank_source = "xueqiu" if hot_rank_rows else ""
-    abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", date=trade_date, limit=8)
-    # During a trading day the abnormal-trading endpoint can publish its most
-    # recent completed snapshot without a same-day date key. Prefer today's
-    # rows, then deliberately fall back to that latest valid snapshot.
-    if not abnormal_rows:
-        abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", limit=8)
+    abnormal_rows: list[dict[str, Any]] = []
+    if "events" in requested:
+        abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_details", date=trade_date, limit=20)
+        # During a trading day the endpoint may expose its latest completed
+        # snapshot without a same-day date key.
+        if not abnormal_rows:
+            abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_details", limit=20)
+        overview_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", date=trade_date, limit=20)
+        if not overview_rows:
+            overview_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", limit=20)
+        # Details carry the broker-seat ledger but currently omit the security
+        # name. Enrich each detail row from the matching overview row; this is
+        # still one coherent provider snapshot, not a guessed local mapping.
+        if abnormal_rows and overview_rows:
+            overview_by_symbol = {
+                _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"): row
+                for row in overview_rows
+            }
+            abnormal_rows = [
+                {**overview_by_symbol.get(_canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"), {}), **row}
+                for row in abnormal_rows
+            ]
+        # Older SDKs or temporary provider rollouts may omit the detail route.
+        # The overview remains actionable, but the UI will label it as a plain
+        # symbol list rather than pretend it is a net-flow ranking.
+        if not abnormal_rows:
+            abnormal_rows = overview_rows
     breadth = [
         {"title": "涨停", "value": str(len(up_rows)), "detail": "当日涨停池", "change": "", "tone": "up"},
         {"title": "跌停", "value": str(len(down_rows)), "detail": "当日跌停池", "change": "", "tone": "down"},
@@ -3120,34 +3192,38 @@ def fetch_market_pulse(*, refresh: bool = False) -> dict[str, Any]:
     flow_rows = [*latest_market_rows, *latest_northbound_rows, *latest_southbound_rows]
     as_of_rows = [*up_rows, *down_rows, *flow_rows, *industry_rows]
     as_of = _latest_intelligence_rows(as_of_rows)
-    pulse = {
-        "as_of": str(_workspace_value(as_of[0], "trade_date", "date", "time") or trade_date) if as_of else trade_date,
-        "breadth": breadth,
-        "flows": _intelligence_items(flow_rows, limit=5, fallback="资金流"),
-        "hot_sectors": _market_board_items(industry_rows, limit=8),
-        "hot_concepts": _market_board_items(concept_rows, limit=8),
-        "rankings": {
+    pulse: dict[str, Any] = {"as_of": str(_workspace_value(as_of[0], "trade_date", "date", "time") or trade_date) if as_of else trade_date}
+    if "breadth" in requested:
+        pulse["breadth"] = breadth
+    if "flows" in requested:
+        pulse["flows"] = _intelligence_items(flow_rows, limit=5, fallback="资金流")
+    if "sectors" in requested:
+        pulse["hot_sectors"] = _market_board_items(industry_rows, limit=8)
+    if "concepts" in requested:
+        pulse["hot_concepts"] = _market_board_items(concept_rows, limit=8)
+    if "rankings" in requested:
+        pulse["rankings"] = {
             "hot": _market_rank_items(hot_rank_rows, market="CN"),
             "surging": _market_rank_items(surging_rank_rows, market="CN"),
             "hot_source": hot_rank_source,
-        },
-        "abnormal_trading": _abnormal_trading_items(abnormal_rows),
-    }
+        }
+    if "events" in requested:
+        pulse["abnormal_trading"] = _abnormal_trading_items(abnormal_rows, market=market)
     result = {
         "ok": True,
         "cached": False,
         "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
         "market_pulse": pulse,
         "sections": {
-            "breadth": _intelligence_section_state([*up_rows, *down_rows], errors.get("breadth", [])),
-            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])),
-            "sectors": _intelligence_section_state(industry_rows, errors.get("sectors", [])),
-            "concepts": _intelligence_section_state(concept_rows, errors.get("concepts", [])),
-            "rankings": _intelligence_section_state([*hot_rank_rows, *surging_rank_rows], errors.get("rankings", [])),
-            "events": _intelligence_section_state(abnormal_rows, errors.get("events", [])),
+            "breadth": _intelligence_section_state([*up_rows, *down_rows], errors.get("breadth", [])) if "breadth" in requested else {"state": "deferred", "errors": []},
+            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])) if "flows" in requested else {"state": "deferred", "errors": []},
+            "sectors": _intelligence_section_state(industry_rows, errors.get("sectors", [])) if "sectors" in requested else {"state": "deferred", "errors": []},
+            "concepts": _intelligence_section_state(concept_rows, errors.get("concepts", [])) if "concepts" in requested else {"state": "deferred", "errors": []},
+            "rankings": _intelligence_section_state([*hot_rank_rows, *surging_rank_rows], errors.get("rankings", [])) if "rankings" in requested else {"state": "deferred", "errors": []},
+            "events": _intelligence_section_state(abnormal_rows, errors.get("events", [])) if "events" in requested else {"state": "deferred", "errors": []},
         },
     }
-    if not any(errors.values()):
+    if full_request and not any(errors.values()):
         _market_pulse_cache = (now, result)
     return result
 

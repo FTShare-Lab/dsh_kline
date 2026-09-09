@@ -112,6 +112,37 @@ def test_market_pulse_falls_back_to_xueqiu_popularity_and_exposes_abnormal_tradi
     }
 
 
+def test_market_pulse_uses_five_seat_net_for_dragon_tiger_rankings():
+    market = SimpleNamespace(
+        abnormal_trading_details=lambda **_: [{
+            "symbol": "600371.SH", "symbol_name": "万向德农", "close": "15.83", "change_rate": "0.0504", "turnover": "1535853891.76",
+            "top_buyers": [{"name": "甲营业部", "net": "30000000"}, {"name": "乙营业部", "net": "10000000"}],
+            # 甲营业部出现在卖方列表中仍只应计算一次，避免双计。
+            "top_sellers": [{"name": "甲营业部", "net": "30000000"}, {"name": "丙营业部", "net": "-5000000"}],
+        }],
+    )
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market):
+        result = f.fetch_market_pulse(sections=["events"])
+    item = result["market_pulse"]["abnormal_trading"][0]
+    assert item["five_seat_net"] == "3500.00万"
+    assert item["five_seat_net_value"] == 35000000
+    assert item["tone"] == "up"
+
+
+def test_market_pulse_can_load_overview_without_waiting_for_other_groups():
+    market = SimpleNamespace(
+        limit_list=lambda **_: [],
+        eastmoney_dapan_flow=lambda **_: _rows("大盘资金"),
+        northbound=lambda **_: [],
+        southbound=lambda **_: [],
+    )
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market):
+        result = f.fetch_market_pulse(sections=["breadth", "flows"])
+    pulse = result["market_pulse"]
+    assert {"as_of", "breadth", "flows"} == set(pulse)
+    assert result["sections"]["rankings"]["state"] == "deferred"
+
+
 def test_market_index_registry_covers_mainland_hong_kong_and_us_benchmarks():
     symbols = {item["symbol"] for item in f.MARKET_TICKER_SOURCES}
     assert {"000001.XSHG", "000300.XSHG", "399001.XSHE", "399006.XSHE"} <= symbols
