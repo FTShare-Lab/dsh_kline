@@ -38,6 +38,8 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 The first launch prepares its runtime automatically. Later, update from the marketplace or Settings when a new version is available.
 
+The plugin supports macOS, Linux, and native Windows. Install a working DSH Web host and Python 3.10 or newer first. On Windows, use the [python.org installer](https://www.python.org/downloads/windows/) with the Python Launcher enabled. Git Bash and WSL are not required. First-launch details are stored in `dsh_kline/bootstrap.log` under the user cache directory; the Windows default is `%LOCALAPPDATA%\dsh_kline\bootstrap.log`.
+
 ![Install and update dsh_kline from the plugin marketplace](docs/images/dsh-market.png)
 
 ### 2. Choose either entry point
@@ -76,6 +78,10 @@ Without a key, some public quote and chart capabilities remain available. When d
 
 **Why is an intraday chart unavailable?**
 Intraday access depends on the symbol's market, your account plan, and the source's currently supported coverage. Test the connection in Data source first; daily, weekly, and monthly views are not subject to that same intraday entitlement.
+
+**What if the first launch fails on Windows?**
+
+Run `py -3.10 --version` in a terminal (a newer version is also supported) to confirm that the Python Launcher can find Python, then inspect `%LOCALAPPDATA%\dsh_kline\bootstrap.log`. For a custom Python location, set `DSH_KLINE_PYTHON` to the full `python.exe` path before starting DSH Web. Installing DSH Web itself and troubleshooting its Windows sandbox remain host-level concerns covered by the DSH documentation.
 
 **Why do two conversations show different charts?**
 This is intentional: each chart belongs to its conversation, so an analysis in one conversation cannot replace another's chart. Search or start a new analysis in the other conversation when needed.

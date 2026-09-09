@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -258,12 +259,13 @@ def test_published_charts_are_independent_and_persistent():
             assert a != b
             assert service.store.get(a)['symbol'] == '601899.XSHG'
             assert service.store.get(b)['symbol'] == '600519.XSHG'
-            saved_a = json.loads((Path(directory)/'sessions'/f'{a}.json').read_text())
+            saved_a = json.loads((Path(directory)/'sessions'/f'{a}.json').read_text(encoding='utf-8'))
             assert saved_a['payload']['symbol'] == '601899.XSHG'
-            locator = json.loads(chart_service.RUNTIME_SESSION_FILE.read_text())
+            locator = json.loads(chart_service.RUNTIME_SESSION_FILE.read_text(encoding='utf-8'))
             assert locator['host_process_id'] == chart_service.HOST_PROCESS_ID
             assert locator['session'] == b
-            assert ((Path(directory)/'sessions'/f'{a}.json').stat().st_mode & 0o777) == 0o600
+            if os.name == 'posix':
+                assert ((Path(directory)/'sessions'/f'{a}.json').stat().st_mode & 0o777) == 0o600
         finally:
             service.httpd.shutdown()
             service.httpd.server_close()

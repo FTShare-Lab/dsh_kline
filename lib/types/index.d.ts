@@ -12,4 +12,5 @@ interface WebServerContext {
     };
 }
 export declare function apply(ctx: WebServerContext): void;
+export declare function runtimeDirectory(env?: NodeJS.ProcessEnv): string;
 export {};

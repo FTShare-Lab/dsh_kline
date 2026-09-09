@@ -191,7 +191,8 @@ class ProviderNeutralTests(unittest.TestCase):
             self.assertNotIn("test-key", str(configured))
             self.assertEqual(os.environ["FTSHARE_API_KEY"], "test-key")
             credential_file = Path(directory) / "credentials.json"
-            self.assertEqual(stat.S_IMODE(credential_file.stat().st_mode), 0o600)
+            if os.name == "posix":
+                self.assertEqual(stat.S_IMODE(credential_file.stat().st_mode), 0o600)
 
             os.environ.pop("FTSHARE_API_KEY")
             loaded = ftshare_status()

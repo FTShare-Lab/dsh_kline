@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,16 +49,16 @@ try {
   }
 
   const output = execFileSync(
-    'npm',
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch],
-    { cwd: packageDir, encoding: 'utf8' },
+    { cwd: packageDir, encoding: 'utf8', shell: process.platform === 'win32' },
   )
   const packed = JSON.parse(output)[0]
   if (typeof packed?.filename !== 'string') throw new Error('npm pack returned no archive filename')
 
   await mkdir(dirname(destination), { recursive: true })
   await rm(destination, { force: true })
-  await rename(join(scratch, packed.filename), destination)
+  await copyFile(join(scratch, packed.filename), destination)
   console.log(`Release package ready: ${destination}`)
 } finally {
   await rm(scratch, { recursive: true, force: true })

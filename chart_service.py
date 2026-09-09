@@ -50,7 +50,22 @@ from tools.fetch import (
 
 
 ROOT = Path(__file__).resolve().parent
-RUNTIME_DIR = ROOT / ".runtime"
+
+
+def _default_runtime_dir() -> Path:
+    configured = (os.environ.get("DSH_KLINE_RUNTIME_DIR") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    if os.name == "nt":
+        local = (os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or "").strip()
+        base = Path(local) if local else Path.home() / "AppData" / "Local"
+    else:
+        cache = (os.environ.get("XDG_CACHE_HOME") or "").strip()
+        base = Path(cache).expanduser() if cache else Path.home() / ".cache"
+    return base / "dsh_kline" / "runtime"
+
+
+RUNTIME_DIR = _default_runtime_dir()
 # The same installation can serve multiple Harness profiles at once. Never
 # let a temporary/test MCP replace the live host's service locator. Direct
 # stdio launches inherit the Harness PID as their parent (the runner execs).
@@ -476,13 +491,26 @@ def _atomic_runtime_json(destination: Path, document: dict[str, Any]) -> None:
             json.dump(document, handle, ensure_ascii=False, separators=(",", ":"))
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temp_name, 0o600)
-        os.replace(temp_name, destination)
+        if os.name == "posix":
+            os.chmod(temp_name, 0o600)
+        _replace_with_retry(temp_name, destination)
     finally:
         try:
             os.unlink(temp_name)
         except FileNotFoundError:
             pass
+
+
+def _replace_with_retry(source: str | Path, destination: str | Path) -> None:
+    attempts = 6 if os.name == "nt" else 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(0.04 * (attempt + 1))
 
 
 _service: ChartService | None = None

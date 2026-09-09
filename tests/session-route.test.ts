@@ -1,15 +1,21 @@
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { randomBytes } from 'node:crypto'
-import { mkdir, writeFile, unlink } from 'node:fs/promises'
-import { apply } from '../src/index.ts'
+import { mkdir, mkdtemp, rm, writeFile, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const testRuntime = await mkdtemp(join(tmpdir(), 'dsh-kline-session-test-'))
+process.env.DSH_KLINE_RUNTIME_DIR = testRuntime
+const { apply } = await import('../src/index.ts')
+after(async () => { await rm(testRuntime, { recursive: true, force: true }) })
 
 test('each Harness uses only its own live MCP locator, never a sibling or stale service', async () => {
-  const directory = new URL('../.runtime/services/', import.meta.url)
+  const directory = join(testRuntime, 'services')
   await mkdir(directory, {recursive:true})
-  const owned = new URL(`${process.pid}.json`, directory)
-  const sibling = new URL(`${process.pid + 10000000}.json`, directory)
+  const owned = join(directory, `${process.pid}.json`)
+  const sibling = join(directory, `${process.pid + 10000000}.json`)
   const calls: string[] = []
   const upstream = createServer((request, response) => {
     assert.equal(request.headers['x-dsh-kline-token'], 'a'.repeat(32))
@@ -62,9 +68,9 @@ test('chart routes require an explicit token and never expose service credential
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${(server.address() as any).port}`
   const tokenA = randomBytes(24).toString('base64url'), tokenB = randomBytes(24).toString('base64url')
-  const directory = new URL('../.runtime/sessions/', import.meta.url)
+  const directory = join(testRuntime, 'sessions')
   await mkdir(directory, {recursive: true})
-  const paths = [tokenA, tokenB].map(token => new URL(`${token}.json`, directory))
+  const paths = [tokenA, tokenB].map(token => join(directory, `${token}.json`))
   try {
     for (const [index, path] of paths.entries()) {
       await writeFile(path, JSON.stringify({ok: true, session: [tokenA, tokenB][index],

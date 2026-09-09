@@ -62,9 +62,14 @@ jobs:
         run: |
           pnpm pack:release
           sha256sum release/dsh-kline.tgz > release/dsh-kline.tgz.sha256
-          tar -tzf release/dsh-kline.tgz | grep -q '^package/scripts/run-dsh-kline.sh$'
+          tar -tzf release/dsh-kline.tgz | grep -q '^package/scripts/run-dsh-kline.mjs$'
           tar -tzf release/dsh-kline.tgz | grep -q '^package/requirements.txt$'
           tar -tzf release/dsh-kline.tgz | grep -q '^package/lib/index.js$'
+
+      - name: Smoke-test the packaged first launch
+        run: |
+          node scripts/smoke-packed-install.mjs release/dsh-kline.tgz
+          node scripts/smoke-dsh-profile.mjs release/dsh-kline.tgz
 
       - name: Attach assets to the GitHub Release
         env:

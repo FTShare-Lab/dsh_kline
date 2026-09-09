@@ -217,10 +217,18 @@ def _maybe_inject_local_ftshare() -> str | None:
 _INJECTED_FTSHARE_PATH = _maybe_inject_local_ftshare()
 
 
+def _uses_posix_permissions() -> bool:
+    return os.name == "posix"
+
+
 def _ftshare_key_path() -> Path:
     configured = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
     if configured:
         return Path(configured).expanduser()
+    if os.name == "nt":
+        local = (os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or "").strip()
+        base = Path(local) if local else Path.home() / "AppData" / "Local"
+        return base / "dsh_kline" / "ftshare-credentials.json"
     return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
 
 
@@ -236,7 +244,7 @@ def _read_persisted_ftshare_key() -> str:
     try:
         if not path.is_file() or path.is_symlink():
             return ""
-        if stat.S_IMODE(path.stat().st_mode) & 0o077:
+        if _uses_posix_permissions() and stat.S_IMODE(path.stat().st_mode) & 0o077:
             return ""
         payload = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(payload, Mapping) or payload.get("version") != 1:
@@ -261,17 +269,20 @@ def _write_persisted_ftshare_key(value: str) -> None:
     if path.is_symlink():
         raise OSError("FTShare credential path must not be a symbolic link")
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(path.parent, 0o700)
+    if _uses_posix_permissions():
+        os.chmod(path.parent, 0o700)
     descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     try:
-        os.fchmod(descriptor, 0o600)
+        if _uses_posix_permissions():
+            os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             descriptor = -1
             json.dump({"version": 1, "api_key": value}, handle, ensure_ascii=False, separators=(",", ":"))
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_name, path)
-        os.chmod(path, 0o600)
+        _replace_credential_file(temp_name, path)
+        if _uses_posix_permissions():
+            os.chmod(path, 0o600)
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -279,6 +290,18 @@ def _write_persisted_ftshare_key(value: str) -> None:
             os.unlink(temp_name)
         except FileNotFoundError:
             pass
+
+
+def _replace_credential_file(source: str | Path, destination: str | Path) -> None:
+    attempts = 6 if os.name == "nt" else 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(0.04 * (attempt + 1))
 
 
 def _remove_persisted_ftshare_key() -> None:
