@@ -61,9 +61,20 @@ export function pythonCandidates(env = process.env, platform = process.platform)
   ].map(command => ({ command, args: [] }))
 }
 
+export function pythonEnvironment(env = process.env) {
+  return {
+    ...env,
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8',
+    PIP_PROGRESS_BAR: 'off',
+    PIP_DISABLE_PIP_VERSION_CHECK: '1',
+    PIP_NO_INPUT: '1',
+  }
+}
+
 function commandPasses(command, args, code) {
   const result = spawnSync(command, [...args, '-c', code], {
-    env: process.env,
+    env: pythonEnvironment(),
     encoding: 'utf8',
     stdio: 'ignore',
     timeout: 10_000,
@@ -138,7 +149,7 @@ async function runLogged(command, args, logPath) {
     let settled = false
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: pythonEnvironment(),
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
@@ -186,7 +197,7 @@ async function launchServer(runtimePython, runtimeDirectory) {
   await mkdir(runtimeDirectory, { recursive: true })
   const child = spawn(runtimePython, [join(PROJECT_ROOT, 'server.py')], {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, DSH_KLINE_RUNTIME_DIR: runtimeDirectory },
+    env: pythonEnvironment({ ...process.env, DSH_KLINE_RUNTIME_DIR: runtimeDirectory }),
     stdio: 'inherit',
     windowsHide: true,
   })

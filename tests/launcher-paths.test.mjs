@@ -5,6 +5,7 @@ import {
   defaultRuntimeDirectory,
   defaultStateDirectory,
   pythonCandidates,
+  pythonEnvironment,
   pythonPathForVenv,
 } from '../scripts/run-dsh-kline.mjs'
 
@@ -46,4 +47,15 @@ test('POSIX and explicit runtime paths remain deterministic', () => {
     defaultRuntimeDirectory({ DSH_KLINE_RUNTIME_DIR: '/tmp/custom runtime' }, 'linux', '/home/user'),
     '/tmp/custom runtime',
   )
+})
+
+test('Python subprocesses use deterministic UTF-8 and noninteractive pip output', () => {
+  assert.deepEqual(pythonEnvironment({ KEEP_ME: 'yes', PYTHONUTF8: '0' }), {
+    KEEP_ME: 'yes',
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8',
+    PIP_PROGRESS_BAR: 'off',
+    PIP_DISABLE_PIP_VERSION_CHECK: '1',
+    PIP_NO_INPUT: '1',
+  })
 })
