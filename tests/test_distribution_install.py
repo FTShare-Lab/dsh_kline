@@ -155,6 +155,7 @@ def test_release_packer_ignores_files_outside_the_allowlist(tmp_path):
     assert "package/scripts/run-dsh-kline.mjs" in names
     assert "package/requirements.txt" in names
     assert not any("/node_modules/" in name or "/tests/" in name or "/.venv" in name for name in names)
+    assert not any("/__pycache__/" in name or name.endswith((".pyc", ".pyo", ".pyd")) for name in names)
 
 
 def test_launcher_path_contracts_run_in_node():

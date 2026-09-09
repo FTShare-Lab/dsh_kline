@@ -27,16 +27,24 @@ function safeSource(entry) {
 
 try {
   await mkdir(packageDir, { recursive: true })
-  const allowlist = ['package.json', ...manifest.files]
+  const includes = ['package.json', ...manifest.files.filter(entry => typeof entry === 'string' && !entry.startsWith('!'))]
+  const excludes = manifest.files.filter(entry => typeof entry === 'string' && entry.startsWith('!')).map(entry => entry.slice(1))
+  const isExcluded = relativePath => (
+    // Python bytecode is a runtime cache, not distributable source. Keep this
+    // explicit rather than trusting the current checkout to be cache-free.
+    relativePath.split('/').includes('__pycache__') || /\.py[cod]$/.test(relativePath)
+      || excludes.some(pattern => pattern === relativePath)
+  )
   const tracked = execFileSync(
     'git',
-    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...allowlist],
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...includes],
     { cwd: root },
   )
     .toString('utf8')
     .split('\0')
     .filter(Boolean)
-  for (const entry of allowlist) {
+    .filter(entry => !isExcluded(entry))
+  for (const entry of includes) {
     if (!tracked.some(path => path === entry || path.startsWith(`${entry}/`))) {
       throw new Error(`package files entry contains no tracked files: ${entry}`)
     }

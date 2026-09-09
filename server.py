@@ -42,13 +42,18 @@ from tools.draw import draw_kline
 from tools.fetch import (
     _canonical_market_symbol,
     configure_ftshare_api_key,
+    data_source_capability_contract,
     fetch_candles,
+    fetch_market_board_detail,
+    fetch_market_pulse,
+    fetch_security_intelligence,
     ftshare_capabilities,
     ftshare_index_kline_available,
     ftshare_status,
     search_symbols as search_symbol_directory,
     test_ftshare_connection,
 )
+from tools.watchlist import get_watchlist_state, save_watchlist_state
 try:  # Built-in free fallback feeds (optional; independent of FTShare)
     from tools.free_sources import free_source_status as builtin_free_source_status
 except Exception:  # noqa: BLE001
@@ -83,6 +88,10 @@ mcp = FastMCP(
         "close instead of calling an above-price support a current support. "
         "Use data_source_status, configure_ftshare, or test_ftshare_connection only "
         "when the user explicitly asks to inspect or configure a data source. "
+        "Use market_pulse for an explicit whole-market overview, and use "
+        "security_intelligence for an explicit request about a mainland stock's "
+        "sector linkage, capital flows, or trading events; neither tool replaces "
+        "analyze_kline for chart analysis. "
         "Market data may be delayed, incomplete, or unavailable; results and indicators "
         "are informational and do not constitute investment advice."
     ),
@@ -429,6 +438,7 @@ async def data_source_status() -> types.CallToolResult:
         "ok": True,
         "external_rows": True,
         "providers": providers,
+        "capability_contract": data_source_capability_contract(),
     }
     return _result(data, "data_source_status ok")
 
@@ -466,6 +476,67 @@ async def test_ftshare_connection_tool() -> types.CallToolResult:
     if not data.get("ok"):
         return _result(data, str(data.get("message") or data.get("error") or "FTShare 连接失败"), error=True)
     return _result(data, str(data.get("message") or "FTShare 连接成功"))
+
+
+@mcp.tool(name="market_pulse")
+async def market_pulse(
+    refresh: Annotated[bool, Field(description="是否绕过短时缓存并重新拉取")] = False,
+) -> types.CallToolResult:
+    """Read market breadth, capital-flow and hot-sector context as one independent capability."""
+    data = fetch_market_pulse(refresh=refresh)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "市场脉搏加载失败"), error=True)
+    pulse = data.get("market_pulse") or {}
+    return _result(data, f"market_pulse · {pulse.get('as_of') or 'latest'} · sectors={len(pulse.get('hot_sectors') or [])}")
+
+
+@mcp.tool(name="market_board_detail")
+async def market_board_detail(
+    name: Annotated[str, Field(description="行业或概念板块名称")],
+    board_code: Annotated[str | None, Field(description="市场快照返回的板块代码")] = None,
+    kind: Annotated[Literal["industry", "concept"], Field(description="板块类型")] = "industry",
+) -> types.CallToolResult:
+    """Read a market board snapshot and available funding history."""
+    data = fetch_market_board_detail(name, board_code=board_code, kind=kind)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "板块详情加载失败"), error=True)
+    board = data.get("board") or {}
+    return _result(data, f"market_board_detail · {board.get('name') or name} · history={len(board.get('history') or [])}")
+
+
+@mcp.tool(name="security_intelligence")
+async def security_intelligence(
+    symbol: Annotated[str, Field(description="沪深北股票代码，例如 600519.XSHG")],
+    refresh: Annotated[bool, Field(description="是否绕过短时缓存并重新拉取")] = False,
+) -> types.CallToolResult:
+    """Read sector linkage, stock capital flow and trading-event context independently from charts."""
+    resolved_symbol, resolved_name, symbol_error = _resolve_symbol_input(symbol)
+    if symbol_error:
+        return _result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
+    data = fetch_security_intelligence(resolved_symbol or symbol, name=resolved_name, refresh=refresh)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or data.get("error") or "标的情报加载失败"), error=True)
+    intel = data.get("security_intelligence") or {}
+    return _result(data, f"security_intelligence · {data.get('symbol')} · flows={len(intel.get('flows') or [])} · events={len(intel.get('events') or [])}")
+
+
+@mcp.tool(name="get_watchlist")
+async def get_watchlist() -> types.CallToolResult:
+    """Read the user's persistent dsh_kline watchlist, shared across conversations."""
+    data = {"ok": True, "watchlist": get_watchlist_state()}
+    return _result(data, f"get_watchlist · {len(data['watchlist'].get('items') or [])} symbols")
+
+
+@mcp.tool(name="save_watchlist")
+async def save_watchlist(
+    watchlist: Annotated[dict[str, Any], Field(description="完整自选状态：groups、items、activeGroupId、sort")],
+) -> types.CallToolResult:
+    """Replace the user's persistent watchlist with a validated complete state."""
+    data = save_watchlist_state(watchlist)
+    if not data.get("ok"):
+        return _result(data, str(data.get("message") or "自选保存失败"), error=True)
+    saved = data.get("watchlist") or {}
+    return _result(data, f"save_watchlist · {len(saved.get('items') or [])} symbols")
 
 
 @mcp.tool(name="fetch_candles")

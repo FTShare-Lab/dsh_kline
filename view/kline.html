@@ -346,6 +346,22 @@
   .chart-meta-value { color: var(--text); }
   .chart-meta-indicator { display: inline-flex; align-items: baseline; gap: 3px; }
   .chart-meta-indicator strong { font-weight: 500; }
+  .key-level-plan { padding: 9px 12px 10px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .key-level-plan[hidden] { display: none; }
+  .key-level-plan-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .key-level-plan-title { color: var(--text); font-size: 12px; font-weight: 750; }
+  .key-level-plan-note { color: var(--text-soft); font-size: 10px; text-align: right; }
+  .key-level-plan-cards { display: grid; grid-template-columns: repeat(5, minmax(112px, 1fr)); gap: 6px; overflow-x: auto; padding-bottom: 1px; }
+  .key-level-card { min-width: 112px; padding: 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); }
+  .key-level-card-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; color: var(--text-soft); font-size: 10px; }
+  .key-level-card-price { margin-top: 4px; color: var(--text); font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .key-level-card-detail { min-height: 27px; margin-top: 2px; color: var(--text-soft); font-size: 10px; line-height: 1.35; }
+  .key-level-card.support .key-level-card-price { color: var(--success); }
+  .key-level-card.resistance .key-level-card-price, .key-level-card.stop .key-level-card-price { color: var(--danger); }
+  .key-level-card.breakout .key-level-card-price { color: var(--warn); }
+  .key-level-card.target .key-level-card-price { color: var(--info); }
+  .key-level-card-action { width: 100%; min-height: 25px; margin-top: 6px; padding: 2px 5px; font-size: 10px; }
+  @media (max-width: 760px) { .key-level-plan { padding-inline: 8px; } .key-level-plan-cards { grid-template-columns: repeat(5, minmax(108px, 1fr)); } }
   .session-guide-layer { position: absolute; z-index: 3; inset: 0 var(--chart-right-gutter, 96px) 0 0; overflow: hidden; pointer-events: none; }
   .session-guide-divider { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text-soft) 58%, transparent); }
   .session-guide-label { position: absolute; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -483,7 +499,10 @@
      pane transform while panning, zooming and resizing. */
   .ma-layer { display: none; }
   .crosshair-time-label { position: absolute; z-index: 9; bottom: auto; transform: translateX(-50%); padding: 2px 5px; border-radius: 3px; background: var(--text); color: var(--bg); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
-  .activity-notice { position: absolute; z-index: 30; top: 52px; right: 30px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 56px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
+  /* Completion belongs to the page that completed it, not the quote header.
+     This small global notice is reserved for failures and stays above the
+     market ticker, where it cannot cover the live price or page navigation. */
+  .activity-notice { position: absolute; z-index: 30; right: 12px; bottom: 40px; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 32px)); padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: var(--shadow); color: var(--text); font-size: 12px; font-weight: 650; pointer-events: none; }
   .activity-notice[hidden] { display: none; }
   .activity-notice-spinner { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: ticker-spin .7s linear infinite; }
   .activity-notice.complete .activity-notice-spinner, .activity-notice.failed .activity-notice-spinner { border: 0; animation: none; }
@@ -515,13 +534,12 @@
   .level-item-actions .btn { min-height: 24px; padding: 2px 6px; font-size: 10px; }
   .level-actions { display: flex; gap: 5px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border); }
   .level-actions .btn { min-height: 26px; flex: 1; font-size: 11px; }
-  .security-nav { display: flex; align-items: center; gap: 18px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-  .security-nav::-webkit-scrollbar, .company-tabbar::-webkit-scrollbar { display: none; }
-  .security-nav-tab { position: relative; flex: 0 0 auto; height: 42px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
+  .security-nav { display: flex; align-items: center; gap: 14px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .security-nav::-webkit-scrollbar { display: none; }
+  .security-nav-tab { position: relative; flex: 0 0 auto; height: 42px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
   .security-nav-tab:hover { color: var(--text); }
   .security-nav-tab.active { color: var(--text); }
   .security-nav-tab.active::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); }
-  .security-nav-count { display: inline-grid; min-width: 16px; margin-left: 3px; padding: 0 3px; place-items: center; border-radius: 8px; background: var(--bg-soft); color: var(--text-soft); font-size: 9px; font-weight: 700; vertical-align: 1px; }
   .security-panel[hidden] { display: none; }
   .insight-panel { min-height: 0; padding: 0 12px 24px; }
   .insight-source { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -533,10 +551,6 @@
   .news-item-summary { grid-column: 1 / 2; overflow: hidden; color: var(--text-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .news-meta { align-self: center; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .news-kind { display: inline-block; min-width: 52px; margin-right: 7px; color: var(--accent); font-size: 10px; font-weight: 700; }
-  .company-tabbar { display: flex; gap: 5px; min-height: 50px; padding: 10px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-  .company-tab { flex: 0 0 auto; min-height: 29px; padding: 4px 10px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-soft); color: var(--text-soft); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
-  .company-tab:hover { color: var(--text); border-color: var(--border); }
-  .company-tab.active { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); border-color: color-mix(in srgb, var(--accent) 22%, var(--border)); }
   .company-content { padding-top: 18px; }
   .company-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .company-section-heading h3 { margin: 0; font-size: 15px; font-weight: 750; }
@@ -577,6 +591,74 @@
   .insight-empty { display: grid; min-height: 270px; place-content: center; gap: 6px; padding: 24px; color: var(--text-soft); font-size: 12px; line-height: 1.6; text-align: center; }
   .insight-empty strong { color: var(--text); font-size: 13px; font-weight: 700; }
   .insight-empty span { max-width: 320px; }
+  .intelligence-content { display: grid; gap: 18px; padding-top: 16px; }
+  .intelligence-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .intelligence-heading h3 { margin: 0; color: var(--text); font-size: 15px; font-weight: 750; }
+  .intelligence-heading span { color: var(--text-soft); font-size: 10px; }
+  .intelligence-section { padding-top: 18px; border-top: 1px solid var(--border); }
+  .intelligence-section:first-child { padding-top: 0; border-top: 0; }
+  .intelligence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border); }
+  .intelligence-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; min-width: 0; padding: 10px 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .intelligence-item:nth-child(2n) { border-right: 0; }
+  .intelligence-item:last-child, .intelligence-item:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+  .intelligence-item-title { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-item-value { color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+  .intelligence-item-detail { grid-column: 1 / -1; overflow: hidden; color: var(--text-soft); font-size: 10px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-item-change.up { color: var(--up); } .intelligence-item-change.down { color: var(--down); }
+  .intelligence-note { margin: 0; color: var(--text-soft); font-size: 11px; line-height: 1.6; }
+  .intelligence-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--border); }
+  .intelligence-metric { min-width: 0; padding: 11px 12px; border-right: 1px solid var(--border); }
+  .intelligence-metric:last-child { border-right: 0; }
+  .intelligence-metric-label { display: block; overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-metric-value { display: block; overflow: hidden; margin-top: 4px; color: var(--text); font-size: 17px; font-weight: 750; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-metric-value.up { color: var(--up); } .intelligence-metric-value.down { color: var(--down); }
+  .market-index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 9px; }
+  .market-index-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; min-width: 0; min-height: 74px; padding: 11px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 9px; background: linear-gradient(145deg, color-mix(in srgb, var(--bg-soft) 92%, white), var(--bg-soft)); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+  .market-index-card.up { border-left-color: color-mix(in srgb, var(--up) 65%, var(--border)); }
+  .market-index-card.down { border-left-color: color-mix(in srgb, var(--down) 65%, var(--border)); }
+  .market-index-card:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 10%, transparent); transform: translateY(-1px); }
+  .market-index-name { align-self: center; overflow: hidden; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+  .market-index-symbol { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .market-index-price { align-self: center; font-size: 17px; font-weight: 780; font-variant-numeric: tabular-nums; letter-spacing: -.15px; text-align: right; }
+  .market-index-price.up, .market-leader-price.up { color: var(--up); } .market-index-price.down, .market-leader-price.down { color: var(--down); }
+  .market-index-change { align-self: center; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+  .market-index-change.up { color: var(--up); } .market-index-change.down { color: var(--down); }
+  .market-overview-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 9px; overflow: hidden; }
+  .market-segmented { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-soft); }
+  .market-segment { min-height: 26px; padding: 3px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
+  .market-segment:hover { color: var(--text); }
+  .market-segment.active { background: var(--bg); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+  .market-leaderboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .market-leader { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; min-width: 0; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+  .market-leader:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft)); }
+  .market-leader-name { overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .market-leader-price { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .market-leader-meta { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .market-leader-change { font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+  .market-leader-change.up { color: var(--up); } .market-leader-change.down { color: var(--down); }
+  .intelligence-rank-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .intelligence-rank-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; min-width: 0; min-height: 58px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); }
+  button.intelligence-rank-item { width: 100%; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+  button.intelligence-rank-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft)); }
+  .intelligence-rank-index { color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
+  .intelligence-rank-title { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-flow-track { grid-column: 2 / -1; height: 4px; overflow: hidden; background: color-mix(in srgb, var(--text-soft) 10%, var(--bg)); border-radius: 99px; }
+  .intelligence-flow-fill { height: 100%; min-width: 2px; border-radius: inherit; background: var(--info); }
+  .intelligence-flow-fill.up { background: var(--up); } .intelligence-flow-fill.down { background: var(--down); }
+  .intelligence-rank-value { color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .intelligence-rank-value.up { color: var(--up); } .intelligence-rank-value.down { color: var(--down); }
+  .intelligence-link-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .intelligence-link { display: grid; gap: 3px; min-width: 0; padding: 10px; border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+  .intelligence-link:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, var(--bg-soft)); }
+  .intelligence-link strong, .intelligence-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .intelligence-link strong { font-size: 12px; } .intelligence-link span { color: var(--text-soft); font-size: 10px; }
+  .company-module { padding-top: 20px; }
+  .company-module:first-child { padding-top: 0; }
+  .company-module-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 2px; }
+  .company-module-heading h3 { margin: 0; color: var(--text); font-size: 15px; font-weight: 750; }
+  .company-module-heading span { color: var(--text-soft); font-size: 10px; }
+  .company-module .company-content { padding-top: 12px; }
+  .company-module .insight-empty { min-height: auto; place-content: start; padding: 12px 0 0; text-align: left; }
   .err { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--danger); padding: 8px 12px; }
   .err-message { min-width: 0; overflow-wrap: anywhere; }
   .err .btn { flex: 0 0 auto; }
@@ -619,6 +701,13 @@
     .toolbar::-webkit-scrollbar { display: none; }
     .toolbar-actions { width: max-content; flex-wrap: nowrap; justify-content: flex-start; }
     .company-metrics { grid-template-columns: repeat(3, minmax(112px, 1fr)); }
+    .intelligence-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .market-overview-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .market-index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .market-leaderboard { grid-template-columns: 1fr; }
+    .intelligence-metric:nth-child(2n) { border-right: 0; }
+    .intelligence-metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+    .intelligence-link-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .company-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .company-metric:nth-child(3) { border-right: 0; }
     .company-metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
@@ -650,7 +739,12 @@
     .security-nav { gap: 15px; padding-inline: 8px; }
     .insight-panel { padding-inline: 8px; }
     .company-metrics { grid-template-columns: repeat(2, minmax(112px, 1fr)); }
+    .intelligence-grid { grid-template-columns: 1fr; }
+    .intelligence-item { border-right: 0; }
     .company-detail-grid { grid-template-columns: 1fr; }
+    .intelligence-rank-list { grid-template-columns: 1fr; }
+    .intelligence-rank-item { grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 6px; padding: 8px 9px; }
+    .intelligence-link-grid { grid-template-columns: 1fr; }
     .company-metric { border-bottom: 1px solid var(--border); }
     .company-metric:nth-child(2n) { border-right: 0; }
     .company-metric:nth-last-child(-n+1) { border-bottom: 0; }
@@ -787,9 +881,11 @@
 <div id="interfaceFallbackBanner" class="settings-info muted" role="status" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</div>
 <div class="market-data-status" id="marketDataStatus" aria-live="polite"></div>
 <nav class="security-nav" id="securityNav" role="tablist" aria-label="标的内容">
+  <button class="security-nav-tab" id="securityTabMarket" type="button" role="tab" aria-selected="false" aria-controls="marketWorkspacePanel" data-security-tab="market">市场</button>
   <button class="security-nav-tab active" id="securityTabChart" type="button" role="tab" aria-selected="true" aria-controls="chartWorkspacePanel" data-security-tab="chart">图表</button>
-  <button class="security-nav-tab" id="securityTabNews" type="button" role="tab" aria-selected="false" aria-controls="newsWorkspacePanel" data-security-tab="news">新闻<span class="security-nav-count" id="securityNewsCount">0</span></button>
-  <button class="security-nav-tab" id="securityTabCompany" type="button" role="tab" aria-selected="false" aria-controls="companyWorkspacePanel" data-security-tab="company">简况</button>
+  <button class="security-nav-tab" id="securityTabSector" type="button" role="tab" aria-selected="false" aria-controls="sectorWorkspacePanel" data-security-tab="sector">板块</button>
+  <button class="security-nav-tab" id="securityTabNews" type="button" role="tab" aria-selected="false" aria-controls="newsWorkspacePanel" data-security-tab="news">资讯</button>
+  <button class="security-nav-tab" id="securityTabCompany" type="button" role="tab" aria-selected="false" aria-controls="companyWorkspacePanel" data-security-tab="company">公司</button>
 </nav>
 <section class="security-panel" id="chartWorkspacePanel" role="tabpanel" aria-labelledby="securityTabChart">
 <div class="timebar" id="timebar">
@@ -922,6 +1018,10 @@
   <div class="chart-meta-row" id="chartMetaCandle" hidden></div>
   <div class="chart-meta-row" id="chartMetaIndicators" hidden></div>
 </div>
+<section class="key-level-plan" id="keyLevelPlan" hidden aria-live="polite">
+  <div class="key-level-plan-head"><span class="key-level-plan-title" id="keyLevelPlanTitle">关键点位参考</span><span class="key-level-plan-note" id="keyLevelPlanNote"></span></div>
+  <div class="key-level-plan-cards" id="keyLevelPlanCards"></div>
+</section>
 <div class="chart-wrap">
   <div id="klineChart"></div>
   <div class="session-guide-layer" id="sessionGuideLayer" aria-hidden="true"></div>
@@ -949,6 +1049,8 @@
 <div class="tables" id="tables" style="display:none;"></div>
 <div id="errorBox" class="err" style="display:none;"></div>
 </section>
+<section class="security-panel insight-panel" id="marketWorkspacePanel" role="tabpanel" aria-labelledby="securityTabMarket" hidden></section>
+<section class="security-panel insight-panel" id="sectorWorkspacePanel" role="tabpanel" aria-labelledby="securityTabSector" hidden></section>
 <section class="security-panel insight-panel" id="newsWorkspacePanel" role="tabpanel" aria-labelledby="securityTabNews" hidden></section>
 <section class="security-panel insight-panel" id="companyWorkspacePanel" role="tabpanel" aria-labelledby="securityTabCompany" hidden></section>
 </div>
@@ -1029,7 +1131,10 @@ function sanitizeToolArguments(args = {}) {
 }
 async function callTool(name, args) {
   const toolArgs = sanitizeToolArguments(args);
-  const response = await fetch(`/api/tools/${encodeURIComponent(name)}`, {
+  // Interactive chart actions go through the plugin's authenticated loopback
+  // proxy. `/api/tools` belongs to the DSH host, while `/dsh-kline/api/tools`
+  // carries the active chart-service token and works for standalone workspaces.
+  const response = await fetch(`/dsh-kline/api/tools/${encodeURIComponent(name)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(toolArgs),
@@ -1121,6 +1226,17 @@ let securityWorkspaceData = null;
 let securityWorkspaceLoading = false;
 let securityWorkspaceRequestId = 0;
 const securityWorkspaceRequestTokens = new Map();
+let securityIntelligenceData = null;
+let securityIntelligenceLoading = false;
+let marketPulseData = null;
+let marketPulseLoading = false;
+let marketPulseRequestId = 0;
+let marketDirectionMode = "industry";
+let marketRankingMode = "hot";
+let marketBoardDetail = null;
+let marketBoardDetailLoading = false;
+let marketBoardDetailRequestId = 0;
+let securityIntelligenceRequestId = 0;
 const workspaceTabs = [];
 let activeWorkspaceTabId = "";
 let openingSymbol = false;
@@ -1164,6 +1280,11 @@ const WATCHLIST_MAX_GROUPS = 12;
 let watchlist = [];
 let watchlistGroups = [];
 let activeWatchlistGroupId = "default";
+let watchlistRevision = 0;
+let watchlistUpdatedAt = 0;
+let watchlistDirty = false;
+let watchlistSaveInFlight = null;
+let watchlistSaveQueued = false;
 let watchlistRailOpen = false;
 let priceAlerts = [];
 let priceAlertOverlayIds = [];
@@ -1224,16 +1345,16 @@ const UI_COPY = {
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
     capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
-    keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsReady: "关键点位分析已更新", keyLevelsNeedData: "请先加载有效的 K 线数据，再分析关键点位。", keyLevelsFailed: "温馨提示：当前数据暂时无法完成关键点位分析，请稍后重试。", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
+    keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsNeedData: "请先加载有效的 K 线数据，再分析关键点位。", keyLevelsFailed: "温馨提示：当前数据暂时无法完成关键点位分析，请稍后重试。", keyLevelPlanTitle: "关键点位参考", keyLevelPlanNote: "仅供研究参考，不构成交易建议", keyPlanSupport: "支撑参考", keyPlanResistance: "压力参考", keyPlanBreakout: "突破参考", keyPlanStop: "风险参考", keyPlanTarget: "目标参考", keyPlanSupportDetail: "价格回落时的观察区域", keyPlanResistanceDetail: "上方需要关注的阻力区域", keyPlanBreakoutDetail: "站稳后再观察确认", keyPlanStopDetail: "跌破支撑后重新评估", keyPlanTargetDetail: "下一阻力区域参考", keyPlanSave: "保存为我的点位", keyPlanSaved: "已保存为我的点位", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
     welcomeItemLevels: "需要时点击“关键点位”，查看支撑位和压力位分析。",
-    clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组保存在当前浏览器中，不会自动同步到其他设备。", updateDescription: "查看当前版本、更新记录和发布说明。",
+    clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组会保存在当前用户的 dsh_kline 中；换设备仍可通过导出与导入迁移。", updateDescription: "查看当前版本、更新记录和发布说明。",
     indicators: "指标", indicatorHeading: "显示指标", apply: "应用",
     maNote: "均线", vwapNote: "成交量加权", volNote: "万股", macdNote: "动能", kdjNote: "随机指标", bollNote: "布林带", rsiNote: "强弱", atrNote: "波动率",
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘", intradayRangeFallback: "{range} 历史分钟数据暂未返回，已切换为 1D",
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
-    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选、分组、画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组保存在当前浏览器中。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
+    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
@@ -1243,7 +1364,7 @@ const UI_COPY = {
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
     capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
-    keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsReady: "Key-level analysis updated", keyLevelsNeedData: "Load valid K-line data before analyzing key levels.", keyLevelsFailed: "Notice: key-level analysis is temporarily unavailable. Try again later.", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
+    keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsNeedData: "Load valid K-line data before analyzing key levels.", keyLevelsFailed: "Notice: key-level analysis is temporarily unavailable. Try again later.", keyLevelPlanTitle: "Key-level reference", keyLevelPlanNote: "For research only, not trading advice", keyPlanSupport: "Support", keyPlanResistance: "Resistance", keyPlanBreakout: "Breakout", keyPlanStop: "Risk reference", keyPlanTarget: "Target reference", keyPlanSupportDetail: "A zone to watch on a pullback", keyPlanResistanceDetail: "An overhead resistance zone", keyPlanBreakoutDetail: "Watch for a confirmed close above", keyPlanStopDetail: "Reassess if support is lost", keyPlanTargetDetail: "The next resistance reference", keyPlanSave: "Save as my level", keyPlanSaved: "Saved as my level", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
     welcomeItemLevels: "Click “Key levels” when you want support and resistance analysis.",
     clear: "Clear", search: "Search", searchSubmit: "Submit search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols", versionUpdates: "Version & updates", currentSource: "Active data source", sourceCapabilities: "Available capabilities", sourceCapabilityDaily: "Daily bars and common indicators", sourceCapabilityOptional: "Minute bars / news / market data / company data: source and plan dependent", externalSourceTitle: "Other sources", externalSourceDetail: "Connect another market-data source and keep using charts and indicators.", externalSourceHint: "Connect it through dsh first; direct switching here is not available yet.", sourceFreeMode: "FTShare access is tiered: free plans include basic stock K-lines; minute bars, news, and other capabilities depend on the specific API and plan.", themeCurrent: "Current theme", languageCurrent: "Current language", overviewRoleTitle: "How the plugin works", overviewIntro: "dsh_kline is a market-analysis plugin for dsh. dsh understands your request; the plugin loads data, performs the analysis, and presents the chart. Results are returned to the conversation.", overviewStepOne: "Ask in the dsh conversation, for example: “Show a symbol’s K-line and analyze its key levels.”", overviewStepTwo: "The plugin loads the data and analyzes K-lines, technical indicators, and support/resistance levels.", overviewStepThree: "The chart opens on the right and the conclusion appears in the conversation; you can continue with other ranges and indicators.", overviewCapabilitiesTitle: "What it can do", overviewCapabilityOne: "View quotes and K-lines across daily, weekly, monthly, and other intervals.", overviewCapabilityTwo: "Use MA, MACD, KDJ, BOLL, RSI, ATR, VWAP, and volume indicators.", overviewCapabilityThree: "Identify and mark support, resistance, and other key price levels to help review trends and ranges.", overviewCapabilityFour: "Explore range statistics, symbol comparisons, watchlists, alerts, and drawings.", overviewCapabilityFive: "FTShare is the default source, while other sources can provide market data too.", overviewStartTitle: "Get started", overviewStart: "Ask for an analysis in dsh, or find a symbol in the top search bar; select it to open the chart.", feedbackDescription: "Found a problem or have an idea? Send us feedback.", feedbackOpen: "Submit feedback / 提交反馈", feedbackPrivacy: "This opens GitHub; you choose what information to submit.", helpWorkflow: "How to use", helpStepOne: "Enter a symbol or name in the top search bar and press Enter to find it.", helpStepTwo: "Click a symbol to load market data and analysis.", helpStepThree: "1D/5D require minute bars; switch to 30-day or check the FTShare plan when they are unavailable.", helpStepFour: "Watchlists and groups are stored in this browser and are not synced automatically across devices.", updateDescription: "View the current version, change history, and release notes.",
     indicators: "Indicators", indicatorHeading: "Indicators", apply: "Apply",
@@ -1260,6 +1381,9 @@ const UI_COPY = {
 };
 function t(key) { return UI_COPY[viewLanguage]?.[key] || UI_COPY.zh[key] || key; }
 Object.assign(UI_COPY.zh, {
+  market: "市场",
+  sector: "板块", marketPulse: "市场脉搏", marketPulseHint: "涨跌停、资金流与热门板块，按当前数据权限展示。", sectorLinkage: "板块与同类股", sectorLinkageHint: "行业归属、行业资金与可用的同类公司。", capitalEvents: "资金与事件", capitalEventsHint: "个股资金流与涨跌停等交易事件。", intelligenceLoading: "正在加载市场与标的情报…", intelligenceUnavailable: "当前数据源暂未返回板块、资金或事件信息。", intelligenceNotApplicable: "该类标的不适用个股板块与资金事件分析。",
+  marketLoading: "正在加载全市场信息…", marketUnavailable: "当前数据源暂未返回全市场信息。", marketIndices: "主要指数", marketIndicesHint: "中国内地、香港与美国的核心市场指数；点击即可打开对应 K 线。", marketIndicesUnavailable: "主要指数暂未返回；请稍后使用顶部刷新重试。", marketCN: "中国内地", marketCNHint: "A股", marketHK: "香港", marketHKHint: "港股", marketUS: "美国", marketUSHint: "美股", marketIndustryHint: "按主力资金和涨跌表现排序的热门行业。", sectorLoading: "正在加载当前标的的板块信息…", peerStocksUnavailable: "当前数据源已返回行业，但暂未提供可用的同类公司名单。", industryFlowUnavailable: "当前数据源暂未返回该行业的资金记录。",
   workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用顶部刷新按钮重试。",
   workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
@@ -1284,6 +1408,9 @@ Object.assign(UI_COPY.zh, {
   clearMarksDone: "已清空分析标注与选区", clearMarksNone: "没有可清除的分析标注",
 });
 Object.assign(UI_COPY.en, {
+  market: "Market",
+  sector: "Sector", marketPulse: "Market pulse", marketPulseHint: "Breadth, capital flow and hot sectors, subject to the active data plan.", sectorLinkage: "Sector & peers", sectorLinkageHint: "Industry, industry flow and available peer companies.", capitalEvents: "Capital & events", capitalEventsHint: "Stock capital flow and trading-event context.", intelligenceLoading: "Loading market and security intelligence…", intelligenceUnavailable: "The current source has not returned sector, capital-flow or event data.", intelligenceNotApplicable: "This instrument does not use equity sector or event analysis.",
+  marketLoading: "Loading market overview…", marketUnavailable: "The current source has not returned market-wide information.", marketIndices: "Major indices", marketIndicesHint: "Core mainland China, Hong Kong and US indices. Select one to open its chart.", marketIndicesUnavailable: "Major indices are temporarily unavailable. Use the refresh button above to retry.", marketCN: "Mainland China", marketCNHint: "A-shares", marketHK: "Hong Kong", marketHKHint: "HK equities", marketUS: "United States", marketUSHint: "US equities", marketIndustryHint: "Hot industries ranked by capital flow and price performance.", sectorLoading: "Loading this symbol's sector context…", peerStocksUnavailable: "The source returned the industry, but no usable peer-company list is available.", industryFlowUnavailable: "The source has not returned capital-flow records for this industry.",
   workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button above to retry.",
   workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
@@ -1307,6 +1434,57 @@ Object.assign(UI_COPY.en, {
   levelsCleared: "My levels cleared", madeMine: "Moved to my levels", toMine: "Keep mine",
   clearLevelsBtn: "Clear my levels", reanalyzeLevelsBtn: "Re-analyze key levels",
   clearMarksDone: "Analysis annotations and selection cleared", clearMarksNone: "No analysis annotations to clear",
+});
+// The data adapters deliberately expose only the latest broad-market record
+// and ranked industry flows. Keep the page description equally specific so a
+// user does not mistake it for a generic, unranked sector list.
+Object.assign(UI_COPY.zh, {
+  marketPulseHint: "涨跌停、最新大盘资金与行业主力资金，按当前数据权限展示。",
+  capitalEventsHint: "个股主力资金与涨跌停等交易事件。",
+  companyPage: "公司",
+  newsPage: "资讯",
+  marketOverview: "市场概览",
+  industryHeat: "行业热度",
+  marketDirections: "热门方向",
+  marketIndustry: "行业",
+  marketConcept: "概念",
+  marketRankings: "股票排行",
+  marketRankHot: "人气",
+  marketRankSurging: "飙升",
+  marketAbnormalTrading: "龙虎榜",
+  currentIndustry: "所属行业",
+  peerStocks: "同类股",
+  relatedEtfs: "相关 ETF",
+  relatedEtfsHint: "行业 ETF 与市场参考 ETF；点击即可打开行情。",
+  stockCapital: "个股资金",
+  tradingEvents: "交易事件",
+  companyProfile: "公司画像",
+  financialSnapshot: "财务表现",
+  ownershipSnapshot: "股东与筹码",
+});
+Object.assign(UI_COPY.en, {
+  marketPulseHint: "Limit moves, latest broad-market flow and industry capital flow, subject to the active data plan.",
+  capitalEventsHint: "Stock main-capital flow and trading-event context.",
+  companyPage: "Company",
+  newsPage: "News",
+  marketOverview: "Market overview",
+  industryHeat: "Industry heat",
+  marketDirections: "Market themes",
+  marketIndustry: "Industries",
+  marketConcept: "Concepts",
+  marketRankings: "Stock leaders",
+  marketRankHot: "Popular",
+  marketRankSurging: "Surging",
+  marketAbnormalTrading: "Unusual trading",
+  currentIndustry: "Current industry",
+  peerStocks: "Peer stocks",
+  relatedEtfs: "Related ETFs",
+  relatedEtfsHint: "Industry and market-reference ETFs. Select one to open its chart.",
+  stockCapital: "Stock capital flow",
+  tradingEvents: "Trading events",
+  companyProfile: "Company profile",
+  financialSnapshot: "Financial snapshot",
+  ownershipSnapshot: "Ownership",
 });
 const RANGE_COPY = {
   zh: { detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
@@ -1547,6 +1725,7 @@ function syncLanguageControls() {
   const levelButton = document.getElementById("levelMenuBtn");
   if (levelButton) { levelButton.title = t("levelMenu"); levelButton.setAttribute("aria-label", t("levelMenuAria")); }
   if (document.getElementById("levelPopover")?.classList.contains("open")) renderLevelsPanel();
+  renderKeyLevelPlan();
   const compareInput = document.getElementById("compareSymbolInput");
   if (compareInput) { compareInput.placeholder = t("comparePlaceholder"); compareInput.setAttribute("aria-label", t("compare")); }
   const drawingName = document.getElementById("drawingNameInput");
@@ -2130,6 +2309,10 @@ function finishChartLoading(message = t("dataReady"), failed = false) {
 }
 let activityNoticeHideTimer = null;
 function showActivityNotice(message, state = "loading") {
+  // Loading and successful completion already have contextual UI (skeletons,
+  // chart status and reference cards). A floating header notification only
+  // duplicates that feedback and obscures the quote.
+  if (state !== "failed") { dismissActivityNotice(); return; }
   const notice = document.getElementById("activityNotice");
   const text = document.getElementById("activityNoticeText");
   if (!notice || !text || !message) return;
@@ -2141,6 +2324,7 @@ function showActivityNotice(message, state = "loading") {
   notice.hidden = false;
 }
 function finishActivityNotice(message, failed = false) {
+  if (!failed) { dismissActivityNotice(); return; }
   const notice = document.getElementById("activityNotice");
   if (!notice) return;
   showActivityNotice(message, failed ? "failed" : "complete");
@@ -2149,6 +2333,14 @@ function finishActivityNotice(message, failed = false) {
     notice.classList.remove("complete", "failed");
     activityNoticeHideTimer = null;
   }, failed ? 2600 : 1400);
+}
+function dismissActivityNotice() {
+  const notice = document.getElementById("activityNotice");
+  if (!notice) return;
+  if (activityNoticeHideTimer) window.clearTimeout(activityNoticeHideTimer);
+  activityNoticeHideTimer = null;
+  notice.hidden = true;
+  notice.classList.remove("complete", "failed");
 }
 function fmt(n, d = 2) { return Number.isFinite(n) ? n.toFixed(Math.min(2, Math.max(0, Number(d) || 0))) : "--"; }
 function volumeUnitDefinition() {
@@ -2324,19 +2516,14 @@ function workspaceSourceFooter(data) {
   return `<footer class="insight-source-footer"><span class="insight-source${sourceClass}">${escapeHtml(t("source"))} ${escapeHtml(workspaceSourceText(data))}</span></footer>`;
 }
 function syncSecurityNavigation(data = currentSecurityWorkspace()) {
-  const labelMap = { chart: t("chart"), news: t("news"), company: t("company") };
+  const labelMap = { market: t("market"), chart: t("chart"), sector: t("sector"), news: t("newsPage"), company: t("companyPage") };
   document.querySelectorAll("[data-security-tab]").forEach((button) => {
     const tab = button.dataset.securityTab;
     const active = tab === activeSecurityTab;
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
-    const count = tab === "news" ? `<span class="security-nav-count" id="securityNewsCount">${Array.isArray(data?.news) ? data.news.length : 0}</span>` : "";
-    button.innerHTML = `${escapeHtml(labelMap[tab] || tab)}${count}`;
+    button.textContent = labelMap[tab] || tab;
   });
-}
-function companyTabsMarkup() {
-  const tabs = [["overview", t("overview")], ["financials", t("financials")], ["holders", t("holders")]];
-  return `<div class="company-tabbar" role="tablist" aria-label="${escapeHtml(t("company"))}">${tabs.map(([id, label]) => `<button class="company-tab${activeCompanyTab === id ? " active" : ""}" type="button" role="tab" aria-selected="${activeCompanyTab === id}" data-company-tab="${id}">${escapeHtml(label)}</button>`).join("")}</div>`;
 }
 function metricMarkup(metrics = []) {
   return `<div class="company-metrics">${metrics.map((metric) => `<div class="company-metric"><span class="company-metric-label">${escapeHtml(ct(metric.label || "--"))}</span><span class="company-metric-value ${escapeHtml(metric.tone || "")}">${escapeHtml(metric.value || "--")}</span></div>`).join("")}</div>`;
@@ -2380,6 +2567,19 @@ function companyHoldersMarkup(data) {
   const items = Array.isArray(holders.items) ? holders.items : [];
   return `<div class="company-content"><div class="company-section-heading"><h3>${escapeHtml(t("majorHolders"))}</h3><span>${escapeHtml(ct("截至"))} ${escapeHtml(holders.updated_at || "--")}</span></div><div class="holder-layout"><div class="holder-summary">${items.map((item) => `<div class="holder-summary-row"><div><div class="holder-summary-name">${escapeHtml(item.name || "--")}</div><div class="holder-summary-track"><div class="holder-summary-fill" style="width:${Math.max(0, Math.min(100, Number(item.percent) || 0))}%"></div></div></div><div class="holder-summary-value">${escapeHtml(Number(item.percent).toFixed(2))}%</div></div>`).join("")}</div><table class="company-data-table"><thead><tr><th>${escapeHtml(ct("股东"))}</th><th>${escapeHtml(ct("持股数"))}</th><th>${escapeHtml(ct("持股比例"))}</th><th>${escapeHtml(ct("变动"))}</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.name || "--")}</td><td>${escapeHtml(item.shares || "--")}</td><td>${escapeHtml(Number(item.percent).toFixed(2))}%</td><td class="${String(item.change || "").startsWith("-") ? "down" : "up"}">${escapeHtml(item.change || "--")}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
+function companyModuleMarkup(data, section, title, render) {
+  const state = workspaceSectionState(data, section);
+  const blocked = ["unsupported", "empty", "error", "not_applicable"].includes(state);
+  const content = workspaceSectionNotice(data, section) || (blocked ? "" : render(data));
+  return `<section class="company-module"><div class="company-module-heading"><h3>${escapeHtml(title)}</h3></div>${content}</section>`;
+}
+function companyWorkspaceMarkup(data) {
+  return [
+    companyModuleMarkup(data, "overview", t("companyProfile"), companyOverviewMarkup),
+    companyModuleMarkup(data, "financials", t("financialSnapshot"), companyFinancialsMarkup),
+    companyModuleMarkup(data, "holders", t("ownershipSnapshot"), companyHoldersMarkup),
+  ].join("");
+}
 function insightEmptyMarkup(title, hint = "") {
   return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</div>`;
 }
@@ -2396,12 +2596,205 @@ function workspaceSectionNotice(data, section) {
   if (status.state === "empty") return insightEmptyMarkup(t(section === "news" ? "newsEmpty" : "companyEmpty"), t("workspaceRefreshHint"));
   return "";
 }
+function intelligenceItemsMarkup(items) {
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return "";
+  return `<div class="intelligence-grid">${rows.map((item) => {
+    const change = String(item?.change || "");
+    const tone = intelligenceTone(item);
+    const value = [String(item?.value || ""), change].filter(Boolean).join(" · ");
+    return `<div class="intelligence-item"><span class="intelligence-item-title" title="${escapeHtml(item?.title || "--")}">${escapeHtml(item?.title || "--")}</span>${value ? `<span class="intelligence-item-value ${tone}">${escapeHtml(value)}</span>` : ""}${item?.detail ? `<span class="intelligence-item-detail" title="${escapeHtml(item.detail)}">${escapeHtml(item.detail)}</span>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+function intelligenceValueNumber(item) {
+  const raw = String(item?.value || "").replace(/[,亿万%]/g, "");
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+function intelligenceTone(item) {
+  const explicit = String(item?.tone || "");
+  if (explicit === "up" || explicit === "down") return explicit;
+  const change = Number.parseFloat(String(item?.change || "").replace(/[,亿万%]/g, ""));
+  if (Number.isFinite(change) && change !== 0) return change < 0 ? "down" : "up";
+  const value = intelligenceValueNumber(item);
+  return value < 0 ? "down" : value > 0 ? "up" : "";
+}
+function intelligenceRankMarkup(items, { limit = 6, boardAction = false } = {}) {
+  const rows = (Array.isArray(items) ? items : []).slice(0, limit);
+  if (!rows.length) return "";
+  const maximum = Math.max(...rows.map((item) => Math.abs(intelligenceValueNumber(item))), 1);
+  return `<div class="intelligence-rank-list">${rows.map((item, index) => {
+    const value = intelligenceValueNumber(item);
+    const change = String(item?.change || "");
+    const tone = intelligenceTone(item);
+    const width = Math.max(2, Math.round(Math.abs(value) / maximum * 100));
+    const display = [String(item?.value || ""), change].filter(Boolean).join(" · ");
+    const boardCode = String(item?.board_code || "");
+    const boardKind = String(item?.board_kind || "industry");
+    const content = `<span class="intelligence-rank-index">${index + 1}</span><span class="intelligence-rank-title" title="${escapeHtml(item?.title || "--")}">${escapeHtml(item?.title || "--")}</span><span class="intelligence-flow-track" aria-hidden="true"><span class="intelligence-flow-fill ${tone}" style="width:${width}%"></span></span><span class="intelligence-rank-value ${tone}">${escapeHtml(display || "--")}</span>`;
+    return boardAction && boardCode ? `<button type="button" class="intelligence-rank-item" data-market-board-code="${escapeHtml(boardCode)}" data-market-board-name="${escapeHtml(item?.title || "")}" data-market-board-kind="${escapeHtml(boardKind)}">${content}</button>` : `<div class="intelligence-rank-item">${content}</div>`;
+  }).join("")}</div>`;
+}
+function marketBoardDetailMarkup(detail) {
+  const board = detail?.board || {};
+  if (!board?.name) return "";
+  const history = intelligenceRankMarkup(board.history || [], { limit: 6 });
+  const snapshot = board.snapshot || {};
+  const value = [String(snapshot.value || ""), String(snapshot.change || "")].filter(Boolean).join(" · ");
+  return `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(board.name)}</h3></div>${value ? `<div class="intelligence-metrics"><div class="intelligence-metric"><span class="intelligence-metric-label">主力资金</span><span class="intelligence-metric-value ${intelligenceTone(snapshot)}">${escapeHtml(value)}</span></div></div>` : ""}${history || `<p class="intelligence-note">暂无可用资金历史</p>`}</section>`;
+}
+function intelligenceMetricsMarkup(items, className = "") {
+  const rows = (Array.isArray(items) ? items : []).slice(0, 4);
+  if (!rows.length) return "";
+  return `<div class="intelligence-metrics ${escapeHtml(className)}">${rows.map((item) => {
+    const change = String(item?.change || "");
+    const value = [String(item?.value || ""), change].filter(Boolean).join(" · ") || "--";
+    const tone = intelligenceTone(item);
+    return `<div class="intelligence-metric"><span class="intelligence-metric-label">${escapeHtml(item?.title || "--")}</span><span class="intelligence-metric-value ${tone}">${escapeHtml(value)}</span>${item?.detail ? `<span class="intelligence-item-detail">${escapeHtml(item.detail)}</span>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+function marketIndexGroupsMarkup(items) {
+  const valid = Array.isArray(items) ? items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
+  const order = { CN: 0, HK: 1, US: 2 };
+  const markup = valid.slice().sort((left, right) => (order[String(left?.market || "").toUpperCase()] ?? 9) - (order[String(right?.market || "").toUpperCase()] ?? 9)).map((item) => {
+    const change = Number(item.change_pct);
+    const tone = change < 0 ? "down" : "up";
+    const symbol = String(item.symbol || "");
+    const name = String(item.name || symbol || "--");
+    const openTitle = symbol ? t("openIndexChart").replace("{name}", name) : "";
+    return `<button type="button" class="market-index-card ${tone}" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}" title="${escapeHtml(openTitle)}"><span class="market-index-name">${escapeHtml(name)}</span><span class="market-index-price ${tone}">${escapeHtml(formatTickerNumber(item.close))}</span><span class="market-index-symbol">${escapeHtml(symbol)}</span><span class="market-index-change ${tone}">${change >= 0 ? "+" : ""}${escapeHtml(change.toFixed(2))}%</span></button>`;
+  }).join("");
+  return markup ? `<div class="market-index-grid">${markup}</div>` : "";
+}
+function marketSegmentMarkup(kind, selected, availableValues = []) {
+  const options = kind === "direction"
+    ? [["industry", t("marketIndustry")], ["concept", t("marketConcept")]]
+    : [["hot", t("marketRankHot")], ["surging", t("marketRankSurging")]];
+  const visible = options.filter(([value]) => !availableValues.length || availableValues.includes(value));
+  if (visible.length < 2) return "";
+  return `<div class="market-segmented" role="group">${visible.map(([value, label]) => `<button type="button" class="market-segment ${value === selected ? "active" : ""}" data-market-${kind}="${escapeHtml(value)}" aria-pressed="${String(value === selected)}">${escapeHtml(label)}</button>`).join("")}</div>`;
+}
+function marketLeaderboardMarkup(items) {
+  const rows = Array.isArray(items) ? items.filter((item) => item?.title && item?.symbol).slice(0, 6) : [];
+  if (!rows.length) return "";
+  return `<div class="market-leaderboard">${rows.map((item) => {
+    const change = String(item.change || "");
+    const tone = intelligenceTone(item);
+    const name = String(item.title || item.symbol);
+    const symbol = String(item.symbol || "");
+    return `<button type="button" class="market-leader" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}"><span class="market-leader-name">${escapeHtml(name)}</span><span class="market-leader-price ${tone}">${escapeHtml(String(item.value || "--"))}</span><span class="market-leader-meta">${escapeHtml(String(item.detail || symbol))}</span><span class="market-leader-change ${tone}">${escapeHtml(change || "--")}</span></button>`;
+  }).join("")}</div>`;
+}
+const INDUSTRY_ETF_REFERENCES = [
+  { terms: ["银行"], symbol: "512800.XSHG", name: "银行ETF", detail: "行业 ETF" },
+  { terms: ["证券", "金融"], symbol: "512880.XSHG", name: "证券ETF", detail: "行业 ETF" },
+  { terms: ["半导体", "芯片"], symbol: "512480.XSHG", name: "半导体ETF", detail: "行业 ETF" },
+  { terms: ["医药", "医疗"], symbol: "512010.XSHG", name: "医药ETF", detail: "行业 ETF" },
+  { terms: ["白酒", "食品饮料"], symbol: "512690.XSHG", name: "酒ETF", detail: "行业 ETF" },
+  { terms: ["新能源", "电池", "汽车"], symbol: "515030.XSHG", name: "新能源车ETF", detail: "行业 ETF" },
+];
+function relatedEtfsForIndustry(industry) {
+  const label = String(industry || "");
+  const specific = INDUSTRY_ETF_REFERENCES.find((item) => item.terms.some((term) => label.includes(term)));
+  const broad = [
+    { symbol: "510300.XSHG", name: "沪深300ETF", detail: "市场参考" },
+    { symbol: "510050.XSHG", name: "上证50ETF", detail: "市场参考" },
+  ];
+  return [...(specific ? [specific] : []), ...broad];
+}
+function relatedEtfsMarkup(industry) {
+  const items = relatedEtfsForIndustry(industry);
+  return `<div class="intelligence-link-grid">${items.map((item) => `<button class="intelligence-link" type="button" data-related-etf-symbol="${escapeHtml(item.symbol)}" data-related-etf-name="${escapeHtml(item.name)}"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.detail)}</span></button>`).join("")}</div>`;
+}
+function intelligenceSectionMarkup(title, hint, items, status) {
+  const state = String(status?.state || "available");
+  const rows = Array.isArray(items) ? items : [];
+  let content = intelligenceItemsMarkup(rows);
+  if (!content) {
+    const message = state === "not_applicable" ? t("intelligenceNotApplicable")
+      : state === "unsupported" ? t("workspaceUnsupported")
+      : t("intelligenceUnavailable");
+    content = `<p class="intelligence-note">${escapeHtml(message)}</p>`;
+  }
+  return `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(title)}</h3></div><p class="intelligence-note">${escapeHtml(hint)}</p>${content}</section>`;
+}
+function renderMarketWorkspace() {
+  const panel = document.getElementById("marketWorkspacePanel");
+  if (!panel) return;
+  if (marketPulseLoading) {
+    panel.innerHTML = insightEmptyMarkup(t("marketLoading"));
+    return;
+  }
+  const pulseResult = marketPulseData || {};
+  const pulse = pulseResult.market_pulse || {};
+  if (!marketPulseData) {
+    panel.innerHTML = insightEmptyMarkup(t("marketUnavailable"), t("workspaceRefreshHint"));
+    return;
+  }
+  const breadth = Array.isArray(pulse.breadth) ? pulse.breadth : [];
+  const flows = Array.isArray(pulse.flows) ? pulse.flows : [];
+  const hotSectors = Array.isArray(pulse.hot_sectors) ? pulse.hot_sectors : [];
+  const hotConcepts = Array.isArray(pulse.hot_concepts) ? pulse.hot_concepts : [];
+  const rankings = pulse.rankings && typeof pulse.rankings === "object" ? pulse.rankings : {};
+  const abnormalTrading = Array.isArray(pulse.abnormal_trading) ? pulse.abnormal_trading : [];
+  const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
+  const metrics = intelligenceMetricsMarkup([...breadth, ...flows], "market-overview-metrics");
+  const directionModes = ["industry", "concept"].filter((mode) => mode === "industry" ? hotSectors.length : hotConcepts.length);
+  if (!directionModes.includes(marketDirectionMode)) marketDirectionMode = directionModes[0] || "industry";
+  const directionItems = marketDirectionMode === "concept" ? hotConcepts : hotSectors;
+  const directions = intelligenceRankMarkup(directionItems, { boardAction: true });
+  const rankingModes = ["hot", "surging"].filter((mode) => Array.isArray(rankings[mode]) && rankings[mode].length);
+  if (!rankingModes.includes(marketRankingMode)) marketRankingMode = rankingModes[0] || "hot";
+  const activeRanking = marketLeaderboardMarkup(rankings[marketRankingMode]);
+  const abnormal = marketLeaderboardMarkup(abnormalTrading);
+  const noData = `<p class="intelligence-note">${escapeHtml(t("marketUnavailable"))}</p>`;
+  panel.innerHTML = `<div class="intelligence-content">` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketOverview"))}</h3></div>${metrics || noData}</section>` +
+    (directionModes.length ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || noData}</section>` : "") +
+    (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
+    (rankingModes.length ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketRankings"))}</h3>${marketSegmentMarkup("ranking", marketRankingMode, rankingModes)}</div>${activeRanking || noData}</section>` : "") +
+    (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div>${abnormal}</section>` : "") +
+    `</div>${workspaceSourceFooter(pulseResult)}`;
+}
+function renderSecurityIntelligence() {
+  const panel = document.getElementById("sectorWorkspacePanel");
+  if (!panel) return;
+  if (securityIntelligenceLoading) {
+    panel.innerHTML = insightEmptyMarkup(t("sectorLoading"));
+    return;
+  }
+  const intelligenceResult = securityIntelligenceData || {};
+  const intelligence = intelligenceResult.security_intelligence || {};
+  if (!securityIntelligenceData) {
+    panel.innerHTML = insightEmptyMarkup(t("intelligenceUnavailable"));
+    return;
+  }
+  const sector = intelligence.sector || {};
+  const industry = sector.industry && sector.industry !== "--" ? sector.industry : "";
+  const sectorFlow = Array.isArray(sector.flow) ? sector.flow : [];
+  const peers = Array.isArray(sector.peers) ? sector.peers : [];
+  const currentIndustry = intelligenceRankMarkup(sectorFlow, { limit: 4 });
+  const peerList = intelligenceItemsMarkup(peers.slice(0, 6));
+  const stockFlow = intelligenceRankMarkup(intelligence.flows || [], { limit: 6 });
+  const events = intelligenceItemsMarkup(intelligence.events || []);
+  const noData = `<p class="intelligence-note">${escapeHtml(t("intelligenceUnavailable"))}</p>`;
+  panel.innerHTML = `<div class="intelligence-content">` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("currentIndustry"))}</h3></div><p class="intelligence-note">${escapeHtml(industry || t("intelligenceNotApplicable"))}</p>${currentIndustry || `<p class="intelligence-note">${escapeHtml(t("industryFlowUnavailable"))}</p>`}</section>` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("peerStocks"))}</h3></div><p class="intelligence-note">${escapeHtml(t("sectorLinkageHint"))}</p>${peerList || `<p class="intelligence-note">${escapeHtml(t("peerStocksUnavailable"))}</p>`}</section>` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("relatedEtfs"))}</h3></div><p class="intelligence-note">${escapeHtml(t("relatedEtfsHint"))}</p>${relatedEtfsMarkup(industry)}</section>` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("stockCapital"))}</h3></div><p class="intelligence-note">${escapeHtml(t("capitalEventsHint"))}</p>${stockFlow || noData}</section>` +
+    (events ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("tradingEvents"))}</h3></div>${events}</section>` : "") +
+    `</div>${workspaceSourceFooter(intelligenceResult)}`;
+}
 function renderSecurityWorkspace() {
   const data = currentSecurityWorkspace();
   syncSecurityNavigation(data);
+  renderMarketWorkspace();
   const newsPanel = document.getElementById("newsWorkspacePanel");
   const companyPanel = document.getElementById("companyWorkspacePanel");
   if (!newsPanel || !companyPanel) return;
+  renderSecurityIntelligence();
   const sourceFooter = workspaceSourceFooter(data);
   if (!data) {
     newsPanel.innerHTML = securityWorkspaceLoading
@@ -2421,11 +2814,7 @@ function renderSecurityWorkspace() {
   }).join("");
   const newsContent = workspaceSectionNotice(data, "news") + (newsMarkup || (data.sections?.news ? "" : insightEmptyMarkup(t("newsEmpty"))));
   newsPanel.innerHTML = `<div class="news-list">${newsContent}</div>${sourceFooter}`;
-  const companySection = activeCompanyTab === "financials" ? "financials" : activeCompanyTab === "holders" ? "holders" : "overview";
-  const blocked = ["unsupported", "empty", "error", "not_applicable"].includes(workspaceSectionState(data, companySection));
-  let content = workspaceSectionNotice(data, companySection) + (blocked ? ""
-    : activeCompanyTab === "financials" ? companyFinancialsMarkup(data) : activeCompanyTab === "holders" ? companyHoldersMarkup(data) : companyOverviewMarkup(data));
-  companyPanel.innerHTML = `${companyTabsMarkup()}${content}${sourceFooter}`;
+  companyPanel.innerHTML = `${companyWorkspaceMarkup(data)}${sourceFooter}`;
 }
 function workspaceHasContent(data) {
   if (!data || typeof data !== "object") return false;
@@ -2502,24 +2891,98 @@ async function loadSecurityWorkspace(symbol, name, refresh = false) {
     }
   }
 }
+async function loadMarketPulse(refresh = false) {
+  if (marketPulseLoading) return;
+  const requestId = ++marketPulseRequestId;
+  marketPulseLoading = true;
+  renderMarketWorkspace();
+  try {
+    const result = await callMarketTool("fetch_market_pulse", { refresh });
+    if (requestId !== marketPulseRequestId) return;
+    const structured = result?.structuredContent || result || null;
+    marketPulseData = !result?.isError && structured?.ok ? structured : null;
+  } catch (error) {
+    console.warn("market pulse", error);
+  } finally {
+    if (requestId !== marketPulseRequestId) return;
+    marketPulseLoading = false;
+    renderMarketWorkspace();
+    reportSize();
+  }
+}
+async function loadMarketBoardDetail(name, boardCode, kind) {
+  if (!name || !boardCode || marketBoardDetailLoading) return;
+  const requestId = ++marketBoardDetailRequestId;
+  marketBoardDetailLoading = true;
+  renderMarketWorkspace();
+  try {
+    const result = await callMarketTool("fetch_market_board_detail", { name, board_code: boardCode, kind });
+    if (requestId !== marketBoardDetailRequestId) return;
+    const structured = result?.structuredContent || result || null;
+    marketBoardDetail = !result?.isError && structured?.ok ? structured : null;
+  } catch (error) {
+    console.warn("market board detail", error);
+  } finally {
+    if (requestId !== marketBoardDetailRequestId) return;
+    marketBoardDetailLoading = false;
+    renderMarketWorkspace();
+    reportSize();
+  }
+}
+async function loadSecurityIntelligence(symbol, name, refresh = false) {
+  const tabId = String(symbol || "");
+  if (!tabId || securityIntelligenceLoading) return;
+  const requestId = ++securityIntelligenceRequestId;
+  securityIntelligenceLoading = true;
+  const tab = workspaceTabForSymbol(tabId);
+  if (tab) tab.intelligenceLoading = true;
+  if (currentSymbol === symbol) renderSecurityIntelligence();
+  try {
+    const securityResult = await callMarketTool("fetch_security_intelligence", { symbol, name, refresh });
+    if (requestId !== securityIntelligenceRequestId) return;
+    const intelligence = securityResult?.structuredContent || securityResult || null;
+    securityIntelligenceData = intelligence?.ok ? intelligence : null;
+    if (tab) tab.intelligence = securityIntelligenceData;
+  } catch (error) {
+    console.warn("security intelligence", error);
+  } finally {
+    if (requestId !== securityIntelligenceRequestId) return;
+    securityIntelligenceLoading = false;
+    if (tab) tab.intelligenceLoading = false;
+    if (currentSymbol === symbol) {
+      renderSecurityIntelligence();
+      reportSize();
+    }
+  }
+}
 function setSecurityTab(tab) {
-  if (!new Set(["chart", "news", "company"]).has(tab)) return;
+  if (!new Set(["market", "chart", "sector", "news", "company"]).has(tab)) return;
   activeSecurityTab = tab;
   const workspaceTab = workspaceTabForSymbol();
-  if (workspaceTab) workspaceTab.securityTab = tab;
-  const panels = { chart: "chartWorkspacePanel", news: "newsWorkspacePanel", company: "companyWorkspacePanel" };
-  Object.entries(panels).forEach(([name, id]) => { const panel = document.getElementById(id); if (panel) panel.hidden = name !== tab; });
+  if (workspaceTab) {
+    workspaceTab.securityTab = tab;
+    workspaceTab.companyTab = activeCompanyTab;
+  }
+  const panels = { market: "marketWorkspacePanel", chart: "chartWorkspacePanel", sector: "sectorWorkspacePanel", news: "newsWorkspacePanel", company: "companyWorkspacePanel" };
+  const selectedPanel = panels[tab];
+  new Set(Object.values(panels)).forEach((id) => {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.hidden = id !== selectedPanel;
+    if (id === selectedPanel) panel.setAttribute("aria-labelledby", `securityTab${tab[0].toUpperCase()}${tab.slice(1)}`);
+  });
   renderSecurityWorkspace();
+  if (tab === "market" && !marketPulseData && !marketPulseLoading) {
+    loadMarketPulse().catch(console.warn);
+  }
+  if (tab === "market" && !marketTickerItems.length && !marketTickerRefreshInFlight) {
+    loadMarketTicker().catch(console.warn);
+  }
+  if (tab === "sector" && currentSymbol && !securityIntelligenceData && !securityIntelligenceLoading) {
+    loadSecurityIntelligence(currentSymbol, currentName).catch(console.warn);
+  }
   if (tab === "chart") window.requestAnimationFrame(() => { scheduleChartResize(); refreshPercentAxis(); reportSize(); });
   else reportSize();
-}
-function setCompanyTab(tab) {
-  if (!new Set(["overview", "financials", "holders"]).has(tab)) return;
-  activeCompanyTab = tab;
-  const workspaceTab = workspaceTabForSymbol();
-  if (workspaceTab) workspaceTab.companyTab = tab;
-  renderSecurityWorkspace();
-  reportSize();
 }
 function colorFor(name) {
   const semantic = chartColors().semantic;
@@ -3425,6 +3888,10 @@ function normalizeAutoLevels(items) {
       customLabel: Boolean(item.customLabel),
       touches: Math.max(0, Number(item.touches) || 0),
       color: allowedLevelColor(item.color),
+      // Analysis levels feed the reference cards and point manager. They are
+      // deliberately not plotted en masse: a user explicitly saves the few
+      // levels they want to keep as their own chart annotations.
+      visible: Boolean(item.visible),
     }));
 }
 function levelDisplayLabel(entry) {
@@ -3641,13 +4108,65 @@ function syncAutoLevelsFromPayload(payload) {
     };
   });
   analysisLevels = normalizeAutoLevels([...analysisLevels.filter(item => item.symbol !== symbol), ...next]);
-  // Auto markers are now owned by the editable list; drop raw TEXT_MARKER
-  // commands so later local redraws never resurrect deleted/edited levels.
+  // Auto levels feed the cards and editable list. Drop raw TEXT_MARKER
+  // commands so an analysis click cannot flood the chart with every candidate
+  // level; saved card actions render only the selected personal annotations.
   lastMarks = lastMarks.filter((cmd) => cmd && cmd.type !== "TEXT_MARKER");
   persistAnnotationRemoval(["TEXT_MARKER"]);
   renderLevelsPanel();
   drawLevelOverlays();
   saveWorkspacePreferences();
+}
+function buildKeyLevelPlan() {
+  const lastPrice = Number(currentCandles[currentCandles.length - 1]?.close);
+  if (!Number.isFinite(lastPrice) || lastPrice <= 0) return [];
+  const levels = activeAutoLevels().filter((entry) => Number.isFinite(Number(entry.price)) && Number(entry.price) > 0);
+  if (!levels.length) return [];
+  const supports = levels.filter((entry) => entry.side === "support").sort((a, b) => b.price - a.price);
+  const resistances = levels.filter((entry) => entry.side === "resistance").sort((a, b) => a.price - b.price);
+  const support = supports.find((entry) => entry.price <= lastPrice) || supports[0];
+  const resistance = resistances.find((entry) => entry.price >= lastPrice) || resistances[0];
+  if (!support && !resistance) return [];
+  const target = resistance && (resistances.find((entry) => entry.price > resistance.price) || resistance);
+  return [
+    support && { kind: "support", title: t("keyPlanSupport"), detail: t("keyPlanSupportDetail"), price: support.price, color: "success", name: t("keyPlanSupport") },
+    resistance && { kind: "resistance", title: t("keyPlanResistance"), detail: t("keyPlanResistanceDetail"), price: resistance.price, color: "danger", name: t("keyPlanResistance") },
+    resistance && { kind: "breakout", title: t("keyPlanBreakout"), detail: t("keyPlanBreakoutDetail"), price: resistance.price, color: "warning", name: t("keyPlanBreakout") },
+    support && { kind: "stop", title: t("keyPlanStop"), detail: t("keyPlanStopDetail"), price: support.price, color: "danger", name: t("keyPlanStop") },
+    target && { kind: "target", title: t("keyPlanTarget"), detail: t("keyPlanTargetDetail"), price: target.price, color: "info", name: t("keyPlanTarget") },
+  ].filter(Boolean);
+}
+function renderKeyLevelPlan() {
+  const panel = document.getElementById("keyLevelPlan");
+  const cards = document.getElementById("keyLevelPlanCards");
+  if (!panel || !cards) return;
+  const entries = buildKeyLevelPlan();
+  panel.hidden = !entries.length;
+  if (!entries.length) { cards.innerHTML = ""; return; }
+  const title = document.getElementById("keyLevelPlanTitle");
+  const note = document.getElementById("keyLevelPlanNote");
+  if (title) title.textContent = t("keyLevelPlanTitle");
+  if (note) note.textContent = t("keyLevelPlanNote");
+  cards.innerHTML = entries.map((entry) => `<article class="key-level-card ${escapeHtml(entry.kind)}">` +
+    `<div class="key-level-card-head"><span>${escapeHtml(entry.title)}</span><span>${escapeHtml(formatPrice(entry.price))}</span></div>` +
+    `<div class="key-level-card-price">${escapeHtml(formatPrice(entry.price))}</div>` +
+    `<div class="key-level-card-detail">${escapeHtml(entry.detail)}</div>` +
+    `<button class="btn key-level-card-action" type="button" data-key-plan-save="true" data-key-plan-price="${escapeHtml(String(entry.price))}" data-key-plan-name="${escapeHtml(entry.name)}" data-key-plan-color="${escapeHtml(entry.color)}">${escapeHtml(t("keyPlanSave"))}</button>` +
+    `</article>`).join("");
+}
+function saveKeyPlanLevel(button) {
+  if (!currentSymbol || !button || !currentCandles.length) return;
+  const price = Number(button.getAttribute("data-key-plan-price"));
+  if (!Number.isFinite(price) || price <= 0) return;
+  const name = String(button.getAttribute("data-key-plan-name") || "").slice(0, 24);
+  const color = allowedLevelColor(button.getAttribute("data-key-plan-color"));
+  const last = currentCandles[currentCandles.length - 1];
+  addCustomLevelEntry({
+    id: `${currentSymbol}:plan:${Date.now()}`, symbol: currentSymbol, kind: "line", price,
+    time: Number(last.time), name, note: t("keyLevelPlanTitle"), color, label: name || formatPrice(price),
+  });
+  setChartStatus(t("keyPlanSaved"));
+  window.setTimeout(() => setChartStatus(""), 1200);
 }
 function levelRowHtml(origin, entry) {
   const idAttr = escapeHtml(entry.id);
@@ -3682,6 +4201,7 @@ function renderLevelsPanel() {
   const auto = activeAutoLevels();
   if (customList) customList.innerHTML = custom.length ? custom.map((entry) => levelRowHtml("custom", entry)).join("") : `<div class="level-empty">${escapeHtml(t("emptyCustomLevels"))}</div>`;
   if (autoList) autoList.innerHTML = auto.length ? auto.map((entry) => levelRowHtml("auto", entry)).join("") : `<div class="level-empty">${escapeHtml(t("emptyAutoLevels"))}</div>`;
+  renderKeyLevelPlan();
   const colorSelect = document.getElementById("levelColorSelect");
   if (colorSelect && !colorSelect.value) colorSelect.value = "danger";
 }
@@ -3699,8 +4219,9 @@ function drawLevelOverlays() {
   try { kchart.removeOverlay({ groupId: "levelMarks" }); } catch {}
   const first = currentCandles[0];
   const last = currentCandles[currentCandles.length - 1];
-  // Edited/deleted auto markers must replace the payload-drawn raw markers.
-  for (const entry of activeAutoLevels()) {
+  // Auto analysis candidates stay in the cards/point manager unless explicitly
+  // made visible in a future UI; only deliberate personal annotations render.
+  for (const entry of activeAutoLevels().filter((item) => item.visible)) {
     if (entry.markerId) { try { kchart.removeOverlay({ id: entry.markerId }); } catch {} }
     try {
       const command = levelMarkerCommand(entry, first, last);
@@ -5175,8 +5696,9 @@ async function setInterval(interval) {
   if (sourceCandles.length && (sourceCandleInterval === "day" || sourceCandleInterval === interval)) await renderLocalChartWithFeedback();
   else await openSymbol(currentSymbol, currentName);
 }
-// Watchlists stay in this chart origin's localStorage. Cross-process watchlist
-// synchronization is outside the standalone dsh_kline chart contract.
+// Watchlists are user-level data. localStorage is kept as an offline fallback
+// and migration source; the local dsh_kline service is the shared store across
+// conversations and sidebar tabs in the same user profile.
 function normalizeWatchlistPayload(parsed) {
   if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) return null;
   const groups = Array.isArray(parsed.groups)
@@ -5189,18 +5711,25 @@ function normalizeWatchlistPayload(parsed) {
     .filter((item) => item && item.symbol && item.groupId)
     .slice(0, WATCHLIST_MAX_ITEMS)
     .map((item) => ({ symbol: String(item.symbol), name: String(item.name || item.symbol), groupId: String(item.groupId) }));
+  const rawUpdatedAt = Math.max(0, Number(parsed.updated_at || parsed.updatedAt) || 0);
   return {
+    version: 1,
+    revision: Math.max(0, Number(parsed.revision) || 0),
+    updated_at: rawUpdatedAt > 0 && rawUpdatedAt < 100000000000 ? rawUpdatedAt * 1000 : rawUpdatedAt,
     groups,
     items,
     activeGroupId: String(parsed.active_group_id || parsed.activeGroupId || "default"),
     sort: ["manual", "change_desc", "change_asc"].includes(parsed.sort) ? parsed.sort : "manual",
   };
 }
-function applyWatchlistState(state) {
+function applyWatchlistState(state, { acknowledged = false } = {}) {
   watchlistGroups = (state?.groups || []).slice();
   watchlist = (state?.items || []).slice();
   activeWatchlistGroupId = state?.activeGroupId || "default";
   watchlistSort = state?.sort || "manual";
+  watchlistRevision = Math.max(0, Number(state?.revision) || 0);
+  watchlistUpdatedAt = Math.max(0, Number(state?.updated_at || state?.updatedAt) || 0);
+  if (acknowledged) watchlistDirty = false;
   if (!watchlistGroups.some((group) => group.id === "default")) {
     watchlistGroups.unshift({ id: "default", name: t("defaultGroup") });
   }
@@ -5222,12 +5751,135 @@ function loadWatchlist() {
     applyWatchlistState({ groups: [], items: [], activeGroupId: "default", sort: "manual" });
   }
 }
-function saveWatchlist() {
+function watchlistPayload() {
+  return { version: 1, revision: watchlistRevision, updated_at: watchlistUpdatedAt, groups: watchlistGroups, items: watchlist, activeGroupId: activeWatchlistGroupId, sort: watchlistSort };
+}
+function writeWatchlistFallback() {
+  try { window.localStorage?.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlistPayload())); } catch {}
+}
+function hasWatchlistContent(state = watchlistPayload()) {
+  return Boolean((state.items || []).length || (state.groups || []).some((group) => group.id !== "default"));
+}
+function mergeWatchlistStates(primary, secondary) {
+  const first = normalizeWatchlistPayload(primary) || normalizeWatchlistPayload({ items: [] });
+  const second = normalizeWatchlistPayload(secondary) || normalizeWatchlistPayload({ items: [] });
+  const groups = [];
+  const seenGroups = new Set();
+  for (const group of [...(first.groups || []), ...(second.groups || [])]) {
+    if (!group?.id || seenGroups.has(group.id) || groups.length >= WATCHLIST_MAX_GROUPS) continue;
+    seenGroups.add(group.id); groups.push(group);
+  }
+  const allowed = new Set(groups.map((group) => group.id));
+  const items = [];
+  const seenItems = new Set();
+  for (const item of [...(first.items || []), ...(second.items || [])]) {
+    const key = `${item?.symbol || ""}\u0000${item?.groupId || ""}`;
+    if (!item?.symbol || !allowed.has(item.groupId) || seenItems.has(key) || items.length >= WATCHLIST_MAX_ITEMS) continue;
+    seenItems.add(key); items.push(item);
+  }
+  return normalizeWatchlistPayload({
+    ...first,
+    groups,
+    items,
+    activeGroupId: allowed.has(first.activeGroupId) ? first.activeGroupId : "default",
+  });
+}
+function markWatchlistDirty() {
+  watchlistDirty = true;
+  // Milliseconds avoid an ambiguous winner when a user edits two tabs within
+  // one second. The service preserves this field and returns a fresh revision.
+  watchlistUpdatedAt = Date.now();
+}
+function applyAcknowledgedWatchlist(response) {
+  const saved = normalizeWatchlistPayload(response?.watchlist);
+  if (!saved) return false;
+  applyWatchlistState(saved, { acknowledged: true });
+  writeWatchlistFallback();
+  renderWatchlist();
+  return true;
+}
+async function syncWatchlistFromService() {
   try {
-    window.localStorage?.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({
-      version: 3, groups: watchlistGroups, items: watchlist, activeGroupId: activeWatchlistGroupId, sort: watchlistSort,
-    }));
-  } catch {}
+    const result = await callMarketTool("watchlist_get", {}, 1);
+    const structured = result?.structuredContent || result || {};
+    const remote = normalizeWatchlistPayload(structured.watchlist);
+    if (!structured.ok || !remote) return false;
+    const hasRemoteContent = remote.revision > 0 || hasWatchlistContent(remote);
+    const local = watchlistPayload();
+    if (!hasRemoteContent) {
+      if (hasWatchlistContent(local)) return saveWatchlistToService();
+      return true;
+    }
+    if (watchlistDirty) {
+      // A different revision means another conversation saved first. Merge
+      // additions before retrying, rather than dropping the local change.
+      if (remote.revision !== watchlistRevision) {
+        const merged = mergeWatchlistStates(remote, local);
+        applyWatchlistState({ ...merged, revision: remote.revision, updated_at: remote.updated_at });
+        markWatchlistDirty();
+        writeWatchlistFallback();
+      }
+      return saveWatchlistToService();
+    }
+    if (remote.revision > watchlistRevision || remote.updated_at >= watchlistUpdatedAt) {
+      applyWatchlistState(remote, { acknowledged: true });
+      writeWatchlistFallback();
+      renderWatchlist();
+      return true;
+    }
+    if (hasWatchlistContent(local)) return saveWatchlistToService();
+  } catch (error) {
+    console.warn("watchlist sync", error);
+  }
+  return false;
+}
+async function saveWatchlistToService({ retryOnConflict = true } = {}) {
+  if (watchlistSaveInFlight) {
+    watchlistSaveQueued = true;
+    return watchlistSaveInFlight;
+  }
+  watchlistSaveInFlight = (async () => {
+    try {
+      let payload = watchlistPayload();
+      for (let attempt = 0; attempt < (retryOnConflict ? 2 : 1); attempt += 1) {
+        const result = await callMarketTool("watchlist_save", { watchlist: payload }, 1);
+        const structured = result?.structuredContent || result || {};
+        if (structured.ok && applyAcknowledgedWatchlist(structured)) return true;
+        if (structured.error === "watchlist_conflict" && attempt === 0 && retryOnConflict) {
+          const remote = normalizeWatchlistPayload(structured.watchlist);
+          if (remote) {
+            const merged = mergeWatchlistStates(remote, payload);
+            applyWatchlistState({ ...merged, revision: remote.revision, updated_at: remote.updated_at });
+            markWatchlistDirty();
+            writeWatchlistFallback();
+            payload = watchlistPayload();
+            continue;
+          }
+        }
+        console.warn("watchlist save", structured.error || "request failed");
+        return false;
+      }
+    } catch (error) {
+      // Local storage remains a usable offline fallback. The next rail open or
+      // page start retries against the shared profile store.
+      console.warn("watchlist save", error);
+    }
+    return false;
+  })();
+  try {
+    return await watchlistSaveInFlight;
+  } finally {
+    watchlistSaveInFlight = null;
+    if (watchlistSaveQueued) {
+      watchlistSaveQueued = false;
+      if (watchlistDirty) saveWatchlistToService().catch(console.warn);
+    }
+  }
+}
+function saveWatchlist() {
+  markWatchlistDirty();
+  writeWatchlistFallback();
+  saveWatchlistToService().catch(console.warn);
 }
 function setLocalDataStatus(message, state = "") {
   const el = document.getElementById("localDataStatus");
@@ -5341,6 +5993,7 @@ function setWatchlistRail(open, { persist = true } = {}) {
   toggle?.setAttribute("aria-expanded", String(watchlistRailOpen));
   const label = watchlistRailOpen ? t("closeWatchlistRail") : t("openWatchlistRail");
   if (toggle) { toggle.title = label; toggle.setAttribute("aria-label", label); }
+  if (watchlistRailOpen) syncWatchlistFromService();
   if (persist) saveWorkspacePreferences();
   reportSize();
 }
@@ -5933,7 +6586,17 @@ async function refreshMarketData(isRetry = false) {
     const updates = [loadMarketTicker()];
     if (currentSymbol) {
       updates.push(openSymbol(currentSymbol, currentName, { preserveOnFailure: true, showLoading: !isRetry, refresh: !isRetry, skipWorkspace: !isRetry }));
-      if (!isRetry) updates.push(loadSecurityWorkspace(currentSymbol, currentName, true));
+      if (!isRetry) {
+        updates.push(loadSecurityWorkspace(currentSymbol, currentName, true));
+        if (typeof activeSecurityTab !== "undefined" && activeSecurityTab === "market" && typeof loadMarketPulse === "function") {
+          updates.push(loadMarketPulse(true));
+        }
+        if (typeof activeSecurityTab !== "undefined" && activeSecurityTab === "sector" && typeof loadSecurityIntelligence === "function") {
+          updates.push(loadSecurityIntelligence(currentSymbol, currentName, true));
+        }
+      }
+    } else if (!isRetry && typeof activeSecurityTab !== "undefined" && activeSecurityTab === "market" && typeof loadMarketPulse === "function") {
+      updates.push(loadMarketPulse(true));
     }
     await Promise.all(updates);
   } finally {
@@ -6003,6 +6666,7 @@ async function loadMarketTicker() {
   } finally {
     marketTickerRefreshInFlight = false;
     renderMarketTicker();
+    if (activeSecurityTab === "market") renderMarketWorkspace();
   }
 }
 function startMarketTickerRefresh() {
@@ -6058,6 +6722,8 @@ function rememberWorkspaceTab(payload) {
     sourceInterval: sourceCandleInterval,
     workspace: currentSymbol === id ? securityWorkspaceData : (existing?.workspace || null),
     workspaceLoading: currentSymbol === id ? securityWorkspaceLoading : Boolean(existing?.workspaceLoading),
+    intelligence: currentSymbol === id ? securityIntelligenceData : (existing?.intelligence || null),
+    intelligenceLoading: currentSymbol === id ? securityIntelligenceLoading : Boolean(existing?.intelligenceLoading),
     securityTab: currentSymbol === id ? activeSecurityTab : (existing?.securityTab || "chart"),
     companyTab: currentSymbol === id ? activeCompanyTab : (existing?.companyTab || "overview"),
   };
@@ -6083,13 +6749,22 @@ async function selectWorkspaceTab(id) {
   securityWorkspaceRequestId += 1;
   securityWorkspaceData = tab.workspace || null;
   securityWorkspaceLoading = Boolean(tab.workspaceLoading);
-  activeSecurityTab = tab.securityTab || "chart";
-  activeCompanyTab = tab.companyTab || "overview";
+  securityIntelligenceRequestId += 1;
+  securityIntelligenceData = tab.intelligence || null;
+  securityIntelligenceLoading = Boolean(tab.intelligenceLoading);
+  // Preserve old workspace preferences from the six-page layout, while
+  // presenting the company information as one direct, scrollable page.
+  const savedCompanyTab = ["overview", "financials", "holders"].includes(tab.companyTab) ? tab.companyTab : "overview";
+  activeSecurityTab = ["overview", "financials", "holders", "company"].includes(tab.securityTab)
+    ? "company" : ["market", "chart", "sector", "news"].includes(tab.securityTab) ? tab.securityTab : "chart";
+  activeCompanyTab = savedCompanyTab;
   syncTimeControls();
   renderWorkspaceTabs();
   rememberAnalysisCommands(tab.payload);
   await handleToolResult({ structuredContent: tab.payload });
   if (!tab.workspace && !tab.workspaceLoading) loadSecurityWorkspace(tab.symbol, tab.name).catch(console.warn);
+  if (activeSecurityTab === "market" && !marketPulseData && !marketPulseLoading) loadMarketPulse().catch(console.warn);
+  if (activeSecurityTab === "sector" && !tab.intelligence && !tab.intelligenceLoading) loadSecurityIntelligence(tab.symbol, tab.name).catch(console.warn);
 }
 async function closeWorkspaceTab(id) {
   const index = workspaceTabs.findIndex((item) => item.id === id);
@@ -6419,6 +7094,13 @@ async function openSymbol(symbol, name, options = {}) {
     applyMarketPalette(currentSymbol);
     const nextSymbol = String(currentSymbol || "").trim().toUpperCase();
     if (!previousSymbol || previousSymbol !== nextSymbol) {
+      const remembered = workspaceTabForSymbol(nextSymbol);
+      securityWorkspaceRequestId += 1;
+      securityWorkspaceData = remembered?.workspace || null;
+      securityWorkspaceLoading = Boolean(remembered?.workspaceLoading);
+      securityIntelligenceRequestId += 1;
+      securityIntelligenceData = remembered?.intelligence || null;
+      securityIntelligenceLoading = Boolean(remembered?.intelligenceLoading);
       clearRangePick();
       lastMarks = [];
       lastLines = [];
@@ -6443,6 +7125,11 @@ async function openSymbol(symbol, name, options = {}) {
     // The data workspace is intentionally non-blocking: K lines should be
     // visible even when a news or fundamental endpoint is slow or unavailable.
     if (!options.skipWorkspace) loadSecurityWorkspace(currentSymbol, currentName).catch(console.warn);
+    // Keep the independent intelligence view scoped to the newly selected
+    // symbol.  A user can search while the Board tab is open; in that case
+    // waiting for another tab click would leave the previous symbol's empty
+    // state on screen even though the chart itself already changed.
+    if (activeSecurityTab === "sector") loadSecurityIntelligence(currentSymbol, currentName).catch(console.warn);
     return true;
   } catch (error) {
     if (window.__DSH_KLINE_DISPOSED__ || requestId !== symbolOpenRequestId) return;
@@ -6762,9 +7449,17 @@ async function analyzeKeyLevels() {
     if (!isCurrent()) return;
     // Only update annotations. Keep source bars, adjustment, indicators and zoom.
     syncAutoLevelsFromPayload(result);
-    const message = t((result.structuredContent || result).status === "no_levels" ? "keyLevelsEmpty" : "keyLevelsReady");
-    setChartStatus(message);
-    finishActivityNotice(message);
+    const noLevels = (result.structuredContent || result).status === "no_levels";
+    if (noLevels) {
+      const message = t("keyLevelsEmpty");
+      setChartStatus(message);
+      finishActivityNotice(message);
+    } else {
+      // The reference cards are the completion feedback. Do not cover the
+      // quote in the upper-right header with a duplicate floating notice.
+      setChartStatus("");
+      dismissActivityNotice();
+    }
   } catch (error) {
     if (!isCurrent()) return;
     console.warn("key-level analysis", error);
@@ -6906,6 +7601,10 @@ document.getElementById("watchlistSortSelect").addEventListener("change", (event
   renderWatchlist();
 });
 document.getElementById("watchlistBatchOpenBtn").addEventListener("click", () => openSelectedWatchlistSymbols().catch(console.warn));
+document.getElementById("keyLevelPlanCards")?.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-key-plan-save]") : null;
+  if (button) saveKeyPlanLevel(button);
+});
 document.getElementById("settingsBtn").addEventListener("click", (event) => {
   event.stopPropagation();
   const popover = document.getElementById("settingsPopover");
@@ -7033,6 +7732,32 @@ document.getElementById("marketTickerTrack").addEventListener("click", (event) =
   if (!symbol) return;
   openTickerSymbolChart(symbol, name).catch(console.warn);
 });
+document.getElementById("marketWorkspacePanel").addEventListener("click", (event) => {
+  const board = event.target instanceof Element ? event.target.closest("[data-market-board-code]") : null;
+  if (board) {
+    loadMarketBoardDetail(board.getAttribute("data-market-board-name"), board.getAttribute("data-market-board-code"), board.getAttribute("data-market-board-kind") || "industry").catch(console.warn);
+    return;
+  }
+  const direction = event.target instanceof Element ? event.target.closest("[data-market-direction]") : null;
+  if (direction) {
+    marketDirectionMode = direction.getAttribute("data-market-direction") === "concept" ? "concept" : "industry";
+    renderMarketWorkspace();
+    reportSize();
+    return;
+  }
+  const ranking = event.target instanceof Element ? event.target.closest("[data-market-ranking]") : null;
+  if (ranking) {
+    marketRankingMode = ranking.getAttribute("data-market-ranking") === "surging" ? "surging" : "hot";
+    renderMarketWorkspace();
+    reportSize();
+    return;
+  }
+  const item = event.target instanceof Element ? event.target.closest("[data-ticker-symbol]") : null;
+  if (!item) return;
+  const symbol = item.getAttribute("data-ticker-symbol");
+  const name = item.getAttribute("data-ticker-name") || symbol;
+  if (symbol) openTickerSymbolChart(symbol, name).catch(console.warn);
+});
 document.getElementById("rangeControls").addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-range]") : null;
   if (button) setRange(button.getAttribute("data-range")).catch(console.warn);
@@ -7062,6 +7787,13 @@ document.getElementById("searchResults").addEventListener("click", (event) => {
   if (!button) return;
   symbolSearchActiveIndex = Number(button.getAttribute("data-search-index"));
   openSymbol(button.getAttribute("data-symbol"), button.getAttribute("data-name")).catch(console.warn);
+});
+document.getElementById("sectorWorkspacePanel").addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-related-etf-symbol]") : null;
+  if (!button) return;
+  const symbol = button.getAttribute("data-related-etf-symbol");
+  const name = button.getAttribute("data-related-etf-name") || symbol;
+  if (symbol) openSymbol(symbol, name).catch(console.warn);
 });
 document.addEventListener("keydown", (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
@@ -7130,10 +7862,6 @@ document.getElementById("workspaceTabs").addEventListener("click", (event) => {
 document.getElementById("securityNav").addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target.closest("[data-security-tab]") : null;
   if (target) setSecurityTab(target.getAttribute("data-security-tab"));
-});
-document.getElementById("companyWorkspacePanel").addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target.closest("[data-company-tab]") : null;
-  if (target) setCompanyTab(target.getAttribute("data-company-tab"));
 });
 wireToggle("maBtn", () => maVisible, (v) => { maVisible = v; });
 wireToggle("vwapBtn", () => vwapVisible, (v) => { vwapVisible = v; });
@@ -7206,6 +7934,7 @@ async function init() {
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
   syncLanguageControls();
   setWatchlistRail(watchlistRailOpen, { persist: false });
+  await syncWatchlistFromService();
   initViewScrollbar();
   initCanvasResizer();
   refreshIndexCompareCapability();

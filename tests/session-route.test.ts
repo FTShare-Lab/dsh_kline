@@ -29,6 +29,10 @@ test('each Harness uses only its own live MCP locator, never a sibling or stale 
   const server = createServer((request, response) => {void handler(request, response)})
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const endpoint = `http://127.0.0.1:${(server.address() as any).port}/dsh-kline/api/tools/data_source_status`
+  const pulseEndpoint = `http://127.0.0.1:${(server.address() as any).port}/dsh-kline/api/tools/fetch_market_pulse`
+  const intelligenceEndpoint = `http://127.0.0.1:${(server.address() as any).port}/dsh-kline/api/tools/fetch_security_intelligence`
+  const watchlistGetEndpoint = `http://127.0.0.1:${(server.address() as any).port}/dsh-kline/api/tools/watchlist_get`
+  const watchlistSaveEndpoint = `http://127.0.0.1:${(server.address() as any).port}/dsh-kline/api/tools/watchlist_save`
   const document = {ok:true, process_id:process.pid, host_process_id:process.pid, session:'',
     service_url:`http://127.0.0.1:${(upstream.address() as any).port}`, service_token:'a'.repeat(32), published_at:Math.floor(Date.now()/1000)}
   const request = async () => (await fetch(endpoint, {method:'POST', body:'{}'})).json()
@@ -51,7 +55,11 @@ test('each Harness uses only its own live MCP locator, never a sibling or stale 
     // MCP restart on the same host replaces only that host's locator.
     await writeFile(owned, JSON.stringify(document))
     assert.equal((await request()).source, 'owned-service')
-    assert.equal(calls.length, 3)
+    assert.equal((await (await fetch(pulseEndpoint, {method:'POST', body:'{}'})).json()).source, 'owned-service')
+    assert.equal((await (await fetch(intelligenceEndpoint, {method:'POST', body:'{}'})).json()).source, 'owned-service')
+    assert.equal((await (await fetch(watchlistGetEndpoint, {method:'POST', body:'{}'})).json()).source, 'owned-service')
+    assert.equal((await (await fetch(watchlistSaveEndpoint, {method:'POST', body:'{}'})).json()).source, 'owned-service')
+    assert.equal(calls.length, 7)
   } finally {
     await Promise.all([owned,sibling].map(path => unlink(path).catch(() => {})))
     for (const instance of [server,upstream]) {

@@ -18,6 +18,7 @@ function fixture() {
     saveWorkspacePreferences() { state.saves++ },
     clearCurrentUserDrawings() { state.drawingClears++ }, clearCurrentCustomLevels() { state.customClears++ },
     setChartStatus(s: string) { state.statuses.push(s) }, showActivityNotice() {}, finishActivityNotice() {},
+    dismissActivityNotice() {},
     syncAutoLevelsFromPayload(r: any) { state.updates.push(r) },
     async callMarketTool(name: string, args: any) { state.calls.push({ name, args }); return { structuredContent: { status: 'ready' } } },
   }

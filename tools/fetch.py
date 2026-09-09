@@ -54,6 +54,10 @@ _SYMBOL_SEARCH_CACHE_MAX_ENTRIES = 96
 _symbol_search_cache: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 _SECURITY_WORKSPACE_CACHE_TTL_SECONDS = 300.0
 _security_workspace_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_MARKET_PULSE_CACHE_TTL_SECONDS = 90.0
+_market_pulse_cache: tuple[float, dict[str, Any]] | None = None
+_SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS = 180.0
+_security_intelligence_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 # A short hot cache serves a search-result prefetch immediately when the user
 # opens the same symbol.  It is deliberately much shorter than the stale
 # fallback cache below: this is a latency optimization, not an availability
@@ -102,6 +106,23 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "global_index_daily": {
         "doc": "https://market.ft.tech/gateway/doc/p/pb8eizu3",
         "tier": "free",
+        "verified_sdk_version": "1.0.3",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    # ETF uses its own documented endpoints.  It is intentionally kept
+    # separate from stock history: an ETF is a tradable instrument, but not a
+    # company and must never be routed through company-information APIs.
+    "etf_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/etf-candlesticks",
+        "tier": "free",
+        "verified_sdk_version": "1.0.3",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    "etf_minutes": {
+        "doc": "https://market.ft.tech/gateway/doc/p/etf-minutes",
+        "tier": "base+",
         "verified_sdk_version": "1.0.3",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
@@ -489,6 +510,30 @@ def _ftshare_index_minutes(market: Any, **params: Any) -> Any:
     return _adaptive_ftshare_call("index_history_minute_candles", market, params)
 
 
+def _ftshare_etf_candlesticks(market: Any, **params: Any) -> Any:
+    """Call FTShare's ETF-native daily-history endpoint.
+
+    Keep this small adapter separate from the stock transport fallback: the
+    endpoint has the same candle envelope but a distinct provider contract.
+    """
+    method = getattr(market, "etf_candlesticks", None)
+    if not callable(method):
+        raise AttributeError("FTShare etf_candlesticks is unavailable")
+    result = method(**params)
+    _FTSHARE_TRANSPORT_STATE["etf_candles"] = {"transport": "sdk", "last_ok": True}
+    return result
+
+
+def _ftshare_etf_minutes(market: Any, **params: Any) -> Any:
+    """Call ETF minutes without falling back to the stock-minute contract."""
+    method = getattr(market, "etf_minutes", None)
+    if not callable(method):
+        raise AttributeError("FTShare etf_minutes is unavailable")
+    result = method(**params)
+    _FTSHARE_TRANSPORT_STATE["etf_minutes"] = {"transport": "sdk", "last_ok": True}
+    return result
+
+
 def ftshare_status() -> dict[str, Any]:
     """Return safe provider status without host paths or module locations."""
     _load_persisted_ftshare_key()
@@ -514,8 +559,11 @@ def ftshare_status() -> dict[str, Any]:
 
 def clear_provider_caches() -> None:
     """Drop provider-backed caches after a runtime configuration change."""
+    global _market_pulse_cache
     _symbol_search_cache.clear()
     _security_workspace_cache.clear()
+    _security_intelligence_cache.clear()
+    _market_pulse_cache = None
     _candle_cache.clear()
 
 
@@ -529,6 +577,58 @@ def ftshare_capabilities() -> dict[str, str]:
     if _LAST_FTSHARE_CAPABILITIES:
         return dict(_LAST_FTSHARE_CAPABILITIES)
     return {"daily": "not_tested" if ftshare_available() else "unavailable", "minute": "not_tested"}
+
+
+def data_source_capability_contract() -> dict[str, Any]:
+    """Describe UI/MCP domain capabilities without exposing a vendor's internals.
+
+    The workbench must not infer that a configured source can provide every
+    page just because it can return candles.  This small contract gives every
+    client the same vocabulary, and lets future providers opt into only the
+    domains they genuinely implement.
+    """
+    available = ftshare_available()
+    status = "available" if available else "unavailable"
+    ftshare = {
+        "instrument_directory": status,
+        "daily_candles": ftshare_capabilities().get("daily", "not_tested" if available else "unavailable"),
+        "minute_candles": ftshare_capabilities().get("minute", "not_tested" if available else "unavailable"),
+        "market_indices": status,
+        "market_breadth": status,
+        "market_rankings": status,
+        "market_boards": status,
+        "board_members": "source_dependent" if available else "unavailable",
+        "company_profile": status,
+        "news": status,
+        "financials": status,
+        "holders": status,
+        "stock_flows": status,
+        "trading_events": status,
+    }
+    return {
+        "version": 1,
+        "providers": {
+            "ftshare": ftshare,
+            # Caller-supplied OHLCV is deliberately narrow: it can feed
+            # analysis and a chart, but must never fabricate a market page.
+            "external_rows": {
+                "daily_candles": "available",
+                "minute_candles": "available",
+                "instrument_directory": "unsupported",
+                "market_indices": "unsupported",
+                "market_breadth": "unsupported",
+                "market_rankings": "unsupported",
+                "market_boards": "unsupported",
+                "board_members": "unsupported",
+                "company_profile": "unsupported",
+                "news": "unsupported",
+                "financials": "unsupported",
+                "holders": "unsupported",
+                "stock_flows": "unsupported",
+                "trading_events": "unsupported",
+            },
+        },
+    }
 
 
 def ftshare_index_kline_available() -> bool:
@@ -827,7 +927,7 @@ def _exchange_timezone(symbol: str) -> str:
     normalized = str(symbol or "").strip().upper()
     if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
         return "Asia/Hong_Kong"
-    if _is_us_symbol(normalized) or normalized.startswith("100.NDX"):
+    if _is_us_symbol(normalized) or normalized in {"100.NDX", "100.SPX", "100.DJIA"}:
         return "America/New_York"
     return "Asia/Shanghai"
 
@@ -865,6 +965,33 @@ def _is_us_symbol(symbol: str) -> bool:
 def _is_hk_symbol(symbol: str) -> bool:
     normalized = str(symbol or "").strip().upper()
     return normalized.endswith((".HK", ".HKG"))
+
+
+def _is_etf_symbol(symbol: str) -> bool:
+    """Return whether an explicitly-qualified mainland symbol is an ETF.
+
+    The FTShare ETF endpoint documents Shanghai 5xxxxx and Shenzhen 15/16xxxx
+    identifiers.  We deliberately require the exchange suffix: a bare
+    six-digit code can be a mutual fund, an equity, or an ETF and must not be
+    guessed into the wrong data product.
+    """
+    normalized = _canonical_market_symbol(symbol)
+    code, separator, suffix = normalized.rpartition(".")
+    if not separator or not re.fullmatch(r"\d{6}", code):
+        return False
+    return (suffix == "XSHG" and code.startswith("5")) or (
+        suffix == "XSHE" and code.startswith(("15", "16"))
+    )
+
+
+def _etf_minute_symbol(symbol: str) -> str:
+    """Use the short exchange suffix required by FTShare's ETF minute API."""
+    normalized = _canonical_market_symbol(symbol)
+    if normalized.endswith(".XSHG"):
+        return f"{normalized[:-5]}.SH"
+    if normalized.endswith(".XSHE"):
+        return f"{normalized[:-5]}.SZ"
+    return normalized
 
 
 def _bare_us_symbol(symbol: str) -> str:
@@ -1051,6 +1178,21 @@ def _fetch_generic_history(
     """Fetch authoritative daily rows before any calendar aggregation."""
     return _fetch_calendar_history(
         _ftshare_stock_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
+
+
+def _fetch_etf_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch ETF daily bars before calendar aggregation, just like equities."""
+    return _fetch_calendar_history(
+        _ftshare_etf_candlesticks, market, symbol=symbol, interval=interval,
         adjust_kind=adjust_kind, limit=limit,
     )
 
@@ -1752,11 +1894,14 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
 
 
 MARKET_TICKER_SOURCES = (
-    {"market": "HK", "name": "恒生指数", "symbol": "100.HSI", "kind": "global", "timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"},
-    {"market": "US", "name": "纳斯达克", "symbol": "100.NDX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
     {"market": "CN", "name": "上证指数", "symbol": "000001.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
     {"market": "CN", "name": "沪深300", "symbol": "000300.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
     {"market": "CN", "name": "深证成指", "symbol": "399001.XSHE", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "创业板指", "symbol": "399006.XSHE", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "HK", "name": "恒生指数", "symbol": "100.HSI", "kind": "global", "timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "纳斯达克100", "symbol": "100.NDX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "标普500", "symbol": "100.SPX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "道琼斯", "symbol": "100.DJIA", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
 )
 # Global index identities (secid "100.*") served by the official FTShare
 # `global_index_daily_kline` endpoint (free tier, per FTShare docs). Kept as a
@@ -1844,7 +1989,7 @@ def _symbol_market_status(symbol: str, now: datetime | None = None) -> str:
     normalized = str(symbol or "").upper()
     if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
         source = {"timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"}
-    elif normalized.endswith((".US", ".NASDAQ", ".NYSE")) or normalized.startswith("100.NDX"):
+    elif normalized.endswith((".US", ".NASDAQ", ".NYSE")) or normalized in {"100.NDX", "100.SPX", "100.DJIA"}:
         source = {"timezone": "America/New_York", "open": "09:30", "close": "16:00"}
     else:
         source = {"timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"}
@@ -1938,7 +2083,9 @@ def fetch_market_ticker() -> dict[str, Any]:
                     items.append(item)
             # Prefer official whenever it covers most of the strip; a lone
             # failure should not downgrade a paying user to the free feed.
-            if len(items) >= max(2, len(MARKET_TICKER_SOURCES) - 1):
+            # A regional index can be temporarily absent without discarding
+            # otherwise useful official data for the whole market page.
+            if len(items) >= 3:
                 statuses = {item.get("status") for item in items}
                 status = "delayed" if "delayed" in statuses else "closed" if statuses else "closed"
                 return {"ok": True, "items": items, "source": "ftshare", "updated_at": fetched_at, "status": status}
@@ -2145,6 +2292,7 @@ def _fetch_candles_ftshare(
     # Global indices (100.HSI / 100.NDX / 100.SPX …) use the dedicated
     # FTShare `global_index_daily_kline` endpoint (free tier per docs).
     is_global_index = sym in GLOBAL_INDEX_SOURCES
+    is_etf = _is_etf_symbol(sym)
 
     fetched_at = int(time.time())
     if not ftshare_available():
@@ -2191,7 +2339,9 @@ def _fetch_candles_ftshare(
             "next_action": "Use daily-or-larger candles for the global index, or pass verified minute rows from another provider.",
             "retryable": False,
         }
-    if is_index:
+    if is_etf:
+        contract_name = "etf_minutes" if normalized_interval == "minute" else "etf_candles"
+    elif is_index:
         contract_name = "index_history_minute_candles" if normalized_interval == "minute" else "index_daily_candles"
     elif is_global_index:
         contract_name = "global_index_daily"
@@ -2212,7 +2362,15 @@ def _fetch_candles_ftshare(
     hk_history_error: Exception | None = None
     for attempt in range(2):
         try:
-            if is_index:
+            if is_etf and normalized_interval != "minute":
+                raw = _fetch_etf_history(
+                    market,
+                    symbol=sym,
+                    interval=normalized_interval,
+                    adjust_kind=adj,
+                    limit=lim,
+                )
+            elif is_index:
                 if normalized_interval == "minute":
                     raw = _fetch_index_history_minutes(
                         market,
@@ -2289,9 +2447,9 @@ def _fetch_candles_ftshare(
                 page_window_days = 2
                 max_pages = max(8, sessions * 3 + 2)
                 for _page in range(max_pages):
-                    page = _ftshare_stock_minutes(
+                    page = (_ftshare_etf_minutes if is_etf else _ftshare_stock_minutes)(
                         market,
-                        symbol=sym,
+                        symbol=_etf_minute_symbol(sym) if is_etf else sym,
                         interval_value=step,
                         adjust_kind=adj,
                         since_ts_millis=max(
@@ -2381,7 +2539,7 @@ def _fetch_candles_ftshare(
             for row in rows
             if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in selected_dates
         ]
-    if (_is_us_symbol(sym) or _is_hk_symbol(sym) or is_global_index) and normalized_interval != "minute":
+    if (is_etf or _is_us_symbol(sym) or _is_hk_symbol(sym) or is_global_index) and normalized_interval != "minute":
         # Aggregate the complete daily history first, then apply the requested
         # number of bars.  Trimming raw days before aggregation makes the
         # oldest requested week/month/quarter/year incomplete.
@@ -2426,6 +2584,7 @@ def _fetch_candles_ftshare(
         "ok": True,
         "symbol": sym,
         "name": name,
+        "instrument_type": "etf" if is_etf else "index" if (is_index or is_global_index) else "stock",
         "interval": normalized_interval,
         "interval_value": step,
         "session_count": sessions if normalized_interval == "minute" else None,
@@ -2649,6 +2808,500 @@ def _workspace_value(row: Mapping[str, Any], *keys: str) -> Any:
         if value not in (None, ""):
             return value
     return None
+
+
+def _intelligence_item(row: Mapping[str, Any], *, fallback: str = "--") -> dict[str, str]:
+    """Normalize heterogeneous FTShare rows into a small, stable UI record."""
+    title = _workspace_value(
+        row, "name", "stock_name", "security_name", "sector_name", "industry_name",
+        "concept_name", "title", "event_name", "symbol", "stock_code", "code",
+    )
+    # Capital-flow endpoints use ``main_net`` / ``main_pct`` while quote
+    # endpoints use price-change names.  Treating them as one unordered bag
+    # previously selected a stock's close change and discarded its actual
+    # capital flow, which made the sector page appear empty or misleading.
+    value = _workspace_value(
+        row, "main_net", "main_net_inflow", "net_inflow", "net_amount", "net_flow", "amount",
+        "close", "sh_close", "close_price", "event_time",
+    )
+    detail = _workspace_value(
+        row, "reason", "event", "event_type", "industry", "sector", "trade_date",
+        "date", "time", "description", "rank",
+    )
+    change = _workspace_value(
+        row, "main_pct", "main_net_pct", "sh_change_pct", "change_pct", "pct_chg", "change_rate", "pct_change", "change",
+    )
+    numeric_value = _intelligence_number(value)
+    numeric_change = _intelligence_number(change)
+    rendered_value = _display_number(numeric_value) if numeric_value is not None else str(value or "--")
+    rendered_change = _display_percent(numeric_change) if numeric_change is not None else str(change or "")
+    return {
+        "title": str(title or fallback),
+        "value": rendered_value,
+        "detail": str(detail or ""),
+        "change": rendered_change,
+    }
+
+
+def _intelligence_number(value: Any) -> float | None:
+    """Accept the numeric strings commonly returned by FTShare data APIs."""
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        return float(str(value).strip().replace(",", "").replace("%", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _intelligence_items(rows: list[dict[str, Any]], *, limit: int = 8, fallback: str = "--") -> list[dict[str, str]]:
+    return [_intelligence_item(row, fallback=fallback) for row in rows[:limit]]
+
+
+def _latest_intelligence_rows(rows: list[dict[str, Any]], *, limit: int = 1) -> list[dict[str, Any]]:
+    """Keep the newest provider records; several FTShare endpoints are oldest-first."""
+    ordered = sorted(
+        rows,
+        key=lambda row: str(_workspace_value(row, "trade_date", "date", "time", "event_time") or ""),
+        reverse=True,
+    )
+    return ordered[:limit]
+
+
+def _industry_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return the strongest industry flows, never a provider's arbitrary regional prefix."""
+    industries = [row for row in rows if str(row.get("sector_type") or "").lower() == "industry"]
+    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
+    # Keep provider-neutral adapters and older SDK responses useful when they
+    # do not label the sector type at all.
+    candidates = industries or concepts or rows
+    return sorted(
+        candidates,
+        key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
+        reverse=True,
+    )[:limit]
+
+
+def _concept_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return concept flows only when the provider explicitly labels them.
+
+    Concepts and industries look similar in a market UI, but they answer
+    different questions.  Never relabel an industry or regional board as a
+    concept merely to fill a panel.
+    """
+    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
+    return sorted(
+        concepts,
+        key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
+        reverse=True,
+    )[:limit]
+
+
+def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, str]]:
+    """Keep the provider's verified board identifier beside its UI summary."""
+    items = _intelligence_items(rows, limit=limit, fallback="板块")
+    for item, row in zip(items, rows[:limit]):
+        item["board_code"] = str(_workspace_value(row, "sector_code", "board_code", "code") or "")
+        item["board_kind"] = str(_workspace_value(row, "sector_type", "board_type") or "")
+    return items
+
+
+def _flow_history_items(
+    rows: list[dict[str, Any]], *, limit: int, fallback: str, leader: bool = False,
+) -> list[dict[str, str]]:
+    """Render a dated flow history instead of repeating a sector or stock name.
+
+    Both the industry- and stock-flow endpoints return a *time series*.  The
+    generic intelligence normalizer used the constant name as each card title,
+    so a user saw six identical "银行" or "招商银行" cards.  Make time the
+    primary identity and keep the related leader/price as supporting context.
+    """
+    items: list[dict[str, str]] = []
+    for row in _latest_intelligence_rows(rows, limit=limit):
+        raw_date = _workspace_value(row, "trade_date", "date", "time")
+        if raw_date in (None, ""):
+            # Preserve provider-neutral compatibility for adapters without a
+            # dated history contract.
+            items.append(_intelligence_item(row, fallback=fallback))
+            continue
+        date = str(raw_date).strip()
+        compact_date = f"{date[4:6]}-{date[6:8]}" if re.fullmatch(r"\d{8}", date) else date
+        net = _intelligence_number(_workspace_value(row, "main_net", "main_net_inflow", "net_inflow", "net_amount", "net_flow"))
+        pct = _intelligence_number(_workspace_value(row, "main_pct", "main_net_pct", "change_pct", "pct_chg", "change_rate"))
+        if row.get("change_rate") not in (None, "") and pct is not None:
+            pct *= 100
+        detail_parts: list[str] = []
+        if leader:
+            leader_name = _workspace_value(row, "leader_name", "leader", "leading_stock")
+            leader_change = _intelligence_number(_workspace_value(row, "leader_change_pct", "leader_pct", "leader_change"))
+            if leader_name:
+                leader_label = f"领涨 {leader_name}"
+                if leader_change is not None:
+                    leader_label += f" {_display_percent(leader_change)}"
+                detail_parts.append(leader_label)
+        else:
+            close = _intelligence_number(_workspace_value(row, "close_price", "close", "price"))
+            close_change = _intelligence_number(_workspace_value(row, "change_pct", "pct_chg", "change_rate"))
+            if row.get("change_rate") not in (None, "") and close_change is not None:
+                close_change *= 100
+            if close is not None:
+                close_label = f"收盘 {_display_number(close)}"
+                if close_change is not None:
+                    close_label += f" · {_display_percent(close_change)}"
+                detail_parts.append(close_label)
+        items.append({
+            "title": compact_date,
+            "value": _display_number(net) if net is not None else "--",
+            "change": _display_percent(pct) if pct is not None else "",
+            "detail": " · ".join(detail_parts),
+            # Net inflow/outflow is the semantic direction of a flow card;
+            # do not let an unrelated price percentage recolor it.
+            "tone": "up" if net is not None and net > 0 else "down" if net is not None and net < 0 else "",
+        })
+    return items
+
+
+def _market_rank_items(rows: list[dict[str, Any]], *, market: str = "CN", limit: int = 8) -> list[dict[str, str]]:
+    """Normalize a market leaderboard while retaining an actionable symbol."""
+    items: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        item = _intelligence_item(row, fallback="--")
+        raw_symbol = _workspace_value(row, "symbol", "normalized_symbol", "stock_code", "code", "security_code", "ticker")
+        symbol = _canonical_directory_symbol(raw_symbol, market=market, default_market=market)
+        name = _workspace_value(row, "stock_name", "symbol_name", "security_name", "name")
+        price = _workspace_value(row, "latest_price", "price", "current_price", "close", "close_price")
+        change = _workspace_value(row, "change_pct", "pct_chg", "change_rate", "pct_change", "change")
+        rank = _workspace_value(row, "rank", "ranking", "rank_no")
+        heat = _workspace_value(row, "metric_value", "heat", "popularity")
+        if row.get("change_rate") not in (None, "") and _intelligence_number(change) is not None:
+            change = (_intelligence_number(change) or 0) * 100
+        item["title"] = str(name or item["title"])
+        item["symbol"] = symbol
+        item["value"] = _display_number(_intelligence_number(price)) if _intelligence_number(price) is not None else item["value"]
+        item["change"] = _display_percent(_intelligence_number(change)) if _intelligence_number(change) is not None else item["change"]
+        item["detail"] = " · ".join(
+            part for part in (symbol, f"#{rank}" if rank not in (None, "") else "", _display_number(_intelligence_number(heat)) if heat not in (None, "") else "") if part
+        )
+        items.append(item)
+    return items
+
+
+def _abnormal_trading_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, str]]:
+    """Normalize the free 龙虎榜 overview into clickable market activity cards."""
+    items: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        symbol = _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN")
+        change = _intelligence_number(_workspace_value(row, "change_rate", "change_pct", "pct_chg"))
+        if row.get("change_rate") not in (None, "") and change is not None:
+            change *= 100
+        turnover = _intelligence_number(_workspace_value(row, "turnover", "amount", "volume"))
+        items.append({
+            "title": str(_workspace_value(row, "symbol_name", "stock_name", "name") or symbol or "--"),
+            "symbol": symbol,
+            "value": _display_number(_intelligence_number(_workspace_value(row, "close", "latest_price", "price"))),
+            "change": _display_percent(change) if change is not None else "",
+            "detail": f"成交额 {_display_number(turnover)}" if turnover is not None else symbol,
+        })
+    return items
+
+
+def _primary_industry(value: Any) -> str:
+    """Turn provider category bundles into one queryable industry label.
+
+    Company metadata sometimes returns a comma-separated set of concepts,
+    indexes and styles.  Sector endpoints expect one industry name, so using
+    the entire bundle would make an otherwise available section look broken.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    return re.split(r"[,，;；、|/]", raw, maxsplit=1)[0].strip()[:80]
+
+
+def _intelligence_section_state(
+    rows: list[dict[str, Any]], errors: list[dict[str, str]], *, unsupported: bool = False,
+) -> dict[str, Any]:
+    if rows:
+        return {"state": "partial" if errors else "available", "errors": errors}
+    if unsupported:
+        return {"state": "unsupported", "errors": errors}
+    return {"state": "error" if errors else "empty", "errors": errors}
+
+
+def _read_intelligence_section(
+    market_client: Any,
+    errors: dict[str, list[dict[str, str]]],
+    section: str,
+    method_name: str,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Read an optional FTShare endpoint without breaking adjacent sections."""
+    try:
+        method = getattr(market_client, method_name, None)
+        if not callable(method):
+            raise AttributeError(f"missing endpoint: {method_name}")
+        return _workspace_rows(method(as_dataframe=False, **kwargs))
+    except Exception as exc:  # noqa: BLE001 - provider diagnostics become structured states
+        code, message = _classify_ftshare_error(exc)
+        errors.setdefault(section, []).append({"code": code, "message": message})
+        return []
+
+
+def _provider_unavailable_intelligence(kind: str, *, symbol: str = "") -> dict[str, Any]:
+    sections = ("breadth", "flows", "sectors", "concepts", "rankings", "events") if kind == "market_pulse" else ("sector", "flows", "events")
+    result = {
+        "ok": True,
+        "source": {"name": "FTShare", "status": "unavailable"},
+        "sections": {section: {"state": "unsupported", "errors": []} for section in sections},
+    }
+    if symbol:
+        result["symbol"] = symbol
+    result[kind] = {"message": "FTShare is not available in this runtime."}
+    return result
+
+
+def fetch_market_pulse(*, refresh: bool = False) -> dict[str, Any]:
+    """Return a provider-neutral, best-effort mainland market pulse.
+
+    This is a standalone market-intelligence primitive: the chart UI, an agent,
+    and another MCP client all consume the same compact schema.  A missing
+    premium endpoint degrades one section only; it never makes the entire
+    pulse look like a failed data source.
+    """
+    global _market_pulse_cache
+    now = time.time()
+    if not refresh and _market_pulse_cache and now - _market_pulse_cache[0] < _MARKET_PULSE_CACHE_TTL_SECONDS:
+        return {**_market_pulse_cache[1], "cached": True}
+    if not ftshare_available():
+        return _provider_unavailable_intelligence("market_pulse")
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
+    rank_trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
+    # SDK 1.x uses the documented words rather than the older U/D aliases.
+    up_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="up", trade_date=trade_date)
+    down_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="down", trade_date=trade_date)
+    # These endpoints are oldest-first.  Request enough rows to locate the
+    # latest market reading rather than displaying January data in September.
+    market_flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_dapan_flow", limit=500)
+    northbound_rows = _read_intelligence_section(market, errors, "flows", "northbound", date=trade_date)
+    southbound_rows = _read_intelligence_section(market, errors, "flows", "southbound", date=trade_date)
+    sector_rows = _read_intelligence_section(market, errors, "sectors", "eastmoney_sector_flow", limit=500)
+    hot_rank_rows = _read_intelligence_section(
+        market, errors, "rankings", "eastmoney_rank", rank_group="hot", market="A", trade_date=rank_trade_date,
+    )
+    surging_rank_rows = _read_intelligence_section(
+        market, errors, "rankings", "eastmoney_rank", rank_group="up", market="A", trade_date=rank_trade_date,
+    )
+    # Eastmoney's ranking endpoint can be temporarily rate-limited even when
+    # its free data exists. Snowball's attention rank is a like-for-like
+    # fallback for the *popularity* view only; it is never mislabeled as a
+    # price-momentum leaderboard.
+    hot_rank_source = "eastmoney"
+    if not hot_rank_rows:
+        hot_rank_rows = _read_intelligence_section(
+            market, errors, "rankings", "xueqiu_rank", rank_group="follow", period="total", limit=8,
+        )
+        hot_rank_source = "xueqiu" if hot_rank_rows else ""
+    abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", date=trade_date, limit=8)
+    # During a trading day the abnormal-trading endpoint can publish its most
+    # recent completed snapshot without a same-day date key. Prefer today's
+    # rows, then deliberately fall back to that latest valid snapshot.
+    if not abnormal_rows:
+        abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", limit=8)
+    breadth = [
+        {"title": "涨停", "value": str(len(up_rows)), "detail": "当日涨停池", "change": "", "tone": "up"},
+        {"title": "跌停", "value": str(len(down_rows)), "detail": "当日跌停池", "change": "", "tone": "down"},
+    ]
+    latest_market_rows = _latest_intelligence_rows(market_flow_rows)
+    latest_northbound_rows = _latest_intelligence_rows(northbound_rows)
+    latest_southbound_rows = _latest_intelligence_rows(southbound_rows)
+    industry_rows = _industry_flow_rows(sector_rows)
+    concept_rows = _concept_flow_rows(sector_rows)
+    flow_rows = [*latest_market_rows, *latest_northbound_rows, *latest_southbound_rows]
+    as_of_rows = [*up_rows, *down_rows, *flow_rows, *industry_rows]
+    as_of = _latest_intelligence_rows(as_of_rows)
+    pulse = {
+        "as_of": str(_workspace_value(as_of[0], "trade_date", "date", "time") or trade_date) if as_of else trade_date,
+        "breadth": breadth,
+        "flows": _intelligence_items(flow_rows, limit=5, fallback="资金流"),
+        "hot_sectors": _market_board_items(industry_rows, limit=8),
+        "hot_concepts": _market_board_items(concept_rows, limit=8),
+        "rankings": {
+            "hot": _market_rank_items(hot_rank_rows, market="CN"),
+            "surging": _market_rank_items(surging_rank_rows, market="CN"),
+            "hot_source": hot_rank_source,
+        },
+        "abnormal_trading": _abnormal_trading_items(abnormal_rows),
+    }
+    result = {
+        "ok": True,
+        "cached": False,
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+        "market_pulse": pulse,
+        "sections": {
+            "breadth": _intelligence_section_state([*up_rows, *down_rows], errors.get("breadth", [])),
+            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])),
+            "sectors": _intelligence_section_state(industry_rows, errors.get("sectors", [])),
+            "concepts": _intelligence_section_state(concept_rows, errors.get("concepts", [])),
+            "rankings": _intelligence_section_state([*hot_rank_rows, *surging_rank_rows], errors.get("rankings", [])),
+            "events": _intelligence_section_state(abnormal_rows, errors.get("events", [])),
+        },
+    }
+    if not any(errors.values()):
+        _market_pulse_cache = (now, result)
+    return result
+
+
+def fetch_market_board_detail(
+    name: str, *, board_code: str | None = None, kind: str = "industry", refresh: bool = False,
+) -> dict[str, Any]:
+    """Read one board's verified snapshot and available funding history.
+
+    Board identifiers are vendor-specific.  We only promise the information
+    that is returned for the selected code; membership is explicitly marked
+    source-dependent until its endpoint accepts the same identifier.
+    """
+    label = str(name or "").strip()[:80]
+    code = str(board_code or "").strip()[:40]
+    requested_kind = str(kind or "industry").strip().lower()
+    if not label and not code:
+        return {"ok": False, "error": "invalid_board", "message": "board name or code is required"}
+    if requested_kind not in {"industry", "concept"}:
+        return {"ok": False, "error": "invalid_board_kind", "message": "board kind must be industry or concept"}
+    if not ftshare_available():
+        return _provider_unavailable_intelligence("market_pulse")
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    snapshot_rows = _read_intelligence_section(market, errors, "board", "eastmoney_sector_flow", limit=500)
+    board = next((row for row in snapshot_rows if (code and str(row.get("sector_code") or "") == code) or (not code and str(row.get("sector_name") or "") == label and str(row.get("sector_type") or "").lower() == requested_kind)), None)
+    if board is None:
+        return {
+            "ok": True,
+            "board": {"name": label or code, "code": code, "kind": requested_kind, "snapshot": {}, "history": [], "members": []},
+            "sections": {"board": _intelligence_section_state([], errors.get("board", [])), "members": {"state": "source_dependent", "errors": []}},
+            "source": {"name": "FTShare", "status": "empty"},
+        }
+    resolved_name = str(board.get("sector_name") or label)
+    resolved_kind = str(board.get("sector_type") or requested_kind).lower()
+    history_rows: list[dict[str, Any]] = []
+    if resolved_kind == "industry":
+        end = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        history_rows = _read_intelligence_section(
+            market, errors, "board", "ths_industry_daily_flow", sector_name=resolved_name,
+            start_date=(end - timedelta(days=12)).strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), limit=10,
+        )
+    return {
+        "ok": True,
+        "board": {
+            "name": resolved_name,
+            "code": str(board.get("sector_code") or code),
+            "kind": resolved_kind,
+            "snapshot": _intelligence_item(board, fallback=resolved_name),
+            "history": _flow_history_items(history_rows, limit=6, fallback=resolved_name, leader=True),
+            "members": [],
+        },
+        "sections": {
+            "board": _intelligence_section_state([board, *history_rows], errors.get("board", [])),
+            "members": {"state": "source_dependent", "errors": []},
+        },
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+    }
+
+
+def fetch_security_intelligence(symbol: str, *, name: str | None = None, refresh: bool = False) -> dict[str, Any]:
+    """Load sector linkage, capital flow, and event context for one symbol.
+
+    The response is intentionally independent of ``fetch_security_workspace``.
+    It can be shown in the workbench, called by an agent, or composed by a
+    future Market Intelligence Core without coupling to a chart session.
+    """
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    if _broad_index_for_symbol(sym) or sym in GLOBAL_INDEX_SOURCES:
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "not_applicable"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "index", "sector": {}, "flows": [], "events": []},
+            "sections": {section: {"state": "not_applicable", "errors": []} for section in ("sector", "flows", "events")},
+        }
+    if _is_etf_symbol(sym):
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "not_applicable"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "etf", "sector": {}, "flows": [], "events": []},
+            "sections": {"sector": {"state": "not_applicable", "errors": []}, "flows": {"state": "unsupported", "errors": []}, "events": {"state": "not_applicable", "errors": []}},
+        }
+    key = sym.upper()
+    cached = _security_intelligence_cache.get(key)
+    now = time.time()
+    if not refresh and cached and now - cached[0] < _SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS:
+        return {**cached[1], "cached": True}
+    if not ftshare_available():
+        return _provider_unavailable_intelligence("security_intelligence", symbol=sym)
+    market_name = _workspace_market(sym)
+    if market_name != "CN":
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "limited"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "stock", "sector": {}, "flows": [], "events": []},
+            "sections": {section: {"state": "unsupported", "errors": []} for section in ("sector", "flows", "events")},
+        }
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    code = _cn_stock_code(sym)
+    bare = code.split(".")[0]
+    basic_rows = _read_intelligence_section(market, errors, "sector", "company_list", stock_code=bare, limit=1)
+    industry = _primary_industry(_workspace_value(basic_rows[0], "industry", "industry_name", "sector", "bk")) if basic_rows else ""
+    flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_stock_flow", symbol=code, limit=10)
+    if not flow_rows:
+        flow_rows = _read_intelligence_section(market, errors, "flows", "ths_stock_daily_flow", code=bare, limit=10)
+    event_rows = _read_intelligence_section(market, errors, "events", "limit_event_timeline_3s", symbol=code)
+    industry_rows: list[dict[str, Any]] = []
+    peer_rows: list[dict[str, Any]] = []
+    if industry:
+        industry_end = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        industry_start = industry_end - timedelta(days=10)
+        industry_rows = _read_intelligence_section(
+            market,
+            errors,
+            "sector",
+            "ths_industry_daily_flow",
+            sector_name=industry,
+            start_date=industry_start.strftime("%Y%m%d"),
+            end_date=industry_end.strftime("%Y%m%d"),
+            limit=10,
+        )
+        peer_rows = _read_intelligence_section(market, errors, "sector", "supply_chain_subsubindustry_companies", subindustry_name=industry)
+    intelligence = {
+        "name": name or _symbol_name(market, sym),
+        "instrument_type": "stock",
+        "sector": {
+            "industry": industry or "--",
+            "flow": _flow_history_items(industry_rows, limit=8, fallback=industry or "行业资金", leader=True),
+            "peers": _intelligence_items(peer_rows, limit=12, fallback="同类公司"),
+        },
+        "flows": _flow_history_items(flow_rows, limit=10, fallback="个股资金"),
+        "events": _intelligence_items(event_rows, limit=10, fallback="交易事件"),
+    }
+    result = {
+        "ok": True,
+        "cached": False,
+        "symbol": sym,
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+        "security_intelligence": intelligence,
+        "sections": {
+            "sector": _intelligence_section_state([*basic_rows, *industry_rows, *peer_rows], errors.get("sector", [])),
+            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])),
+            "events": _intelligence_section_state(event_rows, errors.get("events", [])),
+        },
+    }
+    if not any(errors.values()):
+        _security_intelligence_cache[key] = (now, result)
+    return result
 
 
 def _display_number(value: Any) -> str:

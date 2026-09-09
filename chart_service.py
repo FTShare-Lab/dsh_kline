@@ -34,12 +34,17 @@ from core.calc import (
 from tools.calc import run_calc_metrics
 from core.rows import validate_rows, RowsValidationError
 from tools.draw import draw_kline
+from tools.watchlist import get_watchlist_state, save_watchlist_state
 from tools.fetch import (
     configure_ftshare_api_key,
+    data_source_capability_contract,
     fetch_candles,
     fetch_comparison_candles,
+    fetch_market_board_detail,
     fetch_market_ticker,
+    fetch_market_pulse,
     fetch_security_workspace,
+    fetch_security_intelligence,
     ftshare_capabilities,
     ftshare_index_kline_available,
     ftshare_status,
@@ -97,6 +102,11 @@ CHART_API_ACTIONS = frozenset(
         "fetch_candles",
         "fetch_comparison_candles",
         "fetch_security_workspace",
+        "fetch_market_pulse",
+        "fetch_market_board_detail",
+        "fetch_security_intelligence",
+        "watchlist_get",
+        "watchlist_save",
         "market_ticker",
         "search_symbols",
         "symbol_directory",
@@ -318,7 +328,7 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
             providers["builtin_free"] = _builtin_free_status()
         except Exception:  # noqa: BLE001
             providers["builtin_free"] = {"available": False, "source": "builtin_free"}
-        return {"ok": True, "external_rows": True, "providers": providers}
+        return {"ok": True, "external_rows": True, "providers": providers, "capability_contract": data_source_capability_contract()}
     if name == "configure_ftshare":
         return configure_ftshare_api_key(
             args.get("api_key"),
@@ -327,10 +337,17 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
         )
     if name == "test_ftshare_connection":
         return test_ftshare_connection()
+    if name == "watchlist_get":
+        return {"ok": True, "watchlist": get_watchlist_state()}
+    if name == "watchlist_save":
+        return save_watchlist_state(args.get("watchlist"))
     routes: dict[str, Callable[..., dict[str, Any]]] = {
         "fetch_candles": fetch_candles,
         "fetch_comparison_candles": fetch_comparison_candles,
         "fetch_security_workspace": fetch_security_workspace,
+        "fetch_market_pulse": fetch_market_pulse,
+        "fetch_market_board_detail": fetch_market_board_detail,
+        "fetch_security_intelligence": fetch_security_intelligence,
         "market_ticker": fetch_market_ticker,
         "search_symbols": search_symbols,
         "calc_range": calc_range,

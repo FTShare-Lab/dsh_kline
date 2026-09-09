@@ -1,0 +1,4 @@
+# Python runtime caches are generated locally and must never ship in the
+# plugin tarball. The source modules themselves are selected by package.json.
+**/__pycache__/
+**/*.py[cod]
