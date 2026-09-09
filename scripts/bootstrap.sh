@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${DSH_KLINE_VENV:-$PROJECT_ROOT/.venv}"
+RUNTIME_STAMP="$VENV_DIR/.dsh-kline-requirements"
 
 resolve_python() {
   local candidate resolved
@@ -41,9 +42,29 @@ if [[ -z "$PYTHON_BIN" ]]; then
   exit 1
 fi
 
-"$PYTHON_BIN" -m venv "$VENV_DIR"
-"$VENV_DIR/bin/python" -m pip install --upgrade pip
-"$VENV_DIR/bin/python" -m pip install -r "$PROJECT_ROOT/requirements.txt"
+requirements_fingerprint() {
+  if [[ -n "${DSH_KLINE_REQUIREMENTS_FINGERPRINT:-}" ]]; then
+    printf '%s\n' "$DSH_KLINE_REQUIREMENTS_FINGERPRINT"
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$PROJECT_ROOT/requirements.txt" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$PROJECT_ROOT/requirements.txt" | awk '{print $1}'
+  else
+    cksum "$PROJECT_ROOT/requirements.txt" | awk '{print $1 ":" $2}'
+  fi
+}
 
-printf 'Python environment ready: %s\n' "$VENV_DIR"
-printf 'Next: pnpm dsh:web\n'
+printf '[dsh_kline] Creating or repairing the virtual environment…\n' >&2
+"$PYTHON_BIN" -m venv "$VENV_DIR"
+printf '[dsh_kline] Updating the package installer…\n' >&2
+"$VENV_DIR/bin/python" -m pip install --upgrade pip
+printf '[dsh_kline] Installing dependencies…\n' >&2
+"$VENV_DIR/bin/python" -m pip install -r "$PROJECT_ROOT/requirements.txt"
+printf '[dsh_kline] Verifying the runtime…\n' >&2
+"$VENV_DIR/bin/python" -c 'import ftshare, mcp, pydantic, pydantic_settings'
+
+STAMP_TMP="$RUNTIME_STAMP.tmp.$$"
+printf '%s\n' "$(requirements_fingerprint)" > "$STAMP_TMP"
+mv "$STAMP_TMP" "$RUNTIME_STAMP"
+
+printf '[dsh_kline] Python runtime ready: %s\n' "$VENV_DIR" >&2
