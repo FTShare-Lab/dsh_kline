@@ -29,6 +29,10 @@ const stderr = createWriteStream(join(scratch, 'bootstrap.log'), {mode:0o600})
 const child = spawn(process.execPath, ['scripts/run-dsh-kline.mjs'], {cwd:root, env, stdio:['pipe','pipe','pipe'], windowsHide:true})
 const childExit = new Promise(resolveExit => child.once('exit', resolveExit))
 child.stderr.pipe(stderr)
+let stderrTail = ''
+child.stderr.on('data', chunk => {
+  stderrTail = (stderrTail + chunk.toString('utf8')).slice(-32_768)
+})
 const pending = new Map()
 const lines = createInterface({input:child.stdout})
 lines.on('line', line => {
@@ -39,7 +43,11 @@ lines.on('line', line => {
   } catch { /* Only protocol responses can satisfy requests. */ }
 })
 child.on('exit', code => {
-  for (const entry of pending.values()) {clearTimeout(entry.timer); entry.reject(Error(`MCP exited (${code}); see ${scratch}/bootstrap.log`))}
+  const detail = stderrTail.trim() || '(bootstrap produced no stderr)'
+  for (const entry of pending.values()) {
+    clearTimeout(entry.timer)
+    entry.reject(Error(`MCP exited (${code}); bootstrap log follows:\n${detail}`))
+  }
   pending.clear()
 })
 let sequence = 0
