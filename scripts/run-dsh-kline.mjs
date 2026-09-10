@@ -13,6 +13,7 @@ const REQUIREMENTS_FILE = join(PROJECT_ROOT, 'requirements.txt')
 const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings'
 const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 10))'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
+const BOOTSTRAP_FAILURE = '.dsh-kline-bootstrap-failed'
 
 export function pythonPathForVenv(venvDirectory, platform = process.platform) {
   const paths = platform === 'win32' ? win32 : posix
@@ -200,11 +201,26 @@ async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPyth
   process.stderr.write('[dsh_kline] Verifying the runtime…\n')
   await runLogged(runtimePython, ['-c', IMPORT_CHECK], logPath)
   await writeStamp(venvDirectory, fingerprint)
+  await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true })
   if (!(await stampMatches(venvDirectory, fingerprint))) {
     throw new Error('Dependency fingerprint was not persisted; refusing to report a ready runtime.')
   }
   process.stderr.write('[dsh_kline] Dependency fingerprint saved.\n')
   return runtimePython
+}
+
+async function readBootstrapFailure(venvDirectory, fingerprint) {
+  try {
+    const failure = JSON.parse(await readFile(join(venvDirectory, BOOTSTRAP_FAILURE), 'utf8'))
+    return failure?.fingerprint === fingerprint ? failure : null
+  } catch {
+    return null
+  }
+}
+
+async function writeBootstrapFailure(venvDirectory, fingerprint, error) {
+  await mkdir(venvDirectory, { recursive: true })
+  await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
 }
 
 async function launchServer(runtimePython, runtimeDirectory) {
@@ -257,12 +273,17 @@ export async function main(argv = process.argv.slice(2)) {
     if (!managedRuntime) {
       throw new Error('The project .venv is incomplete. Run: pnpm bootstrap')
     }
+    const previousFailure = await readBootstrapFailure(venvDirectory, fingerprint)
+    if (previousFailure && !prepareProject) {
+      throw new Error(`Python runtime preparation previously failed for these dependencies. Run: pnpm bootstrap and inspect the bootstrap log.`)
+    }
     const logPath = join(stateDirectory, 'bootstrap.log')
     process.stderr.write(`[dsh_kline] Preparing Python runtime: ${reason}.\n`)
     process.stderr.write(`[dsh_kline] Installation details: ${logPath}\n`)
     try {
       runtimePython = await prepareRuntime(venvDirectory, fingerprint, logPath, hasProjectRuntime ? projectPython : '')
     } catch (error) {
+      await writeBootstrapFailure(venvDirectory, fingerprint, error).catch(() => {})
       throw new Error(`Runtime preparation failed. See ${logPath}. ${error instanceof Error ? error.message : String(error)}`)
     }
   }
