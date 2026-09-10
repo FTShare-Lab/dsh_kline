@@ -143,6 +143,7 @@ function findBootstrapPython() {
 }
 
 async function runLogged(command, args, logPath) {
+  const startedAt = Date.now()
   await mkdir(dirname(logPath), { recursive: true })
   const log = createWriteStream(logPath, { flags: 'a', mode: 0o600 })
   return await new Promise((resolveRun, rejectRun) => {
@@ -169,7 +170,7 @@ async function runLogged(command, args, logPath) {
       if (settled) return
       settled = true
       log.end()
-      if (code === 0) resolveRun()
+      if (code === 0) resolveRun(Date.now() - startedAt)
       else rejectRun(new Error(`${command} exited with code ${code}`))
     })
   })
@@ -181,12 +182,12 @@ async function prepareRuntime(venvDirectory, fingerprint, logPath) {
   await mkdir(dirname(logPath), { recursive: true })
   await writeFile(logPath, '', { encoding: 'utf8', mode: 0o600 })
   process.stderr.write('[dsh_kline] Creating or repairing the Python environment…\n')
-  await runLogged(base.command, [...base.args, '-m', 'venv', venvDirectory], logPath)
+  const venvMs = await runLogged(base.command, [...base.args, '-m', 'venv', venvDirectory], logPath)
+  process.stderr.write(`[dsh_kline] Python environment ready in ${Math.ceil(venvMs / 1000)}s.\n`)
   const runtimePython = pythonPathForVenv(venvDirectory)
-  process.stderr.write('[dsh_kline] Updating the package installer…\n')
-  await runLogged(runtimePython, ['-m', 'pip', 'install', '--upgrade', 'pip'], logPath)
   process.stderr.write('[dsh_kline] Installing dependencies…\n')
-  await runLogged(runtimePython, ['-m', 'pip', 'install', '-r', REQUIREMENTS_FILE], logPath)
+  const dependenciesMs = await runLogged(runtimePython, ['-m', 'pip', 'install', '-r', REQUIREMENTS_FILE], logPath)
+  process.stderr.write(`[dsh_kline] Dependencies ready in ${Math.ceil(dependenciesMs / 1000)}s.\n`)
   process.stderr.write('[dsh_kline] Verifying the runtime…\n')
   await runLogged(runtimePython, ['-c', IMPORT_CHECK], logPath)
   await writeStamp(venvDirectory, fingerprint)

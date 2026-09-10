@@ -634,8 +634,9 @@
   .market-segment:hover { color: var(--text); }
   .market-segment.active { background: var(--bg); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
   .market-leaderboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-  .market-leader { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; min-width: 0; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
-  .market-leader:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft)); }
+  .market-leader { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; min-width: 0; min-height: 62px; padding: 10px 11px; border: 1px solid var(--border); border-radius: 9px; background: linear-gradient(145deg, color-mix(in srgb, var(--bg-soft) 92%, white), var(--bg-soft)); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+  .market-leader:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--bg-soft)); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 9%, transparent); transform: translateY(-1px); }
+  .market-section-empty { min-height: 54px; display: grid; place-items: center start; margin: 10px 0 0; padding: 12px; border: 1px dashed var(--border); border-radius: 9px; background: var(--bg-soft); }
   .market-leader-rank { grid-row: 1 / span 2; align-self: center; color: var(--text-soft); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
   .market-leader-rank.top { color: var(--accent); font-weight: 750; }
   .market-leader-name { grid-column: 2; overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -2789,17 +2790,6 @@ function renderMarketWorkspace() {
   const pulseResult = marketPulseData || {};
   const pulse = pulseResult.market_pulse || {};
   const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
-  if (marketPulseLoading && !indexGroups && !marketPulseData) {
-    panel.innerHTML = `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${marketIndexLoadingMarkup()}</section></div>`;
-    return;
-  }
-  if (!marketPulseData) {
-    // Index quotes are independently available on the free tier. Keep the
-    // market landing page useful even when optional breadth/sector endpoints
-    // are temporarily unavailable, without showing a technical error state.
-    panel.innerHTML = `<div class="intelligence-content"><section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || marketIndexLoadingMarkup()}</section></div>`;
-    return;
-  }
   const hotSectors = Array.isArray(pulse.hot_sectors) ? pulse.hot_sectors : [];
   const hotConcepts = Array.isArray(pulse.hot_concepts) ? pulse.hot_concepts : [];
   const abnormalTrading = Array.isArray(pulse.abnormal_trading) ? pulse.abnormal_trading : [];
@@ -2808,12 +2798,12 @@ function renderMarketWorkspace() {
   const directionItems = marketDirectionMode === "concept" ? hotConcepts : hotSectors;
   const directions = marketDirectionMarkup(directionItems);
   const abnormal = marketLeaderboardMarkup(abnormalTrading);
-  const noData = `<p class="intelligence-note">${escapeHtml(t("marketUnavailable"))}</p>`;
+  const noData = `<p class="intelligence-note market-section-empty">板块数据暂不可用，指数行情仍可正常使用。</p>`;
   panel.innerHTML = `<div class="intelligence-content">` +
     `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
-    (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : "") +
+    (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : marketPulseLoading ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><div class="market-leaderboard loading" aria-label="正在加载龙虎榜">${Array.from({ length: 4 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div></section>` : "") +
     `</div>${workspaceSourceFooter(pulseResult)}`;
 }
 function renderDragonWorkspace() {
@@ -2967,7 +2957,9 @@ async function loadMarketPulse(refresh = false) {
   const requestId = ++marketPulseRequestId;
   marketPulseLoading = true;
   marketPulsePendingSections = new Set(["breadth", "flows", "sectors", "concepts", "rankings", "events"]);
-  if (refresh) marketPulseData = null;
+  // Keep the last good snapshot visible while a refresh is in flight. Each
+  // section is replaced independently as its newer response arrives, so a
+  // slow or rate-limited endpoint cannot make the market page jump or vanish.
   renderMarketWorkspace();
   const mergePulse = (current, incoming) => {
     if (!current) return incoming;
@@ -7116,9 +7108,14 @@ async function searchSymbols(query) {
     scheduleSymbolPrefetch(cached, q);
     return;
   }
-  setSearchResults([], "");
+  // Render any locally-known match immediately.  User profiles may have a
+  // slower MCP round trip than the development profile; the local directory,
+  // current workspace and watchlist should still make search feel instant.
+  const localMatches = mergeSearchResults([], q);
+  if (localMatches.length) setSearchResults(localMatches, q);
+  else setSearchResults([], "");
   const resultsEl = document.getElementById("searchResults");
-  if (resultsEl) resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(t("searching"))}</div>`;
+  if (resultsEl && !localMatches.length) resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(t("searching"))}</div>`;
   try {
     const result = await callTool("search_symbols", { query: q, limit: 8 });
     const structured = result?.structuredContent || result || {};
