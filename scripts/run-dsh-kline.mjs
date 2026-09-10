@@ -132,8 +132,15 @@ async function replaceWithRetry(source, destination) {
   throw lastError
 }
 
-function findBootstrapPython() {
-  for (const candidate of pythonCandidates()) {
+function findBootstrapPython(preferred = '') {
+  const candidates = preferred
+    ? [{ command: preferred, args: [] }, ...pythonCandidates()]
+    : pythonCandidates()
+  const seen = new Set()
+  for (const candidate of candidates) {
+    const key = `${candidate.command}\u0000${candidate.args.join('\u0000')}`
+    if (seen.has(key)) continue
+    seen.add(key)
     if (commandPasses(candidate.command, candidate.args, VERSION_CHECK)) return candidate
   }
   const hint = process.platform === 'win32'
@@ -176,8 +183,8 @@ async function runLogged(command, args, logPath) {
   })
 }
 
-async function prepareRuntime(venvDirectory, fingerprint, logPath) {
-  const base = findBootstrapPython()
+async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPython = '') {
+  const base = findBootstrapPython(preferredPython)
   await mkdir(dirname(venvDirectory), { recursive: true })
   await mkdir(dirname(logPath), { recursive: true })
   await writeFile(logPath, '', { encoding: 'utf8', mode: 0o600 })
@@ -191,6 +198,10 @@ async function prepareRuntime(venvDirectory, fingerprint, logPath) {
   process.stderr.write('[dsh_kline] Verifying the runtime…\n')
   await runLogged(runtimePython, ['-c', IMPORT_CHECK], logPath)
   await writeStamp(venvDirectory, fingerprint)
+  if (!(await stampMatches(venvDirectory, fingerprint))) {
+    throw new Error('Dependency fingerprint was not persisted; refusing to report a ready runtime.')
+  }
+  process.stderr.write('[dsh_kline] Dependency fingerprint saved.\n')
   return runtimePython
 }
 
@@ -248,7 +259,7 @@ export async function main(argv = process.argv.slice(2)) {
     process.stderr.write(`[dsh_kline] Preparing Python runtime: ${reason}.\n`)
     process.stderr.write(`[dsh_kline] Installation details: ${logPath}\n`)
     try {
-      runtimePython = await prepareRuntime(venvDirectory, fingerprint, logPath)
+      runtimePython = await prepareRuntime(venvDirectory, fingerprint, logPath, hasProjectRuntime ? projectPython : '')
     } catch (error) {
       throw new Error(`Runtime preparation failed. See ${logPath}. ${error instanceof Error ? error.message : String(error)}`)
     }
