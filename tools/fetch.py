@@ -2911,8 +2911,20 @@ def _concept_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[di
 
 def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, str]]:
     """Keep the provider's verified board identifier beside its UI summary."""
-    items = _intelligence_items(rows, limit=limit, fallback="板块")
-    for item, row in zip(items, rows[:limit]):
+    unique_rows = []
+    seen = set()
+    for row in rows:
+        code = str(_workspace_value(row, "sector_code", "board_code", "code") or "").strip().upper()
+        name = str(_workspace_value(row, "sector_name", "board", "name") or "").strip()
+        key = f"code:{code}" if code else f"name:{name}"
+        if key == "name:" or key in seen:
+            continue
+        seen.add(key)
+        unique_rows.append(row)
+        if len(unique_rows) >= limit:
+            break
+    items = _intelligence_items(unique_rows, limit=limit, fallback="板块")
+    for item, row in zip(items, unique_rows):
         item["board_code"] = str(_workspace_value(row, "sector_code", "board_code", "code") or "")
         item["board_kind"] = str(_workspace_value(row, "sector_type", "board_type") or "")
     return items
