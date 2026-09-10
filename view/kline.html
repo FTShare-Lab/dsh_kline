@@ -649,7 +649,7 @@
   /* Each side of the dragon-tiger comparison owns one readable card column.
      Without this override the generic two-column leaderboard nests into a
      cramped four-column layout in the narrow DSH panel. */
-  .dragon-grid > div > .market-leaderboard { grid-template-columns: minmax(0, 1fr); }
+  .dragon-grid > div > .market-leaderboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dragon-grid h4 { margin: 10px 0 -2px; color: var(--text-soft); font-size: 11px; font-weight: 650; }
   .intelligence-rank-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
   .intelligence-rank-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; min-width: 0; min-height: 58px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); }
@@ -2841,9 +2841,9 @@ function renderSecurityIntelligence() {
   const noData = `<p class="intelligence-note">${escapeHtml(t("intelligenceUnavailable"))}</p>`;
   panel.innerHTML = `<div class="intelligence-content">` +
     `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("currentIndustry"))}</h3></div><p class="intelligence-note">${escapeHtml(industry || t("intelligenceNotApplicable"))}</p>${currentIndustry || `<p class="intelligence-note">${escapeHtml(t("industryFlowUnavailable"))}</p>`}</section>` +
-    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("peerStocks"))}</h3></div><p class="intelligence-note">${escapeHtml(t("sectorLinkageHint"))}</p>${peerList || `<p class="intelligence-note">${escapeHtml(t("peerStocksUnavailable"))}</p>`}</section>` +
-    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("relatedEtfs"))}</h3></div><p class="intelligence-note">${escapeHtml(t("relatedEtfsHint"))}</p>${relatedEtfsMarkup(industry)}</section>` +
-    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("stockCapital"))}</h3></div><p class="intelligence-note">${escapeHtml(t("capitalEventsHint"))}</p>${stockFlow || noData}</section>` +
+    (peerList ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("peerStocks"))}</h3></div>${peerList}</section>` : "") +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("relatedEtfs"))}</h3></div>${relatedEtfsMarkup(industry)}</section>` +
+    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("stockCapital"))}</h3></div>${stockFlow || noData}</section>` +
     (events ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("tradingEvents"))}</h3></div>${events}</section>` : "") +
     `</div>${workspaceSourceFooter(intelligenceResult)}`;
 }
