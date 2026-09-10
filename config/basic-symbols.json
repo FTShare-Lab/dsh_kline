@@ -3,46 +3,390 @@
   "source": "https://qt.gtimg.cn/",
   "description": "安装自带的常用证券目录；名称与代码于版本日期核对，不代表全市场覆盖或行情权限。",
   "items": [
-    {"symbol":"601398.XSHG","name":"工商银行","market":"CN"},
-    {"symbol":"000001.XSHE","name":"平安银行","market":"CN"},
-    {"symbol":"600016.XSHG","name":"民生银行","market":"CN"},
-    {"symbol":"000858.XSHE","name":"五粮液","market":"CN"},
-    {"symbol":"002594.XSHE","name":"比亚迪","market":"CN"},
-    {"symbol":"000002.XSHE","name":"万科A","market":"CN"},
-    {"symbol":"600000.XSHG","name":"浦发银行","market":"CN"},
-    {"symbol":"601288.XSHG","name":"农业银行","market":"CN"},
-    {"symbol":"601988.XSHG","name":"中国银行","market":"CN"},
-    {"symbol":"601328.XSHG","name":"交通银行","market":"CN"},
-    {"symbol":"601166.XSHG","name":"兴业银行","market":"CN"},
-    {"symbol":"600030.XSHG","name":"中信证券","market":"CN"},
-    {"symbol":"000333.XSHE","name":"美的集团","market":"CN"},
-    {"symbol":"000651.XSHE","name":"格力电器","market":"CN"},
-    {"symbol":"300750.XSHE","name":"宁德时代","market":"CN"},
-    {"symbol":"510050.XSHG","name":"上证50ETF","market":"ETF"},
-    {"symbol":"510300.XSHG","name":"沪深300ETF","market":"ETF"},
-    {"symbol":"512100.XSHG","name":"中证1000ETF","market":"ETF"},
-    {"symbol":"588000.XSHG","name":"科创50ETF","market":"ETF"},
-    {"symbol":"159915.XSHE","name":"创业板ETF","market":"ETF"},
-    {"symbol":"159919.XSHE","name":"沪深300ETF","market":"ETF"},
-    {"symbol":"512800.XSHG","name":"银行ETF","market":"ETF"},
-    {"symbol":"512880.XSHG","name":"证券ETF","market":"ETF"},
-    {"symbol":"512480.XSHG","name":"半导体ETF","market":"ETF"},
-    {"symbol":"512010.XSHG","name":"医药ETF","market":"ETF"},
-    {"symbol":"512690.XSHG","name":"酒ETF","market":"ETF"},
-    {"symbol":"515030.XSHG","name":"新能源车ETF","market":"ETF"},
-    {"symbol":"600900.XSHG","name":"长江电力","market":"CN"},
-    {"symbol":"601857.XSHG","name":"中国石油","market":"CN"},
-    {"symbol":"600028.XSHG","name":"中国石化","market":"CN"},
-    {"symbol":"688981.XSHG","name":"中芯国际","market":"CN"},
-    {"symbol":"03690.HK","name":"美团-W","market":"HK"},
-    {"symbol":"01810.HK","name":"小米集团-W","market":"HK"},
-    {"symbol":"00981.HK","name":"中芯国际","market":"HK"},
-    {"symbol":"01211.HK","name":"比亚迪股份","market":"HK"},
-    {"symbol":"00939.HK","name":"建设银行","market":"HK"},
-    {"symbol":"01398.HK","name":"工商银行","market":"HK"},
-    {"symbol":"02318.HK","name":"中国平安","market":"HK"},
-    {"symbol":"09618.HK","name":"京东集团-SW","market":"HK"},
-    {"symbol":"09888.HK","name":"百度集团-W","market":"HK"},
-    {"symbol":"09999.HK","name":"网易","market":"HK"}
+    {
+      "symbol": "601398.XSHG",
+      "name": "工商银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "000001.XSHE",
+      "name": "平安银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "600016.XSHG",
+      "name": "民生银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "000858.XSHE",
+      "name": "五粮液",
+      "market": "CN"
+    },
+    {
+      "symbol": "002594.XSHE",
+      "name": "比亚迪",
+      "market": "CN"
+    },
+    {
+      "symbol": "000002.XSHE",
+      "name": "万科A",
+      "market": "CN"
+    },
+    {
+      "symbol": "600000.XSHG",
+      "name": "浦发银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "601288.XSHG",
+      "name": "农业银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "601988.XSHG",
+      "name": "中国银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "601328.XSHG",
+      "name": "交通银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "601166.XSHG",
+      "name": "兴业银行",
+      "market": "CN"
+    },
+    {
+      "symbol": "600030.XSHG",
+      "name": "中信证券",
+      "market": "CN"
+    },
+    {
+      "symbol": "000333.XSHE",
+      "name": "美的集团",
+      "market": "CN"
+    },
+    {
+      "symbol": "000651.XSHE",
+      "name": "格力电器",
+      "market": "CN"
+    },
+    {
+      "symbol": "300750.XSHE",
+      "name": "宁德时代",
+      "market": "CN"
+    },
+    {
+      "symbol": "510050.XSHG",
+      "name": "上证50ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "510300.XSHG",
+      "name": "沪深300ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512100.XSHG",
+      "name": "中证1000ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "588000.XSHG",
+      "name": "科创50ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159915.XSHE",
+      "name": "创业板ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159919.XSHE",
+      "name": "沪深300ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512800.XSHG",
+      "name": "银行ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512880.XSHG",
+      "name": "证券ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512480.XSHG",
+      "name": "半导体ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512010.XSHG",
+      "name": "医药ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "512690.XSHG",
+      "name": "酒ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "515030.XSHG",
+      "name": "新能源车ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "600900.XSHG",
+      "name": "长江电力",
+      "market": "CN"
+    },
+    {
+      "symbol": "601857.XSHG",
+      "name": "中国石油",
+      "market": "CN"
+    },
+    {
+      "symbol": "600028.XSHG",
+      "name": "中国石化",
+      "market": "CN"
+    },
+    {
+      "symbol": "688981.XSHG",
+      "name": "中芯国际",
+      "market": "CN"
+    },
+    {
+      "symbol": "03690.HK",
+      "name": "美团-W",
+      "market": "HK"
+    },
+    {
+      "symbol": "01810.HK",
+      "name": "小米集团-W",
+      "market": "HK"
+    },
+    {
+      "symbol": "00981.HK",
+      "name": "中芯国际",
+      "market": "HK"
+    },
+    {
+      "symbol": "01211.HK",
+      "name": "比亚迪股份",
+      "market": "HK"
+    },
+    {
+      "symbol": "00939.HK",
+      "name": "建设银行",
+      "market": "HK"
+    },
+    {
+      "symbol": "01398.HK",
+      "name": "工商银行",
+      "market": "HK"
+    },
+    {
+      "symbol": "02318.HK",
+      "name": "中国平安",
+      "market": "HK"
+    },
+    {
+      "symbol": "09618.HK",
+      "name": "京东集团-SW",
+      "market": "HK"
+    },
+    {
+      "symbol": "09888.HK",
+      "name": "百度集团-W",
+      "market": "HK"
+    },
+    {
+      "symbol": "09999.HK",
+      "name": "网易",
+      "market": "HK"
+    },
+    {
+      "symbol": "512400.XSHG",
+      "name": "有色金属ETF南方",
+      "market": "ETF"
+    },
+    {
+      "symbol": "516860.XSHG",
+      "name": "金融科技ETF博时",
+      "market": "ETF"
+    },
+    {
+      "symbol": "588870.XSHG",
+      "name": "科创50ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159995.XSHE",
+      "name": "芯片ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159928.XSHE",
+      "name": "消费ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "588750.XSHG",
+      "name": "科创芯片ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "589120.XSHG",
+      "name": "科创创新药ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "510660.XSHG",
+      "name": "医药ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159611.XSHE",
+      "name": "电力ETF广发",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159801.XSHE",
+      "name": "芯片ETF广发",
+      "market": "ETF"
+    },
+    {
+      "symbol": "516510.XSHG",
+      "name": "云计算ETF易方达",
+      "market": "ETF"
+    },
+    {
+      "symbol": "513310.XSHG",
+      "name": "中韩半导体ETF华泰柏瑞",
+      "market": "ETF"
+    },
+    {
+      "symbol": "516350.XSHG",
+      "name": "芯片ETF易方达",
+      "market": "ETF"
+    },
+    {
+      "symbol": "515070.XSHG",
+      "name": "人工智能ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "562500.XSHG",
+      "name": "机器人ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "513120.XSHG",
+      "name": "港股创新药ETF广发",
+      "market": "ETF"
+    },
+    {
+      "symbol": "513180.XSHG",
+      "name": "恒生科技ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159590.XSHE",
+      "name": "软件ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159755.XSHE",
+      "name": "电池ETF广发",
+      "market": "ETF"
+    },
+    {
+      "symbol": "561160.XSHG",
+      "name": "电池ETF富国",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159206.XSHE",
+      "name": "卫星ETF永赢",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159227.XSHE",
+      "name": "航空航天ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159934.XSHE",
+      "name": "黄金ETF易方达",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159278.XSHE",
+      "name": "机器人ETF鹏华",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159887.XSHE",
+      "name": "银行ETF富国",
+      "market": "ETF"
+    },
+    {
+      "symbol": "511880.XSHG",
+      "name": "银华日利ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159792.XSHE",
+      "name": "港股通互联网ETF富国",
+      "market": "ETF"
+    },
+    {
+      "symbol": "520550.XSHG",
+      "name": "港股红利低波ETF",
+      "market": "ETF"
+    },
+    {
+      "symbol": "518880.XSHG",
+      "name": "黄金ETF华安",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159518.XSHE",
+      "name": "标普油气ETF嘉实",
+      "market": "ETF"
+    },
+    {
+      "symbol": "513130.XSHG",
+      "name": "恒生科技ETF华泰柏瑞",
+      "market": "ETF"
+    },
+    {
+      "symbol": "515050.XSHG",
+      "name": "通信ETF华夏",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159509.XSHE",
+      "name": "纳指科技ETF景顺",
+      "market": "ETF"
+    },
+    {
+      "symbol": "159660.XSHE",
+      "name": "纳指ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "513260.XSHG",
+      "name": "恒生科技ETF汇添富",
+      "market": "ETF"
+    },
+    {
+      "symbol": "563300.XSHG",
+      "name": "中证2000ETF华泰柏瑞",
+      "market": "ETF"
+    }
   ]
 }

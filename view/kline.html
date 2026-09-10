@@ -149,10 +149,18 @@
   .search-result-quote.down { color: var(--down); }
   .search-empty { padding: 8px; color: var(--text-soft); font-size: 11px; }
   .header-controls { position: absolute; top: 6px; right: 12px; display: flex; align-items: center; gap: 4px; }
-  .watchlist-groupbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; padding: 7px 8px; border-bottom: 1px solid var(--border); }
-  .watchlist-groupbar.no-delete { grid-template-columns: minmax(0, 1fr) auto; }
+  /* Column count must track the number of action buttons actually rendered.
+     The bar previously declared 3 tracks for (select + add + delete); adding
+     the rename button made it 4 children, so the last one wrapped to a second
+     row and the label overflowed the rail header.  Using an explicit button
+     container keeps the tracks correct however many actions exist. */
+  .watchlist-groupbar { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .watchlist-group-select { flex: 1 1 auto; min-width: 0; }
+  .watchlist-group-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
   .watchlist-group-select { min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .watchlist-group-action { min-height: 28px; width: 28px; padding: 0; font-size: 16px; }
+  .watchlist-group-action { display: inline-grid; place-items: center; width: 28px; min-width: 28px; min-height: 28px; height: 28px; padding: 0; color: var(--text-soft); font-size: 16px; line-height: 1; }
+  .watchlist-group-action:hover:not(:disabled) { color: var(--text); border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); background: var(--bg-soft); }
+  #watchlistRailGroupDeleteBtn:hover:not(:disabled) { color: var(--down); border-color: color-mix(in srgb, var(--down) 42%, var(--border)); }
   .watchlist-items { max-height: 252px; overflow-y: auto; }
   .watchlist-empty { padding: 12px 9px; color: var(--text-soft); font-size: 11px; }
   .watchlist-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; width: 100%; padding: 7px 7px 7px 9px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
@@ -179,19 +187,22 @@
     position: absolute; z-index: 24; top: 0; bottom: 31px; left: 0; width: 236px;
     display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg);
     box-shadow: var(--shadow); transform: translateX(-100%); transition: transform 160ms ease;
-    pointer-events: none;
+    /* A translated off-canvas rail can still paint overflowing descendants at
+       the edge of the panel.  Keep it genuinely hidden until it is opened so
+       controls from the group bar can never overlap the quote header. */
+    visibility: hidden; pointer-events: none;
   }
-  #viewShell.watchlist-rail-open .watchlist-rail { transform: translateX(0); pointer-events: auto; }
+  #viewShell.watchlist-rail-open .watchlist-rail { transform: translateX(0); visibility: visible; pointer-events: auto; }
   .watchlist-rail-header { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 750; }
   .watchlist-rail-items { flex: 1 1 auto; max-height: none; overflow-y: auto; }
   .watchlist-rail .watchlist-item { min-height: 52px; }
   .watchlist-rail .watchlist-item.current { background: color-mix(in srgb, var(--accent) 9%, var(--bg)); box-shadow: inset 2px 0 0 var(--accent); }
-  .watchlist-overview { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  .watchlist-overview { display: grid; gap: 7px; padding: 8px; border-bottom: 1px solid var(--border); }
   .watchlist-summary { display: flex; justify-content: space-between; gap: 6px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
   .watchlist-summary .up { color: var(--up); } .watchlist-summary .down { color: var(--down); }
-  .watchlist-batchbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }
+  .watchlist-batchbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; }
   .watchlist-sort { min-width: 0; height: 27px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; font-size: 11px; }
-  .watchlist-batch-open { min-height: 27px; padding-inline: 7px; font-size: 11px; }
+  .watchlist-batch-open, .watchlist-import { min-height: 27px; padding-inline: 7px; font-size: 11px; white-space: nowrap; }
   .watchlist-item { grid-template-columns: minmax(0, 1fr) auto; }
   .watchlist-item-main { min-width: 0; }
   .watchlist-quote { align-self: center; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -618,6 +629,9 @@
   .market-index-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; min-width: 0; min-height: 74px; padding: 11px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 9px; background: linear-gradient(145deg, color-mix(in srgb, var(--bg-soft) 92%, white), var(--bg-soft)); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
   .market-index-card.up { border-left-color: color-mix(in srgb, var(--up) 65%, var(--border)); }
   .market-index-card.down { border-left-color: color-mix(in srgb, var(--down) 65%, var(--border)); }
+  .market-index-card.unavailable { cursor: default; border-left-color: var(--border); color: var(--text-soft); }
+  .market-index-card.unavailable:hover { border-color: var(--border); box-shadow: none; transform: none; }
+  .market-index-unavailable { align-self: center; color: var(--text-soft); font-size: 12px; font-weight: 650; text-align: right; }
   .market-index-card.loading { cursor: default; }
   .market-index-card.loading:hover { border-color: var(--border); box-shadow: none; transform: none; }
   .market-index-skeleton { display: block; height: 11px; border-radius: 999px; background: var(--border); opacity: .55; }
@@ -676,9 +690,30 @@
   .company-module-heading span { color: var(--text-soft); font-size: 10px; }
   .company-module .company-content { padding-top: 12px; }
   .company-module .insight-empty { min-height: auto; place-content: start; padding: 12px 0 0; text-align: left; }
+  .workspace-partial-notice { display: flex; align-items: center; gap: 8px; margin: 12px 0 2px; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 7%, var(--bg)); color: var(--text-soft); font-size: 12px; line-height: 1.45; }
+  .workspace-partial-notice strong { color: var(--text); font-size: 12px; }
   .err { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--danger); padding: 8px 12px; }
   .err-message { min-width: 0; overflow-wrap: anywhere; }
   .err .btn { flex: 0 0 auto; }
+  .market-freshness { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; margin-bottom: 10px; color: var(--text-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .market-freshness-warn { color: var(--warn); font-weight: 650; }
+  .import-dialog { width: min(440px, 100%); padding: 16px; border-radius: 8px; }
+  .import-dialog .group-dialog-title { margin-bottom: 5px; }
+  .import-dialog-hint { margin: 0 0 12px; color: var(--text-soft); font-size: 11px; line-height: 1.55; }
+  .import-dialog-input { height: auto; min-height: 142px; padding: 9px; border-radius: 5px; background: var(--bg-soft); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.6; resize: vertical; }
+  .import-dialog-preview { max-height: 132px; margin-top: 10px; padding: 8px 9px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-soft); color: var(--text-soft); font-size: 11px; line-height: 1.6; }
+  .import-dialog-preview[hidden] { display: none; }
+  .import-dialog-preview .ok { color: var(--up); }
+  .import-dialog-preview .warn { color: var(--warn); }
+  .import-dialog-preview .bad { color: var(--danger); }
+  .watchlist-drag-handle { margin-right: 4px; color: var(--text-soft); cursor: grab; font-size: 11px; opacity: .55; }
+  .watchlist-item.dragging { opacity: .45; }
+  .watchlist-item.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
+  .watchlist-batch-actions { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .watchlist-batch-actions[hidden] { display: none; }
+  .watchlist-batch-count { color: var(--text-soft); font-size: 10px; }
+  .watchlist-batch-actions .btn { min-height: 24px; padding: 2px 7px; font-size: 10px; }
+  .watchlist-batch-actions .watchlist-sort { flex: 1 1 auto; min-width: 0; height: 24px; font-size: 10px; }
   .group-dialog-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 17, 25, .35); }
   .group-dialog-backdrop[hidden] { display: none; }
   .group-dialog { width: min(320px, 100%); padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }
@@ -1080,10 +1115,14 @@
   <div class="watchlist-rail-header"><span id="watchlistRailHeading">自选</span><button class="btn icon-btn" id="watchlistRailCloseBtn" type="button" title="收起自选侧栏" aria-label="收起自选侧栏">&times;</button></div>
   <div class="watchlist-groupbar">
     <select class="watchlist-group-select" id="watchlistRailGroupSelect" aria-label="自选分组"></select>
-    <button class="btn watchlist-group-action" id="watchlistRailGroupAddBtn" type="button" title="新建分组" aria-label="新建分组">+</button>
-    <button class="btn watchlist-group-action" id="watchlistRailGroupDeleteBtn" type="button" title="删除分组" aria-label="删除分组">&times;</button>
+    <div class="watchlist-group-actions">
+      <button class="btn watchlist-group-action" id="watchlistRailGroupAddBtn" type="button" title="新建分组" aria-label="新建分组"><span aria-hidden="true">+</span></button>
+      <button class="btn watchlist-group-action" id="watchlistRailGroupRenameBtn" type="button" title="重命名分组" aria-label="重命名分组"><span aria-hidden="true">✎</span></button>
+      <button class="btn watchlist-group-action" id="watchlistRailGroupDeleteBtn" type="button" title="删除分组" aria-label="删除分组"><span aria-hidden="true">&times;</span></button>
+    </div>
   </div>
-  <div class="watchlist-overview"><div class="watchlist-summary" id="watchlistSummary"></div><div class="watchlist-batchbar"><select class="watchlist-sort" id="watchlistSortSelect" aria-label="自选排序"></select><button class="btn watchlist-batch-open" id="watchlistBatchOpenBtn" type="button">批量打开</button></div></div>
+  <div class="watchlist-overview"><div class="watchlist-summary" id="watchlistSummary"></div><div class="watchlist-batchbar"><select class="watchlist-sort" id="watchlistSortSelect" aria-label="自选排序"></select><button class="btn watchlist-batch-open" id="watchlistBatchOpenBtn" type="button" title="打开所选标的">打开所选</button><button class="btn watchlist-import" id="watchlistImportBtn" type="button" title="批量导入自选">导入</button></div></div>
+  <div class="watchlist-batch-actions" id="watchlistBatchBar" hidden><span class="watchlist-batch-count">已选 <b id="watchlistBatchCount">0</b></span><button class="btn" id="watchlistBatchAllBtn" type="button">全选</button><select class="watchlist-sort" id="watchlistBatchMoveSelect" aria-label="移动到分组"></select><button class="btn" id="watchlistBatchDeleteBtn" type="button">删除所选</button></div>
   <div class="watchlist-items watchlist-rail-items" id="watchlistRailItems"></div>
 </aside>
 <div class="group-dialog-backdrop" id="groupDialog" hidden>
@@ -1092,6 +1131,19 @@
     <input class="group-dialog-input" id="groupDialogInput" type="text" maxlength="24" autocomplete="off" />
     <div class="group-dialog-error" id="groupDialogError" aria-live="polite"></div>
     <div class="group-dialog-actions"><button class="btn" id="groupDialogCancel" type="button">取消</button><button class="btn primary" id="groupDialogSubmit" type="submit">创建</button></div>
+  </form>
+</div>
+<div class="group-dialog-backdrop" id="importDialog" hidden>
+  <form class="group-dialog import-dialog" id="importDialogForm" aria-labelledby="importDialogTitle">
+    <h2 class="group-dialog-title" id="importDialogTitle">批量导入自选</h2>
+    <p class="import-dialog-hint" id="importDialogHint">每行一个标的，支持「代码」或「代码 名称」，也支持顿号、逗号或空格分隔。代码可省略交易所后缀。</p>
+    <textarea class="group-dialog-input import-dialog-input" id="importDialogInput" rows="8" spellcheck="false" autocomplete="off" placeholder="605006 山东玻纤&#10;002068 黑猫股份&#10;512400"></textarea>
+    <div class="group-dialog-error" id="importDialogError" aria-live="polite"></div>
+    <div class="import-dialog-preview" id="importDialogPreview" aria-live="polite" hidden></div>
+    <div class="group-dialog-actions">
+      <button class="btn" id="importDialogCancel" type="button">取消</button>
+      <button class="btn primary" id="importDialogSubmit" type="submit">导入</button>
+    </div>
   </form>
 </div>
 <div class="interface-popover" id="interfacePopover" role="dialog" aria-modal="true" aria-labelledby="interfaceTitle" hidden>
@@ -1254,6 +1306,7 @@ let marketPulseData = null;
 let marketPulseLoading = false;
 let marketPulseRequestId = 0;
 let marketPulsePendingSections = new Set();
+let marketPulseStartTimer = null;
 let marketDirectionMode = "industry";
 let marketRankingMode = "hot";
 let marketBoardDetail = null;
@@ -1321,8 +1374,18 @@ let marketTickerStatus = "unavailable";
 let marketTickerStale = false;
 let marketTickerRefreshTimer = null;
 let marketTickerRefreshInFlight = false;
+let marketTickerInitialized = false;
+let marketTickerMissing = [];
 let marketTickerSource = "";
 const MARKET_TICKER_REFRESH_MS = 60_000;
+const WORKSPACE_RATE_LIMIT_RETRY_MS = 9_000;
+const WORKSPACE_RATE_LIMIT_MAX_RETRIES = 1;
+const workspaceRetryTimers = new Map();
+const workspaceRetryAttempts = new Map();
+// Treat the broad indices as the foreground payload of a fresh launcher.
+// Everything else is useful, but must not compete with the first impression.
+const MARKET_FOREGROUND_GRACE_MS = 1_100;
+const MARKET_BACKGROUND_DELAY_MS = 3_000;
 let chartDataSource = "mcp";
 let chartDataSourceUrl = "";
 let chartDataUpdatedAt = 0;
@@ -1335,7 +1398,11 @@ let chartDataRetryTimer = null;
 let lastDataFetchRequest = null;
 const CHART_DATA_RETRY_MS = 15_000;
 const MAX_PRICE_ALERTS = 32;
-const WATCHLIST_QUOTE_LIMIT = 12;
+// Quote every visible row: a cap here silently leaves most of a large group
+// showing "--". The refresh is chunked so a 200-item group stays within a
+// sane number of concurrent requests instead of firing them all at once.
+const WATCHLIST_QUOTE_LIMIT = 200;
+const WATCHLIST_QUOTE_CONCURRENCY = 6;
 const WATCHLIST_QUOTE_REFRESH_MS = 60_000;
 let watchlistQuotes = new Map();
 let watchlistQuoteRefreshTimer = null;
@@ -1378,8 +1445,8 @@ const UI_COPY = {
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
     newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
-    watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
-    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "批量打开", groupSummary: "分组总览", noQuote: "暂无行情",
+    watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", renameGroup: "重命名分组", save: "保存", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
+    rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "打开所选", batchSelectAll: "全选", batchDelete: "删除所选", batchMoveTo: "移动到…", batchRemoved: "已删除 {count} 只", batchMoved: "已移动 {count} 只", importDone: "已导入 {count} 只", groupSummary: "分组总览", noQuote: "暂无行情",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
   },
   en: {
@@ -1397,8 +1464,8 @@ const UI_COPY = {
     switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", sourceEastmoneyFree: "Eastmoney free quotes", sourceTencentFree: "Tencent free quotes", openIndexChart: "Open {name} chart", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
     newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
-    watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
-    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The connected FTShare endpoint does not support minute bars for this symbol; this does not mean the key is invalid. Choose 30-day or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", groupSummary: "Group overview", noQuote: "No quote",
+    watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", renameGroup: "Rename group", save: "Save", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
+    rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The connected FTShare endpoint does not support minute bars for this symbol; this does not mean the key is invalid. Choose 30-day or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", batchSelectAll: "Select all", batchDelete: "Delete selected", batchMoveTo: "Move to…", batchRemoved: "Removed {count}", batchMoved: "Moved {count}", importDone: "Imported {count}", groupSummary: "Group overview", noQuote: "No quote",
     day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "dsh_kline",
   },
 };
@@ -1407,7 +1474,7 @@ Object.assign(UI_COPY.zh, {
   market: "市场",
   sector: "板块", marketPulse: "市场脉搏", marketPulseHint: "涨跌停、资金流与热门板块，按当前数据权限展示。", sectorLinkage: "板块与同类股", sectorLinkageHint: "行业归属、行业资金与可用的同类公司。", capitalEvents: "资金与事件", capitalEventsHint: "个股资金流与涨跌停等交易事件。", intelligenceLoading: "正在加载市场与标的情报…", intelligenceUnavailable: "当前数据源暂未返回板块、资金或事件信息。", intelligenceNotApplicable: "该类标的不适用个股板块与资金事件分析。",
   marketLoading: "正在加载全市场信息…", marketUnavailable: "当前数据源暂未返回全市场信息。", marketIndices: "主要指数", marketIndicesHint: "中国内地、香港与美国的核心市场指数；点击即可打开对应 K 线。", marketIndicesUnavailable: "主要指数暂未返回；请稍后使用顶部刷新重试。", marketCN: "中国内地", marketCNHint: "A股", marketHK: "香港", marketHKHint: "港股", marketUS: "美国", marketUSHint: "美股", marketIndustryHint: "按主力资金和涨跌表现排序的热门行业。", sectorLoading: "正在加载当前标的的板块信息…", peerStocksUnavailable: "当前数据源已返回行业，但暂未提供可用的同类公司名单。", industryFlowUnavailable: "当前数据源暂未返回该行业的资金记录。",
-  workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用顶部刷新按钮重试。",
+  workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用顶部刷新按钮重试。", workspaceRateLimitSummary: "部分资料正在重新加载，已保留可用内容。",
   workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
   workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
@@ -1434,7 +1501,7 @@ Object.assign(UI_COPY.en, {
   market: "Market",
   sector: "Sector", marketPulse: "Market pulse", marketPulseHint: "Breadth, capital flow and hot sectors, subject to the active data plan.", sectorLinkage: "Sector & peers", sectorLinkageHint: "Industry, industry flow and available peer companies.", capitalEvents: "Capital & events", capitalEventsHint: "Stock capital flow and trading-event context.", intelligenceLoading: "Loading market and security intelligence…", intelligenceUnavailable: "The current source has not returned sector, capital-flow or event data.", intelligenceNotApplicable: "This instrument does not use equity sector or event analysis.",
   marketLoading: "Loading market overview…", marketUnavailable: "The current source has not returned market-wide information.", marketIndices: "Major indices", marketIndicesHint: "Core mainland China, Hong Kong and US indices. Select one to open its chart.", marketIndicesUnavailable: "Major indices are temporarily unavailable. Use the refresh button above to retry.", marketCN: "Mainland China", marketCNHint: "A-shares", marketHK: "Hong Kong", marketHKHint: "HK equities", marketUS: "United States", marketUSHint: "US equities", marketIndustryHint: "Hot industries ranked by capital flow and price performance.", sectorLoading: "Loading this symbol's sector context…", peerStocksUnavailable: "The source returned the industry, but no usable peer-company list is available.", industryFlowUnavailable: "The source has not returned capital-flow records for this industry.",
-  workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button above to retry.",
+  workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button above to retry.", workspaceRateLimitSummary: "Some information is retrying; available content is retained.",
   workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
   workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
@@ -1721,7 +1788,7 @@ function syncLanguageControls() {
     toolbarHint: t("toolbarHint"), clearBtn: t("clearAnnotations"),
     indicatorHeading: t("indicatorHeading"), applyIndicatorBtn: t("apply"), applyCustomRangeBtn: t("apply"),
     watchlistRailHeading: t("watchlist"), customRangeBtn: t("custom"), brandProduct: t("productName"),
-    alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), levelMenuBtn: t("levelMenu"), watchlistBatchOpenBtn: t("batchOpen"), clearDrawingsBtn: t("clear"),
+    alertMenuBtn: t("alert"), contextAddWatchBtn: t("addWatchAtCandle"), contextAnalyzeBtn: t("analyzeCandle"), compareMenuBtn: t("compare"), drawingMenuBtn: t("drawing"), levelMenuBtn: t("levelMenu"), watchlistBatchOpenBtn: t("batchOpen"), watchlistBatchAllBtn: t("batchSelectAll"), watchlistBatchDeleteBtn: t("batchDelete"), watchlistBatchMoveSelect: t("batchMoveTo"), clearDrawingsBtn: t("clear"),
     groupDialogTitle: t("newGroup"), groupDialogCancel: t("cancel"), groupDialogSubmit: t("create"), ftshareConfigureBtn: t("configureAndTest"), ftshareClearBtn: t("clearConfig"),
   };
   for (const [id, value] of Object.entries(values)) {
@@ -2608,18 +2675,43 @@ function companyHoldersMarkup(data) {
   const items = Array.isArray(holders.items) ? holders.items : [];
   return `<div class="company-content"><div class="company-section-heading"><h3>${escapeHtml(t("majorHolders"))}</h3><span>${escapeHtml(ct("截至"))} ${escapeHtml(holders.updated_at || "--")}</span></div><div class="holder-layout"><div class="holder-summary">${items.map((item) => `<div class="holder-summary-row"><div><div class="holder-summary-name">${escapeHtml(item.name || "--")}</div><div class="holder-summary-track"><div class="holder-summary-fill" style="width:${Math.max(0, Math.min(100, Number(item.percent) || 0))}%"></div></div></div><div class="holder-summary-value">${escapeHtml(Number(item.percent).toFixed(2))}%</div></div>`).join("")}</div><table class="company-data-table"><thead><tr><th>${escapeHtml(ct("股东"))}</th><th>${escapeHtml(ct("持股数"))}</th><th>${escapeHtml(ct("持股比例"))}</th><th>${escapeHtml(ct("变动"))}</th></tr></thead><tbody>${items.map((item) => `<tr><td>${escapeHtml(item.name || "--")}</td><td>${escapeHtml(item.shares || "--")}</td><td>${escapeHtml(Number(item.percent).toFixed(2))}%</td><td class="${String(item.change || "").startsWith("-") ? "down" : "up"}">${escapeHtml(item.change || "--")}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
+function workspaceSectionIsRateLimited(data, section) {
+  const status = data?.sections?.[section] || {};
+  return (status.errors || []).some((error) => error?.code === "rate_limited");
+}
+function companySectionHasContent(data, section) {
+  if (section === "overview") {
+    const overview = data?.overview || {};
+    return Boolean((overview.description && overview.description !== "--") || (overview.listing_date && overview.listing_date !== "--") || overview.metrics?.length || overview.details?.length);
+  }
+  if (section === "financials") return Boolean(data?.financials?.metrics?.length || data?.financials?.rows?.length);
+  if (section === "holders") return Boolean(data?.holders?.items?.length);
+  return false;
+}
 function companyModuleMarkup(data, section, title, render) {
   const state = workspaceSectionState(data, section);
   const blocked = ["unsupported", "empty", "error", "not_applicable"].includes(state);
+  // A single provider cooldown may affect several company endpoints. Keep any
+  // factual data that arrived, and let the enclosing panel state the retry once
+  // instead of repeating three large error cards.
+  if (workspaceSectionIsRateLimited(data, section)) {
+    const content = companySectionHasContent(data, section) ? render(data) : "";
+    return content ? `<section class="company-module"><div class="company-module-heading"><h3>${escapeHtml(title)}</h3></div>${content}</section>` : "";
+  }
   const content = workspaceSectionNotice(data, section) || (blocked ? "" : render(data));
   return `<section class="company-module"><div class="company-module-heading"><h3>${escapeHtml(title)}</h3></div>${content}</section>`;
 }
 function companyWorkspaceMarkup(data) {
-  return [
+  const rateLimited = ["overview", "financials", "holders"].filter((section) => workspaceSectionIsRateLimited(data, section));
+  const summary = rateLimited.length
+    ? `<div class="workspace-partial-notice" role="status"><strong>${escapeHtml(t("workspaceRateLimitSummary"))}</strong></div>`
+    : "";
+  const modules = [
     companyModuleMarkup(data, "overview", t("companyProfile"), companyOverviewMarkup),
     companyModuleMarkup(data, "financials", t("financialSnapshot"), companyFinancialsMarkup),
     companyModuleMarkup(data, "holders", t("ownershipSnapshot"), companyHoldersMarkup),
-  ].join("");
+  ].filter(Boolean).join("");
+  return summary + (modules || insightEmptyMarkup(t("workspaceLoading")));
 }
 function insightEmptyMarkup(title, hint = "") {
   return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</div>`;
@@ -2696,10 +2788,17 @@ function intelligenceMetricsMarkup(items, className = "") {
     return `<div class="intelligence-metric"><span class="intelligence-metric-label">${escapeHtml(item?.title || "--")}</span><span class="intelligence-metric-value ${tone}">${escapeHtml(value)}</span>${item?.detail ? `<span class="intelligence-item-detail">${escapeHtml(item.detail)}</span>` : ""}</div>`;
   }).join("")}</div>`;
 }
-function marketIndexGroupsMarkup(items) {
+function marketIndexGroupsMarkup(items, missing = []) {
   const valid = Array.isArray(items) ? items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
   const order = { CN: 0, HK: 1, US: 2 };
-  const markup = valid.slice().sort((left, right) => (order[String(left?.market || "").toUpperCase()] ?? 9) - (order[String(right?.market || "").toUpperCase()] ?? 9)).map((item) => {
+  const ready = valid.map((item) => ({ ...item, available: true }));
+  const unavailable = (Array.isArray(missing) ? missing : [])
+    .filter((item) => item?.symbol && !valid.some((readyItem) => readyItem.symbol === item.symbol))
+    .map((item) => ({ ...item, available: false }));
+  const markup = [...ready, ...unavailable].sort((left, right) => (order[String(left?.market || "").toUpperCase()] ?? 9) - (order[String(right?.market || "").toUpperCase()] ?? 9)).map((item) => {
+    if (!item.available) {
+      return `<div class="market-index-card unavailable"><span class="market-index-name">${escapeHtml(String(item.name || item.symbol))}</span><span class="market-index-unavailable">暂不可用</span><span class="market-index-symbol">${escapeHtml(String(item.symbol || ""))}</span><span></span></div>`;
+    }
     const change = Number(item.change_pct);
     const tone = change < 0 ? "down" : "up";
     const symbol = String(item.symbol || "");
@@ -2708,11 +2807,11 @@ function marketIndexGroupsMarkup(items) {
     return `<button type="button" class="market-index-card ${tone}" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}" title="${escapeHtml(openTitle)}"><span class="market-index-name">${escapeHtml(name)}</span><span class="market-index-price ${tone}">${escapeHtml(formatTickerNumber(item.close))}</span><span class="market-index-symbol">${escapeHtml(symbol)}</span><span class="market-index-change ${tone}">${change >= 0 ? "+" : ""}${escapeHtml(change.toFixed(2))}%</span></button>`;
   }).join("");
   if (!markup) return "";
-  const placeholders = Math.max(0, 8 - valid.length);
-  return `<div class="market-index-grid">${markup}${Array.from({ length: placeholders }, () => `<div class="market-index-card loading" aria-hidden="true"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`).join("")}</div>`;
+  if (!markup) return "";
+  return `<div class="market-index-grid">${markup}</div>`;
 }
 function marketIndexLoadingMarkup() {
-  return `<div class="market-index-grid" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 4 }, () =>
+  return `<div class="market-index-grid" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 8 }, () =>
     `<div class="market-index-card loading" aria-hidden="true"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`
   ).join("")}</div>`;
 }
@@ -2806,12 +2905,36 @@ function intelligenceSectionMarkup(title, hint, items, status) {
   }
   return `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(title)}</h3></div><p class="intelligence-note">${escapeHtml(hint)}</p>${content}</section>`;
 }
+// The market workspace assembles several independent provider sections.  They
+// can legitimately land on different trade dates (a holiday, a late close, a
+// rate-limited endpoint serving the previous snapshot).  Surface only that
+// disagreement here: the snapshot time itself already appears in the source
+// footer, so repeating it above the indices was pure noise.
+function marketPulseFreshnessMarkup() {
+  const sections = marketPulseData?.sections || {};
+  const names = { breadth: "涨跌停", flows: "资金流", sectors: "板块", concepts: "概念", rankings: "榜单", events: "龙虎榜" };
+  const problems = [];
+  for (const [key, state] of Object.entries(sections)) {
+    if (!state || typeof state !== "object") continue;
+    if (state.state === "deferred") continue;
+    const label = names[key] || key;
+    if (state.state === "partial" || (Array.isArray(state.errors) && state.errors.length)) {
+      problems.push(`${label}：数据不完整`);
+    } else if (state.state === "unavailable") {
+      // A plan simply may not include this endpoint; that is not a fault.
+      problems.push(`${label}：暂不可用`);
+    }
+  }
+  if (!problems.length) return "";
+  return `<div class="market-freshness" role="status"><span class="market-freshness-warn">${escapeHtml(problems.join(" · "))}</span></div>`;
+}
+
 function renderMarketWorkspace() {
   const panel = document.getElementById("marketWorkspacePanel");
   if (!panel) return;
   const pulseResult = marketPulseData || {};
   const pulse = pulseResult.market_pulse || {};
-  const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
+  const indexGroups = marketIndexGroupsMarkup(marketTickerItems, marketTickerMissing);
   const hotSectors = Array.isArray(pulse.hot_sectors) ? pulse.hot_sectors : [];
   const hotConcepts = Array.isArray(pulse.hot_concepts) ? pulse.hot_concepts : [];
   const abnormalTrading = Array.isArray(pulse.abnormal_trading) ? pulse.abnormal_trading : [];
@@ -2821,8 +2944,12 @@ function renderMarketWorkspace() {
   const directions = marketDirectionMarkup(directionItems);
   const abnormal = marketLeaderboardMarkup(abnormalTrading);
   const noData = `<p class="intelligence-note market-section-empty">板块数据暂不可用，指数行情仍可正常使用。</p>`;
+  const indices = indexGroups || (marketTickerRefreshInFlight || !marketTickerInitialized
+    ? marketIndexLoadingMarkup()
+    : `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`);
   panel.innerHTML = `<div class="intelligence-content">` +
-    `<section class="intelligence-section market-indices-section">${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
+    marketPulseFreshnessMarkup() +
+    `<section class="intelligence-section market-indices-section">${indices}</section>` +
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
     (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : marketPulseLoading ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><div class="market-leaderboard loading" aria-label="正在加载龙虎榜">${Array.from({ length: 4 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div></section>` : "") +
@@ -2911,7 +3038,29 @@ function workspaceHasContent(data) {
     (Array.isArray(data?.holders?.items) && data.holders.items.length)
   );
 }
-async function loadSecurityWorkspace(symbol, name, refresh = false) {
+function workspaceHasRateLimit(data) {
+  return ["news", "overview", "financials", "holders"].some((section) => workspaceSectionIsRateLimited(data, section));
+}
+function clearSecurityWorkspaceRetry(symbol) {
+  const key = String(symbol || "").toUpperCase();
+  const timer = workspaceRetryTimers.get(key);
+  if (timer) window.clearTimeout(timer);
+  workspaceRetryTimers.delete(key);
+  workspaceRetryAttempts.delete(key);
+}
+function scheduleSecurityWorkspaceRetry(symbol, name, data) {
+  const key = String(symbol || "").toUpperCase();
+  if (!key || !workspaceHasRateLimit(data) || workspaceRetryTimers.has(key)) return;
+  const attempts = Number(workspaceRetryAttempts.get(key) || 0);
+  if (attempts >= WORKSPACE_RATE_LIMIT_MAX_RETRIES) return;
+  workspaceRetryAttempts.set(key, attempts + 1);
+  const timer = window.setTimeout(() => {
+    workspaceRetryTimers.delete(key);
+    loadSecurityWorkspace(symbol, name, true, { background: true }).catch(() => {});
+  }, WORKSPACE_RATE_LIMIT_RETRY_MS);
+  workspaceRetryTimers.set(key, timer);
+}
+async function loadSecurityWorkspace(symbol, name, refresh = false, { background = false } = {}) {
   const tabId = String(symbol || "");
   if (refresh) {
     prefetchedWorkspaces.delete(tabId.toUpperCase());
@@ -2935,15 +3084,16 @@ async function loadSecurityWorkspace(symbol, name, refresh = false) {
   const requestId = ++securityWorkspaceRequestId;
   securityWorkspaceRequestTokens.set(tabId, requestId);
   const tab = workspaceTabForSymbol(tabId);
+  const previous = tab?.workspace || (currentSymbol === symbol ? securityWorkspaceData : null);
   if (tab) {
-    tab.workspace = null;
+    tab.workspace = previous || null;
     tab.workspaceLoading = true;
   }
   if (currentSymbol === symbol) {
-    securityWorkspaceData = null;
+    securityWorkspaceData = previous || null;
     securityWorkspaceLoading = true;
     renderSecurityWorkspace();
-    showActivityNotice(t("workspaceLoading"));
+    if (!background) showActivityNotice(t("workspaceLoading"));
   }
   try {
     const pending = refresh ? null : workspacePrefetchTasks.get(tabId.toUpperCase());
@@ -2955,8 +3105,11 @@ async function loadSecurityWorkspace(symbol, name, refresh = false) {
     if (securityWorkspaceRequestTokens.get(tabId) !== requestId) return;
     const target = workspaceTabForSymbol(tabId);
     const data = !result?.isError && structured.ok ? structured.security_workspace : null;
-    if (target) target.workspace = data || null;
-    if (currentSymbol === symbol) securityWorkspaceData = data || null;
+    const next = data || previous || null;
+    if (target) target.workspace = next;
+    if (currentSymbol === symbol) securityWorkspaceData = next;
+    if (data && workspaceHasRateLimit(data)) scheduleSecurityWorkspaceRetry(symbol, name, data);
+    else if (data) clearSecurityWorkspaceRetry(symbol);
   } catch (error) {
     console.warn("security workspace", error);
   } finally {
@@ -3105,17 +3258,33 @@ function setSecurityTab(tab) {
     if (id === selectedPanel) panel.setAttribute("aria-labelledby", `securityTab${tab[0].toUpperCase()}${tab.slice(1)}`);
   });
   renderSecurityWorkspace();
-  if (["market", "dragon"].includes(tab) && !marketPulseData && !marketPulseLoading) {
-    loadMarketPulse().catch(console.warn);
-  }
   if (tab === "market" && !marketTickerItems.length && !marketTickerRefreshInFlight) {
+    // Start the compact index strip before any rich market intelligence.  On
+    // a cold page the latter fans out into several provider calls and used to
+    // make the visible index cards wait behind it.
     loadMarketTicker().catch(console.warn);
+  }
+  if (tab === "market" && !marketPulseData && !marketPulseLoading) {
+    scheduleMarketPulseLoad();
+  } else if (tab === "dragon" && !marketPulseData && !marketPulseLoading) {
+    loadMarketPulse().catch(console.warn);
   }
   if (tab === "sector" && currentSymbol && !securityIntelligenceData && !securityIntelligenceLoading) {
     loadSecurityIntelligence(currentSymbol, currentName).catch(console.warn);
   }
   if (tab === "chart") window.requestAnimationFrame(() => { scheduleChartResize(); refreshPercentAxis(); reportSize(); });
   else reportSize();
+}
+
+function scheduleMarketPulseLoad() {
+  if (marketPulseData || marketPulseLoading || marketPulseStartTimer) return;
+  // If the strip is already warm, market intelligence can render immediately.
+  // Otherwise reserve a small foreground window for the eight broad indices.
+  const delay = marketTickerItems.length ? 0 : MARKET_FOREGROUND_GRACE_MS;
+  marketPulseStartTimer = window.setTimeout(() => {
+    marketPulseStartTimer = null;
+    if (!marketPulseData && !marketPulseLoading) loadMarketPulse().catch(console.warn);
+  }, delay);
 }
 function colorFor(name) {
   const semantic = chartColors().semantic;
@@ -6148,8 +6317,10 @@ function watchlistItemsMarkup(items, rail = false) {
     const current = rail && item.symbol === currentSymbol ? " current" : "";
     const checked = selectedWatchSymbols.has(item.symbol) ? " checked" : "";
     const checkbox = rail ? `<input class="watchlist-select" type="checkbox" data-watch-select-symbol="${escapeHtml(item.symbol)}"${checked} aria-label="${escapeHtml(item.name || item.symbol)}" />` : "";
-    return `<div class="watchlist-item${current}" data-watch-open-symbol="${escapeHtml(item.symbol)}" data-watch-open-name="${escapeHtml(item.name || item.symbol)}">` +
-      `<span class="watchlist-item-main">${checkbox}<span class="watchlist-item-name">${escapeHtml(item.name || item.symbol)}</span><br /><span class="watchlist-item-symbol">${escapeHtml(item.symbol)}</span></span>` +
+    const draggable = rail && watchlistSort === "manual" ? ` draggable="true" data-watch-drag-symbol="${escapeHtml(item.symbol)}"` : "";
+    const handle = rail && watchlistSort === "manual" ? `<span class="watchlist-drag-handle" aria-hidden="true">⠿</span>` : "";
+    return `<div class="watchlist-item${current}"${draggable} data-watch-open-symbol="${escapeHtml(item.symbol)}" data-watch-open-name="${escapeHtml(item.name || item.symbol)}">` +
+      `<span class="watchlist-item-main">${handle}${checkbox}<span class="watchlist-item-name">${escapeHtml(item.name || item.symbol)}</span><br /><span class="watchlist-item-symbol">${escapeHtml(item.symbol)}</span></span>` +
       `<span>${quoteForWatchItem(item)}<button class="watchlist-remove" type="button" data-watch-remove-symbol="${escapeHtml(item.symbol)}" title="${escapeHtml(t("removeWatch"))}" aria-label="${escapeHtml(t("removeWatch"))}">&times;</button></span>` +
       `</div>`;
   }).join("");
@@ -6171,6 +6342,7 @@ function renderWatchlist() {
   const select = document.getElementById("watchlistRailGroupSelect");
   const deleteButton = document.getElementById("watchlistRailGroupDeleteBtn");
   const addButton = document.getElementById("watchlistRailGroupAddBtn");
+  const renameButton = document.getElementById("watchlistRailGroupRenameBtn");
   if (select) { select.innerHTML = options; select.setAttribute("aria-label", t("watchlist")); }
   if (deleteButton) {
     deleteButton.disabled = !canDelete;
@@ -6178,11 +6350,19 @@ function renderWatchlist() {
     deleteButton.title = t("deleteGroup");
     deleteButton.setAttribute("aria-label", t("deleteGroup"));
   }
-  select?.closest(".watchlist-groupbar")?.classList.toggle("no-delete", !canDelete);
   if (addButton) { addButton.title = t("newGroup"); addButton.setAttribute("aria-label", t("newGroup")); }
+  // Renaming is allowed for every group including the built-in default one;
+  // only deletion is restricted.
+  if (renameButton) {
+    renameButton.disabled = !group;
+    renameButton.title = t("renameGroup");
+    renameButton.setAttribute("aria-label", t("renameGroup"));
+  }
   const railItems = document.getElementById("watchlistRailItems");
   if (railItems) railItems.innerHTML = watchlistItemsMarkup(groupItems, true);
   renderWatchlistSummary(groupItems);
+  refreshWatchlistBatchMoveOptions();
+  refreshWatchlistBatchBar();
   refreshWatchCurrentButton();
 }
 function toggleWatchlist(symbol = currentSymbol, name = currentName) {
@@ -6200,16 +6380,316 @@ function toggleWatchlist(symbol = currentSymbol, name = currentName) {
   setChartStatus(t(removing ? "removeWatch" : "addWatch"));
   window.setTimeout(() => setChartStatus(""), 1200);
 }
-function addWatchlistGroup() {
-  if (watchlistGroups.length >= WATCHLIST_MAX_GROUPS) return;
+function moveWatchlistItem(symbol, fromGroupId, targetGroupId, beforeSymbol = null) {
+  const index = watchlist.findIndex((item) => item.symbol === symbol && item.groupId === fromGroupId);
+  if (index < 0) return false;
+  const [entry] = watchlist.splice(index, 1);
+  const moved = { ...entry, groupId: targetGroupId };
+  // Manual order is the array order, so reinsert at the drop position rather
+  // than appending; dropping onto a row must land the item above that row.
+  if (beforeSymbol) {
+    const at = watchlist.findIndex((item) => item.symbol === beforeSymbol && item.groupId === targetGroupId);
+    if (at >= 0) {
+      watchlist.splice(at, 0, moved);
+      saveWatchlist();
+      renderWatchlist();
+      return true;
+    }
+  }
+  // Append at the end of the target group's run so the moved row stays visible.
+  let insertAt = watchlist.length;
+  for (let i = watchlist.length - 1; i >= 0; i -= 1) {
+    if (watchlist[i].groupId === targetGroupId) { insertAt = i + 1; break; }
+  }
+  watchlist.splice(insertAt, 0, moved);
+  saveWatchlist();
+  renderWatchlist();
+  return true;
+}
+
+function removeSelectedWatchlistSymbols() {
+  const group = activeWatchlistGroup();
+  if (!group) return 0;
+  const doomed = new Set(
+    watchlist.filter((item) => item.groupId === group.id && selectedWatchSymbols.has(item.symbol)).map((item) => item.symbol),
+  );
+  if (!doomed.size) return 0;
+  watchlist = watchlist.filter((item) => !(item.groupId === group.id && doomed.has(item.symbol)));
+  doomed.forEach((symbol) => selectedWatchSymbols.delete(symbol));
+  saveWatchlist();
+  renderWatchlist();
+  return doomed.size;
+}
+
+function selectAllWatchlistSymbols() {
+  const group = activeWatchlistGroup();
+  if (!group) return;
+  const items = watchlist.filter((item) => item.groupId === group.id);
+  const allSelected = items.length > 0 && items.every((item) => selectedWatchSymbols.has(item.symbol));
+  items.forEach((item) => {
+    if (allSelected) selectedWatchSymbols.delete(item.symbol);
+    else selectedWatchSymbols.add(item.symbol);
+  });
+  renderWatchlist();
+}
+
+function refreshWatchlistBatchBar() {
+  const bar = document.getElementById("watchlistBatchBar");
+  if (!bar) return;
+  const group = activeWatchlistGroup();
+  const items = group ? watchlist.filter((item) => item.groupId === group.id) : [];
+  const count = items.filter((item) => selectedWatchSymbols.has(item.symbol)).length;
+  bar.hidden = count === 0;
+  const label = document.getElementById("watchlistBatchCount");
+  if (label) label.textContent = `${count}`;
+}
+
+function refreshWatchlistBatchMoveOptions() {
+  const select = document.getElementById("watchlistBatchMoveSelect");
+  if (!select) return;
+  const current = activeWatchlistGroupId;
+  select.innerHTML = `<option value="">移动到…</option>` + watchlistGroups
+    .filter((group) => group.id !== current)
+    .map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name)}</option>`)
+    .join("");
+}
+
+function moveSelectedWatchlistSymbols(targetGroupId) {
+  const group = activeWatchlistGroup();
+  if (!group || !targetGroupId || targetGroupId === group.id) return 0;
+  if (!watchlistGroups.some((entry) => entry.id === targetGroupId)) return 0;
+  const moving = watchlist.filter((item) => item.groupId === group.id && selectedWatchSymbols.has(item.symbol));
+  if (!moving.length) return 0;
+  const movingSymbols = new Set(moving.map((item) => item.symbol));
+  // Drop the rows from the source group first so a cross-group move cannot
+  // violate the unique (symbol, groupId) key the service validates.
+  watchlist = watchlist.filter((item) => !(item.groupId === group.id && movingSymbols.has(item.symbol)));
+  let insertAt = watchlist.length;
+  for (let i = watchlist.length - 1; i >= 0; i -= 1) {
+    if (watchlist[i].groupId === targetGroupId) { insertAt = i + 1; break; }
+  }
+  watchlist.splice(insertAt, 0, ...moving.map((item) => ({ ...item, groupId: targetGroupId })));
+  selectedWatchSymbols.clear();
+  watchlist = watchlist.slice(0, WATCHLIST_MAX_ITEMS);
+  saveWatchlist();
+  renderWatchlist();
+  return moving.length;
+}
+
+// The group dialog serves both "new group" and "rename group".  Reusing one
+// dialog keeps a single validation path (empty / duplicate name) and avoids a
+// second modal that could drift out of sync with this one.
+let watchlistGroupDialogMode = "create";
+
+function openWatchlistGroupDialog(mode) {
   const dialog = document.getElementById("groupDialog");
   const input = document.getElementById("groupDialogInput");
   const error = document.getElementById("groupDialogError");
   if (!dialog || !input || !error) return;
+  watchlistGroupDialogMode = mode;
   error.textContent = "";
+  const title = document.getElementById("groupDialogTitle");
+  const submit = document.getElementById("groupDialogSubmit");
+  if (mode === "rename") {
+    const group = activeWatchlistGroup();
+    if (!group) return;
+    if (title) title.textContent = t("renameGroup");
+    if (submit) submit.textContent = t("save");
+    input.value = group.name;
+  } else {
+    if (title) title.textContent = t("newGroup");
+    if (submit) submit.textContent = t("create");
+    input.value = "";
+  }
+  dialog.hidden = false;
+  window.requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+// Batch import: accept what a user actually pastes.  Real inputs mix "600519",
+// "600519 贵州茅台", "600519.SH", full-width punctuation and newline/comma runs.
+// Resolve each entry against the already-cached symbol directory so the list
+// gets canonical codes and real names instead of relying on the user.
+function splitImportEntries(raw) {
+  return String(raw || "")
+    .split(/[\n\r,，、;；\t]+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseImportEntry(entry) {
+  const text = entry.trim();
+  if (!text) return null;
+  // "代码 名称" / "代码,名称" / "名称 代码" are all reasonable pastes.  A
+  // separator between a code and a name must not split the entry itself, so
+  // strip an inner comma/顿号 once a 6-digit code has been seen.
+  const normalized = text.replace(/^(\d{6}(?:\.[A-Za-z]{2,5})?)\s*[,，、|]+\s*/, "$1 ");
+  const tokens = normalized.split(/[\s|]+/).filter(Boolean);
+  let code = "";
+  let name = "";
+  for (const token of tokens) {
+    if (!code && /^\d{6}(\.[A-Za-z]{2,5})?$/.test(token)) code = token;
+    else name = name ? `${name} ${token}` : token;
+  }
+  if (!code) {
+    // No explicit 6-digit code: treat the whole entry as a name to resolve.
+    return { code: "", name: text };
+  }
+  const bare = code.split(".")[0];
+  return { code: bare, name };
+}
+
+function inferExchangeSuffix(code, name = "") {
+  const bare = String(code || "").split(".")[0];
+  if (!/^\d{6}$/.test(bare)) return "";
+  const first = bare[0];
+  if (first === "6" || first === "9" || first === "5") return "XSHG";
+  if (first === "0" || first === "3" || first === "1" || first === "2") return "XSHE";
+  if (first === "4" || first === "8") return "BJSE";
+  return "";
+}
+
+function resolveImportEntry(entry) {
+  const parsed = parseImportEntry(entry);
+  if (!parsed) return { ok: false, reason: "无法解析", raw: entry };
+  // 1) Exact directory hit by canonical symbol.
+  if (parsed.code) {
+    const suffix = /^\d{6}\./.test(parsed.code) ? parsed.code.split(".")[1].toUpperCase() : inferExchangeSuffix(parsed.code);
+    const candidate = suffix ? `${parsed.code.split(".")[0]}.${suffix}` : "";
+    const directoryHit = candidate ? findSymbolDirectoryEntry(candidate) : null;
+    if (directoryHit) return { ok: true, symbol: directoryHit.symbol, name: parsed.name || directoryHit.name };
+    // 2) Fall back to a bare-code scan; the directory is the same source the
+    //    search box uses, so this stays consistent with manual searching.
+    const bare = parsed.code.split(".")[0];
+    const bareHit = symbolDirectory.find((item) => String(item?.symbol || "").split(".")[0] === bare);
+    if (bareHit) return { ok: true, symbol: bareHit.symbol, name: parsed.name || bareHit.name };
+    // 3) A well-formed code that the directory does not know.  Keep it only
+    //    when the user also supplied a name (an unlisted/new instrument), so a
+    //    stray typo like "999999" cannot silently enter the watchlist.
+    if (candidate && parsed.name) return { ok: true, symbol: candidate, name: parsed.name };
+    if (candidate) return { ok: false, reason: "本地目录中无此代码", raw: entry };
+    return { ok: false, reason: "代码格式无法识别", raw: entry };
+  }
+  // Name-only entry: resolve through the directory by name or alias.
+  if (parsed.name) {
+    const needle = parsed.name.trim().toLowerCase();
+    const hit = symbolDirectory.find((item) => String(item?.name || "").trim().toLowerCase() === needle)
+      || symbolDirectory.find((item) => String(item?.name || "").toLowerCase().includes(needle));
+    if (hit) return { ok: true, symbol: hit.symbol, name: hit.name };
+    return { ok: false, reason: "未在本地目录找到该名称", raw: entry };
+  }
+  return { ok: false, reason: "无法解析", raw: entry };
+}
+
+function planWatchlistImport(rawText) {
+  const entries = splitImportEntries(rawText);
+  const group = activeWatchlistGroup();
+  const existing = new Set(
+    group ? watchlist.filter((item) => item.groupId === group.id).map((item) => item.symbol) : [],
+  );
+  const accepted = [];
+  const rejected = [];
+  const duplicates = [];
+  const seen = new Set();
+  for (const entry of entries) {
+    const resolved = resolveImportEntry(entry);
+    if (!resolved.ok) {
+      rejected.push({ raw: entry, reason: resolved.reason });
+      continue;
+    }
+    if (existing.has(resolved.symbol) || seen.has(resolved.symbol)) {
+      duplicates.push({ raw: entry, symbol: resolved.symbol });
+      continue;
+    }
+    seen.add(resolved.symbol);
+    accepted.push({ symbol: resolved.symbol, name: resolved.name || resolved.symbol });
+  }
+  return { accepted, rejected, duplicates, total: entries.length, remaining: WATCHLIST_MAX_ITEMS - watchlist.length };
+}
+
+function renderWatchlistImportPreview(plan) {
+  const box = document.getElementById("importDialogPreview");
+  const error = document.getElementById("importDialogError");
+  if (error) error.textContent = "";
+  if (!box) return;
+  if (!plan.total) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  box.hidden = false;
+  const rows = [];
+  rows.push(`<div class="ok">可导入 ${plan.accepted.length} 只${plan.total ? `（共 ${plan.total} 条输入）` : ""}</div>`);
+  if (plan.duplicates.length) rows.push(`<div class="warn">已在分组内，跳过 ${plan.duplicates.length} 只</div>`);
+  if (plan.rejected.length) {
+    rows.push(`<div class="bad">无法解析 ${plan.rejected.length} 条：</div>`);
+    plan.rejected.slice(0, 8).forEach((item) => {
+      rows.push(`<div class="bad">· ${escapeHtml(item.raw)} — ${escapeHtml(item.reason)}</div>`);
+    });
+    if (plan.rejected.length > 8) rows.push(`<div class="bad">· 其余 ${plan.rejected.length - 8} 条省略</div>`);
+  }
+  if (plan.accepted.length > plan.remaining && plan.remaining >= 0) {
+    rows.push(`<div class="warn">超出上限，只有前 ${plan.remaining} 只会被导入</div>`);
+  }
+  box.innerHTML = rows.join("");
+}
+
+function openWatchlistImportDialog() {
+  const dialog = document.getElementById("importDialog");
+  const input = document.getElementById("importDialogInput");
+  const preview = document.getElementById("importDialogPreview");
+  const error = document.getElementById("importDialogError");
+  if (!dialog || !input) return;
   input.value = "";
+  if (preview) { preview.innerHTML = ""; preview.hidden = true; }
+  if (error) error.textContent = "";
   dialog.hidden = false;
   window.requestAnimationFrame(() => input.focus());
+}
+
+function closeWatchlistImportDialog() {
+  const dialog = document.getElementById("importDialog");
+  if (dialog) dialog.hidden = true;
+}
+
+function submitWatchlistImport() {
+  const input = document.getElementById("importDialogInput");
+  const error = document.getElementById("importDialogError");
+  const plan = planWatchlistImport(input?.value);
+  if (!plan.accepted.length) {
+    if (error) error.textContent = plan.rejected.length ? "没有可导入的标的" : t("groupNameRequired");
+    renderWatchlistImportPreview(plan);
+    return false;
+  }
+  const group = activeWatchlistGroup();
+  if (!group) return false;
+  const room = Math.max(0, WATCHLIST_MAX_ITEMS - watchlist.length);
+  const take = plan.accepted.slice(0, room);
+  if (!take.length) {
+    if (error) error.textContent = "自选已达上限";
+    return false;
+  }
+  // Prepend as a batch so the imported block keeps the user's own ordering.
+  watchlist = [...take.map((item) => ({ ...item, groupId: group.id })), ...watchlist];
+  saveWatchlist();
+  renderWatchlist();
+  refreshWatchlistQuotes().catch(() => {});
+  closeWatchlistImportDialog();
+  setChartStatus(t("importDone").replace("{count}", String(take.length)));
+  window.setTimeout(() => setChartStatus(""), 1600);
+  return true;
+}
+
+function addWatchlistGroup() {
+  if (watchlistGroups.length >= WATCHLIST_MAX_GROUPS) return;
+  openWatchlistGroupDialog("create");
+}
+
+function submitWatchlistGroupDialog() {
+  const value = document.getElementById("groupDialogInput")?.value;
+  return watchlistGroupDialogMode === "rename" ? renameActiveWatchlistGroup(value) : createWatchlistGroup(value);
 }
 function closeWatchlistGroupDialog() {
   const dialog = document.getElementById("groupDialog");
@@ -6234,6 +6714,38 @@ function createWatchlistGroup(requested) {
   closeWatchlistGroupDialog();
   return true;
 }
+function renameActiveWatchlistGroup(requested) {
+  // Clicking the pencil opens the editor.  Submitting that editor supplies a
+  // name and follows the validation/persistence path below.
+  if (typeof requested === "undefined") {
+    openWatchlistGroupDialog("rename");
+    return true;
+  }
+  const group = activeWatchlistGroup();
+  const error = document.getElementById("groupDialogError");
+  if (!group) return false;
+  const name = String(requested || "").trim().slice(0, 24);
+  if (!name) {
+    if (error) error.textContent = t("groupNameRequired");
+    return false;
+  }
+  if (name === group.name) {
+    closeWatchlistGroupDialog();
+    return true;
+  }
+  // Only a genuine clash with a *different* group is an error; renaming a
+  // group to its own current name is a no-op, not a duplicate.
+  if (watchlistGroups.some((entry) => entry.id !== group.id && entry.name === name)) {
+    if (error) error.textContent = t("groupNameExists");
+    return false;
+  }
+  watchlistGroups = watchlistGroups.map((entry) => (entry.id === group.id ? { ...entry, name } : entry));
+  saveWatchlist();
+  renderWatchlist();
+  closeWatchlistGroupDialog();
+  return true;
+}
+
 function deleteActiveWatchlistGroup() {
   const group = activeWatchlistGroup();
   if (!group || group.id === "default" || !window.confirm(t("deleteGroupConfirm"))) return;
@@ -6290,13 +6802,22 @@ async function refreshWatchlistQuotes() {
   if (!items.length) { renderWatchlist(); return; }
   watchlistQuoteRefreshInFlight = true;
   try {
-    await Promise.all(items.map(async (item) => {
-      try {
-        const result = await callTool("fetch_candles", { symbol: item.symbol, interval: "day", limit: 3, adjust: "none" });
-        const data = result?.structuredContent || result || {};
-        if (data.ok && Array.isArray(data.rows)) setWatchlistQuote(item.symbol, data.rows);
-      } catch {}
-    }));
+    // Refresh in bounded batches: a 200-item group issued as one Promise.all
+    // would fire 200 simultaneous requests, which the provider rate-limits
+    // (HTTP 429) and which made a large watchlist look permanently stale.
+    const queue = items.slice();
+    const worker = async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        if (!item) return;
+        try {
+          const result = await callTool("fetch_candles", { symbol: item.symbol, interval: "day", limit: 3, adjust: "none" });
+          const data = result?.structuredContent || result || {};
+          if (data.ok && Array.isArray(data.rows)) setWatchlistQuote(item.symbol, data.rows);
+        } catch {}
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(WATCHLIST_QUOTE_CONCURRENCY, queue.length) }, () => worker()));
   } finally {
     watchlistQuoteRefreshInFlight = false;
     renderWatchlist();
@@ -6786,6 +7307,7 @@ async function loadMarketTicker() {
     const result = await callTool("market_ticker", {});
     const structured = result?.structuredContent || result || {};
     const valid = structured.ok === false ? [] : Array.isArray(structured.items) ? structured.items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
+    marketTickerMissing = Array.isArray(structured.missing) ? structured.missing : [];
     if (valid.length) {
       marketTickerItems = valid;
       marketTickerUpdatedAt = Number(structured.updated_at) || Math.floor(Date.now() / 1000);
@@ -6799,6 +7321,7 @@ async function loadMarketTicker() {
     if (marketTickerItems.length) marketTickerStale = true;
   } finally {
     marketTickerRefreshInFlight = false;
+    marketTickerInitialized = true;
     renderMarketTicker();
     if (activeSecurityTab === "market") renderMarketWorkspace();
   }
@@ -7757,6 +8280,20 @@ document.getElementById("watchlistSortSelect").addEventListener("change", (event
   renderWatchlist();
 });
 document.getElementById("watchlistBatchOpenBtn").addEventListener("click", () => openSelectedWatchlistSymbols().catch(console.warn));
+document.getElementById("watchlistBatchAllBtn")?.addEventListener("click", () => selectAllWatchlistSymbols());
+document.getElementById("watchlistBatchDeleteBtn")?.addEventListener("click", () => {
+  const removed = removeSelectedWatchlistSymbols();
+  if (removed) setChartStatus(t("batchRemoved").replace("{count}", String(removed)));
+  window.setTimeout(() => setChartStatus(""), 1200);
+});
+document.getElementById("watchlistBatchMoveSelect")?.addEventListener("change", (event) => {
+  const select = event.target instanceof HTMLSelectElement ? event.target : null;
+  if (!select?.value) return;
+  const moved = moveSelectedWatchlistSymbols(select.value);
+  select.value = "";
+  if (moved) setChartStatus(t("batchMoved").replace("{count}", String(moved)));
+  window.setTimeout(() => setChartStatus(""), 1200);
+});
 document.getElementById("keyLevelPlanCards")?.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-key-plan-save]") : null;
   if (button) saveKeyPlanLevel(button);
@@ -7869,17 +8406,71 @@ for (const suffix of ["Rail"]) {
   document.getElementById(`watchlist${suffix}GroupSelect`).addEventListener("change", (event) => setActiveWatchlistGroup(event.currentTarget?.value));
   document.getElementById(`watchlist${suffix}GroupAddBtn`).addEventListener("click", (event) => { event.stopPropagation(); addWatchlistGroup(); });
   document.getElementById(`watchlist${suffix}GroupDeleteBtn`).addEventListener("click", (event) => { event.stopPropagation(); deleteActiveWatchlistGroup(); });
+  document.getElementById(`watchlist${suffix}GroupRenameBtn`)?.addEventListener("click", (event) => { event.stopPropagation(); renameActiveWatchlistGroup(); });
 }
 document.getElementById("groupDialogCancel").addEventListener("click", closeWatchlistGroupDialog);
+document.getElementById("watchlistImportBtn")?.addEventListener("click", (event) => { event.stopPropagation(); openWatchlistImportDialog(); });
+document.getElementById("importDialogCancel")?.addEventListener("click", closeWatchlistImportDialog);
+document.getElementById("importDialog")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeWatchlistImportDialog();
+});
+document.getElementById("importDialogInput")?.addEventListener("input", () => {
+  // Live preview keeps "why was this line rejected" visible while typing
+  // instead of only after a failed submit.
+  const plan = planWatchlistImport(document.getElementById("importDialogInput")?.value);
+  renderWatchlistImportPreview(plan);
+});
+document.getElementById("importDialogForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitWatchlistImport();
+});
 document.getElementById("groupDialogForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  createWatchlistGroup(document.getElementById("groupDialogInput")?.value);
+  submitWatchlistGroupDialog();
 });
 document.getElementById("groupDialog").addEventListener("pointerdown", (event) => {
   if (event.target === event.currentTarget) closeWatchlistGroupDialog();
 });
 document.getElementById("watchlistRailItems").addEventListener("click", (event) => handleWatchlistItemsClick(event));
 document.getElementById("watchlistRailItems").addEventListener("change", (event) => handleWatchlistItemsClick(event));
+// Manual reorder by drag. HTML5 DnD is used rather than pointer events so the
+// list keeps working with keyboard/AT-driven containers; dropping onto a row
+// inserts above it, dropping on empty space appends to the group.
+(function bindWatchlistDragAndDrop() {
+  const host = document.getElementById("watchlistRailItems");
+  if (!host) return;
+  let draggingSymbol = null;
+  const clearMarks = () => host.querySelectorAll(".dragging, .drop-target").forEach((node) => node.classList.remove("dragging", "drop-target"));
+  host.addEventListener("dragstart", (event) => {
+    const row = event.target instanceof Element ? event.target.closest("[data-watch-drag-symbol]") : null;
+    if (!row) return;
+    draggingSymbol = row.getAttribute("data-watch-drag-symbol");
+    row.classList.add("dragging");
+    try { event.dataTransfer?.setData("text/plain", draggingSymbol || ""); } catch {}
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  });
+  host.addEventListener("dragover", (event) => {
+    if (!draggingSymbol) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    const row = event.target instanceof Element ? event.target.closest("[data-watch-open-symbol]") : null;
+    host.querySelectorAll(".drop-target").forEach((node) => node.classList.remove("drop-target"));
+    if (row) row.classList.add("drop-target");
+  });
+  host.addEventListener("drop", (event) => {
+    if (!draggingSymbol) return;
+    event.preventDefault();
+    const group = activeWatchlistGroup();
+    const row = event.target instanceof Element ? event.target.closest("[data-watch-open-symbol]") : null;
+    const beforeSymbol = row?.getAttribute("data-watch-open-symbol") || null;
+    if (group && draggingSymbol !== beforeSymbol) {
+      moveWatchlistItem(draggingSymbol, group.id, group.id, beforeSymbol);
+    }
+    draggingSymbol = null;
+    clearMarks();
+  });
+  host.addEventListener("dragend", () => { draggingSymbol = null; clearMarks(); });
+})();
 document.getElementById("marketTickerTrack").addEventListener("click", (event) => {
   const item = event.target instanceof Element ? event.target.closest("[data-ticker-symbol]") : null;
   if (!item) return;
@@ -8135,7 +8726,9 @@ async function init() {
   const isLauncher = payload.workspace_mode === "launcher";
   if (isLauncher) {
     // A launcher has no user-selected instrument. Lead with market context
-    // instead of quietly opening a default index chart.
+    // instead of quietly opening a default index chart.  Start its index strip
+    // before selecting the market tab, whose rich panels load afterward.
+    startMarketTickerRefresh();
     setSecurityTab("market");
   } else {
     rememberAnalysisCommands(payload);
@@ -8146,11 +8739,17 @@ async function init() {
     drawRangeHighlight();
     publishSelection(rangeSelection(rangePickStart.candle, rangePickEnd.candle));
   }
-  startMarketTickerRefresh();
-  startWatchlistQuoteRefresh();
+  if (!isLauncher) startMarketTickerRefresh();
+  // Quote hydration, directory refresh, and chart prefetch are background
+  // work.  Deferring them keeps first paint responsive even for a 200-item
+  // watchlist, while the already-rendered list remains immediately usable.
+  window.setTimeout(() => {
+    if (window.__DSH_KLINE_DISPOSED__) return;
+    startWatchlistQuoteRefresh();
+    scheduleSymbolDirectoryRefresh();
+    scheduleCommonIndexPrefetch();
+  }, MARKET_BACKGROUND_DELAY_MS);
   window.setTimeout(showWelcomeIfFirstRun, 300);
-  scheduleSymbolDirectoryRefresh();
-  scheduleCommonIndexPrefetch();
   reportSize();
   setChartStatus(isLauncher ? "搜索股票名称或代码开始查看 K 线" : "");
 }

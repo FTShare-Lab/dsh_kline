@@ -72,6 +72,12 @@ _MARKET_PULSE_SECTIONS = frozenset({"breadth", "flows", "sectors", "concepts", "
 # produced both the stalls and the intermittent rate-limit failures.
 _market_pulse_section_inflight: dict[str, threading.Lock] = {}
 _market_pulse_inflight_guard = threading.Lock()
+# Index feeds are independently flaky.  Keep the last valid snapshot for each
+# named index so one failed endpoint cannot make a stable market grid lose a
+# card on the next refresh.  A cached value is explicitly marked stale below.
+_MARKET_TICKER_STALE_TTL_SECONDS = 6 * 60 * 60
+_market_ticker_last_good: dict[str, tuple[float, dict[str, Any]]] = {}
+_market_ticker_cache_lock = threading.Lock()
 # Symbol-name resolution is a presentation-only lookup, but every cache miss is
 # a live provider round trip and market lists repeat symbols heavily across
 # renders; memoize both hits and misses for the life of the process.
@@ -1573,16 +1579,27 @@ def _read_symbol_directory_cache() -> dict[str, Any] | None:
     return payload
 
 
-def _write_symbol_directory_cache(payload: dict[str, Any]) -> None:
+def _write_symbol_directory_cache(payload: dict[str, Any]) -> bool:
+    """Persist the directory snapshot; return True only when it reached disk.
+
+    Previously this swallowed every OSError.  A sandbox or read-only runtime
+    then produced a *successful-looking* refresh that never persisted, so the
+    process kept serving a stale snapshot while reporting fresh data.  Callers
+    now surface the failure instead of hiding it.
+    """
     path = _symbol_directory_cache_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         temporary.replace(path)
-    except OSError:
-        # A read-only runtime may still serve the fetched directory to this app session.
-        return
+        return True
+    except OSError as exc:
+        # A read-only runtime can still serve the fetched directory to this
+        # session, but the caller must know it will not survive a restart.
+        payload["persisted"] = False
+        payload["persist_error"] = f"{type(exc).__name__}: {exc}"
+        return False
 
 
 def _rows_from_directory_response(raw: Any, *, _depth: int = 0) -> list[Mapping[str, Any]]:
@@ -1758,6 +1775,29 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
     cached = _read_symbol_directory_cache()
     cached_expires = int(cached.get("expires_at") or 0) if cached else 0
     if cached and not force_refresh and cached_expires > now:
+        # Always merge the built-in seed into a cache hit.  The seed carries
+        # curated entries (broad indexes, common ETFs) that provider routes may
+        # not cover at all, and returning the cached snapshot verbatim meant a
+        # seed update could not reach clients until the next full refresh.
+        cached_items = list(cached.get("items") or [])
+        merged = _merge_symbol_directory(cached_items, [dict(item) for item in _SYMBOL_DIRECTORY_SEED])
+        if len(merged) != len(cached_items):
+            return {
+                **cached,
+                "items": merged,
+                "count": len(merged),
+                "coverage": _directory_coverage(
+                    merged,
+                    complete_markets={
+                        market
+                        for market, state in (cached.get("coverage") or {}).items()
+                        if isinstance(state, Mapping) and state.get("complete")
+                    },
+                ),
+                "ok": True,
+                "stale": False,
+                "refreshed": False,
+            }
         return {**cached, "ok": True, "stale": False, "refreshed": False}
 
     # An external directory is host-owned. Keep it searchable when it expires;
@@ -1799,6 +1839,11 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         # without making a second lookup during rendering.
         ("company_list", "CN", {"all_pages": True, "page_size": 200}, True),
         ("index_description_all", "CN_INDEX", {}, True),
+        # Exchange-traded funds live on the fund routes, not company_list, so a
+        # watchlist full of ETFs previously could not resolve any of its names.
+        # This route is best-effort: some plans return 400/429 and the ETF seed
+        # below still provides a usable fallback.
+        ("fund_list", "ETF", {"all_pages": True, "page_size": 200}, True),
         # The installed FTShare endpoint caps a single page at 200. The SDK
         # paginates when ``all_pages`` is set, so 200 retains complete coverage
         # instead of raising its client-side page-size validation error.
@@ -1812,16 +1857,36 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         if not callable(method):
             errors.append(f"{method_name}: unavailable in installed FTShare client")
             continue
-        try:
-            group = _directory_items(method(as_dataframe=False, **kwargs), default_market)
-            if group and is_complete:
-                completed_markets.add(default_market)
-            fetched_groups.append(group)
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{method_name}: {exc}")
+        # The gateway rate-limits aggressively; a single 429 previously cost the
+        # whole mainland directory until the next scheduled refresh.  Retry with
+        # a short backoff so one transient rejection cannot blank the directory.
+        for attempt in range(3):
+            try:
+                group = _directory_items(method(as_dataframe=False, **kwargs), default_market)
+                # A market counts as complete only when rows actually arrived.
+                # ETF labels are a presentation nicety: a plan without fund
+                # access must not hold the mainland directory at the short
+                # retry TTL, so an empty fund route simply stays incomplete.
+                if group and is_complete:
+                    completed_markets.add(default_market)
+                fetched_groups.append(group)
+                break
+            except Exception as exc:  # noqa: BLE001
+                rate_limited = bool(re.search(r"429", str(exc)))
+                if rate_limited and attempt < 2:
+                    time.sleep(0.6 * (attempt + 1))
+                    continue
+                errors.append(f"{method_name}: {exc}")
+                break
 
     fetched_count = sum(len(group) for group in fetched_groups)
-    if fetched_count:
+    # A partial fetch must not be published as a complete 24-hour snapshot.
+    # When one source is rate-limited (an observed HTTP 429 on company_list)
+    # while another succeeds, the old ``if fetched_count`` test still wrote the
+    # result with stale=False and a full-day expiry, which pinned a directory
+    # missing every mainland stock for 24 hours and made search look broken.
+    # Require the primary mainland listing before granting the long TTL.
+    if fetched_count and "CN" in completed_markets:
         items = _merge_symbol_directory(*fetched_groups, seed)
         payload = {
             "ok": True,
@@ -1844,8 +1909,38 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         payload["count"] = len(payload["items"])
         if errors:
             payload["warnings"] = errors
-        _write_symbol_directory_cache(payload)
+        if not _write_symbol_directory_cache(payload):
+            payload["stale"] = True
         return payload
+
+    # Incomplete refresh: keep whatever useful rows arrived, but mark the result
+    # stale and retry soon instead of serving a half-empty directory all day.
+    if fetched_count:
+        merged = _merge_symbol_directory(*fetched_groups, list(cached.get("items") or []) if cached else [], seed)
+        partial = {
+            "ok": True,
+            "version": SYMBOL_DIRECTORY_VERSION,
+            "generated_at": now,
+            "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
+            "items": merged,
+            "count": len(merged),
+            "source": "ftshare",
+            "provider_mode": "builtin",
+            "provider_id": "FTShare SDK",
+            "coverage": _directory_coverage(
+                merged,
+                complete_markets=completed_markets,
+                partial_markets={item["market"] for item in seed} - completed_markets,
+            ),
+            "stale": True,
+            "refreshed": False,
+            "needs_external_refresh": False,
+            "message": "Directory sources were only partially available; retrying shortly.",
+        }
+        if errors:
+            partial["refresh_errors"] = errors[:3]
+        _write_symbol_directory_cache(partial)
+        return partial
 
     items = _merge_symbol_directory(list(cached.get("items") or []) if cached else [], seed)
     fallback = {
@@ -2130,6 +2225,39 @@ def _ftshare_ticker_rows(market: Any, source_info: Mapping[str, Any]) -> list[di
     return rows if len(rows) >= 2 else None
 
 
+def _ftshare_ticker_item(market: Any, source_info: Mapping[str, Any], now: datetime) -> dict[str, Any] | None:
+    """Read one official index with one bounded retry for transient gaps."""
+    for attempt in range(2):
+        rows = _ftshare_ticker_rows(market, source_info)
+        item = _ticker_item(source_info, rows) if rows is not None else None
+        if item is not None:
+            item["status"] = _market_status(source_info, now)
+            return item
+        if attempt == 0:
+            time.sleep(0.2)
+    return None
+
+
+def _remember_market_ticker(item: Mapping[str, Any], fetched_at: float) -> None:
+    symbol = str(item.get("symbol") or "")
+    if not symbol:
+        return
+    snapshot = deepcopy(dict(item))
+    snapshot.pop("stale", None)
+    with _market_ticker_cache_lock:
+        _market_ticker_last_good[symbol] = (fetched_at, snapshot)
+
+
+def _last_market_ticker(symbol: str, now: float) -> dict[str, Any] | None:
+    with _market_ticker_cache_lock:
+        entry = _market_ticker_last_good.get(symbol)
+    if entry is None or now - entry[0] > _MARKET_TICKER_STALE_TTL_SECONDS:
+        return None
+    cached = deepcopy(entry[1])
+    cached["stale"] = True
+    return cached
+
+
 def fetch_market_ticker() -> dict[str, Any]:
     """Fetch a compact A/HK/US index ticker, degrading silently per source.
 
@@ -2142,50 +2270,59 @@ def fetch_market_ticker() -> dict[str, Any]:
     tells the view which feed produced the points.
     """
     fetched_at = int(time.time())
-    items: list[dict[str, Any]] = []
+    items_by_symbol: dict[str, dict[str, Any]] = {}
+    sources_used: set[str] = set()
     now = datetime.now(timezone.utc)
 
     if ftshare_available():
         try:
             market = _ftshare_market_api(timeout=8)
             for source_info in MARKET_TICKER_SOURCES:
-                rows = _ftshare_ticker_rows(market, source_info)
-                if rows is None:
-                    continue
-                item = _ticker_item(source_info, rows)
+                item = _ftshare_ticker_item(market, source_info, now)
                 if item is not None:
-                    item["status"] = _market_status(source_info, now)
-                    items.append(item)
-            # Prefer official whenever it covers most of the strip; a lone
-            # failure should not downgrade a paying user to the free feed.
-            # A regional index can be temporarily absent without discarding
-            # otherwise useful official data for the whole market page.
-            if len(items) >= 3:
-                statuses = {item.get("status") for item in items}
-                status = "delayed" if "delayed" in statuses else "closed" if statuses else "closed"
-                return {"ok": True, "items": items, "source": "ftshare", "updated_at": fetched_at, "status": status}
+                    items_by_symbol[item["symbol"]] = item
+                    _remember_market_ticker(item, fetched_at)
+                    sources_used.add("ftshare")
         except Exception:
-            # Any FTShare failure falls through to the free ticker below.
-            items = []
+            # Continue to per-index free/cache fallback rather than discarding
+            # official rows that were already retrieved successfully.
+            pass
 
-    if fetch_tencent_ticker_items is None:
-        return {"ok": True, "items": [], "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
-    try:
-        free_items = fetch_tencent_ticker_items()
-    except Exception:  # noqa: BLE001
-        free_items = []
-    if not free_items:
-        return {"ok": True, "items": [], "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
-    for item in free_items:
-        session_source = {
-            "timezone": item.get("session_timezone") or "Asia/Shanghai",
-            "open": item.get("session_open") or "09:30",
-            "close": item.get("session_close") or "15:00",
-        }
-        item["status"] = _market_status(session_source, now)
-    statuses = {item.get("status") for item in free_items}
+    # Use the free feed only for the indexes FTShare did not return; replacing
+    # the whole strip used to turn a transient single-index error into a five
+    # index response.
+    free_by_symbol: dict[str, dict[str, Any]] = {}
+    if fetch_tencent_ticker_items is not None:
+        try:
+            free_by_symbol = {str(item.get("symbol") or ""): dict(item) for item in fetch_tencent_ticker_items()}
+        except Exception:  # noqa: BLE001
+            free_by_symbol = {}
+    source_by_symbol = {str(item["symbol"]): item for item in MARKET_TICKER_SOURCES}
+    missing: list[dict[str, str]] = []
+    for symbol, source_info in source_by_symbol.items():
+        if symbol in items_by_symbol:
+            continue
+        item = free_by_symbol.get(symbol)
+        if item is not None:
+            item["status"] = _market_status(source_info, now)
+            items_by_symbol[symbol] = item
+            _remember_market_ticker(item, fetched_at)
+            sources_used.add("tencent_free")
+            continue
+        cached = _last_market_ticker(symbol, fetched_at)
+        if cached is not None:
+            cached["status"] = _market_status(source_info, now)
+            items_by_symbol[symbol] = cached
+            sources_used.add("cache")
+            continue
+        missing.append({"symbol": symbol, "name": str(source_info["name"]), "market": str(source_info["market"])})
+
+    items = [items_by_symbol[str(source_info["symbol"])] for source_info in MARKET_TICKER_SOURCES if str(source_info["symbol"]) in items_by_symbol]
+    if not items:
+        return {"ok": True, "items": [], "missing": missing, "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
+    statuses = {item.get("status") for item in items}
     status = "delayed" if "delayed" in statuses else "closed" if statuses else "unavailable"
-    return {"ok": True, "items": free_items, "source": "tencent_free", "updated_at": fetched_at, "status": status}
+    return {"ok": True, "items": items, "missing": missing, "source": "+".join(sorted(sources_used)) or "free_unavailable", "updated_at": fetched_at, "status": status}
 
 
 def _latest_session_close_millis(timezone_name: str) -> int:
@@ -3789,18 +3926,39 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
         pass
     errors: list[str] = []
     section_errors: dict[str, list[dict[str, str]]] = {}
+    # FTShare rate limits apply to the account rather than one endpoint. Once
+    # the provider asks us to slow down, do not turn one company page into a
+    # burst of identical requests and errors; the UI will retain available data
+    # and make one background retry after the short cooldown.
+    rate_limited_until = 0.0
 
     def read_section(section: str, method_name: str, **kwargs: Any) -> list[dict[str, Any]]:
-        try:
-            method = getattr(market, method_name, None)
-            if not callable(method):
-                raise AttributeError(f"missing endpoint: {method_name}")
-            return _workspace_rows(method(as_dataframe=False, **kwargs))
-        except Exception as exc:
-            code, message = _classify_ftshare_error(exc)
-            section_errors.setdefault(section, []).append({"code": code, "message": message})
+        nonlocal rate_limited_until
+        if time.monotonic() < rate_limited_until:
+            message = "FTShare 请求过于频繁，请稍后重试。"
+            section_errors.setdefault(section, []).append({"code": "rate_limited", "message": message})
             errors.append(f"{method_name}: {message}")
             return []
+        method = getattr(market, method_name, None)
+        if not callable(method):
+            message = f"missing endpoint: {method_name}"
+            section_errors.setdefault(section, []).append({"code": "unsupported", "message": message})
+            errors.append(f"{method_name}: {message}")
+            return []
+        for attempt in range(3):
+            try:
+                return _workspace_rows(method(as_dataframe=False, **kwargs))
+            except Exception as exc:
+                code, message = _classify_ftshare_error(exc)
+                if code == "rate_limited" and attempt < 2:
+                    time.sleep(0.2 * (attempt + 1))
+                    continue
+                if code == "rate_limited":
+                    rate_limited_until = time.monotonic() + 3.0
+                section_errors.setdefault(section, []).append({"code": code, "message": message})
+                errors.append(f"{method_name}: {message}")
+                return []
+        return []
     news_rows: list[dict[str, Any]] = []
     financial_rows: list[dict[str, Any]] = []
     holder_rows: list[dict[str, Any]] = []

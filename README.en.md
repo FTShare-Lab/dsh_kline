@@ -13,18 +13,18 @@ Explore markets, read charts, and find key price levels inside DeepSeek Harness.
 - **Read trend and momentum**: use MA, volume, MACD, KDJ, RSI, BOLL, ATR, and VWAP.
 - **Find price areas**: identify support and resistance, or draw and save your own levels and notes.
 - **Compare and review**: overlay indices or symbols, then select a period to inspect return, range, drawdown, and activity.
-- **Add context**: read available news, company summaries, and fundamentals in the same workspace.
-- **Build a watchlist**: save symbols, organize groups, sort, and open several at once. Watchlists stay in your current browser.
+- **Add context**: use Market, Sectors, News, Company, and Dragon & Tiger List views for indices, sector rankings, capital-flow events, news, company profiles, fundamentals, and ownership data.
+- **Build a watchlist**: save symbols, create or rename groups, sort, import, and open several at once. Watchlists stay in your current browser.
 
 ## Preview
 
-![Tab workspace: 非凸 K 线助手 / dsh_kline](docs/images/dsh-kline-tab-workspace.png)
+![Ask AI to analyse a symbol and inspect support, resistance, and technical indicators in the K-line workspace](docs/images/dsh-kline-tab-workspace.png)
 
-![K-line chart and key levels](docs/images/kline-support.png)
+![Market view with eight major indices, sector rankings, and Dragon & Tiger List](docs/images/kline-support.png)
 
-![Range statistics](docs/images/kline-range-stats.png)
+![Watchlist groups and company profile](docs/images/kline-range-stats.png)
 
-![News and company overview](docs/images/kline-news.png)
+![News view with articles related to the active symbol](docs/images/kline-news.png)
 
 ## Get started
 

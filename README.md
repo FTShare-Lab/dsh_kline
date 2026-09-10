@@ -13,18 +13,18 @@
 - **看清趋势与信号**：支持 MA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP 等常用指标。
 - **寻找价格区域**：一键分析支撑位和压力位；也可以自己画水平价位线、添加备注，并在本机保存。
 - **比较与复盘**：叠加指数或标的、框选两个时间点查看涨跌、振幅、回撤和成交统计。
-- **补充研究信息**：在“板块、资讯、公司”中浏览市场脉搏、行业与同类股、新闻、公司画像、财务与股东信息。
-- **建立自己的关注列表**：收藏标的、建立分组、排序或批量打开；自选会作为你的用户级数据跨对话保留。
+- **补充研究信息**：在“市场、板块、资讯、公司、龙虎榜”中浏览指数、板块排行、资金异动、新闻、公司画像、财务与股东信息。
+- **建立自己的关注列表**：收藏标的、建立或重命名分组、排序、导入或批量打开；自选会作为你的用户级数据跨对话保留。
 
 ## 预览
 
-![Tab 工作台：非凸 K 线助手 / dsh_kline](docs/images/dsh-kline-tab-workspace.png)
+![与 AI 对话分析标的，并在右侧 K 线工作台查看关键支撑位、压力位和技术指标](docs/images/dsh-kline-tab-workspace.png)
 
-![K 线与关键价位](docs/images/kline-support.png)
+![市场页：八个主要指数、板块排行与龙虎榜](docs/images/kline-support.png)
 
-![区间统计](docs/images/kline-range-stats.png)
+![自选分组与公司画像](docs/images/kline-range-stats.png)
 
-![新闻与简况](docs/images/kline-news.png)
+![资讯页：与当前标的相关的新闻和公告](docs/images/kline-news.png)
 
 ## 开始使用
 

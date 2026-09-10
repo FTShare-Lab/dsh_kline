@@ -36,7 +36,8 @@ def clear_cache():
 def load(market, **kwargs):
     with patch.object(f, '_ftshare_market_api', return_value=market), \
          patch.object(f, 'ftshare_available', return_value=True), \
-         patch.object(f, '_symbol_name', return_value='贵州茅台'):
+         patch.object(f, '_symbol_name', return_value='贵州茅台'), \
+         patch.object(f.time, 'sleep'):
         return f.fetch_security_workspace('600519.XSHG', **kwargs)['security_workspace']
 
 
@@ -55,14 +56,18 @@ def test_company_code_and_profile_mapping():
 
 
 @pytest.mark.parametrize('failed,section', [('company_list', 'overview'), ('income', 'financials'), ('semantic_search_news', 'news')])
-def test_failed_sections_do_not_abort_other_endpoints(failed, section):
+def test_rate_limited_sections_retry_then_stop_the_remaining_burst(failed, section):
     market, calls = fake_market(failed)
     w = load(market)
     assert w['sections'][section]['state'] == 'error'
     assert w['sections'][section]['errors'][0]['code'] == 'rate_limited'
-    assert any(n == 'stock_holders' for n, _ in calls)
+    assert [name for name, _ in calls].count(failed) == 3
+    # A provider 429 is account-wide. Continuing with the remaining six
+    # company endpoints merely amplifies the limit and gives the UI duplicate
+    # error cards, so the rest of this single page load is cooled down.
+    assert not any(name == 'stock_holders' for name, _ in calls)
     assert not f._security_workspace_cache
-    if failed != 'company_list':
+    if failed == 'income':
         assert w['overview']['description'] == '真实公司简介'
 
 

@@ -28,7 +28,8 @@ test('security navigation exposes a separate market and dragon-tiger view', () =
   assert.match(html, /const isLauncher = payload\.workspace_mode === "launcher"/)
   assert.match(html, /if \(isLauncher\) \{\s*\/\/ A launcher has no user-selected instrument[\s\S]*?setSecurityTab\("market"\)/)
   assert.match(html, /structured\.workspace_mode !== "launcher" && !existingTab\) setSecurityTab\("chart"\)/)
-  assert.match(html, /\["market", "dragon"\]\.includes\(tab\) && !marketPulseData/)
+  assert.match(html, /tab === "market" && !marketPulseData && !marketPulseLoading/)
+  assert.match(html, /tab === "dragon" && !marketPulseData && !marketPulseLoading/)
   assert.match(html, /if \(activeSecurityTab === "sector"\) loadSecurityIntelligence\(currentSymbol, currentName\)/)
   assert.match(html, /companyWorkspaceMarkup\(data\)/)
 })
@@ -38,7 +39,7 @@ test('a fresh launcher keeps a dormant default and opens it only from a direct c
   assert.match(standaloneContent, /default_name: '上证指数'/)
   assert.match(generatedView, /payload\?\.workspace_mode !== 'launcher'/)
 
-  const launcherInit = html.slice(html.indexOf('const isLauncher = payload.workspace_mode'), html.indexOf('startMarketTickerRefresh()', html.indexOf('const isLauncher = payload.workspace_mode')))
+  const launcherInit = html.slice(html.indexOf('const isLauncher = payload.workspace_mode'), html.indexOf('if (window.__DSH_KLINE_DISPOSED__', html.indexOf('const isLauncher = payload.workspace_mode')))
   assert.match(launcherInit, /if \(isLauncher\) \{[\s\S]*?setSecurityTab\("market"\)/)
   assert.doesNotMatch(launcherInit, /open(?:TickerSymbolChart|Symbol)\(/)
 
@@ -91,7 +92,8 @@ test('market page groups actionable indices by region and sector empty states st
   assert.match(market, /market-index-card \$\{tone\}/)
   assert.match(market, /data-ticker-symbol/)
   assert.doesNotMatch(market, /market-index-region/)
-  assert.match(sector, /peerStocksUnavailable/)
+  assert.match(sector, /peerList \? `<section class="intelligence-section"/)
+  assert.doesNotMatch(sector, /peerStocksUnavailable/)
   assert.match(sector, /industryFlowUnavailable/)
   assert.doesNotMatch(sector, /marketPulse\"\)\)<\/h3>/)
 })
