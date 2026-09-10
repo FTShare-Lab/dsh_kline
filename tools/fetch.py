@@ -337,19 +337,18 @@ def _remove_persisted_ftshare_key() -> None:
 
 
 def ftshare_available() -> bool:
+    """Check SDK availability without permanently latching a cold-start miss."""
     _load_persisted_ftshare_key()
-    try:
-        import ftshare  # noqa: F401
-
-        return True
-    except Exception:
-        _maybe_inject_local_ftshare()
+    for attempt in range(3):
         try:
             import ftshare  # noqa: F401
 
             return True
         except Exception:
-            return False
+            _maybe_inject_local_ftshare()
+            if attempt < 2:
+                time.sleep(0.05 * (attempt + 1))
+    return False
 
 
 def _ftshare_market_api(timeout: float) -> Any:
