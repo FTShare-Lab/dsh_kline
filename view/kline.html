@@ -46,6 +46,8 @@
     --up: #20c997;
     --down: #ff6179;
   }
+  html[data-color-mode="international"] { --up: #00b578; --down: #f04462; }
+  html[data-theme="dark"][data-color-mode="international"] { --up: #20c997; --down: #ff6179; }
   html, body {
     margin: 0; padding: 0; overflow: hidden;
     background: var(--bg); color: var(--text);
@@ -862,6 +864,7 @@
         </section>
         <section class="settings-section" id="settingsSectionTheme" hidden>
           <div class="settings-row"><span class="settings-row-label"><span data-i18n="themeCurrent">当前主题</span><span class="settings-row-label-en">Theme</span></span><button class="btn" id="themeToggle" type="button" title="切换至夜间模式" aria-label="切换至夜间模式">切换至夜间模式</button></div>
+          <div class="settings-row"><label class="settings-row-label" for="colorModeToggle"><span>涨跌颜色</span><span class="settings-row-label-en">Price colors</span></label><select class="settings-language-select" id="colorModeToggle" aria-label="涨跌颜色"><option value="a-share">红涨绿跌（A股）</option><option value="international">绿涨红跌（国际）</option></select></div>
         </section>
         <section class="settings-section" id="settingsSectionDisplay" hidden>
           <div class="settings-info">
@@ -1237,6 +1240,7 @@ let selectionOverlayId = null;
 let volumeUnit = "wan";
 let canvasBaseHeightOverride = null;
 let userThemeOverride = null;
+let colorMode = "a-share";
 let viewLanguage = "zh";
 let activeSecurityTab = "market";
 let activeCompanyTab = "overview";
@@ -1521,7 +1525,7 @@ function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || la
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 10,
+      version: 11,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
@@ -1530,6 +1534,7 @@ function saveWorkspacePreferences() {
       customRangeEnd,
       language: viewLanguage,
       theme: userThemeOverride,
+      colorMode,
       volumeUnit,
       canvasHeight: canvasBaseHeightOverride,
       indicators: { maVisible, vwapVisible, volVisible, macdVisible, kdjVisible, bollVisible, rsiVisible, atrVisible, config: indicatorConfig },
@@ -1548,7 +1553,7 @@ function saveWorkspacePreferences() {
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
     if (parsed.rangeKey === "10d") currentRangeKey = "30d";
     else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
@@ -1562,6 +1567,10 @@ function loadWorkspacePreferences() {
     if (["light", "dark"].includes(parsed.theme)) {
       userThemeOverride = parsed.theme;
       document.documentElement.dataset.theme = parsed.theme;
+    }
+    if (["a-share", "international"].includes(parsed.colorMode)) {
+      colorMode = parsed.colorMode;
+      document.documentElement.dataset.colorMode = colorMode;
     }
     if (["wan", "k"].includes(parsed.volumeUnit)) volumeUnit = parsed.volumeUnit;
     canvasBaseHeightOverride = restoreCanvasHeight(parsed.canvasHeight);
@@ -1693,6 +1702,17 @@ function syncThemeToggle() {
   button.textContent = label;
   button.title = label;
   button.setAttribute("aria-label", label);
+}
+function syncColorModeControl() {
+  const control = document.getElementById("colorModeToggle");
+  if (control) control.value = colorMode;
+}
+function setColorMode(mode) {
+  colorMode = mode === "international" ? "international" : "a-share";
+  document.documentElement.dataset.colorMode = colorMode;
+  syncColorModeControl();
+  refreshChartTheme();
+  saveWorkspacePreferences();
 }
 function syncLanguageControls() {
   syncCanvasHeightControls();
@@ -7702,6 +7722,9 @@ document.getElementById("volumeUnitBtn").addEventListener("click", () => {
 });
 document.getElementById("themeToggle").addEventListener("click", () => {
   toggleTheme().catch(console.warn);
+});
+document.getElementById("colorModeToggle")?.addEventListener("change", (event) => {
+  setColorMode(event.currentTarget.value);
 });
 document.getElementById("languageToggle").addEventListener("change", (event) => {
   setLanguage(event.currentTarget.value).catch(console.warn);
