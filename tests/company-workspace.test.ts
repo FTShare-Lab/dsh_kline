@@ -32,12 +32,42 @@ test('security navigation exposes a separate market and dragon-tiger view', () =
   assert.match(html, /if \(activeSecurityTab === "sector"\) loadSecurityIntelligence\(currentSymbol, currentName\)/)
   assert.match(html, /companyWorkspaceMarkup\(data\)/)
 })
-test('a fresh conversation launcher has no fallback security symbol', () => {
+test('a fresh launcher keeps a dormant default and opens it only from a direct chart click', async () => {
   assert.match(standaloneContent, /workspace_mode: 'launcher'/)
-  assert.match(standaloneContent, /default_symbol: ''/)
-  assert.match(standaloneContent, /default_name: ''/)
-  assert.doesNotMatch(standaloneContent, /default_symbol: '000001\.XSHG'/)
+  assert.match(standaloneContent, /default_symbol: '000001\.XSHG'/)
+  assert.match(standaloneContent, /default_name: '上证指数'/)
   assert.match(generatedView, /payload\?\.workspace_mode !== 'launcher'/)
+
+  const launcherInit = html.slice(html.indexOf('const isLauncher = payload.workspace_mode'), html.indexOf('startMarketTickerRefresh()', html.indexOf('const isLauncher = payload.workspace_mode')))
+  assert.match(launcherInit, /if \(isLauncher\) \{[\s\S]*?setSecurityTab\("market"\)/)
+  assert.doesNotMatch(launcherInit, /open(?:TickerSymbolChart|Symbol)\(/)
+
+  const lazyDefault = html.slice(html.indexOf('async function openLauncherDefaultChart('), html.indexOf('/* ---------- workspace tabs', html.indexOf('async function openLauncherDefaultChart(')))
+  assert.match(lazyDefault, /launcher\.workspace_mode !== "launcher" \|\| currentSymbol \|\| openingSymbol/)
+  assert.match(lazyDefault, /launcher\.default_symbol/)
+  assert.match(lazyDefault, /openTickerSymbolChart\(symbol, String\(launcher\.default_name \|\| symbol\)\)/)
+  const calls: unknown[][] = []
+  const context = {
+    window: { __DSH_CHART_SESSION__: { workspace_mode: 'launcher', default_symbol: '000001.XSHG', default_name: '上证指数' } },
+    currentSymbol: '',
+    openingSymbol: false,
+    openTickerSymbolChart: async (...args: unknown[]) => { calls.push(args) },
+  }
+  const openLauncherDefault = runInNewContext(lazyDefault + '; openLauncherDefaultChart', context)
+  assert.equal(await openLauncherDefault(), true)
+  assert.deepEqual(calls, [['000001.XSHG', '上证指数']])
+  context.currentSymbol = '600519.XSHG'
+  assert.equal(await openLauncherDefault(), false)
+  context.currentSymbol = ''
+  context.window.__DSH_CHART_SESSION__.workspace_mode = 'analysis'
+  assert.equal(await openLauncherDefault(), false)
+  assert.equal(calls.length, 1)
+
+  const navClick = html.slice(html.indexOf('document.getElementById("securityNav")'), html.indexOf('wireToggle("maBtn"'))
+  assert.match(navClick, /if \(tab === "chart"\) openLauncherDefaultChart\(\)/)
+
+  const explicitOpen = html.slice(html.indexOf('async function openTickerSymbolChart('), html.indexOf('async function openLauncherDefaultChart('))
+  assert.doesNotMatch(explicitOpen, /openLauncherDefaultChart/)
 })
 test('market and sector pages have separate data responsibilities', () => {
   const market = html.slice(html.indexOf('function renderMarketWorkspace()'), html.indexOf('function renderSecurityIntelligence()'))
@@ -126,7 +156,7 @@ test('market values and percentage changes use one directional color rule', () =
 test('watchlist reconciliation preserves additions from a conflicting conversation', () => {
   const source = html.slice(html.indexOf('function normalizeWatchlistPayload('), html.indexOf('async function syncWatchlistFromService('))
   const merge = runInNewContext(source + '; mergeWatchlistStates', {
-    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 48,
+    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 200,
   })
   const merged = merge(
     { revision: 4, updated_at: 20, groups: [{ id: 'default', name: '默认分组' }], items: [{ symbol: '600519.XSHG', name: '贵州茅台', groupId: 'default' }] },
@@ -134,6 +164,19 @@ test('watchlist reconciliation preserves additions from a conflicting conversati
   )
   assert.deepEqual(Array.from(merged.items, (item: any) => item.symbol), ['600519.XSHG', '510300.XSHG'])
   assert.equal(merged.groups.some((group: any) => group.id === 'etf'), true)
+})
+test('watchlist capacity supports up to 200 symbols', () => {
+  assert.match(html, /const WATCHLIST_MAX_ITEMS = 200;/)
+  const source = html.slice(html.indexOf('function normalizeWatchlistPayload('), html.indexOf('function applyWatchlistState('))
+  const normalize = runInNewContext(source + '; normalizeWatchlistPayload', {
+    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 200,
+  })
+  const items = Array.from({ length: 205 }, (_, index) => ({
+    symbol: String(index).padStart(6, '0') + '.XSHG',
+    name: `symbol-${index}`,
+    groupId: 'default',
+  }))
+  assert.equal(normalize({ groups: [{ id: 'default', name: '默认分组' }], items }).items.length, 200)
 })
 test('basic company profile counts as content even without news or financials', () => {
   const check = runInNewContext(html.slice(html.indexOf('function workspaceHasContent('), html.indexOf('async function loadSecurityWorkspace(')) + '; workspaceHasContent')

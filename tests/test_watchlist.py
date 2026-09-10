@@ -1,4 +1,4 @@
-from tools.watchlist import get_watchlist_state, save_watchlist_state
+from tools.watchlist import MAX_ITEMS, get_watchlist_state, save_watchlist_state
 
 
 def test_watchlist_persists_across_independent_reads(tmp_path, monkeypatch):
@@ -33,6 +33,21 @@ def test_watchlist_normalizes_invalid_groups_and_duplicates(tmp_path, monkeypatc
     state = result["watchlist"]
     assert state["groups"][0]["id"] == "default"
     assert state["items"] == [{"symbol": "600519.XSHG", "name": "贵州茅台", "groupId": "sector"}]
+
+
+def test_watchlist_capacity_is_200_items(tmp_path, monkeypatch):
+    monkeypatch.setenv("DSH_KLINE_STATE_DIR", str(tmp_path))
+    items = [
+        {"symbol": f"{index:06d}.XSHG", "name": f"symbol-{index}", "groupId": "default"}
+        for index in range(MAX_ITEMS + 5)
+    ]
+    result = save_watchlist_state({
+        "groups": [{"id": "default", "name": "默认分组"}],
+        "items": items,
+    })
+    assert result["ok"]
+    assert MAX_ITEMS == 200
+    assert len(result["watchlist"]["items"]) == 200
 
 
 def test_watchlist_rejects_stale_revision_without_overwriting_newer_state(tmp_path, monkeypatch):
