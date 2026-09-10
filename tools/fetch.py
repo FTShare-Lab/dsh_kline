@@ -19,6 +19,7 @@ import re
 import sys
 import stat
 import tempfile
+import threading
 import time
 from copy import deepcopy
 from datetime import datetime, time as clock_time, timedelta, timezone
@@ -55,8 +56,27 @@ _symbol_search_cache: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 _SECURITY_WORKSPACE_CACHE_TTL_SECONDS = 300.0
 _security_workspace_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_PULSE_CACHE_TTL_SECONDS = 90.0
+_MARKET_PULSE_SECTION_TTL_SECONDS = 90.0
 _market_pulse_cache: tuple[float, dict[str, Any]] | None = None
+# The market workspace deliberately loads sections in several independent
+# requests so one slow endpoint cannot block the others.  A single whole-pulse
+# cache entry cannot serve those partial requests, so without a per-section
+# cache every panel switch, tab revisit and manual refresh re-ran the same
+# upstream calls.  Keeping one short-lived entry per section makes the split
+# requests cheap while preserving the per-section response shape.
+_market_pulse_section_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_PULSE_SECTIONS = frozenset({"breadth", "flows", "sectors", "concepts", "rankings", "events"})
+# Coalesce concurrent identical requests.  The client issues an initial batch,
+# a conditional full fallback and then per-group follow-ups; without this a
+# refresh can run the same upstream call several times at once, which is what
+# produced both the stalls and the intermittent rate-limit failures.
+_market_pulse_section_inflight: dict[str, threading.Lock] = {}
+_market_pulse_inflight_guard = threading.Lock()
+# Symbol-name resolution is a presentation-only lookup, but every cache miss is
+# a live provider round trip and market lists repeat symbols heavily across
+# renders; memoize both hits and misses for the life of the process.
+_SYMBOL_NAME_CACHE_MAX_ENTRIES = 512
+_symbol_name_cache: dict[str, str] = {}
 _SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS = 180.0
 _security_intelligence_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 # A short hot cache serves a search-result prefetch immediately when the user
@@ -564,7 +584,32 @@ def clear_provider_caches() -> None:
     _security_workspace_cache.clear()
     _security_intelligence_cache.clear()
     _market_pulse_cache = None
+    _market_pulse_section_cache.clear()
+    _symbol_name_cache.clear()
     _candle_cache.clear()
+
+
+def _market_pulse_section_lock(scope: str) -> threading.Lock:
+    """Return a stable lock so identical concurrent section loads coalesce."""
+    with _market_pulse_inflight_guard:
+        lock = _market_pulse_section_inflight.get(scope)
+        if lock is None:
+            lock = threading.Lock()
+            _market_pulse_section_inflight[scope] = lock
+        return lock
+
+
+def _cached_market_pulse_section(scope: str, *, refresh: bool) -> dict[str, Any] | None:
+    """Return a still-fresh section payload, or None when it must be refetched."""
+    if refresh:
+        return None
+    entry = _market_pulse_section_cache.get(scope)
+    if not entry:
+        return None
+    cached_at, payload = entry
+    if time.time() - cached_at >= _MARKET_PULSE_SECTION_TTL_SECONDS:
+        return None
+    return deepcopy(payload)
 
 
 def _set_ftshare_capabilities(capabilities: dict[str, str]) -> None:
@@ -1323,6 +1368,24 @@ def _fetch_index_history_minutes(
 
 
 def _symbol_name(market: Any, symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    # Resolving a bare code costs a live HTTP round trip.  Market sections such
+    # as the 龙虎榜 list repeat the same symbols on every refresh, so memoize
+    # the answer for the life of the process instead of paying that cost once
+    # per row per render.  Negative results are cached too: a code the provider
+    # does not know would otherwise be retried on every single refresh.
+    if normalized in _symbol_name_cache:
+        return _symbol_name_cache[normalized]
+    resolved = _resolve_symbol_name(market, symbol)
+    # The local directory seed is authoritative and tiny; never let a provider
+    # answer evict those entries from the bounded cache.
+    if len(_symbol_name_cache) >= _SYMBOL_NAME_CACHE_MAX_ENTRIES:
+        _symbol_name_cache.clear()
+    _symbol_name_cache[normalized] = resolved
+    return resolved
+
+
+def _resolve_symbol_name(market: Any, symbol: str) -> str:
     normalized = str(symbol or "").strip().upper()
     # Codes such as 000001 are ambiguous in vendor search (it can resolve to
     # 平安银行). The candle request has already selected the index endpoint, so
@@ -3144,59 +3207,125 @@ def fetch_market_pulse(*, refresh: bool = False, sections: Sequence[str] | None 
     errors: dict[str, list[dict[str, str]]] = {}
     trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
     rank_trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
-    # SDK 1.x uses the documented words rather than the older U/D aliases.
-    up_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="up", trade_date=trade_date) if "breadth" in requested else []
-    down_rows = _read_intelligence_section(market, errors, "breadth", "limit_list", limit_type="down", trade_date=trade_date) if "breadth" in requested else []
-    # These endpoints are oldest-first.  Request enough rows to locate the
-    # latest market reading rather than displaying January data in September.
-    market_flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_dapan_flow", limit=500) if "flows" in requested else []
-    northbound_rows = _read_intelligence_section(market, errors, "flows", "northbound", date=trade_date) if "flows" in requested else []
-    southbound_rows = _read_intelligence_section(market, errors, "flows", "southbound", date=trade_date) if "flows" in requested else []
-    wants_boards = bool({"sectors", "concepts"} & requested)
-    sector_rows = _read_intelligence_section(market, errors, "sectors", "eastmoney_sector_flow", limit=500) if wants_boards else []
-    hot_rank_rows = _read_intelligence_section(
-        market, errors, "rankings", "eastmoney_rank", rank_group="hot", market="A", trade_date=rank_trade_date,
-    ) if "rankings" in requested else []
-    surging_rank_rows = _read_intelligence_section(
-        market, errors, "rankings", "eastmoney_rank", rank_group="up", market="A", trade_date=rank_trade_date,
-    ) if "rankings" in requested else []
-    # Eastmoney's ranking endpoint can be temporarily rate-limited even when
-    # its free data exists. Snowball's attention rank is a like-for-like
-    # fallback for the *popularity* view only; it is never mislabeled as a
-    # price-momentum leaderboard.
-    hot_rank_source = "eastmoney"
-    if "rankings" in requested and not hot_rank_rows:
-        hot_rank_rows = _read_intelligence_section(
-            market, errors, "rankings", "xueqiu_rank", rank_group="follow", period="total", limit=8,
+
+    # Each logical group is fetched at most once per TTL window and concurrent
+    # identical group loads share a single upstream attempt.  The date keys
+    # participate in the scope so a stale cache can never leak across a session
+    # boundary (the previous day's rows would otherwise be served as today's).
+    def _read_group(name: str, reader: Any) -> Any:
+        scope = f"{name}:{trade_date}"
+        cached = _cached_market_pulse_section(scope, refresh=refresh)
+        if cached is not None:
+            return cached
+        with _market_pulse_section_lock(scope):
+            # Re-check after acquiring: a concurrent caller may have just
+            # populated the entry while this one was waiting.
+            cached = _cached_market_pulse_section(scope, refresh=refresh)
+            if cached is not None:
+                return cached
+            value = reader()
+            return value
+
+    def _load_breadth() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        # SDK 1.x uses the documented words rather than the older U/D aliases.
+        up = _read_intelligence_section(market, local, "breadth", "limit_list", limit_type="up", trade_date=trade_date)
+        down = _read_intelligence_section(market, local, "breadth", "limit_list", limit_type="down", trade_date=trade_date)
+        return {"up": up, "down": down, "errors": local}
+
+    def _load_flows() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        # These endpoints are oldest-first.  Request enough rows to locate the
+        # latest market reading rather than displaying January data in September.
+        market_flow = _read_intelligence_section(market, local, "flows", "eastmoney_dapan_flow", limit=500)
+        northbound = _read_intelligence_section(market, local, "flows", "northbound", date=trade_date)
+        southbound = _read_intelligence_section(market, local, "flows", "southbound", date=trade_date)
+        return {"market": market_flow, "northbound": northbound, "southbound": southbound, "errors": local}
+
+    def _load_boards() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        sector = _read_intelligence_section(market, local, "sectors", "eastmoney_sector_flow", limit=500)
+        return {"sectors": sector, "errors": local}
+
+    def _load_rankings() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        hot = _read_intelligence_section(
+            market, local, "rankings", "eastmoney_rank", rank_group="hot", market="A", trade_date=rank_trade_date,
         )
-        hot_rank_source = "xueqiu" if hot_rank_rows else ""
-    abnormal_rows: list[dict[str, Any]] = []
-    if "events" in requested:
-        abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_details", date=trade_date, limit=20)
+        surging = _read_intelligence_section(
+            market, local, "rankings", "eastmoney_rank", rank_group="up", market="A", trade_date=rank_trade_date,
+        )
+        # Eastmoney's ranking endpoint can be temporarily rate-limited even when
+        # its free data exists. Snowball's attention rank is a like-for-like
+        # fallback for the *popularity* view only; it is never mislabeled as a
+        # price-momentum leaderboard.
+        source = "eastmoney"
+        if not hot:
+            hot = _read_intelligence_section(
+                market, local, "rankings", "xueqiu_rank", rank_group="follow", period="total", limit=8,
+            )
+            source = "xueqiu" if hot else ""
+        return {"hot": hot, "surging": surging, "source": source, "errors": local}
+
+    def _load_events() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        abnormal = _read_intelligence_section(market, local, "events", "abnormal_trading_details", date=trade_date, limit=20)
         # During a trading day the endpoint may expose its latest completed
         # snapshot without a same-day date key.
-        if not abnormal_rows:
-            abnormal_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_details", limit=20)
-        overview_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", date=trade_date, limit=20)
-        if not overview_rows:
-            overview_rows = _read_intelligence_section(market, errors, "events", "abnormal_trading_overview", limit=20)
+        if not abnormal:
+            abnormal = _read_intelligence_section(market, local, "events", "abnormal_trading_details", limit=20)
+        overview = _read_intelligence_section(market, local, "events", "abnormal_trading_overview", date=trade_date, limit=20)
+        if not overview:
+            overview = _read_intelligence_section(market, local, "events", "abnormal_trading_overview", limit=20)
         # Details carry the broker-seat ledger but currently omit the security
         # name. Enrich each detail row from the matching overview row; this is
         # still one coherent provider snapshot, not a guessed local mapping.
-        if abnormal_rows and overview_rows:
+        if abnormal and overview:
             overview_by_symbol = {
                 _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"): row
-                for row in overview_rows
+                for row in overview
             }
-            abnormal_rows = [
+            abnormal = [
                 {**overview_by_symbol.get(_canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"), {}), **row}
-                for row in abnormal_rows
+                for row in abnormal
             ]
         # Older SDKs or temporary provider rollouts may omit the detail route.
         # The overview remains actionable, but the UI will label it as a plain
         # symbol list rather than pretend it is a net-flow ranking.
-        if not abnormal_rows:
-            abnormal_rows = overview_rows
+        if not abnormal:
+            abnormal = overview
+        return {"abnormal": abnormal, "errors": local}
+
+    want_boards = bool({"sectors", "concepts"} & requested)
+    groups: dict[str, dict[str, Any]] = {}
+    group_readers = (
+        ("breadth", _load_breadth, "breadth" in requested),
+        ("flows", _load_flows, "flows" in requested),
+        ("boards", _load_boards, want_boards),
+        ("rankings", _load_rankings, "rankings" in requested),
+        ("events", _load_events, "events" in requested),
+    )
+    for group_name, reader, wanted in group_readers:
+        if not wanted:
+            continue
+        groups[group_name] = _read_group(group_name, reader)
+        for section_errors in (groups[group_name].get("errors") or {}).items():
+            section_key, entries = section_errors
+            if entries:
+                errors.setdefault(section_key, []).extend(entries)
+
+    up_rows = list((groups.get("breadth") or {}).get("up") or [])
+    down_rows = list((groups.get("breadth") or {}).get("down") or [])
+    flow_group = groups.get("flows") or {}
+    market_flow_rows = list(flow_group.get("market") or [])
+    northbound_rows = list(flow_group.get("northbound") or [])
+    southbound_rows = list(flow_group.get("southbound") or [])
+    sector_rows = list((groups.get("boards") or {}).get("sectors") or [])
+    rank_group = groups.get("rankings") or {}
+    hot_rank_rows = list(rank_group.get("hot") or [])
+    surging_rank_rows = list(rank_group.get("surging") or [])
+    hot_rank_source = str(rank_group.get("source") or "")
+    abnormal_rows = list((groups.get("events") or {}).get("abnormal") or [])
     breadth = [
         {"title": "涨停", "value": str(len(up_rows)), "detail": "当日涨停池", "change": "", "tone": "up"},
         {"title": "跌停", "value": str(len(down_rows)), "detail": "当日跌停池", "change": "", "tone": "down"},
@@ -3242,6 +3371,14 @@ def fetch_market_pulse(*, refresh: bool = False, sections: Sequence[str] | None 
     }
     if full_request and not any(errors.values()):
         _market_pulse_cache = (now, result)
+    # Store only groups that actually returned data.  Caching an empty result
+    # would pin a transient provider failure for the whole TTL window and turn
+    # a momentary hiccup into a 90-second outage.
+    if not refresh:
+        fresh_at = time.time()
+        for group_name, payload in groups.items():
+            if payload and not payload.get("errors"):
+                _market_pulse_section_cache[f"{group_name}:{trade_date}"] = (fresh_at, deepcopy(payload))
     return result
 
 

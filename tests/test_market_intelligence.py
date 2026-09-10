@@ -13,11 +13,13 @@ def _rows(name, **extra):
 @pytest.fixture(autouse=True)
 def _clear_intelligence_caches():
     f._market_pulse_cache = None
+    f._market_pulse_section_cache.clear()
     f._security_intelligence_cache.clear()
     f._candle_cache.clear()
     f._symbol_search_cache.clear()
     yield
     f._market_pulse_cache = None
+    f._market_pulse_section_cache.clear()
     f._security_intelligence_cache.clear()
     f._candle_cache.clear()
     f._symbol_search_cache.clear()
