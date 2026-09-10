@@ -156,7 +156,7 @@ test('market values and percentage changes use one directional color rule', () =
 test('watchlist reconciliation preserves additions from a conflicting conversation', () => {
   const source = html.slice(html.indexOf('function normalizeWatchlistPayload('), html.indexOf('async function syncWatchlistFromService('))
   const merge = runInNewContext(source + '; mergeWatchlistStates', {
-    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 48,
+    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 200,
   })
   const merged = merge(
     { revision: 4, updated_at: 20, groups: [{ id: 'default', name: '默认分组' }], items: [{ symbol: '600519.XSHG', name: '贵州茅台', groupId: 'default' }] },
@@ -164,6 +164,19 @@ test('watchlist reconciliation preserves additions from a conflicting conversati
   )
   assert.deepEqual(Array.from(merged.items, (item: any) => item.symbol), ['600519.XSHG', '510300.XSHG'])
   assert.equal(merged.groups.some((group: any) => group.id === 'etf'), true)
+})
+test('watchlist capacity supports up to 200 symbols', () => {
+  assert.match(html, /const WATCHLIST_MAX_ITEMS = 200;/)
+  const source = html.slice(html.indexOf('function normalizeWatchlistPayload('), html.indexOf('function applyWatchlistState('))
+  const normalize = runInNewContext(source + '; normalizeWatchlistPayload', {
+    WATCHLIST_MAX_GROUPS: 12, WATCHLIST_MAX_ITEMS: 200,
+  })
+  const items = Array.from({ length: 205 }, (_, index) => ({
+    symbol: String(index).padStart(6, '0') + '.XSHG',
+    name: `symbol-${index}`,
+    groupId: 'default',
+  }))
+  assert.equal(normalize({ groups: [{ id: 'default', name: '默认分组' }], items }).items.length, 200)
 })
 test('basic company profile counts as content even without news or financials', () => {
   const check = runInNewContext(html.slice(html.indexOf('function workspaceHasContent('), html.indexOf('async function loadSecurityWorkspace(')) + '; workspaceHasContent')

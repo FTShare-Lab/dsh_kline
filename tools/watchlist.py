@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 
-MAX_ITEMS = 48
+MAX_ITEMS = 200
 MAX_GROUPS = 12
 _LOCK = threading.RLock()
 _MILLISECONDS_THRESHOLD = 100_000_000_000
