@@ -3093,15 +3093,21 @@ def _read_intelligence_section(
     **kwargs: Any,
 ) -> list[dict[str, Any]]:
     """Read an optional FTShare endpoint without breaking adjacent sections."""
-    try:
-        method = getattr(market_client, method_name, None)
-        if not callable(method):
-            raise AttributeError(f"missing endpoint: {method_name}")
-        return _workspace_rows(method(as_dataframe=False, **kwargs))
-    except Exception as exc:  # noqa: BLE001 - provider diagnostics become structured states
-        code, message = _classify_ftshare_error(exc)
-        errors.setdefault(section, []).append({"code": code, "message": message})
+    method = getattr(market_client, method_name, None)
+    if not callable(method):
+        errors.setdefault(section, []).append({"code": "unsupported", "message": f"missing endpoint: {method_name}"})
         return []
+    for attempt in range(3):
+        try:
+            return _workspace_rows(method(as_dataframe=False, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - provider diagnostics become structured states
+            code, message = _classify_ftshare_error(exc)
+            if code == "rate_limited" and attempt < 2:
+                time.sleep(0.15 * (attempt + 1))
+                continue
+            errors.setdefault(section, []).append({"code": code, "message": message})
+            return []
+    return []
 
 
 def _provider_unavailable_intelligence(kind: str, *, symbol: str = "") -> dict[str, Any]:

@@ -2800,7 +2800,7 @@ function renderMarketWorkspace() {
   const abnormal = marketLeaderboardMarkup(abnormalTrading);
   const noData = `<p class="intelligence-note market-section-empty">板块数据暂不可用，指数行情仍可正常使用。</p>`;
   panel.innerHTML = `<div class="intelligence-content">` +
-    `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketIndices"))}</h3></div>${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
+    `<section class="intelligence-section market-indices-section">${indexGroups || `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`}</section>` +
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
     (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : marketPulseLoading ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><div class="market-leaderboard loading" aria-label="正在加载龙虎榜">${Array.from({ length: 4 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div></section>` : "") +
@@ -2971,6 +2971,9 @@ async function loadMarketPulse(refresh = false) {
       market_pulse: {
         ...currentPulse,
         ...nextPulse,
+        hot_sectors: nextPulse.hot_sectors?.length ? nextPulse.hot_sectors : currentPulse.hot_sectors,
+        hot_concepts: nextPulse.hot_concepts?.length ? nextPulse.hot_concepts : currentPulse.hot_concepts,
+        abnormal_trading: nextPulse.abnormal_trading?.length ? nextPulse.abnormal_trading : currentPulse.abnormal_trading,
         rankings: { ...(currentPulse.rankings || {}), ...(nextPulse.rankings || {}) },
       },
       sections: { ...(current.sections || {}), ...(incoming.sections || {}) },
