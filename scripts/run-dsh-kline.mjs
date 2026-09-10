@@ -56,6 +56,8 @@ export function pythonCandidates(env = process.env, platform = process.platform)
     '/usr/local/bin/python3', '/usr/local/bin/python3.13', '/usr/local/bin/python3.12',
     '/usr/local/bin/python3.11', '/usr/local/bin/python3.10',
     join(homedir(), 'miniforge3', 'bin', 'python'),
+    join(homedir(), 'Caskroom', 'miniforge', 'base', 'bin', 'python3'),
+    '/opt/homebrew/Caskroom/miniforge/base/bin/python3',
     join(homedir(), 'miniconda3', 'bin', 'python'),
     join(homedir(), 'anaconda3', 'bin', 'python'),
   ].map(command => ({ command, args: [] }))
