@@ -1249,7 +1249,10 @@ def _fetch_calendar_history(
         raw = fetch_page(
             market, symbol=symbol, interval_unit="Day", interval_value=1,
             adjust_kind=adjust_kind, since_ts_millis=max(0, until_ms - 360 * 86_400_000),
-            until_ts_millis=until_ms, limit=4000, as_dataframe=False,
+            # FTShare stock/index candlesticks accepts at most 1,000 rows per
+            # request. Keep long ranges paged rather than sending the former
+            # 4,000-row local display limit to the provider (HTTP 400).
+            until_ts_millis=until_ms, limit=1000, as_dataframe=False,
         )
         chunk = _normalize_raw(raw)
         if not chunk:

@@ -340,7 +340,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
 
-  if (prepareProject) {
+  if (prepareProject || bootstrapRuntime) {
     process.stderr.write(`[dsh_kline] Python runtime ready: ${venvDirectory}\n`)
     return 0
   }

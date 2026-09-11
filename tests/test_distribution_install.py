@@ -44,6 +44,8 @@ if args[:2] == ['-m', 'venv']:
 if args[:2] == ['-m', 'pip']:
     print('pip completed')
     raise SystemExit(0)
+if args and args[0].endswith('server.py'):
+    (Path.cwd() / '.server-launched').write_text('unexpected server launch')
 print('mcp-ready')
 '''
 
@@ -222,6 +224,7 @@ def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
         time.sleep(0.05)
     assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
     assert not (venv / ".dsh-kline-bootstrap-running").exists()
+    assert not (project / ".server-launched").exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")

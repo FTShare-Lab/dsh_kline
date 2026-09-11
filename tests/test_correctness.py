@@ -213,6 +213,21 @@ def test_history_depth_is_disclosed():
     assert result['warnings']
 
 
+def test_calendar_history_respects_ftshare_daily_page_limit():
+    calls = []
+
+    def fetch_page(_market, **kwargs):
+        calls.append(kwargs)
+        return bars(2)
+
+    result = f._fetch_calendar_history(
+        fetch_page, None, symbol='603667.XSHG', interval='day',
+        adjust_kind='none', limit=250,
+    )
+    assert len(result) == 2
+    assert calls and all(call['limit'] == 1000 for call in calls)
+
+
 def test_minute_history_keeps_only_complete_requested_bars():
     base = 1_700_000_000
     full = {
