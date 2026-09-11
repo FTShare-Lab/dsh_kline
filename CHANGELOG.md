@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## 0.2.9 - 2026-09-11
+
+### Fixed
+
+- Keep deferred Python runtime bootstrap detached across POSIX and Windows hosts so a short-lived MCP handshake cannot terminate the installer.
+- Track the bootstrap owner PID and clean up stale markers after interrupted launches, allowing automatic reconnect to recover normally.
+- Make the isolated DSH profile smoke test independent of Corepack's temporary-project mutation behavior.
+
 ## 0.2.8 - 2026-09-11
 
 ### Added
