@@ -137,6 +137,20 @@ async function replaceWithRetry(source, destination) {
   throw lastError
 }
 
+export function backgroundBootstrapSpawnOptions(platform = process.platform, env = process.env) {
+  return {
+    cwd: PROJECT_ROOT,
+    env,
+    // The bootstrap must outlive the short-lived MCP handshake process on
+    // every host. On Windows, `unref()` alone does not detach a child from
+    // the parent's process group/job, so the child can be reaped as soon as
+    // the initial MCP attempt exits.
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: platform === 'win32',
+  }
+}
+
 function findBootstrapPython(preferred = '') {
   const candidates = preferred
     ? [{ command: preferred, args: [] }, ...pythonCandidates()]
@@ -225,15 +239,52 @@ async function writeBootstrapFailure(venvDirectory, fingerprint, error) {
   await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
 }
 
-async function bootstrapIsRunning(venvDirectory) {
-  const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+function processIsAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === 'EPERM'
+  }
+}
+
+async function readBootstrapMarker(marker) {
   try {
     const details = JSON.parse(await readFile(marker, 'utf8'))
-    const startedAt = Date.parse(details?.started_at || '')
-    if (Number.isFinite(startedAt) && Date.now() - startedAt < BACKGROUND_BOOTSTRAP_STALE_MS) return true
+    return details && typeof details === 'object' ? details : null
   } catch {
-    return false
+    return null
   }
+}
+
+async function writeBootstrapMarker(marker, details) {
+  const temporary = `${marker}.${process.pid}.tmp`
+  await writeFile(temporary, JSON.stringify(details), { encoding: 'utf8', mode: 0o600 })
+  try {
+    await replaceWithRetry(temporary, marker)
+  } finally {
+    await rm(temporary, { force: true })
+  }
+}
+
+async function clearBootstrapMarker(venvDirectory, expectedPid = process.pid) {
+  const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+  const details = await readBootstrapMarker(marker)
+  if (details && Number(details.pid) !== expectedPid) return
+  await rm(marker, { force: true }).catch(() => {})
+}
+
+async function bootstrapIsRunning(venvDirectory) {
+  const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+  const details = await readBootstrapMarker(marker)
+  const pid = Number(details?.pid)
+  if (processIsAlive(pid)) return true
+  const startedAt = Date.parse(details?.started_at || '')
+  // Older markers did not carry a PID. Keep their short grace period for
+  // upgrade compatibility, but remove markers whose owner is definitely
+  // gone instead of blocking reconnect forever after a killed child.
+  if (!Number.isSafeInteger(pid) && Number.isFinite(startedAt) && Date.now() - startedAt < BACKGROUND_BOOTSTRAP_STALE_MS) return true
   await rm(marker, { force: true }).catch(() => {})
   return false
 }
@@ -242,26 +293,28 @@ async function startBackgroundBootstrap(venvDirectory) {
   if (await bootstrapIsRunning(venvDirectory)) return false
   await mkdir(venvDirectory, { recursive: true })
   const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+  const startedAt = new Date().toISOString()
   try {
-    await writeFile(marker, JSON.stringify({ started_at: new Date().toISOString() }), {
+    // Reserve the marker before spawning so concurrent reconnect attempts do
+    // not launch duplicate dependency installers.
+    await writeFile(marker, JSON.stringify({ pid: process.pid, started_at: startedAt }), {
       encoding: 'utf8', mode: 0o600, flag: 'wx',
     })
   } catch (error) {
     if (error?.code === 'EEXIST') return false
     throw error
   }
+  let child
   try {
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--bootstrap-runtime'], {
-      cwd: PROJECT_ROOT,
-      env: process.env,
-      detached: process.platform !== 'win32',
-      stdio: 'ignore',
-      windowsHide: true,
-    })
+    child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--bootstrap-runtime'], backgroundBootstrapSpawnOptions())
+    child.once('error', () => { void clearBootstrapMarker(venvDirectory, child?.pid || process.pid) })
+    child.once('exit', () => { void clearBootstrapMarker(venvDirectory, child?.pid || process.pid) })
+    await writeBootstrapMarker(marker, { pid: child.pid, started_at: startedAt })
     child.unref()
     return true
   } catch (error) {
-    await rm(marker, { force: true }).catch(() => {})
+    if (child && child.exitCode === null) child.kill()
+    await clearBootstrapMarker(venvDirectory, child?.pid || process.pid)
     throw error
   }
 }
@@ -336,7 +389,7 @@ export async function main(argv = process.argv.slice(2)) {
       await writeBootstrapFailure(venvDirectory, fingerprint, error).catch(() => {})
       throw new Error(`Runtime preparation failed. See ${logPath}. ${error instanceof Error ? error.message : String(error)}`)
     } finally {
-      if (bootstrapRuntime) await rm(join(venvDirectory, BOOTSTRAP_RUNNING), { force: true }).catch(() => {})
+      if (bootstrapRuntime) await clearBootstrapMarker(venvDirectory)
     }
   }
 

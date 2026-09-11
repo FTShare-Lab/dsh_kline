@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   defaultRuntimeDirectory,
   defaultStateDirectory,
+  backgroundBootstrapSpawnOptions,
   pythonCandidates,
   pythonEnvironment,
   pythonPathForVenv,
@@ -58,4 +59,10 @@ test('Python subprocesses use deterministic UTF-8 and noninteractive pip output'
     PIP_DISABLE_PIP_VERSION_CHECK: '1',
     PIP_NO_INPUT: '1',
   })
+})
+
+test('deferred bootstrap is detached on every host, including Windows', () => {
+  assert.equal(backgroundBootstrapSpawnOptions('win32', {}).detached, true)
+  assert.equal(backgroundBootstrapSpawnOptions('win32', {}).windowsHide, true)
+  assert.equal(backgroundBootstrapSpawnOptions('linux', {}).detached, true)
 })

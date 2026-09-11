@@ -22,6 +22,10 @@ const env = {
   DSH_KLINE_CACHE_DIR: cache,
   DSH_KLINE_RUNTIME_DIR: runtime,
   DSH_KLINE_CHART_PORT: '0',
+  // The isolated profile lives under a temporary path without a package.json;
+  // prevent Corepack from trying to mutate /tmp/package.json while forwarding
+  // the plugin install to pnpm.
+  COREPACK_ENABLE_PROJECT_SPEC: '0',
   FTSHARE_API_KEY: '',
   FTSHARE_API_KEY_FILE: join(scratch, 'no-credentials.json'),
 }

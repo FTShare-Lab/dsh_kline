@@ -115,6 +115,8 @@ def test_launcher_contains_native_windows_runtime_support():
         "Scripts', 'python.exe",
         "{ command: 'py'",
         "windowsHide: true",
+        "detached: true",
+        "BOOTSTRAP_RUNNING",
         "DSH_KLINE_RUNTIME_DIR",
         "bootstrap.log",
         "Python 3.10 or newer",
