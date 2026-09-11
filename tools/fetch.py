@@ -15,17 +15,21 @@ from __future__ import annotations
 
 import os
 import json
+import io
 import re
 import sys
 import stat
 import tempfile
 import threading
 import time
+import zipfile
 from copy import deepcopy
 from datetime import datetime, time as clock_time, timedelta, timezone
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
 try:  # Built-in free fallback source; never required for the FTShare path.
@@ -166,10 +170,16 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
         "candidate_verification": {"sdk": True},
     },
 }
-SYMBOL_DIRECTORY_VERSION = 4
+SYMBOL_DIRECTORY_VERSION = 5
 SYMBOL_DIRECTORY_TTL_SECONDS = 24 * 60 * 60
 SYMBOL_DIRECTORY_RETRY_SECONDS = 60 * 60
-SYMBOL_DIRECTORY_MAX_ITEMS = 20_000
+# A complete A / HK / US / ETF directory is about 18,500 instruments today.
+# Leave headroom for new listings and a small number of provider duplicates.
+SYMBOL_DIRECTORY_MAX_ITEMS = 50_000
+# HKEX publishes its complete securities master as a small XLSX each trading
+# day.  It is a more stable directory source than a quote-page endpoint.
+_HK_DIRECTORY_URL = "https://www.hkex.com.hk/eng/services/trading/securities/securitieslists/ListOfSecurities.xlsx"
+_HK_DIRECTORY_CATEGORIES = frozenset({"Equity", "Exchange Traded Products", "Real Estate Investment Trusts"})
 CN_BROAD_INDEXES = (
     {"symbol": "000001.XSHG", "name": "上证指数", "market": "CN_INDEX", "aliases": "沪指 上证综指 上证综合指数 shanghai composite"},
     {"symbol": "000016.XSHG", "name": "上证50", "market": "CN_INDEX", "aliases": "上证五十 sse 50"},
@@ -961,7 +971,7 @@ _CN_SYMBOL_SUFFIXES = {
 
 
 def _canonical_market_symbol(symbol: str) -> str:
-    """Normalize explicit mainland exchange suffixes without guessing a market.
+    """Normalize explicit exchange suffixes without guessing a market.
 
     A bare six-digit code is intentionally left bare: for example ``000688``
     can mean the 科创50 index or 国城矿业. Only an explicit exchange-qualified
@@ -971,6 +981,10 @@ def _canonical_market_symbol(symbol: str) -> str:
     code, separator, suffix = raw.rpartition(".")
     if separator and code and suffix in _CN_SYMBOL_SUFFIXES:
         return f"{code}.{_CN_SYMBOL_SUFFIXES[suffix]}"
+    if separator and suffix in {"HK", "HKG"} and code.isdigit() and 1 <= len(code) <= 5:
+        return f"{code.zfill(5)}.HK"
+    if separator and suffix in {"US", "NASDAQ", "NYSE"} and re.fullmatch(r"[A-Z][A-Z0-9._-]{0,15}", code):
+        return f"{code}.US"
     return raw
 
 
@@ -1697,12 +1711,16 @@ def _canonical_directory_symbol(symbol: Any, *, market: Any = None, default_mark
 
 
 def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
+    """Reduce a provider directory to the fields needed for local search."""
     items: list[dict[str, str]] = []
     for row in _rows_from_directory_response(rows):
         symbol = next(
             (
                 row.get(key)
-                for key in ("symbol", "symbol_id", "stock_code", "code", "secid", "index_code", "ticker")
+                for key in (
+                    "symbol", "symbol_id", "stock_code", "code", "secid", "index_code",
+                    "ticker", "trade_code", "fund_code",
+                )
                 if row.get(key) not in (None, "")
             ),
             None,
@@ -1710,7 +1728,7 @@ def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
         name = next(
             (
                 row.get(key)
-                for key in ("name", "stock_name", "security_name", "index_name", "symbol_name")
+                for key in ("name", "stock_name", "security_name", "index_name", "symbol_name", "fund_name")
                 if row.get(key) not in (None, "")
             ),
             None,
@@ -1718,9 +1736,15 @@ def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
         if symbol is None or name is None:
             continue
         market = row.get("market") or row.get("board") or default_market
-        normalized_market = "US" if str(market).strip().upper() == "105" else str(market).strip()
+        # Eastmoney splits U.S. listings into several numeric market buckets
+        # (105/106/107).  They are all one searchable U.S. universe here.
+        normalized_market = "US" if default_market == "US" or str(market).strip().upper() == "105" else str(market).strip()
         normalized_symbol = _canonical_directory_symbol(symbol, market=market, default_market=default_market)
-        items.append({"symbol": normalized_symbol, "name": str(name).strip(), "market": normalized_market})
+        item = {"symbol": normalized_symbol, "name": str(name).strip(), "market": normalized_market}
+        aliases = row.get("aliases") or row.get("alias")
+        if aliases:
+            item["aliases"] = str(aliases).strip()
+        items.append(item)
     return [item for item in items if item["symbol"] and item["name"]]
 
 
@@ -1733,12 +1757,125 @@ def _merge_symbol_directory(*groups: list[dict[str, str]]) -> list[dict[str, str
             if not symbol or symbol in seen:
                 continue
             seen.add(symbol)
-            merged.append({
+            normalized = {
                 "symbol": symbol,
                 "name": str(item.get("name") or symbol).strip(),
                 "market": str(item.get("market") or "OTHER").strip(),
-            })
+            }
+            aliases = str(item.get("aliases") or "").strip()
+            if aliases:
+                normalized["aliases"] = aliases
+            merged.append(normalized)
     return sorted(merged, key=lambda item: (item["market"], item["symbol"]))
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    """Read XLSX shared strings using only the standard library."""
+    try:
+        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    except KeyError:
+        return []
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    return ["".join(node.text or "" for node in entry.iter(f"{namespace}t")) for entry in root.iter(f"{namespace}si")]
+
+
+def _xlsx_cell_value(cell: ElementTree.Element, shared_strings: list[str], namespace: str) -> str:
+    value = cell.findtext(f"{namespace}v")
+    if cell.get("t") == "s" and value is not None:
+        try:
+            return shared_strings[int(value)]
+        except (IndexError, ValueError):
+            return ""
+    if cell.get("t") == "inlineStr":
+        return "".join(node.text or "" for node in cell.iter(f"{namespace}t"))
+    return str(value or "")
+
+
+def _fetch_hk_symbol_directory() -> list[dict[str, str]]:
+    """Read HKEX's official full-security list into a compact HK directory.
+
+    The spreadsheet includes derivatives and debt instruments.  Search keeps
+    equities, exchange-traded products and REITs, which are the securities the
+    HK candle route can meaningfully open from this plugin.
+    """
+    last_error: Exception | None = None
+    payload: bytes | None = None
+    for attempt in range(3):
+        try:
+            request = Request(_HK_DIRECTORY_URL, headers={"User-Agent": "dsh-kline/0.2"})
+            with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed official HTTPS URL above
+                payload = response.read()
+            break
+        except OSError as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+    if not payload:
+        raise OSError(f"HKEX securities list download failed: {last_error}")
+
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        shared_strings = _xlsx_shared_strings(archive)
+        worksheet = ElementTree.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+
+    header: dict[str, int] | None = None
+    items: list[dict[str, str]] = []
+    for row in worksheet.iter(f"{namespace}row"):
+        values: dict[int, str] = {}
+        for cell in row.iter(f"{namespace}c"):
+            reference = str(cell.get("r") or "")
+            column_letters = "".join(char for char in reference if char.isalpha())
+            if not column_letters:
+                continue
+            column = 0
+            for char in column_letters:
+                column = column * 26 + ord(char.upper()) - ord("A") + 1
+            values[column - 1] = _xlsx_cell_value(cell, shared_strings, namespace).strip()
+        if not values:
+            continue
+        if header is None:
+            reverse = {value: index for index, value in values.items()}
+            if {"Stock Code", "Name of Securities", "Category"} <= set(reverse):
+                header = reverse
+            continue
+        code = values.get(header["Stock Code"], "").strip()
+        name = values.get(header["Name of Securities"], "").strip()
+        category = values.get(header["Category"], "").strip()
+        if code.isdigit() and name and category in _HK_DIRECTORY_CATEGORIES:
+            items.append({"symbol": f"{code.zfill(5)}.HK", "name": name, "market": "HK"})
+    if not items:
+        raise ValueError("HKEX securities list contained no searchable Hong Kong instruments")
+    return items
+
+
+def _fetch_us_symbol_directory(market: Any) -> list[dict[str, str]]:
+    """Page the US directory with pacing instead of triggering a gateway burst."""
+    method = getattr(market, "eastmoney_us_stock_list", None)
+    if not callable(method):
+        raise AttributeError("eastmoney_us_stock_list is unavailable in the installed FTShare client")
+    items: list[dict[str, str]] = []
+    for page in range(1, 200):
+        last_error: Exception | None = None
+        rows: list[Mapping[str, Any]] | None = None
+        for attempt in range(4):
+            try:
+                raw = method(as_dataframe=False, page=page, page_size=200)
+                rows = _rows_from_directory_response(raw)
+                break
+            except Exception as exc:  # noqa: BLE001 - normalize FTShare's typed HTTP errors
+                last_error = exc
+                if not _is_retryable_ftshare_status(exc) or attempt == 3:
+                    break
+                time.sleep(0.8 * (attempt + 1))
+        if rows is None:
+            raise OSError(f"US directory page {page} failed: {last_error}")
+        items.extend(_directory_items(rows, "US"))
+        if len(rows) < 200:
+            return items
+        # The endpoint permits full pagination but rejects rapid bursts.  This
+        # only runs in the deferred directory refresh, never per keystroke.
+        time.sleep(0.8)
+    raise OSError("US directory exceeded the pagination safety limit")
 
 
 def _directory_coverage(
@@ -1896,13 +2033,10 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         ("index_description_all", "CN_INDEX", {}, True),
         # Exchange-traded funds live on the fund routes, not company_list, so a
         # watchlist full of ETFs previously could not resolve any of its names.
-        # This route is best-effort: some plans return 400/429 and the ETF seed
-        # below still provides a usable fallback.
-        ("fund_list", "ETF", {"all_pages": True, "page_size": 200}, True),
-        # The installed FTShare endpoint caps a single page at 200. The SDK
-        # paginates when ``all_pages`` is set, so 200 retains complete coverage
-        # instead of raising its client-side page-size validation error.
-        ("eastmoney_us_stock_list", "US", {"all_pages": True, "page_size": 200}, True),
+        # `fund_list` is the whole public-fund universe, not the exchange ETF
+        # directory.  The dedicated endpoint is compact and has the canonical
+        # exchange symbols used by the ETF candle API.
+        ("etf_description_all", "ETF", {}, True),
     )
     fetched_groups: list[list[dict[str, str]]] = []
     errors: list[str] = []
@@ -1934,6 +2068,25 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
                 errors.append(f"{method_name}: {exc}")
                 break
 
+    # The installed FTShare SDK has no all-HK-instruments endpoint.  Keep this
+    # independent from the SDK batch so a temporary public-directory failure
+    # cannot prevent A-share / ETF / US snapshots from being saved.
+    try:
+        hk_group = _fetch_hk_symbol_directory()
+        if hk_group:
+            fetched_groups.append(hk_group)
+            completed_markets.add("HK")
+    except Exception as exc:  # noqa: BLE001 - preserve the prior HK snapshot
+        errors.append(f"hk_directory: {exc}")
+
+    try:
+        us_group = _fetch_us_symbol_directory(market)
+        if us_group:
+            fetched_groups.append(us_group)
+            completed_markets.add("US")
+    except Exception as exc:  # noqa: BLE001 - preserve the prior US snapshot
+        errors.append(f"us_directory: {exc}")
+
     fetched_count = sum(len(group) for group in fetched_groups)
     # A partial fetch must not be published as a complete 24-hour snapshot.
     # When one source is rate-limited (an observed HTTP 429 on company_list)
@@ -1942,7 +2095,22 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
     # missing every mainland stock for 24 hours and made search look broken.
     # Require the primary mainland listing before granting the long TTL.
     if fetched_count and "CN" in completed_markets:
-        items = _merge_symbol_directory(*fetched_groups, seed)
+        # Refreshes are independent per market.  Do not let a rate-limited US
+        # or HK request replace a previously complete market with an empty
+        # list; retain that market's last complete snapshot until its own next
+        # successful refresh.
+        cached_items = list(cached.get("items") or []) if cached else []
+        cached_complete = {
+            market_name
+            for market_name, state in (cached.get("coverage") or {}).items()
+            if isinstance(state, Mapping) and state.get("complete")
+        } if cached else set()
+        retained_items = [
+            item for item in cached_items
+            if str(item.get("market") or "") not in completed_markets
+        ]
+        completed_for_coverage = completed_markets | (cached_complete - completed_markets)
+        items = _merge_symbol_directory(*fetched_groups, retained_items, seed)
         payload = {
             "ok": True,
             "version": SYMBOL_DIRECTORY_VERSION,
@@ -1954,8 +2122,8 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
             "provider_id": "FTShare SDK",
             "coverage": _directory_coverage(
                 items,
-                complete_markets=completed_markets,
-                partial_markets={item["market"] for item in seed} - completed_markets,
+                complete_markets=completed_for_coverage,
+                partial_markets={item["market"] for item in seed} - completed_for_coverage,
             ),
             "stale": False,
             "refreshed": True,
@@ -2034,6 +2202,22 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
         return {**cached[1], "results": list(cached[1].get("results") or [])}
 
     query_text = "".join(q.casefold().split())
+    canonical_query = _canonical_market_symbol(q).casefold()
+    # Users should never need to remember our canonical exchange suffixes.
+    # Search all equivalent forms locally: 600036, 600036.SH and
+    # 600036.XSHG are one identity; 700 / 0700 naturally match 00700.HK.
+    query_forms = {query_text, canonical_query}
+    canonical_code = canonical_query.split(".", 1)[0]
+    if canonical_code:
+        query_forms.add(canonical_code)
+    # Hong Kong is normally quoted without the leading zero (e.g. ``700``),
+    # while the official directory uses five digits (``00700.HK``).  Treat
+    # both as the same exact code so Tencent wins over incidental substrings.
+    hk_numeric_code = ""
+    if query_text.isdigit() and 1 <= len(query_text) <= 5:
+        hk_numeric_code = query_text.zfill(5)
+        query_forms.add(hk_numeric_code)
+    query_forms.discard("")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -2068,8 +2252,6 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
                     result["name"] = str(name)
                     break
             return
-        if len(results) >= lim:
-            return
         seen.add(symbol)
         result: dict[str, Any] = {"symbol": symbol, "name": str(name)}
         for key in ("board", "close", "change", "change_rate", "market"):
@@ -2090,16 +2272,38 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
         if not isinstance(item, Mapping):
             continue
         searchable = "".join(
-            f"{item.get('symbol', '')} {item.get('name', '')} {_BUILTIN_SEARCH_ALIASES.get(str(item.get('symbol') or ''), '')}".casefold().split()
+            f"{item.get('symbol', '')} {item.get('name', '')} {item.get('aliases', '')} "
+            f"{_BUILTIN_SEARCH_ALIASES.get(str(item.get('symbol') or ''), '')}".casefold().split()
         )
-        if query_text and query_text in searchable:
+        if any(term in searchable for term in query_forms):
             add(item)
+
+    def rank(item: Mapping[str, Any]) -> tuple[int, str, str]:
+        symbol = str(item.get("symbol") or "").casefold()
+        name = str(item.get("name") or "").casefold()
+        code = symbol.split(".", 1)[0]
+        if (
+            query_text in {symbol, name, code}
+            or canonical_query == symbol
+            or (hk_numeric_code and code == hk_numeric_code)
+        ):
+            priority = 0
+        elif code.startswith(query_text) or name.startswith(query_text):
+            priority = 1
+        elif query_text in symbol or query_text in name:
+            priority = 2
+        else:
+            priority = 3
+        return priority, name, symbol
+
+    results.sort(key=rank)
+    results = results[:lim]
 
     if not results:
         canonical = _canonical_market_symbol(q)
         # Explicit market identity is usable even if its directory row is
         # missing. Never guess a market for an ambiguous bare numeric code.
-        if re.fullmatch(r"(?:\d{6}\.(?:XSHG|XSHE|BJSE)|\d{5}\.HK|[A-Z][A-Z0-9.-]{0,15}\.US)", canonical):
+        if re.fullmatch(r"(?:\d{6}\.(?:XSHG|XSHE|BJSE)|\d{5}\.HK|[A-Z][A-Z0-9.-]{0,15}\.(?:US|NASDAQ|NYSE))", canonical):
             add({"symbol": canonical, "name": canonical})
             results[-1]["verified"] = False
     source = "directory" if isinstance(directory_items, list) else "builtin"
@@ -2110,7 +2314,7 @@ def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
     payload = {"ok": True, "query": q, "count": len(results), "results": results, "source": source,
                "stale": stale, "partial": partial, "basic_directory_version": _BASIC_DIRECTORY["version"]}
     if not results and (partial or stale):
-        payload["message"] = "本地证券目录尚不完整，未匹配不代表标的不存在。请尝试完整代码（如 601398.SH），或稍后刷新目录。"
+        payload["message"] = "未找到匹配标的。可继续输入名称、代码或常用简称。"
     _symbol_search_cache[cache_key] = (now, payload)
     if len(_symbol_search_cache) > _SYMBOL_SEARCH_CACHE_MAX_ENTRIES:
         oldest_key = min(_symbol_search_cache, key=lambda key: _symbol_search_cache[key][0])

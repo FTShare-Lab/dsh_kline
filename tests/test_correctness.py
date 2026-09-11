@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -201,8 +202,44 @@ def test_ambiguous_code_requires_choice():
 def test_unknown_search_and_explicit_code_fallback():
     f._symbol_search_cache.clear()
     with patch.object(f, '_read_symbol_directory_cache', return_value=None):
-        assert '目录' in f.search_symbols('不存在的名字')['message']
+        assert f.search_symbols('不存在的名字')['message'] == '未找到匹配标的。可继续输入名称、代码或常用简称。'
         assert f.search_symbols('603123.SH')['results'][0]['symbol'] == '603123.XSHG'
+
+
+def test_search_accepts_human_code_forms_without_exchange_suffixes():
+    f._symbol_search_cache.clear()
+    directory = {
+        'version': f.SYMBOL_DIRECTORY_VERSION,
+        'items': [
+            {'symbol': '600036.XSHG', 'name': '招商银行', 'market': 'CN', 'aliases': '招行 cmb'},
+            {'symbol': '00700.HK', 'name': '腾讯控股', 'market': 'HK', 'aliases': '腾讯 tencent'},
+            {'symbol': 'NVDA.US', 'name': '英伟达', 'market': 'US', 'aliases': 'nvidia'},
+        ],
+        'coverage': {'CN': {'complete': True}, 'HK': {'complete': True}, 'US': {'complete': True}},
+        'expires_at': int(time.time()) + 600,
+    }
+    with patch.object(f, '_read_symbol_directory_cache', return_value=directory):
+        for query, expected in (
+            ('600036', '600036.XSHG'), ('600036.SH', '600036.XSHG'), ('招行', '600036.XSHG'),
+            ('700', '00700.HK'), ('0700', '00700.HK'), ('00700.HK', '00700.HK'),
+            ('NVDA', 'NVDA.US'), ('NVDA.NASDAQ', 'NVDA.US'),
+        ):
+            f._symbol_search_cache.clear()
+            assert f.search_symbols(query)['results'][0]['symbol'] == expected
+
+
+def test_directory_rows_accept_dedicated_etf_fields():
+    rows = [{'symbol': '510300.SH', 'name': '沪深300ETF'}]
+    assert f._directory_items(rows, 'ETF') == [
+        {'symbol': '510300.XSHG', 'name': '沪深300ETF', 'market': 'ETF'},
+    ]
+
+
+def test_us_directory_keeps_all_provider_buckets_in_one_market():
+    rows = [{'code': 'NVDA', 'name': '英伟达', 'market': '106'}]
+    assert f._directory_items(rows, 'US') == [
+        {'symbol': 'NVDA.US', 'name': '英伟达', 'market': 'US'},
+    ]
 
 
 def test_history_depth_is_disclosed():
