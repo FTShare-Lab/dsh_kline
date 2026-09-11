@@ -2905,30 +2905,6 @@ function intelligenceSectionMarkup(title, hint, items, status) {
   }
   return `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(title)}</h3></div><p class="intelligence-note">${escapeHtml(hint)}</p>${content}</section>`;
 }
-// The market workspace assembles several independent provider sections.  They
-// can legitimately land on different trade dates (a holiday, a late close, a
-// rate-limited endpoint serving the previous snapshot).  Surface only that
-// disagreement here: the snapshot time itself already appears in the source
-// footer, so repeating it above the indices was pure noise.
-function marketPulseFreshnessMarkup() {
-  const sections = marketPulseData?.sections || {};
-  const names = { breadth: "涨跌停", flows: "资金流", sectors: "板块", concepts: "概念", rankings: "榜单", events: "龙虎榜" };
-  const problems = [];
-  for (const [key, state] of Object.entries(sections)) {
-    if (!state || typeof state !== "object") continue;
-    if (state.state === "deferred") continue;
-    const label = names[key] || key;
-    if (state.state === "partial" || (Array.isArray(state.errors) && state.errors.length)) {
-      problems.push(`${label}：数据不完整`);
-    } else if (state.state === "unavailable") {
-      // A plan simply may not include this endpoint; that is not a fault.
-      problems.push(`${label}：暂不可用`);
-    }
-  }
-  if (!problems.length) return "";
-  return `<div class="market-freshness" role="status"><span class="market-freshness-warn">${escapeHtml(problems.join(" · "))}</span></div>`;
-}
-
 function renderMarketWorkspace() {
   const panel = document.getElementById("marketWorkspacePanel");
   if (!panel) return;
@@ -2948,7 +2924,6 @@ function renderMarketWorkspace() {
     ? marketIndexLoadingMarkup()
     : `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`);
   panel.innerHTML = `<div class="intelligence-content">` +
-    marketPulseFreshnessMarkup() +
     `<section class="intelligence-section market-indices-section">${indices}</section>` +
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +

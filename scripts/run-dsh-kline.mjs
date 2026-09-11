@@ -14,6 +14,8 @@ const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings'
 const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 10))'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
 const BOOTSTRAP_FAILURE = '.dsh-kline-bootstrap-failed'
+const BOOTSTRAP_RUNNING = '.dsh-kline-bootstrap-running'
+const BACKGROUND_BOOTSTRAP_STALE_MS = 10 * 60 * 1000
 
 export function pythonPathForVenv(venvDirectory, platform = process.platform) {
   const paths = platform === 'win32' ? win32 : posix
@@ -223,6 +225,47 @@ async function writeBootstrapFailure(venvDirectory, fingerprint, error) {
   await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
 }
 
+async function bootstrapIsRunning(venvDirectory) {
+  const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+  try {
+    const details = JSON.parse(await readFile(marker, 'utf8'))
+    const startedAt = Date.parse(details?.started_at || '')
+    if (Number.isFinite(startedAt) && Date.now() - startedAt < BACKGROUND_BOOTSTRAP_STALE_MS) return true
+  } catch {
+    return false
+  }
+  await rm(marker, { force: true }).catch(() => {})
+  return false
+}
+
+async function startBackgroundBootstrap(venvDirectory) {
+  if (await bootstrapIsRunning(venvDirectory)) return false
+  await mkdir(venvDirectory, { recursive: true })
+  const marker = join(venvDirectory, BOOTSTRAP_RUNNING)
+  try {
+    await writeFile(marker, JSON.stringify({ started_at: new Date().toISOString() }), {
+      encoding: 'utf8', mode: 0o600, flag: 'wx',
+    })
+  } catch (error) {
+    if (error?.code === 'EEXIST') return false
+    throw error
+  }
+  try {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--bootstrap-runtime'], {
+      cwd: PROJECT_ROOT,
+      env: process.env,
+      detached: process.platform !== 'win32',
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+    child.unref()
+    return true
+  } catch (error) {
+    await rm(marker, { force: true }).catch(() => {})
+    throw error
+  }
+}
+
 async function launchServer(runtimePython, runtimeDirectory) {
   await mkdir(runtimeDirectory, { recursive: true })
   const child = spawn(runtimePython, [join(PROJECT_ROOT, 'server.py')], {
@@ -248,6 +291,7 @@ async function launchServer(runtimePython, runtimeDirectory) {
 
 export async function main(argv = process.argv.slice(2)) {
   const prepareProject = argv.includes('--prepare-project')
+  const bootstrapRuntime = argv.includes('--bootstrap-runtime')
   const stateDirectory = defaultStateDirectory()
   const runtimeDirectory = defaultRuntimeDirectory()
   const configuredVenv = String(process.env.DSH_KLINE_VENV || '').trim()
@@ -277,6 +321,12 @@ export async function main(argv = process.argv.slice(2)) {
     if (previousFailure && !prepareProject) {
       throw new Error(`Python runtime preparation previously failed for these dependencies. Run: pnpm bootstrap and inspect the bootstrap log.`)
     }
+    const deferredBootstrap = String(process.env.DSH_KLINE_DEFER_BOOTSTRAP || '').trim() === '1'
+    if (deferredBootstrap && !prepareProject && !bootstrapRuntime) {
+      const started = await startBackgroundBootstrap(venvDirectory)
+      const state = started ? 'started' : 'is already running'
+      throw new Error(`Python runtime preparation ${state}. The MCP connection will retry automatically.`)
+    }
     const logPath = join(stateDirectory, 'bootstrap.log')
     process.stderr.write(`[dsh_kline] Preparing Python runtime: ${reason}.\n`)
     process.stderr.write(`[dsh_kline] Installation details: ${logPath}\n`)
@@ -285,6 +335,8 @@ export async function main(argv = process.argv.slice(2)) {
     } catch (error) {
       await writeBootstrapFailure(venvDirectory, fingerprint, error).catch(() => {})
       throw new Error(`Runtime preparation failed. See ${logPath}. ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      if (bootstrapRuntime) await rm(join(venvDirectory, BOOTSTRAP_RUNNING), { force: true }).catch(() => {})
     }
   }
 

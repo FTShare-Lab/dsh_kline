@@ -13,6 +13,7 @@ The official gateway documentation is the source of truth; the SDK is an impleme
 | Capability | Official documentation | Tier | Registered transports |
 | --- | --- | --- | --- |
 | Daily candles | [stock-candlesticks](https://market.ft.tech/gateway/doc/p/owq0364i) | Free | `http_get` → `sdk` |
+| Realtime stock minute candles | `api/v4/market/data/stock-realtime-minute-kline` | API key | `sdk` |
 | Historical minute candles | [stock-minutes](https://market.ft.tech/gateway/doc/p/z9lsvrvu) | Base | `http_get` → `sdk` |
 | Index daily candles | [index-candlesticks](https://market.ft.tech/gateway/doc/p/gr2q0bjx) | Free | `sdk` |
 | Index historical minute candles | [index-minutes](https://market.ft.tech/gateway/doc/p/ls85mq5n) | Base | `sdk` |
@@ -33,6 +34,7 @@ A verification cycle ends when a release is published or the pinned SDK is upgra
 - `404/405`, SDK method/signature mismatches, timeouts, and upstream `5xx` may advance to the next registered candidate.
 - Every candidate attempt is bounded. No runtime code, URL, or contract is generated from remote data.
 - Results and `data_source_status` expose the safe transport/contract status, never the API key.
+- The v4 realtime endpoint is used only for a normal A-share stock's current one-minute session. It emits per-symbol `items` envelopes and accepts `symbols` as a JSON array string. It is never substituted for ETF/index or multi-session history; those retain their verified v2 contracts.
 
 ## Broad-market index priority (official FTShare first)
 

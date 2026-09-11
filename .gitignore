@@ -11,6 +11,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .runtime/
+release/
+.tmp-render/
 .env
 .env.*
 # macOS/Finder conflict copies use names such as "foo 2.py". They are local

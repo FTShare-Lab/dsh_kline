@@ -61,16 +61,32 @@ async function waitUntilReady() {
   throw new Error(`DSH startup timed out:\n${scrub(errors)}`)
 }
 
+async function waitForServiceLocator() {
+  const deadline = Date.now() + 300_000
+  const serviceDirectory = join(runtime, 'services')
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error(`DSH exited before the MCP service became ready (${child.exitCode}):\n${scrub(errors)}`)
+    try {
+      const services = (await readdir(serviceDirectory)).filter(name => name.endsWith('.json'))
+      if (services.length === 1) {
+        const locator = JSON.parse(await readFile(join(serviceDirectory, services[0]), 'utf8'))
+        const health = await fetch(`${locator.service_url}/healthz`).catch(() => null)
+        if (health?.status === 200) return { serviceDirectory, services, locator }
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+    await new Promise(resolveDelay => setTimeout(resolveDelay, 100))
+  }
+  throw new Error(`MCP service did not become ready:\n${scrub(errors)}`)
+}
+
 try {
   await waitUntilReady()
-  const serviceDirectory = join(runtime, 'services')
-  const services = (await readdir(serviceDirectory)).filter(name => name.endsWith('.json'))
+  const { services, locator } = await waitForServiceLocator()
   assert.equal(services.length, 1, `expected one MCP service locator, got ${services.length}`)
-  const locator = JSON.parse(await readFile(join(serviceDirectory, services[0]), 'utf8'))
   assert.equal(locator.ok, true)
   assert.ok(Number.isSafeInteger(locator.process_id) && locator.process_id > 0)
-  const health = await fetch(`${locator.service_url}/healthz`)
-  assert.equal(health.status, 200)
   console.log('PASS isolated DSH Web install + bundle patch + MCP/chart startup')
 } finally {
   if (child.exitCode === null) child.kill()

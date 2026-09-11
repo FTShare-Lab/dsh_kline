@@ -14,6 +14,7 @@
         cwd: !!js (process.platform === 'win32' && /^\/[A-Za-z]:\//.test(decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)) && decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname).slice(1)) || decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)
         env:
           DSH_KLINE_HOST_PID: !!js String(process.pid)
+          DSH_KLINE_DEFER_BOOTSTRAP: '1'
           DSH_KLINE_PYTHON: !!js process.env.DSH_KLINE_PYTHON || ''
           DSH_KLINE_VENV: !!js process.env.DSH_KLINE_VENV || ''
           DSH_KLINE_CACHE_DIR: !!js process.env.DSH_KLINE_CACHE_DIR || ''
@@ -24,7 +25,10 @@
           FTSHARE_API_KEY: !!js process.env.FTSHARE_API_KEY || ''
           FTSHARE_API_KEY_FILE: !!js process.env.FTSHARE_API_KEY_FILE || ''
         toolCallTimeoutMs: 120000
-        failOnStartupError: true
+        # A fresh Python environment can outlast the MCP SDK's fixed 60 s
+        # discovery timeout. Let the launcher's detached bootstrap finish and
+        # let reconnect attach the tools, rather than aborting DSH Web itself.
+        failOnStartupError: false
         reconnect:
           enabled: true
           initialDelayMs: 500

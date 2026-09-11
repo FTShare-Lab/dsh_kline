@@ -18,6 +18,7 @@ from tools.fetch import (
     _classify_ftshare_error,
     _ftshare_index_minutes,
     _ftshare_stock_candlesticks,
+    _ftshare_stock_realtime_minutes,
     _ftshare_market_api,
     _rows_from_directory_response,
     _symbol_name,
@@ -326,6 +327,7 @@ class ProviderNeutralTests(unittest.TestCase):
         self.assertEqual(FT_CONTRACTS["index_daily_candles"]["tier"], "free")
         self.assertEqual(FT_CONTRACTS["history_minute_candles"]["tier"], "base+")
         self.assertEqual(FT_CONTRACTS["index_history_minute_candles"]["tier"], "base+")
+        self.assertEqual(FT_CONTRACTS["realtime_minute_candles"]["tier"], "api-key")
         self.assertEqual(
             FT_CONTRACTS["index_history_minute_candles"]["doc"],
             "https://market.ft.tech/gateway/doc/p/ls85mq5n",
@@ -343,6 +345,7 @@ class ProviderNeutralTests(unittest.TestCase):
         expected_paths = {
             "stock_candlesticks": "api/v1/market/data/stock-candlesticks",
             "stock_minutes": "api/v2/market/data/stock_minutes",
+            "stock_realtime_minute_kline": "api/v4/market/data/stock-realtime-minute-kline",
             "index_candlesticks": "api/v1/market/data/index-candlesticks",
             "index_minutes": "api/v2/market/data/index_minutes",
             "hk_candlesticks": "api/v2/market/data/hk/hk-candlesticks",
@@ -353,6 +356,24 @@ class ProviderNeutralTests(unittest.TestCase):
         for method_name, path in expected_paths.items():
             self.assertEqual(ENDPOINTS[method_name].path, path)
             self.assertTrue(callable(getattr(client, method_name, None)))
+
+    def test_realtime_minutes_use_v4_symbol_contract_without_history_arguments(self):
+        calls = []
+
+        class FakeMarket:
+            def stock_realtime_minute_kline(self, **kwargs):
+                calls.append(kwargs)
+                return []
+
+        _ftshare_stock_realtime_minutes(FakeMarket(), symbol="600519.XSHG")
+        self.assertEqual(calls, [{"symbols": '["600519.SH"]', "as_dataframe": False}])
+
+    def test_realtime_minutes_are_not_required_when_the_sdk_has_no_v4_method(self):
+        class LegacyMarket:
+            pass
+
+        with self.assertRaises(AttributeError):
+            _ftshare_stock_realtime_minutes(LegacyMarket(), symbol="600519.XSHG")
 
     def test_index_minutes_uses_103_contract_shape(self):
         calls = []

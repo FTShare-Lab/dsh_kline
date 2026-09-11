@@ -249,6 +249,66 @@ def test_intraday_history_counts_only_full_sessions_and_pages_from_prior_close()
     assert datetime.fromtimestamp(previous_close / 1000, tz=zone) == datetime(2026, 9, 4, 15, 0, tzinfo=zone)
 
 
+def test_a_share_current_minute_session_prefers_v4_and_keeps_v2_as_fallback():
+    zone = ZoneInfo('Asia/Shanghai')
+    day = datetime(2026, 9, 7, 9, 30, tzinfo=zone)
+    minute_opens = [
+        day + timedelta(minutes=index)
+        for index in range(120)
+    ] + [
+        datetime(2026, 9, 7, 13, 0, tzinfo=zone) + timedelta(minutes=index)
+        for index in range(120)
+    ]
+    realtime_one_minute_rows = [
+        {
+            'time': int((opened + timedelta(minutes=1)).timestamp()),
+            'open_time': int(opened.timestamp()),
+            'open': 10, 'high': 11, 'low': 9, 'close': 10.5, 'volume': 100,
+        }
+        for opened in minute_opens
+    ]
+    calls = []
+
+    class V4Market:
+        def stock_realtime_minute_kline(self, **kwargs):
+            calls.append(('v4', kwargs))
+            return {'data': [{'symbol': '600519.SH', 'items': realtime_one_minute_rows}]}
+
+        def stock_minutes(self, **kwargs):
+            calls.append(('v2', kwargs))
+            return realtime_one_minute_rows
+
+    f._candle_cache.clear()
+    with patch.object(f, 'ftshare_available', return_value=True), \
+         patch.object(f, '_ftshare_market_api', return_value=V4Market()), \
+         patch.object(f, '_symbol_name', return_value='贵州茅台'), \
+         patch.object(f, '_latest_session_close_millis', return_value=int((day + timedelta(hours=5, minutes=30)).timestamp() * 1000)):
+        result = f.fetch_candles('600519.XSHG', interval='minute', interval_value=1, session_count=1, limit=20)
+    assert result['ok']
+    assert [kind for kind, _kwargs in calls] == ['v4']
+    assert calls[0][1] == {'symbols': '["600519.SH"]', 'as_dataframe': False}
+
+    calls.clear()
+
+    class FallbackMarket:
+        def stock_realtime_minute_kline(self, **kwargs):
+            calls.append(('v4', kwargs))
+            raise RuntimeError('HTTP 404: endpoint temporarily unavailable')
+
+        def stock_minutes(self, **kwargs):
+            calls.append(('v2', kwargs))
+            return realtime_one_minute_rows
+
+    f._candle_cache.clear()
+    with patch.object(f, 'ftshare_available', return_value=True), \
+         patch.object(f, '_ftshare_market_api', return_value=FallbackMarket()), \
+         patch.object(f, '_symbol_name', return_value='贵州茅台'), \
+         patch.object(f, '_latest_session_close_millis', return_value=int((day + timedelta(hours=5, minutes=30)).timestamp() * 1000)):
+        fallback = f.fetch_candles('600519.XSHG', interval='minute', interval_value=1, session_count=1, limit=20)
+    assert fallback['ok']
+    assert [kind for kind, _kwargs in calls] == ['v4', 'v2']
+
+
 def test_published_charts_are_independent_and_persistent():
     with tempfile.TemporaryDirectory() as directory, patch.object(chart_service, 'RUNTIME_DIR', Path(directory)), \
          patch.object(chart_service, 'RUNTIME_SESSION_FILE', Path(directory)/'chart-session.json'):

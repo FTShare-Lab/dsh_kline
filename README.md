@@ -70,6 +70,8 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 默认可接入 FTShare。配置 API Key 后，插件会根据你的账户权限提供相应的行情、分钟线、新闻和公司资料能力；不同市场和套餐的可用范围可能不同。
 
+普通 A 股当日分时优先使用 FTShare 的实时一分钟数据；指数、ETF 与多日分钟历史会继续使用各自适用的历史接口，保证覆盖范围与图表周期一致。
+
 在右上角 **设置 → 数据源** 粘贴 FTShare API Key，并点击测试连接即可。Key 不会显示在图表、对话内容或导出的状态中；可选择仅本次使用，或保存到本机供下次启动加载。
 
 没有配置 Key 时，部分公开行情与图表能力仍可使用。遇到数据延迟、收盘、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
@@ -91,7 +93,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 ## 给 AI 与开发者
 
-大多数场景只需调用 `analyze_kline`。插件还提供 `fetch_candles`、`search_symbols`、`calc_metrics`、`analyze_kline_rows`、`data_source_status`、`configure_ftshare`、`test_ftshare_connection` 和 `health`，用于原始数据、外部 OHLCV、配置与诊断。
+大多数场景只需调用 `analyze_kline`。插件还提供 `fetch_candles`、`search_symbols`、`calc_metrics`、`analyze_kline_rows`、`data_source_status`、`configure_ftshare`、`test_ftshare_connection` 和 `health`，用于原始数据、外部 OHLCV、配置与诊断；`market_pulse`、`market_board_detail` 和 `security_intelligence` 提供市场与标的情报；`get_watchlist`、`save_watchlist` 用于读取和保存自选分组。
 
 FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把自己的标准 OHLCV 数据交给 `analyze_kline_rows`，继续使用指标、关键点位、图表和工作台。接入说明见 [数据源适配指南](docs/provider-adaptation.md)。
 

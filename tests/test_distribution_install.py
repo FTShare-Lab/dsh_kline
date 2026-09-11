@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+import time
 
 import pytest
 
@@ -205,6 +206,22 @@ def test_incomplete_install_is_repaired_on_next_launch(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "Python runtime is missing or incomplete" in result.stderr
     assert "venv completed" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")
+def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env["DSH_KLINE_DEFER_BOOTSTRAP"] = "1"
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 1
+    assert "MCP connection will retry automatically" in result.stderr
+    deadline = time.monotonic() + 5
+    stamp = venv / ".dsh-kline-requirements"
+    while time.monotonic() < deadline and not stamp.exists():
+        time.sleep(0.05)
+    assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
+    assert not (venv / ".dsh-kline-bootstrap-running").exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")

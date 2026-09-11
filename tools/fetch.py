@@ -114,6 +114,17 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": False, "sdk": False},
     },
+    # v4 is a realtime *stock* minute feed.  It is intentionally a separate
+    # contract from v2 history: v4 has no verified index/ETF equivalent and
+    # does not accept a historical date window.  The chart uses it for the
+    # latest complete A-share session, then pages v2 for older sessions.
+    "realtime_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/api/v4/market/data/stock-realtime-minute-kline",
+        "tier": "api-key",
+        "verified_sdk_version": "1.0.3",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
     "index_daily_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/gr2q0bjx",
         "tier": "free",
@@ -467,6 +478,15 @@ def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -
                         result = get_method(path, as_dataframe=as_dataframe, **request_params)
                     else:
                         result = market.index_minutes(as_dataframe=as_dataframe, **request_params)
+                elif contract == "realtime_minute_candles":
+                    # The v4 contract is deliberately narrow: its SDK method
+                    # accepts ``symbols``, not the v2 history parameters.
+                    # Do not leak a date window or adjustment flag into v4.
+                    symbols = request_params.get("symbols")
+                    method = getattr(market, "stock_realtime_minute_kline", None)
+                    if not callable(method):
+                        raise AttributeError("FTShare v4 realtime-minute SDK method is unavailable")
+                    result = method(symbols=symbols, as_dataframe=as_dataframe)
                 else:
                     if transport == "http_get":
                         path = "api/v2/market/data/stock_minutes"
@@ -524,6 +544,22 @@ def _short_mainland_symbol(symbol: str) -> str:
 def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
     """Call verified historical minute-K candidates with bounded fallback."""
     return _adaptive_ftshare_call("history_minute_candles", market, params)
+
+
+def _ftshare_stock_realtime_minutes(market: Any, *, symbol: str) -> Any:
+    """Fetch the current A-share minute session through FTShare v4.
+
+    V4 is intentionally not a generic replacement for v2: the endpoint is
+    realtime-stock-only and exposes ``symbols`` rather than history windows.
+    Callers must validate the returned session and use v2 for older bars.
+    """
+    return _adaptive_ftshare_call(
+        "realtime_minute_candles",
+        market,
+        # The v4 gateway validates this as a JSON array in one query value;
+        # handing the SDK a Python list serializes differently and returns 400.
+        {"symbols": json.dumps([_short_mainland_symbol(symbol)]), "as_dataframe": False},
+    )
 
 
 def _ftshare_index_candlesticks(market: Any, **params: Any) -> Any:
@@ -896,6 +932,22 @@ def _normalize_raw(raw: Any) -> list[dict[str, Any]]:
                     payload = data[key]
                     break
     return normalize_rows(payload)
+
+
+def _normalize_realtime_minute_raw(raw: Any) -> list[dict[str, Any]]:
+    """Unwrap v4's per-symbol ``items`` envelope into canonical minute rows."""
+    payload: Any = raw
+    if isinstance(raw, Mapping):
+        payload = raw.get("data", raw)
+    if isinstance(payload, list):
+        flattened: list[Any] = []
+        for item in payload:
+            if isinstance(item, Mapping) and isinstance(item.get("items"), list):
+                flattened.extend(item["items"])
+            else:
+                flattened.append(item)
+        return _normalize_raw(flattened)
+    return _normalize_raw(payload)
 
 
 _CN_SYMBOL_SUFFIXES = {
@@ -2659,23 +2711,53 @@ def _fetch_candles_ftshare(
                 page_window_days = 2
                 max_pages = max(8, sessions * 3 + 2)
                 for _page in range(max_pages):
-                    page = (_ftshare_etf_minutes if is_etf else _ftshare_stock_minutes)(
-                        market,
-                        symbol=_etf_minute_symbol(sym) if is_etf else sym,
-                        interval_value=step,
-                        adjust_kind=adj,
-                        since_ts_millis=max(
-                            0,
-                            cutoff - page_window_days * 86_400_000,
-                        ),
-                        until_ts_millis=cutoff,
-                        limit=min(500, max(lim, sessions * 250)),
-                        as_dataframe=False,
-                    )
-                    chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=step)
-                    complete_dates = _complete_intraday_session_dates(
-                        chunk, timezone_name=exchange_timezone, interval_value=step,
-                    )
+                    chunk: list[dict[str, Any]] = []
+                    complete_dates: set[Any] = set()
+                    # v4 is the raw one-minute stream for the current A-share
+                    # stock session.  Do not re-aggregate it: the UI has no
+                    # intraday period selector. Multi-session history, ETFs
+                    # and indexes retain v2, whose contract covers them.
+                    if _page == 0 and not is_etf and sessions == 1 and step == 1:
+                        try:
+                            realtime_chunk = _complete_intraday_bars(
+                                _normalize_realtime_minute_raw(
+                                    _ftshare_stock_realtime_minutes(market, symbol=sym)
+                                ),
+                                interval_value=step,
+                            )
+                            realtime_dates = _complete_intraday_session_dates(
+                                realtime_chunk,
+                                timezone_name=exchange_timezone,
+                                interval_value=step,
+                            )
+                            if realtime_dates:
+                                chunk = [
+                                    row for row in realtime_chunk
+                                    if datetime.fromtimestamp(
+                                        int(row["time"]), tz=ZoneInfo(exchange_timezone)
+                                    ).date() in realtime_dates
+                                ]
+                                complete_dates = realtime_dates
+                        except Exception:  # noqa: BLE001 - v2 remains the compatibility path
+                            pass
+                    if not chunk:
+                        page = (_ftshare_etf_minutes if is_etf else _ftshare_stock_minutes)(
+                            market,
+                            symbol=_etf_minute_symbol(sym) if is_etf else sym,
+                            interval_value=step,
+                            adjust_kind=adj,
+                            since_ts_millis=max(
+                                0,
+                                cutoff - page_window_days * 86_400_000,
+                            ),
+                            until_ts_millis=cutoff,
+                            limit=min(500, max(lim, sessions * 250)),
+                            as_dataframe=False,
+                        )
+                        chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=step)
+                        complete_dates = _complete_intraday_session_dates(
+                            chunk, timezone_name=exchange_timezone, interval_value=step,
+                        )
                     chunk = [
                         row for row in chunk
                         if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in complete_dates

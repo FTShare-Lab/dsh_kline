@@ -70,6 +70,8 @@ Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspac
 
 FTShare is the default optional source. After you configure an API key, the plugin exposes the quote, intraday, news, and company-data capabilities available to your account. Availability differs by market and plan.
 
+Current-session intraday charts for regular A-share stocks prefer FTShare's realtime one-minute feed. Indices, ETFs, and multi-session minute history keep their applicable history endpoints so coverage and chart timeframes remain consistent.
+
 Open **Settings → Data source**, paste your FTShare API key, and test the connection. The key is not shown in charts, conversation content, or exported state. You may use it for the current session only or save it locally for future launches.
 
 Without a key, some public quote and chart capabilities remain available. When data is delayed, the market is closed, permission is missing, or an upstream source is unavailable, the UI explains the applicable reason and source.
@@ -91,7 +93,7 @@ Quotes can be delayed and may differ with adjustment policy, exchange convention
 
 ## For AI and developers
 
-Most workflows only need `analyze_kline`. The plugin also exposes `fetch_candles`, `search_symbols`, `calc_metrics`, `analyze_kline_rows`, `data_source_status`, `configure_ftshare`, `test_ftshare_connection`, and `health` for raw data, external OHLCV, configuration, and diagnostics.
+Most workflows only need `analyze_kline`. The plugin also exposes `fetch_candles`, `search_symbols`, `calc_metrics`, `analyze_kline_rows`, `data_source_status`, `configure_ftshare`, `test_ftshare_connection`, and `health` for raw data, external OHLCV, configuration, and diagnostics; `market_pulse`, `market_board_detail`, and `security_intelligence` provide market and security intelligence, while `get_watchlist` and `save_watchlist` manage watchlist groups.
 
 FTShare is a default adapter, not a prerequisite for analysis. Callers can pass normalized OHLCV rows to `analyze_kline_rows` and keep using indicators, key levels, charts, and the workspace. See the [provider adaptation guide](docs/provider-adaptation.md).
 

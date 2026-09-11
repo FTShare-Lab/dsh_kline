@@ -141,6 +141,11 @@ test('market workspace exposes directions and a separate dragon-tiger destinatio
   assert.match(market, /market-leaderboard/)
   assert.match(market, /data-ticker-symbol/)
 })
+test('market page does not duplicate a partial dragon-tiger warning above its content', () => {
+  const market = html.slice(html.indexOf('function renderMarketWorkspace()'), html.indexOf('function renderDragonWorkspace()'))
+  assert.doesNotMatch(market, /marketPulseFreshnessMarkup/)
+  assert.doesNotMatch(html, /function marketPulseFreshnessMarkup/)
+})
 test('dragon tiger tab ranks real five-seat net buying and selling without overlapping overview slices', () => {
   const dragon = html.slice(html.indexOf('function dragonNetValue('), html.indexOf('function renderSecurityIntelligence()'))
   assert.match(dragon, /五席净买入前\$\{netBuy\.count \|\| 0\}/)
