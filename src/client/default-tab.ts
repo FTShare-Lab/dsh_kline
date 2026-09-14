@@ -23,7 +23,10 @@ export function installDefaultKlineTabs(service: BetterSidebarService, storage?:
         if (!sessionId || !state || handled.has(sessionId) || !service.isTabEnabled(KLINE_TAB_ID)) return
         const key = defaultTabKey(sessionId)
         try { if (storage?.getItem(key) === '1') {handled.add(sessionId); return} } catch {}
-        const nodes: unknown[] = [state.splits, state.bottomSplits]
+        // Better Sidebar 0.19 delegates the right sidebar to DSH itself.
+        // Plugin tabs now live only in the bottom workbench, so do not read
+        // the old private `splits` / `floats` layout fields here.
+        const nodes: unknown[] = [state.bottomSplits]
         const seen = new Set<object>()
         let exists = false, previous: string | undefined
         while (nodes.length) {
@@ -36,7 +39,6 @@ export function installDefaultKlineTabs(service: BetterSidebarService, storage?:
           exists ||= node.tabs.some((tab: any) => tab?.type === KLINE_TAB_ID)
           if (node.id === state.activePane && node.tabs.some((tab: any) => tab?.id === node.active)) previous = node.active
         }
-        exists ||= Array.isArray(state.floats) && state.floats.some(frame => frame?.tab?.type === KLINE_TAB_ID)
         // Mark before notifying the host to avoid re-entrant duplicate opens.
         handled.add(sessionId)
         if (!exists) {

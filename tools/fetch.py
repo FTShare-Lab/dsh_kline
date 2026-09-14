@@ -2517,7 +2517,7 @@ def _last_market_ticker(symbol: str, now: float) -> dict[str, Any] | None:
     return cached
 
 
-def fetch_market_ticker() -> dict[str, Any]:
+def fetch_market_ticker(symbols: list[str] | tuple[str, ...] | None = None) -> dict[str, Any]:
     """Fetch a compact A/HK/US index ticker, degrading silently per source.
 
     FTShare official feeds are tried first for every strip entry: A-share
@@ -2527,16 +2527,26 @@ def fetch_market_ticker() -> dict[str, Any]:
     fail (anonymous / no Key / transient error), the built-in Tencent free
     quote feed fills the strip so it is never empty. The returned ``source``
     tells the view which feed produced the points.
+
+    ``symbols`` is intentionally limited to the fixed registry above. The
+    browser uses small, ordered batches on a cold market page so the first
+    available indices can render without waiting for every global endpoint.
+    It is not a general quote-search API.
     """
     fetched_at = int(time.time())
     items_by_symbol: dict[str, dict[str, Any]] = {}
     sources_used: set[str] = set()
     now = datetime.now(timezone.utc)
+    requested_symbols = {str(symbol).strip().upper() for symbol in symbols or [] if str(symbol).strip()}
+    source_infos = tuple(
+        source_info for source_info in MARKET_TICKER_SOURCES
+        if not requested_symbols or str(source_info["symbol"]).upper() in requested_symbols
+    )
 
     if ftshare_available():
         try:
             market = _ftshare_market_api(timeout=8)
-            for source_info in MARKET_TICKER_SOURCES:
+            for source_info in source_infos:
                 item = _ftshare_ticker_item(market, source_info, now)
                 if item is not None:
                     items_by_symbol[item["symbol"]] = item
@@ -2556,7 +2566,7 @@ def fetch_market_ticker() -> dict[str, Any]:
             free_by_symbol = {str(item.get("symbol") or ""): dict(item) for item in fetch_tencent_ticker_items()}
         except Exception:  # noqa: BLE001
             free_by_symbol = {}
-    source_by_symbol = {str(item["symbol"]): item for item in MARKET_TICKER_SOURCES}
+    source_by_symbol = {str(item["symbol"]): item for item in source_infos}
     missing: list[dict[str, str]] = []
     for symbol, source_info in source_by_symbol.items():
         if symbol in items_by_symbol:
@@ -2576,7 +2586,7 @@ def fetch_market_ticker() -> dict[str, Any]:
             continue
         missing.append({"symbol": symbol, "name": str(source_info["name"]), "market": str(source_info["market"])})
 
-    items = [items_by_symbol[str(source_info["symbol"])] for source_info in MARKET_TICKER_SOURCES if str(source_info["symbol"]) in items_by_symbol]
+    items = [items_by_symbol[str(source_info["symbol"])] for source_info in source_infos if str(source_info["symbol"]) in items_by_symbol]
     if not items:
         return {"ok": True, "items": [], "missing": missing, "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
     statuses = {item.get("status") for item in items}

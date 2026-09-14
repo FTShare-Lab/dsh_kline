@@ -1,10 +1,10 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 import type { Sessions } from './conversation'
 import { ClassicShell } from './ClassicShell'
 import { BetterSidebarBridge } from './BetterSidebarTab'
-import { isSidebarUsable, cleanClassicTabs } from './sidebar-integration'
+import { isSidebarUsable } from './sidebar-integration'
 import { InterfaceContext, readDisplayMode, resolveDisplayMode } from './mode-preferences'
 import { captureOnboarding } from './ui-onboarding'
 
@@ -23,15 +23,16 @@ export function apply(ctx: ClientContext) {
   captureOnboarding()
   function Router() {
     const sidebar = useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, () => service)
+    const hostHasRightSidebar = useHostRightSidebar()
     const available = isSidebarUsable(sidebar)
     const mode = resolveDisplayMode(preference, available)
-    useEffect(() => {
-      if (mode === 'classic' && sidebar) return cleanClassicTabs(sidebar)
-    }, [mode, sidebar])
+    // Better Sidebar does not create a right-side container on the host's
+    // New Session screen. Keep the classic K launcher there even when the
+    // user prefers native tabs, so the plugin never loses its first entry.
+    const showClassicLauncher = mode === 'classic' || !hostHasRightSidebar
     return <InterfaceContext.Provider value={{ preference, mode, available }}>
-      {mode === 'better-sidebar' && sidebar
-        ? <BetterSidebarBridge service={sidebar} sessions={ctx.sessions} />
-        : <ClassicShell sessions={ctx.sessions} />}
+      {sidebar && <BetterSidebarBridge service={sidebar} sessions={ctx.sessions} />}
+      {showClassicLauncher && <ClassicShell sessions={ctx.sessions} />}
     </InterfaceContext.Provider>
   }
   ctx.effect(() => {
@@ -50,4 +51,24 @@ export function apply(ctx: ClientContext) {
       return () => { service = undefined; emit() }
     }, 'dsh-kline: optional sidebar')
   })
+}
+
+function hostRightSidebarAvailable(): boolean {
+  const control = document.querySelector<HTMLElement>('[aria-label="Open right sidebar"], [aria-label="Collapse right sidebar"]')
+  if (!control) return false
+  const style = window.getComputedStyle(control)
+  const bounds = control.getBoundingClientRect()
+  return style.display !== 'none' && style.visibility !== 'hidden' && bounds.width > 0 && bounds.height > 0
+}
+
+function useHostRightSidebar(): boolean {
+  const [available, setAvailable] = useState(hostRightSidebarAvailable)
+  useEffect(() => {
+    const refresh = () => setAvailable(hostRightSidebarAvailable())
+    refresh()
+    const observer = new MutationObserver(refresh)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+  return available
 }

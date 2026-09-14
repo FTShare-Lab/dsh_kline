@@ -1,16 +1,23 @@
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 
 export const KLINE_TAB_ID = 'ftshare-kline:chart'
-export const KLINE_TAB_TITLE = '非凸K线助手 / dsh_kline'
+export const KLINE_TAB_TITLE_ZH = '非凸 K 线助手'
+export const KLINE_TAB_TITLE_EN = 'FtAI K-Line'
+
+// The tab belongs to the host interface. Keep its product label separate from
+// the internal package id, and follow the host/browser language.
+export function klineTabTitle(locale = globalThis.navigator?.language ?? ''): string {
+  return /^zh(?:-|$)/i.test(locale) ? KLINE_TAB_TITLE_ZH : KLINE_TAB_TITLE_EN
+}
 
 export function migrateKlineTabTitle(service: BetterSidebarService, tab: {id: string; type: string; title?: string}, sessionId?: string): void {
-  if (tab.type !== KLINE_TAB_ID || !['K线分析 / K-line', 'K线分析'].includes(tab.title ?? '')
+  if (tab.type !== KLINE_TAB_ID || !['K线分析 / K-line', 'K线分析', '非凸K线助手 / dsh_kline', KLINE_TAB_TITLE_ZH, KLINE_TAB_TITLE_EN].includes(tab.title ?? '')
     || !service.features?.includes('updateTab') || !service.features?.includes('stateSubscription')
     || typeof service.updateTab !== 'function' || typeof service.getSnapshot !== 'function') return
   try {
     // updateTab is current-session-only in the public API. Never mutate a
     // foreign floating tab or a user-customized title while migrating labels.
-    if (sessionId && service.getSnapshot()?.sessionId === sessionId) service.updateTab(tab.id, {title:KLINE_TAB_TITLE})
+    if (sessionId && service.getSnapshot()?.sessionId === sessionId) service.updateTab(tab.id, {title:klineTabTitle()})
   } catch { /* Older/disposed integrations keep their saved title harmlessly. */ }
 }
 export function isSidebarUsable(service?: BetterSidebarService): boolean {
@@ -42,7 +49,9 @@ export function cleanClassicTabs(service: BetterSidebarService): () => void {
         }
         // Layouts belong to another plugin and may contain older/incomplete
         // nodes. Iterate defensively, including protection against cycles.
-        const pendingNodes: unknown[] = [state.bottomSplits, state.splits]
+        // Since Better Sidebar 0.19, DSH owns the right-sidebar layout.
+        // Our registered tab can only be in Better Sidebar's workbench.
+        const pendingNodes: unknown[] = [state.bottomSplits]
         const seen = new Set<object>()
         while (pendingNodes.length) {
           const node = pendingNodes.pop()
@@ -51,7 +60,6 @@ export function cleanClassicTabs(service: BetterSidebarService): () => void {
           if (node.kind === 'split' && Array.isArray(node.children)) pendingNodes.push(...[...node.children].reverse())
           else if (Array.isArray(node.tabs)) node.tabs.forEach(collect)
         }
-        if (Array.isArray(state.floats)) state.floats.forEach(frame => { if (record(frame)) collect(frame.tab) })
         for (const id of ids) {
           try { service.closeTab(id, { sessionId }) } catch { /* A stale tab must not block the remaining cleanup. */ }
         }

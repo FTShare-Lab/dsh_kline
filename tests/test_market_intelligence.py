@@ -152,6 +152,23 @@ def test_market_index_registry_covers_mainland_hong_kong_and_us_benchmarks():
     assert {"100.NDX", "100.SPX", "100.DJIA"} <= symbols
 
 
+def test_market_ticker_can_return_a_requested_registry_batch():
+    requested = ["000001.XSHG", "100.HSI"]
+    market = object()
+
+    def ticker_item(_market, source, _now):
+        return {
+            "market": source["market"], "symbol": source["symbol"], "name": source["name"],
+            "close": 100.0, "change": 1.0, "change_pct": 1.0, "time": 1,
+        }
+
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market), patch.object(f, "_ftshare_ticker_item", side_effect=ticker_item) as item:
+        result = f.fetch_market_ticker(symbols=requested)
+    assert [row["symbol"] for row in result["items"]] == requested
+    assert result["missing"] == []
+    assert [call.args[1]["symbol"] for call in item.call_args_list] == requested
+
+
 def test_data_source_capability_contract_keeps_external_rows_intentionally_narrow():
     with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "ftshare_capabilities", return_value={"daily": "available", "minute": "available"}):
         contract = f.data_source_capability_contract()

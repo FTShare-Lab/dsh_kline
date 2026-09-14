@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>dsh_kline</title>
+<title>FtAI K-Line</title>
 <!-- Standalone preview path. The DSH client passes the same vendored library explicitly. -->
 <script id="klinecharts-vendor" src="./vendor/klinecharts.min.js"></script>
 <style>
@@ -813,7 +813,7 @@
 <div id="viewScroll">
 <div id="viewContent">
 <div class="workspace-bar">
-  <div class="brand" id="productBrand" aria-label="dsh_kline"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">dsh_kline</span></div>
+  <div class="brand" id="productBrand" aria-label="FtAI K-Line"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">FtAI K-Line</span></div>
   <div class="symbol-search" id="symbolSearch">
     <form class="symbol-search-form" id="symbolSearchForm" role="search">
       <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" aria-describedby="symbolSearchEnterHint" />
@@ -1149,9 +1149,9 @@
 <div class="interface-popover" id="interfacePopover" role="dialog" aria-modal="true" aria-labelledby="interfaceTitle" hidden>
   <strong id="interfaceTitle" data-i18n="interfaceTitle">图表界面</strong>
   <p id="interfaceStatus" class="muted"></p>
-  <label class="interface-option"><input type="radio" name="interfaceMode" value="auto"><span><b data-i18n="interfaceAuto">自动（推荐）</b><small data-i18n="interfaceAutoHelp">检测到 Better Sidebar 时使用 Tab，否则使用经典侧栏。</small></span></label>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="auto"><span><b data-i18n="interfaceAuto">自动（经典侧栏）</b><small data-i18n="interfaceAutoHelp">兼容旧设置；默认保留随时可用的经典 K 按钮。</small></span></label>
   <label class="interface-option"><input type="radio" name="interfaceMode" value="classic"><span><b data-i18n="interfaceClassic">经典独立侧栏</b><small data-i18n="interfaceClassicHelp">保留右侧 K 按钮和宽度拖动体验。</small></span></label>
-  <label class="interface-option"><input type="radio" name="interfaceMode" value="better-sidebar"><span><b>Better Sidebar Tab</b><small data-i18n="interfaceTabHelp">在工作台中使用分栏、底部面板和浮窗。</small></span></label>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="better-sidebar"><span><b>Better Sidebar Tab</b><small data-i18n="interfaceTabHelp">在新版工作台中以原生 Tab 打开 K 线助手。</small></span></label>
   <p id="interfaceFallback" class="muted" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</p>
   <label class="interface-option"><input id="interfaceAutoOpen" type="checkbox"><span data-i18n="interfaceAutoOpen">分析完成后自动打开 K 线 Tab（保持面板的展开状态）</span></label>
   <p id="interfaceSaveStatus" role="status"></p>
@@ -1293,7 +1293,7 @@ let volumeUnit = "wan";
 let canvasBaseHeightOverride = null;
 let userThemeOverride = null;
 let colorMode = "a-share";
-let viewLanguage = "zh";
+let viewLanguage = /^zh(?:-|$)/i.test(globalThis.navigator?.language || "") ? "zh" : "en";
 let activeSecurityTab = "market";
 let activeCompanyTab = "overview";
 let securityWorkspaceData = null;
@@ -1378,6 +1378,25 @@ let marketTickerInitialized = false;
 let marketTickerMissing = [];
 let marketTickerSource = "";
 const MARKET_TICKER_REFRESH_MS = 60_000;
+// Keep the landing grid stable while its sources return at different speeds.
+// These are a deliberately fixed, curated set rather than a provider result.
+const MARKET_INDEX_SLOTS = [
+  { market: "CN", name: "上证指数", symbol: "000001.XSHG" },
+  { market: "CN", name: "沪深300", symbol: "000300.XSHG" },
+  { market: "CN", name: "深证成指", symbol: "399001.XSHE" },
+  { market: "CN", name: "创业板指", symbol: "399006.XSHE" },
+  { market: "HK", name: "恒生指数", symbol: "100.HSI" },
+  { market: "US", name: "纳斯达克100", symbol: "100.NDX" },
+  { market: "US", name: "标普500", symbol: "100.SPX" },
+  { market: "US", name: "道琼斯", symbol: "100.DJIA" },
+];
+const MARKET_TICKER_BATCHES = [
+  ["000001.XSHG"],
+  ["000300.XSHG", "399001.XSHE", "399006.XSHE"],
+  ["100.HSI"],
+  ["100.NDX", "100.SPX", "100.DJIA"],
+];
+let marketTickerPendingSymbols = new Set(MARKET_INDEX_SLOTS.map((item) => item.symbol));
 const WORKSPACE_RATE_LIMIT_RETRY_MS = 9_000;
 const WORKSPACE_RATE_LIMIT_MAX_RETRIES = 1;
 const workspaceRetryTimers = new Map();
@@ -1431,7 +1450,7 @@ const RANGE_PRESETS = {
 };
 const UI_COPY = {
   zh: {
-    interfaceLabel: "UI", interfaceTitle: "图表界面", interfaceAuto: "自动（推荐）", interfaceClassic: "经典独立侧栏", interfaceAutoHelp: "检测到 Better Sidebar 时使用 Tab，否则使用经典侧栏。", interfaceClassicHelp: "保留右侧 K 按钮和宽度拖动体验。", interfaceTabHelp: "在工作台中使用分栏、底部面板和浮窗。", interfaceFallback: "未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。", interfaceAutoOpen: "分析完成后自动打开 K 线 Tab（保持面板的展开状态）", interfaceSave: "保存并刷新", interfaceSaveFailed: "无法保存偏好，请允许浏览器本地存储后重试。", interfaceUpgrade: "K 线界面升级", interfaceUpgradeHelp: "现在可以继续使用经典独立侧栏，也可以在 Better Sidebar 中使用“非凸K线助手 / dsh_kline”Tab。", interfaceWelcomeHint: "随时通过右上角“UI”按钮切换显示方式。", interfaceKeep: "保持当前界面", interfaceChoose: "查看并选择界面", interfaceCurrent: "当前：{preference} · 正在使用 {mode}",
+    interfaceLabel: "UI", interfaceTitle: "图表界面", interfaceAuto: "自动（经典侧栏）", interfaceClassic: "经典独立侧栏（推荐）", interfaceAutoHelp: "兼容旧设置；默认保留随时可用的经典 K 按钮。", interfaceClassicHelp: "新对话即可使用 K 按钮，保留右侧展开和宽度拖动体验。", interfaceTabHelp: "在新版工作台中以原生 Tab 打开 K 线助手。", interfaceFallback: "未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。", interfaceAutoOpen: "分析完成后自动打开 K 线界面", interfaceSave: "保存并刷新", interfaceSaveFailed: "无法保存偏好，请允许浏览器本地存储后重试。", interfaceUpgrade: "K 线界面", interfaceUpgradeHelp: "默认使用经典独立侧栏；需要多 Tab 工作流时可手动选择 Better Sidebar。", interfaceWelcomeHint: "随时通过右上角“UI”按钮切换显示方式。", interfaceKeep: "保持当前界面", interfaceChoose: "查看并选择界面", interfaceCurrent: "当前：{preference} · 正在使用 {mode}",
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
     capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
@@ -1447,10 +1466,10 @@ const UI_COPY = {
     newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", renameGroup: "重命名分组", save: "保存", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "打开所选", batchSelectAll: "全选", batchDelete: "删除所选", batchMoveTo: "移动到…", batchRemoved: "已删除 {count} 只", batchMoved: "已移动 {count} 只", importDone: "已导入 {count} 只", groupSummary: "分组总览", noQuote: "暂无行情",
-    day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸K线助手",
+    day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸 K 线助手",
   },
   en: {
-    interfaceLabel: "UI", interfaceTitle: "Chart interface", interfaceAuto: "Automatic (recommended)", interfaceClassic: "Classic sidebar", interfaceAutoHelp: "Use a Better Sidebar tab when available, otherwise use the classic sidebar.", interfaceClassicHelp: "Keep the K button and draggable right sidebar.", interfaceTabHelp: "Use workbench splits, the bottom panel and floating windows.", interfaceFallback: "Better Sidebar is unavailable. Using the classic interface until it is installed or enabled and the page is refreshed.", interfaceAutoOpen: "Open the K-line tab after analysis (preserve panel visibility)", interfaceSave: "Save and reload", interfaceSaveFailed: "Could not save preferences. Allow browser local storage and try again.", interfaceUpgrade: "A choice of chart interfaces", interfaceUpgradeHelp: "Keep the familiar classic sidebar, or use the K-line tab in Better Sidebar.", interfaceWelcomeHint: "Change your display mode anytime using UI in the top-right corner.", interfaceKeep: "Keep this interface", interfaceChoose: "Choose an interface", interfaceCurrent: "Current: {preference} · Using {mode}",
+    interfaceLabel: "UI", interfaceTitle: "Chart interface", interfaceAuto: "Automatic (classic sidebar)", interfaceClassic: "Classic sidebar (recommended)", interfaceAutoHelp: "For legacy settings; the always-available classic K button remains the default.", interfaceClassicHelp: "Use the K button from a new conversation, with the familiar draggable right sidebar.", interfaceTabHelp: "Open K-line Assistant as a native tab in the updated workbench.", interfaceFallback: "Better Sidebar is unavailable. Using the classic interface until it is installed or enabled and the page is refreshed.", interfaceAutoOpen: "Open the K-line interface after analysis", interfaceSave: "Save and reload", interfaceSaveFailed: "Could not save preferences. Allow browser local storage and try again.", interfaceUpgrade: "K-line interface", interfaceUpgradeHelp: "Classic sidebar is the default; choose Better Sidebar manually when a multi-tab workflow helps.", interfaceWelcomeHint: "Change your display mode anytime using UI in the top-right corner.", interfaceKeep: "Keep this interface", interfaceChoose: "Choose an interface", interfaceCurrent: "Current: {preference} · Using {mode}",
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
     capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
@@ -1466,7 +1485,7 @@ const UI_COPY = {
     newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", renameGroup: "Rename group", save: "Save", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
     rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The connected FTShare endpoint does not support minute bars for this symbol; this does not mean the key is invalid. Choose 30-day or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", batchSelectAll: "Select all", batchDelete: "Delete selected", batchMoveTo: "Move to…", batchRemoved: "Removed {count}", batchMoved: "Moved {count}", importDone: "Imported {count}", groupSummary: "Group overview", noQuote: "No quote",
-    day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "dsh_kline",
+    day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "FtAI K-Line",
   },
 };
 function t(key) { return UI_COPY[viewLanguage]?.[key] || UI_COPY.zh[key] || key; }
@@ -2790,24 +2809,25 @@ function intelligenceMetricsMarkup(items, className = "") {
 }
 function marketIndexGroupsMarkup(items, missing = []) {
   const valid = Array.isArray(items) ? items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
-  const order = { CN: 0, HK: 1, US: 2 };
-  const ready = valid.map((item) => ({ ...item, available: true }));
-  const unavailable = (Array.isArray(missing) ? missing : [])
-    .filter((item) => item?.symbol && !valid.some((readyItem) => readyItem.symbol === item.symbol))
-    .map((item) => ({ ...item, available: false }));
-  const markup = [...ready, ...unavailable].sort((left, right) => (order[String(left?.market || "").toUpperCase()] ?? 9) - (order[String(right?.market || "").toUpperCase()] ?? 9)).map((item) => {
-    if (!item.available) {
-      return `<div class="market-index-card unavailable"><span class="market-index-name">${escapeHtml(String(item.name || item.symbol))}</span><span class="market-index-unavailable">暂不可用</span><span class="market-index-symbol">${escapeHtml(String(item.symbol || ""))}</span><span></span></div>`;
+  const readyBySymbol = new Map(valid.map((item) => [String(item.symbol || "").toUpperCase(), item]));
+  const missingBySymbol = new Map((Array.isArray(missing) ? missing : []).filter((item) => item?.symbol).map((item) => [String(item.symbol).toUpperCase(), item]));
+  const markup = MARKET_INDEX_SLOTS.map((slot) => {
+    const symbol = slot.symbol.toUpperCase();
+    const item = readyBySymbol.get(symbol);
+    if (!item) {
+      if (marketTickerPendingSymbols.has(symbol)) {
+        return `<div class="market-index-card loading" aria-label="${escapeHtml(`${slot.name} ${t("marketLoading")}`)}"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`;
+      }
+      const unavailable = missingBySymbol.get(symbol) || slot;
+      return `<div class="market-index-card unavailable"><span class="market-index-name">${escapeHtml(String(unavailable.name || slot.name))}</span><span class="market-index-unavailable">暂不可用</span><span class="market-index-symbol">${escapeHtml(slot.symbol)}</span><span></span></div>`;
     }
     const change = Number(item.change_pct);
     const tone = change < 0 ? "down" : "up";
-    const symbol = String(item.symbol || "");
-    const name = String(item.name || symbol || "--");
-    const openTitle = symbol ? t("openIndexChart").replace("{name}", name) : "";
-    return `<button type="button" class="market-index-card ${tone}" data-ticker-symbol="${escapeHtml(symbol)}" data-ticker-name="${escapeHtml(name)}" title="${escapeHtml(openTitle)}"><span class="market-index-name">${escapeHtml(name)}</span><span class="market-index-price ${tone}">${escapeHtml(formatTickerNumber(item.close))}</span><span class="market-index-symbol">${escapeHtml(symbol)}</span><span class="market-index-change ${tone}">${change >= 0 ? "+" : ""}${escapeHtml(change.toFixed(2))}%</span></button>`;
+    const itemSymbol = String(item.symbol || slot.symbol);
+    const name = String(item.name || slot.name);
+    const openTitle = t("openIndexChart").replace("{name}", name);
+    return `<button type="button" class="market-index-card ${tone}" data-ticker-symbol="${escapeHtml(itemSymbol)}" data-ticker-name="${escapeHtml(name)}" title="${escapeHtml(openTitle)}"><span class="market-index-name">${escapeHtml(name)}</span><span class="market-index-price ${tone}">${escapeHtml(formatTickerNumber(item.close))}</span><span class="market-index-symbol">${escapeHtml(itemSymbol)}</span><span class="market-index-change ${tone}">${change >= 0 ? "+" : ""}${escapeHtml(change.toFixed(2))}%</span></button>`;
   }).join("");
-  if (!markup) return "";
-  if (!markup) return "";
   return `<div class="market-index-grid">${markup}</div>`;
 }
 function marketIndexLoadingMarkup() {
@@ -7278,27 +7298,57 @@ function renderMarketTicker() {
 async function loadMarketTicker() {
   if (marketTickerRefreshInFlight) return;
   marketTickerRefreshInFlight = true;
+  const itemsBySymbol = new Map(marketTickerItems.map((item) => [String(item?.symbol || "").toUpperCase(), item]));
+  const missingBySymbol = new Map(marketTickerMissing.map((item) => [String(item?.symbol || "").toUpperCase(), item]));
+  marketTickerPendingSymbols = new Set(MARKET_INDEX_SLOTS.map((item) => item.symbol));
+  const publishBatch = () => {
+    marketTickerItems = MARKET_INDEX_SLOTS.map((slot) => itemsBySymbol.get(slot.symbol)).filter(Boolean);
+    marketTickerMissing = MARKET_INDEX_SLOTS.map((slot) => missingBySymbol.get(slot.symbol)).filter(Boolean);
+    renderMarketTicker();
+    if (activeSecurityTab === "market") renderMarketWorkspace();
+  };
+  publishBatch();
   try {
-    const result = await callTool("market_ticker", {});
-    const structured = result?.structuredContent || result || {};
-    const valid = structured.ok === false ? [] : Array.isArray(structured.items) ? structured.items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
-    marketTickerMissing = Array.isArray(structured.missing) ? structured.missing : [];
-    if (valid.length) {
-      marketTickerItems = valid;
-      marketTickerUpdatedAt = Number(structured.updated_at) || Math.floor(Date.now() / 1000);
-      marketTickerStatus = structured.status === "closed" ? "closed" : "delayed";
-      marketTickerSource = String(structured.source || "");
-      marketTickerStale = false;
-    } else if (marketTickerItems.length) {
-      marketTickerStale = true;
+    for (const symbols of MARKET_TICKER_BATCHES) {
+      try {
+        const result = await callTool("market_ticker", { symbols });
+        const structured = result?.structuredContent || result || {};
+        const valid = structured.ok === false ? [] : Array.isArray(structured.items) ? structured.items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
+        const missing = Array.isArray(structured.missing) ? structured.missing : [];
+        valid.forEach((item) => {
+          const symbol = String(item.symbol || "").toUpperCase();
+          if (symbol) {
+            itemsBySymbol.set(symbol, item);
+            missingBySymbol.delete(symbol);
+          }
+        });
+        missing.forEach((item) => {
+          const symbol = String(item?.symbol || "").toUpperCase();
+          if (symbol && !itemsBySymbol.has(symbol)) missingBySymbol.set(symbol, item);
+        });
+        if (valid.length) {
+          marketTickerUpdatedAt = Number(structured.updated_at) || Math.floor(Date.now() / 1000);
+          marketTickerStatus = structured.status === "closed" ? "closed" : "delayed";
+          marketTickerSource = String(structured.source || marketTickerSource);
+          marketTickerStale = false;
+        }
+      } catch {
+        symbols.forEach((symbol) => {
+          if (!itemsBySymbol.has(symbol)) {
+            const slot = MARKET_INDEX_SLOTS.find((item) => item.symbol === symbol);
+            if (slot) missingBySymbol.set(symbol, slot);
+          }
+        });
+        if (itemsBySymbol.size) marketTickerStale = true;
+      } finally {
+        symbols.forEach((symbol) => marketTickerPendingSymbols.delete(symbol));
+        publishBatch();
+      }
     }
-  } catch {
-    if (marketTickerItems.length) marketTickerStale = true;
   } finally {
     marketTickerRefreshInFlight = false;
     marketTickerInitialized = true;
-    renderMarketTicker();
-    if (activeSecurityTab === "market") renderMarketWorkspace();
+    publishBatch();
   }
 }
 function startMarketTickerRefresh() {

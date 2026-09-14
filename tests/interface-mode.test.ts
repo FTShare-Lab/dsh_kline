@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { readDisplayMode, resolveDisplayMode, readAutoOpen, DISPLAY_MODE_KEY, UI_SEEN_KEY, AUTO_OPEN_KEY } from '../src/client/mode-preferences.ts'
 import { hasPreviousUsage, classifyOnboarding, acknowledgeOnboarding, ONBOARDING_KEY } from '../src/client/ui-onboarding.ts'
-import { cleanClassicTabs, isSidebarUsable, KLINE_TAB_ID, KLINE_TAB_TITLE, migrateKlineTabTitle } from '../src/client/sidebar-integration.ts'
+import { cleanClassicTabs, isSidebarUsable, KLINE_TAB_ID, KLINE_TAB_TITLE_EN, KLINE_TAB_TITLE_ZH, klineTabTitle, migrateKlineTabTitle } from '../src/client/sidebar-integration.ts'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 import { isNewerStableVersion } from '../src/client/version.ts'
 
@@ -16,13 +16,13 @@ function storage(initial: Record<string, string> = {}): Storage {
 }
 for (const preference of ['auto', 'classic', 'better-sidebar'] as const) {
   for (const available of [false, true]) test(`${preference}, sidebar ${available}: one deterministic shell`, () => {
-    assert.equal(resolveDisplayMode(preference, available), available && preference !== 'classic' ? 'better-sidebar' : 'classic')
+    assert.equal(resolveDisplayMode(preference, available), available && preference === 'better-sidebar' ? 'better-sidebar' : 'classic')
   })
 }
-test('missing, corrupt and inaccessible preference storage safely defaults to automatic', () => {
-  assert.equal(readDisplayMode(storage()), 'auto')
-  assert.equal(readDisplayMode(storage({[DISPLAY_MODE_KEY]: 'unknown'})), 'auto')
-  assert.equal(readDisplayMode({getItem() { throw Error('denied') }} as unknown as Storage), 'auto')
+test('missing, corrupt and inaccessible preference storage safely defaults to classic', () => {
+  assert.equal(readDisplayMode(storage()), 'classic')
+  assert.equal(readDisplayMode(storage({[DISPLAY_MODE_KEY]: 'unknown'})), 'classic')
+  assert.equal(readDisplayMode({getItem() { throw Error('denied') }} as unknown as Storage), 'classic')
   assert.equal(readDisplayMode(storage({[DISPLAY_MODE_KEY]: 'better-sidebar'})), 'better-sidebar')
 })
 test('auto-open is independent from display mode', () => {
@@ -56,15 +56,31 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   const button = html.match(/<button[^>]*id="interfaceBtn"[^>]*>(.*?)<\/button>/)?.[1]
   assert.equal(button, '<span data-i18n="interfaceLabel">UI</span>')
   assert.ok(!html.includes('interface-label') && !html.includes('interface-new'))
-  assert.ok(html.includes('productName: "非凸K线助手"'))
-  assert.ok(html.includes('productName: "dsh_kline"'))
+  assert.ok(html.includes('productName: "非凸 K 线助手"'))
+  assert.ok(html.includes('productName: "FtAI K-Line"'))
+  assert.ok(!html.includes('document.title = t("productName")'))
   const tab = readFileSync(new URL('../src/client/BetterSidebarTab.tsx', import.meta.url), 'utf8')
-  assert.ok(tab.includes('title: KLINE_TAB_TITLE'))
-  assert.equal(KLINE_TAB_TITLE, '非凸K线助手 / dsh_kline')
+  assert.ok(tab.includes('title: klineTabTitle()'))
+  assert.equal(klineTabTitle('zh-CN'), KLINE_TAB_TITLE_ZH)
+  assert.equal(klineTabTitle('en-US'), KLINE_TAB_TITLE_EN)
   assert.ok(tab.includes('const dispose = service.registerTab(') && tab.includes('stopDefaults(); dispose()'))
+  assert.match(tab, /const isNativeTabMode = interfaceState\.mode === 'better-sidebar'/)
+  assert.match(tab, /isNativeTabMode \? installDefaultKlineTabs\(service\) : \(\) => \{\}/)
+  assert.match(tab, /return isNativeTabMode && list\.current/)
   assert.match(tab, /service\.subscribeState\(listener\)/)
   assert.match(tab, /sidebar\.sessionId === scope\.sessionId/)
   assert.match(tab, /only an analysis result that arrives while this view is live may/)
+})
+test('classic mode and the host New Session launcher keep the K button while the native tab remains available without auto-opening', () => {
+  const router = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')
+  assert.match(router, /\{sidebar && <BetterSidebarBridge service=\{sidebar\} sessions=\{ctx\.sessions\} \/>\}/)
+  assert.match(router, /function hostRightSidebarAvailable\(\): boolean/)
+  assert.match(router, /Open right sidebar/)
+  assert.match(router, /Collapse right sidebar/)
+  assert.match(router, /bounds\.width > 0 && bounds\.height > 0/)
+  assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| !hostHasRightSidebar/)
+  assert.match(router, /\{showClassicLauncher && <ClassicShell sessions=\{ctx\.sessions\} \/>\}/)
+  assert.ok(!router.includes('cleanClassicTabs'))
 })
 test('saved legacy titles migrate only in their own active session and preserve custom names', () => {
   const updates: unknown[] = []
@@ -76,7 +92,7 @@ test('saved legacy titles migrate only in their own active session and preserve 
   migrateKlineTabTitle(service, {...tab,type:'editor'}, 'A')
   assert.equal(updates.length, 0)
   migrateKlineTabTitle(service, tab, 'A')
-  assert.deepEqual(updates, [['kline',{title:KLINE_TAB_TITLE}]])
+  assert.deepEqual(updates, [['kline',{title:klineTabTitle()}]])
 })
 test('interface popup stays inside a narrow chart even when the trigger is not at its right edge', () => {
   const start = html.indexOf('function positionInterfacePopover()')
@@ -101,35 +117,35 @@ test('RC users can see the stable release without treating older stable or anoth
   assert.equal(isNewerStableVersion('0.2.0-rc.2', '0.2.0-rc.1'), false)
   assert.equal(isNewerStableVersion('0.2.1', '0.2.0'), true)
 })
-test('classic mode removes only owned stale tabs in every public layout and respects disposal', async () => {
+test('classic mode removes only owned stale tabs from the public workbench layout and respects disposal', async () => {
   const tab = (id: string, type = KLINE_TAB_ID) => ({id, type})
   let listener = () => {}, unsubscribed = false
   const closed: unknown[] = []
-  const state = {splits:{kind:'split', children:[{kind:'leaf', tabs:[tab('right'), tab('file','editor')]}]}, bottomSplits:{kind:'leaf', tabs:[tab('bottom')]}, floats:[{tab:tab('float')}, {tab:tab('terminal','terminal')}]}
+  const state = {bottomSplits:{kind:'leaf', tabs:[tab('bottom'), tab('file','editor')]}}
   const service = {features:['stateSubscription'], getSnapshot: () => ({sessionId:'A', state}), subscribeState: (fn: () => void) => {listener = fn; return () => {unsubscribed = true}}, closeTab:(id: string, scope: unknown) => closed.push([id,scope])} as unknown as BetterSidebarService
   const dispose = cleanClassicTabs(service)
   await Promise.resolve()
-  assert.deepEqual(closed, [['right',{sessionId:'A'}],['bottom',{sessionId:'A'}],['float',{sessionId:'A'}]])
+  assert.deepEqual(closed, [['bottom',{sessionId:'A'}]])
   listener(); dispose(); await Promise.resolve()
-  assert.equal(closed.length, 3)
+  assert.equal(closed.length, 1)
   assert.equal(unsubscribed, true)
 })
-test('classic cleanup tolerates missing, malformed and cyclic layouts without closing foreign tabs', async () => {
+test('classic cleanup tolerates missing, malformed and cyclic workbench layouts without closing foreign tabs', async () => {
   const cycle: any = {kind:'split', children:[]}
   cycle.children = [cycle, {tabs:[null, {id:'owned', type:KLINE_TAB_ID}, {id:9, type:KLINE_TAB_ID}, {id:'editor', type:'editor'}]}]
   const closed: string[] = []
-  let state: any = {splits:cycle, floats:[null, {}, {tab:{id:'float',type:KLINE_TAB_ID}}]}
+  let state: any = {bottomSplits:cycle}
   let listener = () => {}
   const service = {features:['stateSubscription'], getSnapshot: () => ({sessionId:'A', state}),
     subscribeState: (fn: () => void) => {listener = fn; return () => {}},
     closeTab: (id: string) => {closed.push(id); if (id === 'owned') throw Error('stale tab')} } as unknown as BetterSidebarService
   const dispose = cleanClassicTabs(service)
   await Promise.resolve()
-  assert.deepEqual(closed, ['owned','float'])
-  for (const malformed of [{}, {splits:null}, {splits:{kind:'split'}}, {bottomSplits:{}, floats:{} }]) {
+  assert.deepEqual(closed, ['owned'])
+  for (const malformed of [{}, {bottomSplits:null}, {bottomSplits:{kind:'split'}}, {bottomSplits:{}}]) {
     state = malformed; listener(); await Promise.resolve()
   }
-  assert.equal(closed.length, 2)
+  assert.equal(closed.length, 1)
   dispose()
 })
 test('classic cleanup contains optional service failures, including teardown', async () => {

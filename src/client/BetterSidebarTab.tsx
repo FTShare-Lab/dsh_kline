@@ -4,7 +4,7 @@ import type { Sessions } from './conversation'
 import { useChartReference } from './chart-session-resolver'
 import { NativeKlineApp, StandaloneKlineApp, standaloneWorkspaceScope } from './KlineContent'
 import { InterfaceContext, readAutoOpen } from './mode-preferences'
-import { KLINE_TAB_ID, KLINE_TAB_TITLE, migrateKlineTabTitle } from './sidebar-integration'
+import { KLINE_TAB_ID, klineTabTitle, migrateKlineTabTitle } from './sidebar-integration'
 import { installDefaultKlineTabs } from './default-tab'
 
 function KlineTabContent({ sessions, conversationId }: { sessions: Sessions; conversationId?: string }) {
@@ -50,10 +50,11 @@ function KlineTabFrame({service, sessions, scope, tab, visible}: TabComponentPro
 export function BetterSidebarBridge({ service, sessions }: { service: BetterSidebarService; sessions: Sessions }) {
   const interfaceState = useContext(InterfaceContext)
   const list = useSyncExternalStore(listener => sessions.list.subscribe(listener), () => sessions.list.getSnapshot())
+  const isNativeTabMode = interfaceState.mode === 'better-sidebar'
   useEffect(() => {
     const dispose = service.registerTab({
       id: KLINE_TAB_ID,
-      title: KLINE_TAB_TITLE,
+      title: klineTabTitle(),
       order: 120,
       single: true,
       component: (props: TabComponentProps) => (
@@ -62,8 +63,13 @@ export function BetterSidebarBridge({ service, sessions }: { service: BetterSide
         </InterfaceContext.Provider>
       ),
     })
-    const stopDefaults = installDefaultKlineTabs(service)
+    // The tab is always registered so Classic mode retains a discoverable
+    // native entry. Only the explicitly chosen native-tab mode may insert or
+    // auto-open it for the user.
+    const stopDefaults = isNativeTabMode ? installDefaultKlineTabs(service) : () => {}
     return () => { stopDefaults(); dispose() }
-  }, [service, sessions, interfaceState])
-  return list.current ? <AutoOpen key={list.current} service={service} sessions={sessions} conversationId={list.current} /> : null
+  }, [service, sessions, interfaceState, isNativeTabMode])
+  return isNativeTabMode && list.current
+    ? <AutoOpen key={list.current} service={service} sessions={sessions} conversationId={list.current} />
+    : null
 }

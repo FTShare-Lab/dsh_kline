@@ -88,7 +88,8 @@ test('market and sector pages have separate data responsibilities', () => {
 test('market page groups actionable indices by region and sector empty states stay specific', () => {
   const market = html.slice(html.indexOf('function marketIndexGroupsMarkup('), html.indexOf('const INDUSTRY_ETF_REFERENCES'))
   const sector = html.slice(html.indexOf('function renderSecurityIntelligence()'), html.indexOf('function renderSecurityWorkspace()'))
-  assert.match(market, /const order = \{ CN: 0, HK: 1, US: 2 \}/)
+  assert.match(market, /MARKET_INDEX_SLOTS\.map/)
+  assert.match(market, /marketTickerPendingSymbols\.has/)
   assert.match(market, /market-index-card \$\{tone\}/)
   assert.match(market, /data-ticker-symbol/)
   assert.doesNotMatch(market, /market-index-region/)
