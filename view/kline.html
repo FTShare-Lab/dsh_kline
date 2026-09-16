@@ -450,11 +450,56 @@
   table.t th { background: var(--bg-soft); font-weight: 600; }
   #rangeBanner {
     position: absolute; left: 50%; transform: translateX(-50%); top: 10px;
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    display: flex; align-items: flex-start; gap: 8px; width: max-content; max-width: calc(100% - 24px);
+    padding: 7px 9px 7px 10px;
     background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;
-    box-shadow: var(--shadow); z-index: 5; font-size: 12px;
+    box-shadow: var(--shadow); z-index: 5; font-size: 12px; line-height: 1.35;
   }
-  #rangeBanner #rangeText { color: var(--text); font-weight: 500; }
+  #rangeBanner #rangeText { flex: 0 1 auto; min-width: 0; color: var(--text); }
+  .selection-banner-header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 5px; padding-right: 22px; }
+  .selection-banner-title { min-width: 0; max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
+  .selection-banner-state { color: var(--text-soft); font-size: 11px; white-space: nowrap; }
+  .selection-banner-context { margin-top: 1px; color: var(--text-soft); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .selection-candle-values {
+    display: grid; grid-template-columns: 3em max-content; column-gap: 8px; row-gap: 0;
+    width: max-content; margin: 3px 0 0; padding-top: 3px; border-top: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  .selection-candle-value { display: contents; }
+  .selection-candle-values dt, .selection-candle-values dd { font-size: 11px; }
+  .selection-candle-values dt { grid-column: 1; min-width: 0; color: var(--text-soft); line-height: 1.18; }
+  .selection-candle-values dd { grid-column: 2; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 650; line-height: 1.18; text-align: right; }
+  .selection-candle-values dd.up { color: var(--up); }
+  .selection-candle-values dd.down { color: var(--down); }
+  .selection-banner-summary { margin-top: 4px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .selection-banner-actions { position: absolute; top: 6px; right: 6px; display: flex; flex: 0 0 auto; align-items: center; }
+  .selection-banner-actions .btn { min-width: 0; height: 28px; padding-inline: 8px; }
+  .selection-banner-actions .selection-dismiss { width: 22px; min-width: 22px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--text-soft); font-size: 20px; line-height: 1; }
+  .selection-banner-actions .selection-dismiss:hover { background: var(--bg-soft); color: var(--text); }
+  #rangeBanner[data-selection-kind="range"] {
+    align-items: center; width: auto; max-width: calc(100% - 24px); padding: 7px 8px 7px 11px;
+  }
+  #rangeBanner[data-selection-kind="range"] .selection-banner-title { max-width: none; }
+  #rangeBanner[data-selection-kind="range"] #rangeText { overflow: hidden; }
+  .selection-range-copy { overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .selection-range-copy strong { font-size: 12px; font-weight: 700; }
+  .selection-range-copy span { color: var(--text-soft); }
+  #rangeBanner[data-selection-kind="range"] .selection-banner-actions { position: static; flex-direction: row; gap: 3px; }
+  #rangeBanner[data-selection-kind="range"] .selection-banner-actions .btn { padding-inline: 8px; }
+  .range-stats-card {
+    position: absolute; z-index: 6; top: 10px; left: 50%; width: max-content; min-width: 190px; max-width: calc(100% - 24px);
+    padding: 9px 10px 10px; transform: translateX(-50%);
+    border: 1px solid var(--accent); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow);
+    font-variant-numeric: tabular-nums;
+  }
+  .range-stats-card[hidden] { display: none; }
+  .range-stats-card .selection-banner-header { padding-right: 24px; }
+  .range-stats-card .selection-candle-values { grid-template-columns: 4em max-content; }
+  .range-stats-card .selection-candle-values dd { max-width: min(250px, calc(100vw - 106px)); }
+  @media (max-width: 390px) {
+    #rangeBanner { width: min(304px, calc(100% - 16px)); }
+    .selection-banner-actions .btn { padding-inline: 7px; }
+  }
   .alert-menu-wrap { position: relative; }
   .alert-popover, .chart-context-menu {
     display: none; position: absolute; z-index: 22; border: 1px solid var(--border); border-radius: 6px;
@@ -1090,11 +1135,14 @@
   <div class="percent-axis" id="percentAxis" aria-label="涨跌幅坐标轴"></div>
   <div class="chart-status" id="chartStatus"></div>
   <div class="chart-loading-overlay" id="chartLoadingOverlay" role="status" aria-live="polite" hidden><div class="chart-loading-card"><span class="chart-loading-spinner" aria-hidden="true"></span><span id="chartLoadingText">正在拉取数据…</span></div></div>
-  <div id="rangeBanner" style="display:none;">
+  <div id="rangeBanner" role="status" aria-live="polite" style="display:none;">
     <span id="rangeText"></span>
-    <button class="btn primary" id="rangeAnalyzeBtn">📊 区间统计</button>
-    <button class="btn" id="rangeClearBtn">取消</button>
+    <div class="selection-banner-actions">
+      <button class="btn primary" id="rangeAnalyzeBtn">📊 区间统计</button>
+      <button class="btn selection-dismiss" id="rangeClearBtn" aria-label="关闭" title="关闭">×</button>
+    </div>
   </div>
+  <section class="range-stats-card" id="rangeStatsCard" aria-live="polite" hidden></section>
   <div class="chart-context-menu" id="chartContextMenu" role="menu" aria-label="K线快捷操作">
     <button type="button" id="contextAddWatchBtn" role="menuitem">加入自选</button>
   </div>
@@ -1598,8 +1646,8 @@ Object.assign(UI_COPY.en, {
   ownershipSnapshot: "Ownership",
 });
 const RANGE_COPY = {
-  zh: { detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
-  en: { detail: "Range details", return: "Period return", amplitude: "Amplitude", drawdown: "Max drawdown", bars: "Bars", days: "Calendar days", upDown: "Up/down", start: "Start", end: "End", openClose: "Open/close", highLow: "High/low", streak: "Up/down streak", averageVolume: "Average volume", pickNext: " (click the end point)", calculating: "Calculating range…", failed: "Range calculation failed", updating: "Updating indicators…", redrawFailed: "Redraw failed" },
+  zh: { statistics: "区间统计", startTime: "开始时间", endTime: "结束时间", volume: "成交量", detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
+  en: { statistics: "Range statistics", startTime: "Start time", endTime: "End time", volume: "Volume", detail: "Range details", return: "Period return", amplitude: "Amplitude", drawdown: "Max drawdown", bars: "Bars", days: "Calendar days", upDown: "Up/down", start: "Start", end: "End", openClose: "Open/close", highLow: "High/low", streak: "Up/down streak", averageVolume: "Average volume", pickNext: " (click the end point)", calculating: "Calculating range…", failed: "Range calculation failed", updating: "Updating indicators…", redrawFailed: "Redraw failed" },
 };
 function rt(key) { return RANGE_COPY[viewLanguage]?.[key] || RANGE_COPY.zh[key] || key; }
 const COMPANY_LABELS = {
@@ -2311,6 +2359,7 @@ function scheduleChartResize() {
     drawUserDrawings();
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
+    positionRangeStatsCard();
   });
 }
 let chartOverlayFrame = 0;
@@ -2325,6 +2374,7 @@ function scheduleChartOverlayRender() {
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
     refreshPercentAxis();
+    positionRangeStatsCard();
   });
 }
 function initCanvasResizer() {
@@ -3310,43 +3360,71 @@ function snapshotCandle(candle) {
     close: Number(candle.close),
     volume: Number(candle.volume || 0),
   };
+  const previous = index > 0 ? currentCandles[index - 1] : null;
+  const previousClose = Number(previous?.close);
+  if (Number.isFinite(previousClose) && previousClose > 0) snapshot.prev_close = previousClose;
+  const turnover = Number(candle.turnover ?? candle.amount);
+  if (Number.isFinite(turnover) && turnover >= 0) snapshot.turnover = turnover;
   const openTime = Number(candle.open_time);
   if (Number.isFinite(openTime) && openTime > 0 && openTime <= snapshot.time) snapshot.open_time = openTime;
   if (candle.session) snapshot.session = String(candle.session);
   return snapshot;
 }
-function selectionDescription(selection) {
-  if (!selection) return "dsh_kline：已清除当前选择";
+function selectionBannerMarkup(selection) {
+  if (!selection) return "";
   const intervalLabel = sourceCandleInterval === "minute" ? t("intraday") : t(currentInterval || "day");
-  const prefix = `${currentName || currentSymbol || "K 线"} · ${intervalLabel}`;
+  const name = currentName || currentSymbol || "K 线";
+  const header = `<div class="selection-banner-header"><span class="selection-banner-title">${escapeHtml(name)}</span><span class="selection-banner-state">${escapeHtml(intervalLabel)}</span></div>`;
   if (selection.kind === "candle") {
     const c = selection.candle;
-    return `${prefix} · 已引用 ${fmtCandleTimestamp(c)} 第 ${c.index + 1} 根 K 线 · ` +
-      `开 ${fmt(c.open, 3)} 高 ${fmt(c.high, 3)} 低 ${fmt(c.low, 3)} 收 ${fmt(c.close, 3)} ` +
-      `量 ${fmtVolumeWan(c.volume)}`;
+    const previousClose = Number(c.prev_close);
+    const hasPreviousClose = Number.isFinite(previousClose) && previousClose > 0;
+    const toneFor = (value) => !hasPreviousClose ? "" : Number(value) > previousClose ? "up" : Number(value) < previousClose ? "down" : "";
+    const changePct = hasPreviousClose ? (Number(c.close) / previousClose - 1) * 100 : NaN;
+    const signedChange = Number.isFinite(changePct) ? `${changePct >= 0 ? "+" : ""}${fmt(changePct, 2)}%` : "--";
+    const turnover = Number(c.turnover);
+    const turnoverText = !Number.isFinite(turnover) ? "--" : turnover >= 100000000
+      ? `${(turnover / 100000000).toFixed(2)}亿`
+      : `${Math.round(turnover / 10000).toLocaleString()}万`;
+    const item = (label, value, tone = "") => `<div class="selection-candle-value"><dt>${label}</dt><dd${tone ? ` class="${tone}"` : ""}>${escapeHtml(value)}</dd></div>`;
+    return header +
+      `<dl class="selection-candle-values">${[
+        item("时间", fmtCandleTimestamp(c)),
+        item("开盘", fmt(c.open, 3), toneFor(c.open)),
+        item("收盘", fmt(c.close, 3), toneFor(c.close)),
+        item("最高", fmt(c.high, 3), toneFor(c.high)),
+        item("最低", fmt(c.low, 3), toneFor(c.low)),
+        item("涨幅", signedChange, changePct > 0 ? "up" : changePct < 0 ? "down" : ""),
+        item("成交量", fmtVolumeWan(c.volume)),
+        item("成交额", turnoverText),
+      ].join("")}</dl>`;
   }
   if (selection.kind === "range") {
     const r = selection.range;
-    return `${prefix} · 已引用区间 ${fmtCandleTimestamp(r.start_time)} → ${fmtCandleTimestamp(r.end_time)} · ${r.bars} 根 K 线`;
+    return `<div class="selection-range-copy"><strong>${escapeHtml(name)}</strong><span> · ${escapeHtml(`${fmtCandleTimestamp(r.start_time)} → ${fmtCandleTimestamp(r.end_time)} · ${r.bars} 根 K 线`)}</span></div>`;
   }
   if (selection.kind === "marker") {
     const m = selection.marker;
-    return `${prefix} · 已引用分析标记“${m.text || m.label || "标记"}” · ${fmtCandleTimestamp(m.time)}`;
+    return header + `<div class="selection-banner-summary">${escapeHtml(`分析标记「${m.text || m.label || "标记"}」 · ${fmtCandleTimestamp(m.time)}`)}</div>`;
   }
-  return `${prefix} · 已引用图表选择`;
+  return header;
 }
 function updateSelectionBanner(selection) {
   const text = document.getElementById("rangeText");
   const rangeButton = document.getElementById("rangeAnalyzeBtn");
+  const banner = document.getElementById("rangeBanner");
   if (!selection) {
+    banner?.removeAttribute("data-selection-kind");
     setRangeBannerVisible(false);
     return;
   }
-  text.textContent = selectionDescription(selection);
+  text.innerHTML = selectionBannerMarkup(selection);
+  banner?.setAttribute("data-selection-kind", selection.kind || "");
   rangeButton.style.display = selection.kind === "range" ? "inline-block" : "none";
   setRangeBannerVisible(true);
 }
 function publishSelection(selection) {
+  hideRangeStatsCard();
   currentSelection = selection;
   updateSelectionBanner(selection);
 }
@@ -4741,16 +4819,46 @@ function actionCandle(data) {
   if (!Number.isFinite(timestamp)) return null;
   return nearestCandle(Math.floor((timestamp > 10_000_000_000 ? timestamp : timestamp * 1000) / 1000));
 }
-function chartXForCandle(candle) {
+function chartPointForCandle(candle) {
   if (!kchart || !candle) return null;
   try {
     const converted = kchart.convertToPixel?.([{ timestamp: Number(candle.time) * 1000, value: Number(candle.close) }], { paneId: "candle_pane", absolute: true });
     const point = Array.isArray(converted) ? converted[0] : converted;
     const x = Number(point?.x);
-    return Number.isFinite(x) ? x : null;
+    const y = Number(point?.y);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   } catch {
     return null;
   }
+}
+function chartXForCandle(candle) {
+  return chartPointForCandle(candle)?.x ?? null;
+}
+function positionRangeStatsCard() {
+  const card = document.getElementById("rangeStatsCard");
+  const wrap = document.querySelector(".chart-wrap");
+  if (!card || card.hidden || !wrap) return;
+  const start = chartPointForCandle(rangePickStart?.candle);
+  const end = chartPointForCandle(rangePickEnd?.candle);
+  if (!start || !end) {
+    card.style.left = "50%";
+    card.style.top = "10px";
+    card.style.transform = "translateX(-50%)";
+    return;
+  }
+  const gap = 8;
+  const width = card.offsetWidth;
+  const height = card.offsetHeight;
+  const maxLeft = Math.max(gap, wrap.clientWidth - width - gap);
+  const left = Math.max(gap, Math.min(maxLeft, (start.x + end.x) / 2 - width / 2));
+  const high = Math.min(start.y, end.y);
+  const low = Math.max(start.y, end.y);
+  let top = high - height - 12;
+  if (top < gap) top = low + 12;
+  top = Math.max(gap, Math.min(Math.max(gap, wrap.clientHeight - height - gap), top));
+  card.style.left = `${Math.round(left)}px`;
+  card.style.top = `${Math.round(top)}px`;
+  card.style.transform = "none";
 }
 function renderIntradaySessionGuides() {
   const layer = document.getElementById("sessionGuideLayer");
@@ -5349,6 +5457,42 @@ function renderCards(cards) {
       : String(c.value ?? "");
     return `<div class="card"><div class="k">${escapeHtml(c.title || c.id || "")}</div><div class="v ${cls}">${escapeHtml(txt)}</div></div>`;
   }).join("");
+}
+function hideRangeStatsCard() {
+  const card = document.getElementById("rangeStatsCard");
+  if (!card) return;
+  card.hidden = true;
+  card.innerHTML = "";
+}
+function renderRangeStatsCard(data) {
+  const card = document.getElementById("rangeStatsCard");
+  if (!card) return;
+  const percent = (value) => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(2)}%` : "--";
+  const tone = (value) => Number(value) > 0 ? "up" : Number(value) < 0 ? "down" : "";
+  const intervalLabel = sourceCandleInterval === "minute" ? t("intraday") : t(currentInterval || "day");
+  const start = Number(data.start_time ?? rangePickStart?.time);
+  const end = Number(data.end_time ?? rangePickEnd?.time);
+  const item = (label, value, cls = "") => `<div class="selection-candle-value"><dt>${escapeHtml(label)}</dt><dd${cls ? ` class="${cls}"` : ""}>${escapeHtml(value)}</dd></div>`;
+  const returnTone = tone(data.return_pct);
+  card.innerHTML =
+    `<div class="selection-banner-header"><span class="selection-banner-title">${escapeHtml(currentName || currentSymbol || "K 线")}</span><span class="selection-banner-state">${escapeHtml(`${intervalLabel} · ${rt("statistics")}`)}</span></div>` +
+    `<div class="selection-banner-actions"><button class="btn selection-dismiss range-stats-dismiss" aria-label="关闭" title="关闭">×</button></div>` +
+    `<dl class="selection-candle-values">${[
+      item(rt("startTime"), Number.isFinite(start) ? fmtCandleTimestamp(start) : "--"),
+      item(rt("endTime"), Number.isFinite(end) ? fmtCandleTimestamp(end) : "--"),
+      item(rt("return"), percent(data.return_pct), returnTone),
+      item(rt("amplitude"), percent(data.amplitude_pct)),
+      item(rt("drawdown"), percent(data.max_drawdown?.max_drawdown_pct), tone(data.max_drawdown?.max_drawdown_pct)),
+      item(rt("volume"), fmtVolumeWan(data.total_volume)),
+      item(rt("averageVolume"), fmtVolumeWan(data.avg_volume)),
+      item(rt("bars"), `${data.bars ?? "--"}${viewLanguage === "zh" ? "根" : ""}`),
+    ].join("")}</dl>`;
+  card.querySelector?.(".range-stats-dismiss")?.addEventListener("click", () => {
+    clearRangePick();
+    setChartStatus("");
+  });
+  card.hidden = false;
+  positionRangeStatsCard();
 }
 function renderTables(tables) {
   const el = document.getElementById("tables");
@@ -7978,29 +8122,12 @@ async function handleToolResult(result) {
     return;
   }
 
-  // calc_range payload → cards + table
+  // calc_range payload → floating range stats card
   if (structured.return_pct !== undefined && structured.bars !== undefined) {
-    renderCards([
-      { id: "return", title: rt("return"), value: structured.return_pct, unit: "%" },
-      { id: "amp", title: rt("amplitude"), value: structured.amplitude_pct, unit: "%" },
-      { id: "dd", title: rt("drawdown"), value: structured.max_drawdown?.max_drawdown_pct, unit: "%" },
-      { id: "bars", title: rt("bars"), value: structured.bars, unit: "" },
-      { id: "days", title: rt("days"), value: structured.duration_days, unit: viewLanguage === "zh" ? "天" : "" },
-      { id: "up", title: rt("upDown"), value: `${structured.up_bars}/${structured.down_bars}`, unit: "" },
-    ]);
-    renderTables([{
-      title: rt("detail"),
-      headers: [viewLanguage === "zh" ? "字段" : "Field", viewLanguage === "zh" ? "值" : "Value"],
-      rows: [
-        [rt("start"), fmtDate(structured.start_time)],
-        [rt("end"), fmtDate(structured.end_time)],
-        [rt("openClose"), `${structured.open} / ${structured.close}`],
-        [rt("highLow"), `${structured.high} / ${structured.low}`],
-        [rt("streak"), `${structured.max_up_streak} / ${structured.max_down_streak}`],
-        [rt("averageVolume"), structured.avg_volume],
-      ],
-    }]);
-    revealAnalysisResults();
+    renderCards([]);
+    renderTables([]);
+    setRangeBannerVisible(false);
+    renderRangeStatsCard(structured);
     setChartStatus("");
     reportSize();
     return;
@@ -8047,6 +8174,7 @@ function clearRangePick() {
   rangePickEnd = null;
   clearSelectionVisuals();
   clearSelectionContext();
+  hideRangeStatsCard();
   setRangeBannerVisible(false);
 }
 function drawSelectionHighlight(candle) {
