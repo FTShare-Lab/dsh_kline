@@ -26,7 +26,7 @@ import sys
 args = sys.argv[1:]
 if args[:1] == ['-c']:
     if 'version_info' in args[1]:
-        raise SystemExit(0)
+        raise SystemExit(1 if os.environ.get('FAKE_OLD_PYTHON') else 0)
     ready = (Path(__file__).parent / '.imports-ready').exists() or (Path(__file__).parent.parent / '.imports-ready').exists()
     raise SystemExit(0 if ready else 1)
 if args[:2] == ['-m', 'venv']:
@@ -83,9 +83,9 @@ def _prepare_launcher_fixture(tmp_path, *, runtime_exists=False, stamp=None, imp
     return project, venv, env
 
 
-def _run_launcher(project, env):
+def _run_launcher(project, env, *args):
     return subprocess.run(
-        ["node", str(project / "scripts" / "run-dsh-kline.mjs")],
+        ["node", str(project / "scripts" / "run-dsh-kline.mjs"), *args],
         cwd=project,
         env=env,
         capture_output=True,
@@ -244,15 +244,88 @@ def test_healthy_matching_runtime_starts_without_bootstrap(tmp_path):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
-def test_explicit_ready_python_remains_the_selected_runtime(tmp_path):
+@pytest.mark.parametrize("mode", ["", "auto"])
+def test_explicit_ready_python_remains_the_selected_runtime(tmp_path, mode):
     project, _venv, env = _prepare_launcher_fixture(tmp_path)
     env.pop("DSH_KLINE_VENV")
+    env["DSH_KLINE_RUNTIME_MODE"] = mode
     (tmp_path / ".imports-ready").write_text("ready")
     result = _run_launcher(project, env)
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == "mcp-ready\n"
     assert "Preparing Python runtime" not in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+def test_external_runtime_starts_without_managing_dependencies(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env.pop("DSH_KLINE_VENV")
+    env["DSH_KLINE_RUNTIME_MODE"] = "external"
+    env["DSH_KLINE_DEFER_BOOTSTRAP"] = "1"
+    (tmp_path / ".imports-ready").write_text("ready")
+    # An external runtime does not need the bootstrap dependency fingerprint.
+    (project / "requirements.txt").unlink()
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "mcp-ready\n"
+    assert (project / ".server-launched").exists()
+    assert not venv.exists()
+    assert not (tmp_path / "cache").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+@pytest.mark.parametrize("failure, message", [
+    ("missing_python", "requires DSH_KLINE_PYTHON"),
+    ("broken_python", "working Python 3.10 or newer"),
+    ("old_python", "working Python 3.10 or newer"),
+    ("dependencies", "missing required dependencies"),
+    ("venv", "cannot be combined"),
+    ("prepare", "cannot be combined"),
+    ("bootstrap", "cannot be combined"),
+])
+def test_external_runtime_fails_without_installation_or_fallback(tmp_path, failure, message):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env.pop("DSH_KLINE_VENV")
+    env["DSH_KLINE_RUNTIME_MODE"] = "external"
+    env["DSH_KLINE_DEFER_BOOTSTRAP"] = "1"
+    args = []
+    if failure != "dependencies":
+        (tmp_path / ".imports-ready").write_text("ready")
+    if failure == "missing_python":
+        env.pop("DSH_KLINE_PYTHON")
+    elif failure == "broken_python":
+        env["DSH_KLINE_PYTHON"] = str(tmp_path / "missing-python")
+    elif failure == "old_python":
+        env["FAKE_OLD_PYTHON"] = "1"
+    elif failure == "venv":
+        env["DSH_KLINE_VENV"] = str(venv)
+    elif failure == "prepare":
+        args = ["--prepare-project"]
+    elif failure == "bootstrap":
+        args = ["--bootstrap-runtime"]
+    result = _run_launcher(project, env, *args)
+
+    assert result.returncode == 1, result.stderr
+    assert message in result.stderr
+    assert not (project / ".server-launched").exists()
+    assert not (project / ".venv").exists()
+    assert not venv.exists()
+    assert not (tmp_path / "cache").exists()
+    assert not (tmp_path / "runtime").exists()
+
+
+@pytest.mark.parametrize("mode", ["0", "false", "desktop", "packaged", "typo"])
+def test_unknown_runtime_mode_is_rejected_before_preparation(tmp_path, mode):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env["DSH_KLINE_RUNTIME_MODE"] = mode
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 1
+    assert "must be auto or external" in result.stderr
+    assert not venv.exists()
+    assert not (tmp_path / "cache").exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX development-venv compatibility test")
