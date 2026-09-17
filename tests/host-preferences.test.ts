@@ -17,6 +17,13 @@ test('settings default theme and language to following the host', () => {
 
 test('FTShare setup explains automatic credential sources without rendering secrets', () => {
   assert.match(html, /id="ftshareAdapterHint"/)
+  assert.match(html, /id="settingsSectionFtshare"/)
+  assert.match(html, /id="ftshareManageBtn"/)
+  assert.match(html, /showSettingsSection\("ftshare"\)/)
+  assert.match(html, /data-i18n="sourceAutoload"/)
+  assert.match(html, /data-i18n="checkAvailability"/)
+  assert.match(html, /data-i18n="sourceIntro"/)
+  assert.match(html, /sourceCapabilities: "接口可用性检测"/)
   assert.match(html, /credentialSource = provider\.credential_source/)
   assert.match(html, /ftshareStatusEnvironment/)
   assert.match(html, /ftshareStatusExternalFile/)

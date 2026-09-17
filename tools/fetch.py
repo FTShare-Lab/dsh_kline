@@ -107,14 +107,14 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "daily_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/owq0364i",
         "tier": "free",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": True, "sdk": True},
     },
     "history_minute_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/z9lsvrvu",
         "tier": "base+",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["http_get", "sdk"],
         "candidate_verification": {"http_get": False, "sdk": False},
     },
@@ -125,21 +125,21 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "realtime_minute_candles": {
         "doc": "https://market.ft.tech/gateway/api/v4/market/data/stock-realtime-minute-kline",
         "tier": "api-key",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
     "index_daily_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/gr2q0bjx",
         "tier": "free",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
     "index_history_minute_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/ls85mq5n",
         "tier": "base+",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": False},
     },
@@ -148,7 +148,7 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "global_index_daily": {
         "doc": "https://market.ft.tech/gateway/doc/p/pb8eizu3",
         "tier": "free",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
@@ -158,14 +158,14 @@ FT_CONTRACTS: dict[str, dict[str, Any]] = {
     "etf_candles": {
         "doc": "https://market.ft.tech/gateway/doc/p/etf-candlesticks",
         "tier": "free",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
     "etf_minutes": {
         "doc": "https://market.ft.tech/gateway/doc/p/etf-minutes",
         "tier": "base+",
-        "verified_sdk_version": "1.0.3",
+        "verified_sdk_version": "1.0.7",
         "candidates": ["sdk"],
         "candidate_verification": {"sdk": True},
     },
@@ -596,12 +596,12 @@ def _ftshare_stock_realtime_minutes(market: Any, *, symbol: str) -> Any:
 
 
 def _ftshare_index_candlesticks(market: Any, **params: Any) -> Any:
-    """Call the verified A-share index K-line endpoint (SDK >= 1.0.3)."""
+    """Call the verified A-share index K-line endpoint (SDK 1.0.7)."""
     return _adaptive_ftshare_call("index_daily_candles", market, params)
 
 
 def _ftshare_index_minutes(market: Any, **params: Any) -> Any:
-    """Call the A-share index minute endpoint (SDK >= 1.0.3, plan dependent)."""
+    """Call the A-share index minute endpoint (SDK 1.0.7, plan dependent)."""
     return _adaptive_ftshare_call("index_history_minute_candles", market, params)
 
 
@@ -761,7 +761,7 @@ def ftshare_index_kline_available() -> bool:
     """Whether A-share index K-line history is available from the FTShare adapter.
 
     The adapter only calls verified provider contracts (see
-    docs/provider-adaptation.md). Since FTShare SDK 1.0.3 the SDK exposes the
+    docs/provider-adaptation.md). FTShare SDK 1.0.7 exposes the
     documented A-share index endpoint ``index_candlesticks``
     (api/v1/market/data/index-candlesticks) which was verified with live
     daily data (free tier) and registered in FT_CONTRACTS, so daily-or-larger
@@ -1712,7 +1712,7 @@ def _write_symbol_directory_cache(payload: dict[str, Any]) -> bool:
 
 
 def _rows_from_directory_response(raw: Any, *, _depth: int = 0) -> list[Mapping[str, Any]]:
-    """Extract provider rows from the bounded envelope shapes seen in SDK 1.0.3."""
+    """Extract provider rows from the bounded envelope shapes seen in SDK 1.0.7."""
     if isinstance(raw, list):
         return [item for item in raw if isinstance(item, Mapping)]
     if isinstance(raw, Mapping) and _depth < 4:

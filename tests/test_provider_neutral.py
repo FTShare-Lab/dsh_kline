@@ -353,8 +353,8 @@ class ProviderNeutralTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(calls, [("http_get", "api/v1/market/data/stock-candlesticks"), ("sdk", "Day")])
 
-    def test_ftshare_103_contract_metadata_matches_official_tiers(self):
-        self.assertEqual({spec["verified_sdk_version"] for spec in FT_CONTRACTS.values()}, {"1.0.3"})
+    def test_ftshare_107_contract_metadata_matches_official_tiers(self):
+        self.assertEqual({spec["verified_sdk_version"] for spec in FT_CONTRACTS.values()}, {"1.0.7"})
         self.assertEqual(FT_CONTRACTS["daily_candles"]["tier"], "free")
         self.assertEqual(FT_CONTRACTS["index_daily_candles"]["tier"], "free")
         self.assertEqual(FT_CONTRACTS["history_minute_candles"]["tier"], "base+")
@@ -365,14 +365,14 @@ class ProviderNeutralTests(unittest.TestCase):
             "https://market.ft.tech/gateway/doc/p/ls85mq5n",
         )
 
-    def test_installed_ftshare_103_sdk_surface_matches_registered_contracts(self):
+    def test_installed_ftshare_107_sdk_surface_matches_registered_contracts(self):
         from importlib.metadata import version
 
         import ftshare
         from ftshare.config import DEFAULT_BASE_URL
         from ftshare.endpoints import ENDPOINTS
 
-        self.assertEqual(version("ftshare"), "1.0.3")
+        self.assertEqual(version("ftshare"), "1.0.7")
         self.assertEqual(DEFAULT_BASE_URL, "https://market.ft.tech/gateway/")
         expected_paths = {
             "stock_candlesticks": "api/v1/market/data/stock-candlesticks",
