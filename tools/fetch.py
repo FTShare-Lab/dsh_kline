@@ -285,6 +285,11 @@ def _maybe_inject_local_ftshare() -> str | None:
 
 _INJECTED_FTSHARE_PATH = _maybe_inject_local_ftshare()
 
+# Credential provenance is intentionally process-local and never returned with
+# a path or a value.  It lets the UI explain why FTShare is already connected
+# without guessing at, or scanning, a user's shell, .env files, or keychain.
+_FTSHARE_RUNTIME_CREDENTIAL_SOURCE: str | None = None
+
 
 def _uses_posix_permissions() -> bool:
     return os.name == "posix"
@@ -299,6 +304,11 @@ def _ftshare_key_path() -> Path:
         base = Path(local) if local else Path.home() / "AppData" / "Local"
         return base / "dsh_kline" / "ftshare-credentials.json"
     return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
+
+
+def _configured_ftshare_file_source() -> str:
+    """Classify only the explicit credential file currently in use."""
+    return "external_file" if (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip() else "plugin_store"
 
 
 def _valid_ftshare_key(value: Any) -> str:
@@ -324,13 +334,26 @@ def _read_persisted_ftshare_key() -> str:
 
 
 def _load_persisted_ftshare_key() -> bool:
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
     if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
         return False
     value = _read_persisted_ftshare_key()
     if not value:
         return False
     os.environ["FTSHARE_API_KEY"] = value
+    # Preserve the fact that this process itself wrote the saved credential,
+    # even when a test/developer chose a custom file path.  A fresh process
+    # correctly reports that same explicit path as externally managed.
+    if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store":
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = _configured_ftshare_file_source()
     return True
+
+
+def _ftshare_credential_source() -> str:
+    """Return safe credential provenance, never a key or filesystem path."""
+    if not _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
+        return "none"
+    return _FTSHARE_RUNTIME_CREDENTIAL_SOURCE or "environment"
 
 
 def _write_persisted_ftshare_key(value: str) -> None:
@@ -610,10 +633,16 @@ def ftshare_status() -> dict[str, Any]:
     """Return safe provider status without host paths or module locations."""
     _load_persisted_ftshare_key()
     ok = ftshare_available()
+    credential_source = _ftshare_credential_source()
     info: dict[str, Any] = {
         "available": ok,
-        "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
-        "persistent": bool(_read_persisted_ftshare_key()),
+        "configured": credential_source != "none",
+        "persistent": credential_source in {"plugin_store", "external_file"},
+        "credential_source": credential_source,
+        # Only a key explicitly saved by this running plugin can be safely
+        # removed from this UI.  Environment and externally supplied files
+        # remain owned by the host/user.
+        "can_clear": credential_source == "plugin_store",
         "contracts": _ftshare_contract_status(),
     }
     try:
@@ -749,6 +778,7 @@ def configure_ftshare_api_key(
     persist: bool = True,
 ) -> dict[str, Any]:
     """Configure FTShare for this process and optionally persist it locally."""
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
     value = (api_key or "").strip()
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
         return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 包含不可用字符"}
@@ -762,13 +792,21 @@ def configure_ftshare_api_key(
             if value:
                 _write_persisted_ftshare_key(value)
             else:
+                if _ftshare_credential_source() != "plugin_store":
+                    return {
+                        "ok": False,
+                        "error": "external_credential_managed",
+                        "message": "当前 FTShare 凭据由宿主环境或外部文件管理，插件不会清除它。",
+                    }
                 _remove_persisted_ftshare_key()
     except OSError:
         return {"ok": False, "error": "credential_persist_failed", "message": "无法保存 FTShare 本机配置"}
     if value:
         os.environ["FTSHARE_API_KEY"] = value
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = "plugin_store" if persist else "session"
     else:
         os.environ.pop("FTSHARE_API_KEY", None)
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
     clear_provider_caches()
 
     result: dict[str, Any] = {
@@ -776,6 +814,8 @@ def configure_ftshare_api_key(
         "configured": bool(value),
         "source": "ftshare",
         "persistent": bool(value and persist),
+        "credential_source": _ftshare_credential_source(),
+        "can_clear": bool(value and persist),
     }
     if not test_connection:
         result["message"] = "FTShare 配置已更新（已保存到本机）" if value and persist else "FTShare 配置已更新（仅当前 dsh 进程有效）"

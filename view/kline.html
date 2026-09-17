@@ -918,6 +918,7 @@
           <div class="settings-provider">
             <div class="settings-provider-title" data-i18n="ftshareConfigTitle">FTShare 配置</div>
             <div class="settings-provider-status-line" id="ftshareAdapterStatus"></div>
+            <div class="settings-provider-note" id="ftshareAdapterHint"></div>
             <input class="settings-provider-input" id="ftshareApiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 FTSHARE_API_KEY（可选）" aria-label="FTShare API Key" />
             <label class="settings-provider-persist"><input id="ftsharePersistInput" type="checkbox" checked /><span data-i18n="ftsharePersist">保存到本机（推荐）</span></label>
             <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareTestBtn" type="button">测试当前连接</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
@@ -943,7 +944,7 @@
           <div class="settings-info"><div data-i18n="feedbackDescription">遇到问题或有改进建议？欢迎提交反馈。</div><div class="settings-link-row"><a href="https://github.com/FTShare-Lab/dsh_kline/issues/new" target="_blank" rel="noopener noreferrer" data-i18n="feedbackOpen">提交反馈 / Send feedback</a></div><div class="settings-info-hint" data-i18n="feedbackPrivacy">反馈会打开 GitHub，提交内容由你主动填写。</div></div>
         </section>
         <section class="settings-section" id="settingsSectionTheme" hidden>
-          <div class="settings-row"><span class="settings-row-label"><span data-i18n="themeCurrent">当前主题</span><span class="settings-row-label-en">Theme</span></span><button class="btn" id="themeToggle" type="button" title="切换至夜间模式" aria-label="切换至夜间模式">切换至夜间模式</button></div>
+          <div class="settings-row"><label class="settings-row-label" for="themeToggle"><span data-i18n="themeCurrent">当前主题</span><span class="settings-row-label-en">Theme</span></label><select class="settings-language-select" id="themeToggle" aria-label="主题 / Theme"><option value="host" data-i18n="followHost">跟随宿主（默认）</option><option value="light" data-i18n="themeLight">浅色</option><option value="dark" data-i18n="themeDark">深色</option></select></div>
           <div class="settings-row"><label class="settings-row-label" for="colorModeToggle"><span>涨跌颜色</span><span class="settings-row-label-en">Price colors</span></label><select class="settings-language-select" id="colorModeToggle" aria-label="涨跌颜色"><option value="a-share">红涨绿跌（A股）</option><option value="international">绿涨红跌（国际）</option></select></div>
         </section>
         <section class="settings-section" id="settingsSectionDisplay" hidden>
@@ -954,7 +955,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionLanguage" hidden>
-          <div class="settings-row"><label class="settings-row-label" for="languageToggle"><span data-i18n="languageCurrent">当前语言</span><span class="settings-row-label-en">Language</span></label><select class="settings-language-select" id="languageToggle" aria-label="语言 / Language"><option value="zh">中文</option><option value="en">English</option></select></div>
+          <div class="settings-row"><label class="settings-row-label" for="languageToggle"><span data-i18n="languageCurrent">当前语言</span><span class="settings-row-label-en">Language</span></label><select class="settings-language-select" id="languageToggle" aria-label="语言 / Language"><option value="host" data-i18n="followHost">跟随宿主（默认）</option><option value="zh">中文</option><option value="en">English</option></select></div>
         </section>
       </div>
     </div>
@@ -1341,7 +1342,10 @@ let volumeUnit = "wan";
 let canvasBaseHeightOverride = null;
 let userThemeOverride = null;
 let colorMode = "a-share";
+let languagePreference = "host";
 let viewLanguage = /^zh(?:-|$)/i.test(globalThis.navigator?.language || "") ? "zh" : "en";
+let hostPreferenceObserver = null;
+let hostThemeMediaQuery = null;
 let activeSecurityTab = "market";
 let activeCompanyTab = "overview";
 let securityWorkspaceData = null;
@@ -1504,14 +1508,14 @@ const UI_COPY = {
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
     keyLevels: "关键点位", keyLevelsLoading: "正在分析关键点位…", keyLevelsNeedData: "请先加载有效的 K 线数据，再分析关键点位。", keyLevelsFailed: "温馨提示：当前数据暂时无法完成关键点位分析，请稍后重试。", keyLevelPlanTitle: "关键点位参考", keyLevelPlanNote: "仅供研究参考，不构成交易建议", keyPlanSupport: "支撑参考", keyPlanResistance: "压力参考", keyPlanBreakout: "突破参考", keyPlanStop: "风险参考", keyPlanTarget: "目标参考", keyPlanSupportDetail: "价格回落时的观察区域", keyPlanResistanceDetail: "上方需要关注的阻力区域", keyPlanBreakoutDetail: "站稳后再观察确认", keyPlanStopDetail: "跌破支撑后重新评估", keyPlanTargetDetail: "下一阻力区域参考", keyPlanSave: "保存为我的点位", keyPlanSaved: "已保存为我的点位", helpExamplesTitle: "可以这样提问", helpExampleOne: "查看紫金矿业的 K 线", helpExampleTwo: "分析最近一个月的支撑位和压力位", helpExampleThree: "比较紫金矿业和沪深 300", helpExampleFour: "查看这只股票最近的新闻和公司资料",
     welcomeItemLevels: "需要时点击“关键点位”，查看支撑位和压力位分析。",
-    clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组会保存在当前用户的 dsh_kline 中；换设备仍可通过导出与导入迁移。", updateDescription: "查看当前版本、更新记录和发布说明。",
+    clear: "清标注", search: "搜索", searchSubmit: "提交搜索", searchPlaceholder: "搜索代码或名称", searchLabel: "搜索股票", versionUpdates: "版本与更新", currentSource: "当前数据源", sourceCapabilities: "可用能力", sourceCapabilityDaily: "日 K 与常用技术指标", sourceCapabilityOptional: "分钟 K / 新闻 / 大盘 / 简况：按数据源与套餐提供", externalSourceTitle: "其他数据源", externalSourceDetail: "接入其他行情数据后，也可以继续使用 K 线和指标。", externalSourceHint: "请先在 dsh 中完成接入；当前设置页暂不支持直接切换。", sourceFreeMode: "FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。保存 Key 后可查看当前能力状态。", themeCurrent: "当前主题", languageCurrent: "当前语言", followHost: "跟随宿主（默认）", themeLight: "浅色", themeDark: "深色", overviewRoleTitle: "插件如何工作", overviewIntro: "非凸 K 线助手是 dsh 的行情分析插件。dsh 负责理解你的需求，插件负责取数、计算和展示；分析结果会回到对话中。", overviewStepOne: "在 dsh 对话中提出需求，例如“查看某标的 K 线并分析关键点位”。", overviewStepTwo: "插件加载数据，完成 K 线、技术指标和支撑位/压力位分析。", overviewStepThree: "图表在右侧展示，分析结论在对话中返回；你可以继续切换周期和指标。", overviewCapabilitiesTitle: "可以做什么", overviewCapabilityOne: "查看行情与日线、周线、月线等不同周期的 K 线。", overviewCapabilityTwo: "使用 MA、MACD、KDJ、BOLL、RSI、ATR、VWAP 和成交量等指标。", overviewCapabilityThree: "识别并标注支撑位、压力位等关键点位，辅助观察趋势和价格区间。", overviewCapabilityFour: "进行区间统计、标的对比、自选、预警和画线。", overviewCapabilityFive: "默认使用 FTShare，也支持其他数据源提供行情数据。", overviewStartTitle: "开始使用", overviewStart: "在 dsh 对话中直接提出需求，或在顶部搜索栏检索标的；选中后即可查看图表。", feedbackDescription: "遇到问题或有改进建议？欢迎提交反馈。", feedbackOpen: "提交反馈 / Send feedback", feedbackPrivacy: "反馈会打开 GitHub，提交内容由你主动填写。", helpWorkflow: "使用流程", helpStepOne: "在顶部搜索栏输入代码或名称，按回车检索标的。", helpStepTwo: "点击标的后加载行情和分析数据。", helpStepThree: "1D/5D 需要分钟 K；不支持时可切换到 30日，或按套餐配置 FTShare。", helpStepFour: "自选和分组会保存在当前用户的 dsh_kline 中；换设备仍可通过导出与导入迁移。", updateDescription: "查看当前版本、更新记录和发布说明。",
     indicators: "指标", indicatorHeading: "显示指标", apply: "应用",
     maNote: "均线", vwapNote: "成交量加权", volNote: "万股", macdNote: "动能", kdjNote: "随机指标", bollNote: "布林带", rsiNote: "强弱", atrNote: "波动率",
     maPeriods: "MA 周期（逗号分隔）", volumeMa: "VOL 均线周期", bollPeriod: "BOLL 周期", bollStd: "BOLL 标准差", rsiPeriod: "RSI 周期", atrPeriod: "ATR 周期",
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘", intradayRangeFallback: "{range} 历史分钟数据暂未返回，已切换为 1D",
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
-    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "Key 不会回显；保存到本机后，重启会自动读取。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除当前 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
+    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 配置", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "会自动使用当前 DSH 服务已经读取的 FTShare 配置；插件不会扫描 .env、shell 配置或钥匙串。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除插件保存的 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusEnvironment: "已自动连接 · 使用宿主环境配置", ftshareStatusExternalFile: "已自动连接 · 使用指定凭据文件", ftshareStatusSession: "已连接 · 仅当前进程", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareHintEnvironment: "当前 DSH 服务已读取 FTSHARE_API_KEY。Key 不会显示、保存或被插件清除。", ftshareHintExternalFile: "当前 DSH 服务从指定凭据文件读取 Key；请在宿主侧管理它。", ftshareHintPluginStore: "此 Key 由插件安全保存到本机；可在这里清除。", ftshareHintSession: "此 Key 只在当前 DSH 进程有效，重启后失效。", ftshareHintAnonymous: "未检测到可由当前 DSH 服务读取的 FTShare Key；基础免费能力仍可使用。", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", renameGroup: "重命名分组", save: "保存", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "打开所选", batchSelectAll: "全选", batchDelete: "删除所选", batchMoveTo: "移动到…", batchRemoved: "已删除 {count} 只", batchMoved: "已移动 {count} 只", importDone: "已导入 {count} 只", groupSummary: "分组总览", noQuote: "暂无行情",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸 K 线助手",
@@ -1523,14 +1527,14 @@ const UI_COPY = {
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
     keyLevels: "Key levels", keyLevelsLoading: "Analyzing key levels…", keyLevelsNeedData: "Load valid K-line data before analyzing key levels.", keyLevelsFailed: "Notice: key-level analysis is temporarily unavailable. Try again later.", keyLevelPlanTitle: "Key-level reference", keyLevelPlanNote: "For research only, not trading advice", keyPlanSupport: "Support", keyPlanResistance: "Resistance", keyPlanBreakout: "Breakout", keyPlanStop: "Risk reference", keyPlanTarget: "Target reference", keyPlanSupportDetail: "A zone to watch on a pullback", keyPlanResistanceDetail: "An overhead resistance zone", keyPlanBreakoutDetail: "Watch for a confirmed close above", keyPlanStopDetail: "Reassess if support is lost", keyPlanTargetDetail: "The next resistance reference", keyPlanSave: "Save as my level", keyPlanSaved: "Saved as my level", helpExamplesTitle: "Try asking", helpExampleOne: "Show the K-line for Zijin Mining", helpExampleTwo: "Analyze support and resistance for the past month", helpExampleThree: "Compare Zijin Mining with the CSI 300", helpExampleFour: "Show recent news and company information for this symbol",
     welcomeItemLevels: "Click “Key levels” when you want support and resistance analysis.",
-    clear: "Clear", search: "Search", searchSubmit: "Submit search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols", versionUpdates: "Version & updates", currentSource: "Active data source", sourceCapabilities: "Available capabilities", sourceCapabilityDaily: "Daily bars and common indicators", sourceCapabilityOptional: "Minute bars / news / market data / company data: source and plan dependent", externalSourceTitle: "Other sources", externalSourceDetail: "Connect another market-data source and keep using charts and indicators.", externalSourceHint: "Connect it through dsh first; direct switching here is not available yet.", sourceFreeMode: "FTShare access is tiered: free plans include basic stock K-lines; minute bars, news, and other capabilities depend on the specific API and plan.", themeCurrent: "Current theme", languageCurrent: "Current language", overviewRoleTitle: "How the plugin works", overviewIntro: "dsh_kline is a market-analysis plugin for dsh. dsh understands your request; the plugin loads data, performs the analysis, and presents the chart. Results are returned to the conversation.", overviewStepOne: "Ask in the dsh conversation, for example: “Show a symbol’s K-line and analyze its key levels.”", overviewStepTwo: "The plugin loads the data and analyzes K-lines, technical indicators, and support/resistance levels.", overviewStepThree: "The chart opens on the right and the conclusion appears in the conversation; you can continue with other ranges and indicators.", overviewCapabilitiesTitle: "What it can do", overviewCapabilityOne: "View quotes and K-lines across daily, weekly, monthly, and other intervals.", overviewCapabilityTwo: "Use MA, MACD, KDJ, BOLL, RSI, ATR, VWAP, and volume indicators.", overviewCapabilityThree: "Identify and mark support, resistance, and other key price levels to help review trends and ranges.", overviewCapabilityFour: "Explore range statistics, symbol comparisons, watchlists, alerts, and drawings.", overviewCapabilityFive: "FTShare is the default source, while other sources can provide market data too.", overviewStartTitle: "Get started", overviewStart: "Ask for an analysis in dsh, or find a symbol in the top search bar; select it to open the chart.", feedbackDescription: "Found a problem or have an idea? Send us feedback.", feedbackOpen: "Submit feedback / 提交反馈", feedbackPrivacy: "This opens GitHub; you choose what information to submit.", helpWorkflow: "How to use", helpStepOne: "Enter a symbol or name in the top search bar and press Enter to find it.", helpStepTwo: "Click a symbol to load market data and analysis.", helpStepThree: "1D/5D require minute bars; switch to 30-day or check the FTShare plan when they are unavailable.", helpStepFour: "Watchlists and groups are stored in this browser and are not synced automatically across devices.", updateDescription: "View the current version, change history, and release notes.",
+    clear: "Clear", search: "Search", searchSubmit: "Submit search", searchPlaceholder: "Search symbol or name", searchLabel: "Search symbols", versionUpdates: "Version & updates", currentSource: "Active data source", sourceCapabilities: "Available capabilities", sourceCapabilityDaily: "Daily bars and common indicators", sourceCapabilityOptional: "Minute bars / news / market data / company data: source and plan dependent", externalSourceTitle: "Other sources", externalSourceDetail: "Connect another market-data source and keep using charts and indicators.", externalSourceHint: "Connect it through dsh first; direct switching here is not available yet.", sourceFreeMode: "FTShare access is tiered: free plans include basic stock K-lines; minute bars, news, and other capabilities depend on the specific API and plan.", themeCurrent: "Current theme", languageCurrent: "Current language", followHost: "Follow host (default)", themeLight: "Light", themeDark: "Dark", overviewRoleTitle: "How the plugin works", overviewIntro: "dsh_kline is a market-analysis plugin for dsh. dsh understands your request; the plugin loads data, performs the analysis, and presents the chart. Results are returned to the conversation.", overviewStepOne: "Ask in the dsh conversation, for example: “Show a symbol’s K-line and analyze its key levels.”", overviewStepTwo: "The plugin loads the data and analyzes K-lines, technical indicators, and support/resistance levels.", overviewStepThree: "The chart opens on the right and the conclusion appears in the conversation; you can continue with other ranges and indicators.", overviewCapabilitiesTitle: "What it can do", overviewCapabilityOne: "View quotes and K-lines across daily, weekly, monthly, and other intervals.", overviewCapabilityTwo: "Use MA, MACD, KDJ, BOLL, RSI, ATR, VWAP, and volume indicators.", overviewCapabilityThree: "Identify and mark support, resistance, and other key price levels to help review trends and ranges.", overviewCapabilityFour: "Explore range statistics, symbol comparisons, watchlists, alerts, and drawings.", overviewCapabilityFive: "FTShare is the default source, while other sources can provide market data too.", overviewStartTitle: "Get started", overviewStart: "Ask for an analysis in dsh, or find a symbol in the top search bar; select it to open the chart.", feedbackDescription: "Found a problem or have an idea? Send us feedback.", feedbackOpen: "Submit feedback / 提交反馈", feedbackPrivacy: "This opens GitHub; you choose what information to submit.", helpWorkflow: "How to use", helpStepOne: "Enter a symbol or name in the top search bar and press Enter to find it.", helpStepTwo: "Click a symbol to load market data and analysis.", helpStepThree: "1D/5D require minute bars; switch to 30-day or check the FTShare plan when they are unavailable.", helpStepFour: "Watchlists and groups are stored in this browser and are not synced automatically across devices.", updateDescription: "View the current version, change history, and release notes.",
     indicators: "Indicators", indicatorHeading: "Indicators", apply: "Apply",
     maNote: "moving avg", vwapNote: "volume weighted", volNote: "volume", macdNote: "momentum", kdjNote: "stochastic", bollNote: "bands", rsiNote: "strength", atrNote: "volatility",
     maPeriods: "MA periods (comma-separated)", volumeMa: "VOL MA period", bollPeriod: "BOLL period", bollStd: "BOLL std. dev.", rsiPeriod: "RSI period", atrPeriod: "ATR period",
     volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close", intradayRangeFallback: "{range} minute history is unavailable; switched to 1D",
     switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", sourceEastmoneyFree: "Eastmoney free quotes", sourceTencentFree: "Tencent free quotes", openIndexChart: "Open {name} chart", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
-    newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The key is never shown back; when saved locally, it is reused after restart.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The current FTShare configuration was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
+    newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare setup", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "The current DSH service automatically uses an FTShare configuration it already has. The plugin does not scan .env files, shell configuration, or keychains.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The FTShare configuration saved by this plugin was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusEnvironment: "Connected automatically · Host environment", ftshareStatusExternalFile: "Connected automatically · Specified credential file", ftshareStatusSession: "Connected · Current process only", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareHintEnvironment: "The current DSH service already has FTSHARE_API_KEY. It is never shown, saved, or cleared by the plugin.", ftshareHintExternalFile: "The current DSH service reads the key from a specified credential file; manage it in the host.", ftshareHintPluginStore: "This key was securely saved locally by the plugin and can be cleared here.", ftshareHintSession: "This key works only for the current DSH process and is lost after restart.", ftshareHintAnonymous: "No FTShare key readable by the current DSH service was detected; basic free capability remains available.", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", renameGroup: "Rename group", save: "Save", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
     rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The connected FTShare endpoint does not support minute bars for this symbol; this does not mean the key is invalid. Choose 30-day or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", batchSelectAll: "Select all", batchDelete: "Delete selected", batchMoveTo: "Move to…", batchRemoved: "Removed {count}", batchMoved: "Moved {count}", importDone: "Imported {count}", groupSummary: "Group overview", noQuote: "No quote",
     day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "FtAI K-Line",
@@ -1659,15 +1663,15 @@ function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || la
 function saveWorkspacePreferences() {
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-      version: 11,
+      version: 12,
       symbol: currentSymbol || null,
       name: currentName || null,
       interval: currentInterval,
       rangeKey: currentRangeKey,
       customRangeStart,
       customRangeEnd,
-      language: viewLanguage,
-      theme: userThemeOverride,
+      language: languagePreference,
+      theme: userThemeOverride || "host",
       colorMode,
       volumeUnit,
       canvasHeight: canvasBaseHeightOverride,
@@ -1687,7 +1691,7 @@ function saveWorkspacePreferences() {
 function loadWorkspacePreferences() {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem(WORKSPACE_STORAGE_KEY) || "null");
-    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(parsed.version)) return;
+    if (!parsed || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(parsed.version)) return;
     if (["day", "week", "month", "quarter", "year"].includes(parsed.interval)) currentInterval = parsed.interval;
     if (parsed.rangeKey === "10d") currentRangeKey = "30d";
     else if (RANGE_PRESETS[parsed.rangeKey]) currentRangeKey = parsed.rangeKey;
@@ -1697,10 +1701,12 @@ function loadWorkspacePreferences() {
     if (Number(parsed.version) < 10) currentRangeKey = "ytd";
     customRangeStart = typeof parsed.customRangeStart === "string" ? parsed.customRangeStart : "";
     customRangeEnd = typeof parsed.customRangeEnd === "string" ? parsed.customRangeEnd : "";
-    if (["zh", "en"].includes(parsed.language)) viewLanguage = parsed.language;
-    if (["light", "dark"].includes(parsed.theme)) {
-      userThemeOverride = parsed.theme;
-      document.documentElement.dataset.theme = parsed.theme;
+    // v0.3.2 begins following DSH by default.  Older saved preferences did
+    // not distinguish an explicit choice from their one-time browser default,
+    // so migrate them to host-following instead of silently pinning either.
+    if (Number(parsed.version) >= 12) {
+      if (["host", "zh", "en"].includes(parsed.language)) languagePreference = parsed.language;
+      if (["light", "dark"].includes(parsed.theme)) userThemeOverride = parsed.theme;
     }
     if (["a-share", "international"].includes(parsed.colorMode)) {
       colorMode = parsed.colorMode;
@@ -1807,35 +1813,69 @@ let rangePickEnd = null;
 let rangePickOverlayId = null;
 
 /* ---------- theme ---------- */
-function currentTheme() {
-  return document.documentElement.dataset.theme || (
-    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-  );
+function hostDocumentElement() {
+  return globalThis.document?.documentElement || null;
 }
-function applyTheme(theme) {
-  if (theme && !userThemeOverride) document.documentElement.dataset.theme = theme;
+function hostLanguage() {
+  const host = hostDocumentElement();
+  const values = [
+    host?.lang,
+    host?.getAttribute?.("data-locale"),
+    host?.getAttribute?.("data-language"),
+    globalThis.navigator?.language,
+  ];
+  return values.some((value) => /^zh(?:-|$)/i.test(String(value || ""))) ? "zh" : "en";
+}
+function hostTheme() {
+  const host = hostDocumentElement();
+  const appearance = [
+    host?.dataset?.theme,
+    host?.dataset?.colorScheme,
+    host?.getAttribute?.("data-color-scheme"),
+    host?.className,
+  ].join(" ").toLowerCase();
+  if (/dark/.test(appearance)) return "dark";
+  if (/light/.test(appearance)) return "light";
+  const colorScheme = globalThis.getComputedStyle?.(host || globalThis.document?.body)?.colorScheme || "";
+  if (/dark/.test(colorScheme)) return "dark";
+  return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function currentTheme() {
+  return userThemeOverride || hostTheme();
+}
+function applyTheme() {
+  document.documentElement.dataset.theme = currentTheme();
   refreshChartTheme();
   syncThemeToggle();
 }
 async function setTheme(theme) {
-  userThemeOverride = theme === "dark" ? "dark" : "light";
-  document.documentElement.dataset.theme = userThemeOverride;
-  refreshChartTheme();
-  syncThemeToggle();
+  userThemeOverride = theme === "host" ? null : (theme === "dark" ? "dark" : "light");
+  applyTheme();
   if (lastChartPayload) await applyChartCommands(lastChartPayload);
   saveWorkspacePreferences();
 }
-async function toggleTheme() {
-  await setTheme(currentTheme() === "dark" ? "light" : "dark");
-}
 function syncThemeToggle() {
-  const button = document.getElementById("themeToggle");
-  if (!button) return;
-  const dark = currentTheme() === "dark";
-  const label = dark ? t("switchToLight") : t("switchToDark");
-  button.textContent = label;
-  button.title = label;
-  button.setAttribute("aria-label", label);
+  const control = document.getElementById("themeToggle");
+  if (!control) return;
+  control.value = userThemeOverride || "host";
+  control.setAttribute("aria-label", viewLanguage === "zh" ? "主题 / Theme" : "Theme / 主题");
+}
+function syncHostPreferences() {
+  if (!userThemeOverride) {
+    const previous = document.documentElement.dataset.theme;
+    applyTheme();
+    if (previous && previous !== currentTheme() && lastChartPayload) applyChartCommands(lastChartPayload).catch(console.warn);
+  }
+  if (languagePreference === "host" && hostLanguage() !== viewLanguage) setLanguage("host", { persist: false }).catch(console.warn);
+}
+function observeHostPreferences() {
+  const host = hostDocumentElement();
+  if (!host || !globalThis.MutationObserver) return;
+  hostPreferenceObserver?.disconnect();
+  hostPreferenceObserver = new globalThis.MutationObserver(syncHostPreferences);
+  hostPreferenceObserver.observe(host, { attributes: true, attributeFilter: ["class", "lang", "data-theme", "data-color-scheme", "data-locale", "data-language"] });
+  hostThemeMediaQuery = globalThis.matchMedia?.("(prefers-color-scheme: dark)") || null;
+  hostThemeMediaQuery?.addEventListener?.("change", syncHostPreferences);
 }
 function syncColorModeControl() {
   const control = document.getElementById("colorModeToggle");
@@ -1872,7 +1912,7 @@ function syncLanguageControls() {
   if (ftshareInput) { ftshareInput.placeholder = t("ftshareApiKeyPlaceholder"); ftshareInput.setAttribute("aria-label", t("ftshareApiKeyLabel")); }
   const languageSelect = document.getElementById("languageToggle");
   if (languageSelect) {
-    languageSelect.value = viewLanguage;
+    languageSelect.value = languagePreference;
     languageSelect.setAttribute("aria-label", viewLanguage === "zh" ? "语言 / Language" : "Language / 语言");
   }
   const settingsButton = document.getElementById("settingsBtn");
@@ -1947,9 +1987,17 @@ function syncLanguageControls() {
   renderUserDrawings();
   renderSecurityWorkspace();
 }
-async function setLanguage(nextLanguage) {
-  if (!["zh", "en"].includes(nextLanguage) || nextLanguage === viewLanguage) return;
-  viewLanguage = nextLanguage;
+async function setLanguage(nextLanguage, { persist = true } = {}) {
+  const preference = ["zh", "en"].includes(nextLanguage) ? nextLanguage : "host";
+  const resolvedLanguage = preference === "host" ? hostLanguage() : preference;
+  const changed = resolvedLanguage !== viewLanguage;
+  languagePreference = preference;
+  if (!changed) {
+    syncLanguageControls();
+    if (persist) saveWorkspacePreferences();
+    return;
+  }
+  viewLanguage = resolvedLanguage;
   // Chinese market convention is Wan; English labels follow the K convention.
   volumeUnit = viewLanguage === "zh" ? "wan" : "k";
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
@@ -1957,7 +2005,7 @@ async function setLanguage(nextLanguage) {
   if (lastChartPayload) await applyChartCommands(lastChartPayload);
   if (currentCandles.length) renderHeader(currentName, currentSymbol, currentCandles);
   renderWorkspaceTabs();
-  saveWorkspacePreferences();
+  if (persist) saveWorkspacePreferences();
 }
 function isChinaMarketSymbol(symbol = currentSymbol) {
   const value = String(symbol || "").trim().toUpperCase();
@@ -7212,12 +7260,34 @@ function renderDataSourceStatus(data) {
   const provider = data?.providers?.ftshare || {};
   const status = document.getElementById("ftshareAdapterStatus");
   if (!status) return;
-  const label = provider.available
-    ? (provider.configured
-      ? (provider.persistent ? t("ftshareStatusConfiguredSaved") : t("ftshareStatusConfigured"))
-      : t("ftshareStatusAnonymous"))
-    : t("ftshareStatusMissing");
+  const credentialSource = provider.credential_source || (provider.configured ? (provider.persistent ? "plugin_store" : "session") : "none");
+  const labelBySource = {
+    environment: "ftshareStatusEnvironment",
+    external_file: "ftshareStatusExternalFile",
+    plugin_store: "ftshareStatusConfiguredSaved",
+    session: "ftshareStatusSession",
+    none: "ftshareStatusAnonymous",
+  };
+  const hintBySource = {
+    environment: "ftshareHintEnvironment",
+    external_file: "ftshareHintExternalFile",
+    plugin_store: "ftshareHintPluginStore",
+    session: "ftshareHintSession",
+    none: "ftshareHintAnonymous",
+  };
+  const label = provider.available ? t(labelBySource[credentialSource] || labelBySource.none) : t("ftshareStatusMissing");
   status.innerHTML = `${marketDataSourceMarkup("ftshare")} · ${escapeHtml(label)}`;
+  const hint = document.getElementById("ftshareAdapterHint");
+  if (hint) hint.textContent = t(hintBySource[credentialSource] || hintBySource.none);
+  const clearButton = document.getElementById("ftshareClearBtn");
+  if (clearButton) {
+    // Older DSH Web hosts may omit the new field while still reporting the
+    // legacy persisted flag.  Keep that plugin-owned legacy path usable;
+    // new hosts always send the explicit, safer can_clear decision.
+    const canClear = provider.can_clear === true || (provider.can_clear === undefined && credentialSource === "plugin_store");
+    clearButton.disabled = !canClear;
+    clearButton.title = canClear ? t("clearConfig") : t(hintBySource[credentialSource] || hintBySource.none);
+  }
   const capabilities = provider.capabilities || {};
   const setCapabilityState = (id, value) => {
     const element = document.getElementById(id);
@@ -7287,7 +7357,7 @@ async function configureFtshareFromSettings() {
     }
     if (input) input.value = "";
     setFtshareConfigStatus(data.message || (data.persistent ? t("ftshareConfiguredSaved") : t("ftshareConfigured")), "success");
-    renderDataSourceStatus({ providers: { ftshare: { available: true, configured: true, persistent: Boolean(data.persistent), capabilities: data.capabilities || {} } } });
+    renderDataSourceStatus({ providers: { ftshare: { available: true, configured: true, persistent: Boolean(data.persistent), credential_source: data.credential_source, can_clear: Boolean(data.can_clear), capabilities: data.capabilities || {} } } });
     chartDataSource = "ftshare";
     chartDataSourceUrl = FTSHARE_SDK_URL;
     renderSettingsSource();
@@ -8399,8 +8469,8 @@ document.getElementById("confirmClearBtn").addEventListener("click", () => {
 document.getElementById("volumeUnitBtn").addEventListener("click", () => {
   toggleVolumeUnit().catch(console.warn);
 });
-document.getElementById("themeToggle").addEventListener("click", () => {
-  toggleTheme().catch(console.warn);
+document.getElementById("themeToggle").addEventListener("change", (event) => {
+  setTheme(event.currentTarget.value).catch(console.warn);
 });
 document.getElementById("colorModeToggle")?.addEventListener("change", (event) => {
   setColorMode(event.currentTarget.value);
@@ -8824,6 +8894,8 @@ document.getElementById("rangeClearBtn").addEventListener("click", () => {
 /* ---------- standalone lifecycle ---------- */
 window.addEventListener("beforeunload", () => {
   saveWorkspacePreferences();
+  hostPreferenceObserver?.disconnect();
+  hostThemeMediaQuery?.removeEventListener?.("change", syncHostPreferences);
   viewResizeObserver?.disconnect();
   if (marketTickerRefreshTimer) window.clearInterval(marketTickerRefreshTimer);
   if (chartDataRetryTimer) window.clearTimeout(chartDataRetryTimer);
@@ -8837,6 +8909,9 @@ async function init() {
   loadWatchlist();
   loadSymbolDirectory();
   loadWorkspacePreferences();
+  viewLanguage = languagePreference === "host" ? hostLanguage() : languagePreference;
+  applyTheme();
+  observeHostPreferences();
   // Each chart URL starts from the indicators requested by analyze_kline.
   if (!window.__DSH_KLINE_RESTORED__) resetIndicatorVisibility();
   initChart();

@@ -72,7 +72,9 @@ FTShare is the default optional source. After you configure an API key, the plug
 
 Current-session intraday charts for regular A-share stocks prefer FTShare's realtime one-minute feed. Indices, ETFs, and multi-session minute history keep their applicable history endpoints so coverage and chart timeframes remain consistent.
 
-Open **Settings → Data source**, paste your FTShare API key, and test the connection. The key is not shown in charts, conversation content, or exported state. You may use it for the current session only or save it locally for future launches.
+The plugin first uses an `FTSHARE_API_KEY` already readable by the current DSH service or an explicitly configured credential file. Settings explains the source without scanning `.env` files, shell configuration, or keychains, and never shows a key or path. To override it, open **Settings → Data source**, paste an FTShare API key, and test the connection. You may use it for the current session only or save it locally for future launches.
+
+Theme and language follow the DSH host by default. **Settings → Theme/Language** also offers manual choices and a way back to **Follow host (default)**.
 
 Without a key, some public quote and chart capabilities remain available. When data is delayed, the market is closed, permission is missing, or an upstream source is unavailable, the UI explains the applicable reason and source.
 

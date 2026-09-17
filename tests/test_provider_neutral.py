@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import stat
 import tempfile
 import unittest
@@ -213,6 +214,37 @@ class ProviderNeutralTests(unittest.TestCase):
             status = ftshare_status()
         for field in ("python", "injected_path", "module_file", "import_error"):
             self.assertNotIn(field, status)
+
+    def test_ftshare_status_identifies_host_environment_without_exposing_key(self):
+        with patch.dict("os.environ", {"FTSHARE_API_KEY": "host-key"}, clear=True), patch(
+            "tools.fetch._FTSHARE_RUNTIME_CREDENTIAL_SOURCE", None
+        ), patch("tools.fetch.ftshare_available", return_value=True):
+            status = ftshare_status()
+            blocked = configure_ftshare_api_key("", test_connection=False)
+
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["credential_source"], "environment")
+        self.assertFalse(status["can_clear"])
+        self.assertNotIn("host-key", str(status))
+        self.assertFalse(blocked["ok"])
+        self.assertEqual(blocked["error"], "external_credential_managed")
+
+    def test_ftshare_status_identifies_explicit_credential_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credential_file = Path(directory) / "credentials.json"
+            credential_file.write_text(json.dumps({"version": 1, "api_key": "file-key"}), encoding="utf-8")
+            if os.name == "posix":
+                os.chmod(credential_file, 0o600)
+            with patch.dict("os.environ", {"FTSHARE_API_KEY_FILE": str(credential_file)}, clear=True), patch(
+                "tools.fetch._FTSHARE_RUNTIME_CREDENTIAL_SOURCE", None
+            ), patch("tools.fetch.ftshare_available", return_value=True):
+                status = ftshare_status()
+
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["credential_source"], "external_file")
+        self.assertFalse(status["can_clear"])
+        self.assertNotIn("file-key", str(status))
+        self.assertNotIn(str(credential_file), str(status))
 
     def test_temporary_ftshare_key_keeps_the_saved_credential(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
