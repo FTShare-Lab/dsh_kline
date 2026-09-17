@@ -11,7 +11,13 @@ import argparse
 import json
 import math
 import re
+import sys
+from pathlib import Path
 from typing import Annotated, Any, Literal
+
+# Embedded Windows Python's ._pth excludes the script directory. Resolve
+# sibling modules from this package, independently of cwd and PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mcp import types
 from mcp.server.fastmcp import FastMCP
