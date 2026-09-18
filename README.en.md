@@ -101,6 +101,20 @@ Most workflows only need `analyze_kline`. The plugin also exposes `fetch_candles
 
 FTShare is a default adapter, not a prerequisite for analysis. Callers can pass normalized OHLCV rows to `analyze_kline_rows` and keep using indicators, key levels, charts, and the workspace. See the [provider adaptation guide](docs/provider-adaptation.md).
 
+### Host-provided Python runtime
+
+Ordinary installs default to `DSH_KLINE_RUNTIME_MODE=auto`, preserving existing Python/venv selection and dependency preparation. Desktop applications, containers, and other hosts can set these variables before starting DSH:
+
+| Environment variable | Meaning |
+| --- | --- |
+| `DSH_KLINE_PACKAGE_ROOT` | Optional absolute plugin package directory; defaults to the existing profile-relative installation location. |
+| `DSH_KLINE_PYTHON` | Path to the Python interpreter provided by the host. |
+| `DSH_KLINE_RUNTIME_MODE` | `auto` (default) or `external`. |
+
+`external` requires Python 3.10+ with the required dependencies already available. It only validates and launches the service: no venv creation, dependency installation, or interpreter fallback. The host must repair failures. This mode rejects `DSH_KLINE_VENV`, `--prepare-project`, and `--bootstrap-runtime`. `DSH_KLINE_DEFER_BOOTSTRAP` does not trigger background installation in this mode.
+
+The host owns the interpreter, dependency search paths, and isolation settings (such as `PYTHONPATH`, `PYTHONNOUSERSITE`, or Windows embedded Python's `._pth`); the plugin does not infer the host's directory layout. Set `DSH_KLINE_CHART_PORT=0` for a dynamic port. The MCP patch explicitly forwards the runtime variables without changes to DSH core. When running the Node launcher directly, its own location determines the package root.
+
 ## Updates and license
 
 See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for version history. This project is released under the [MIT License](LICENSE); frontend provenance is in [PROVENANCE.md](PROVENANCE.md).
