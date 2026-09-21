@@ -426,13 +426,15 @@ async def data_source_status() -> types.CallToolResult:
     providers: dict[str, Any] = {
         "ftshare": {
             "available": bool(ftshare.get("available")),
-                "configured": bool(ftshare.get("configured")),
-                "persistent": bool(ftshare.get("persistent")),
-                "capabilities": ftshare_capabilities(),
-                "index_kline": ftshare_index_kline_available(),
-                "sdk_version": ftshare.get("sdk_version"),
-                "contracts": ftshare.get("contracts", {}),
-                "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
+            "configured": bool(ftshare.get("configured")),
+            "persistent": bool(ftshare.get("persistent")),
+            "credential_source": ftshare.get("credential_source", "none"),
+            "can_clear": bool(ftshare.get("can_clear")),
+            "capabilities": ftshare_capabilities(),
+            "index_kline": ftshare_index_kline_available(),
+            "sdk_version": ftshare.get("sdk_version"),
+            "contracts": ftshare.get("contracts", {}),
+            "optional_capabilities": ["minute_candles", "news", "market_data", "company_data"],
         }
     }
     if builtin_free_source_status is not None:

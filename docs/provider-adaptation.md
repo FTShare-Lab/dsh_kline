@@ -18,7 +18,7 @@ The official gateway documentation is the source of truth; the SDK is an impleme
 | Index daily candles | [index-candlesticks](https://market.ft.tech/gateway/doc/p/gr2q0bjx) | Free | `sdk` |
 | Index historical minute candles | [index-minutes](https://market.ft.tech/gateway/doc/p/ls85mq5n) | Base | `sdk` |
 
-The pinned SDK is 1.0.3 and defaults to `https://market.ft.tech/gateway/`. The official [four-tier capability table](https://market.ft.tech/gateway/doc/p/pb8eizu3) is used for entitlement labels. Free endpoints are live-checked without paid credentials; paid endpoints are checked against official method names, paths, parameters, and symbol formats, but remain marked unverified until a permitted live request succeeds.
+The pinned SDK is 1.0.7 and defaults to `https://market.ft.tech/gateway/`. The official [four-tier capability table](https://market.ft.tech/gateway/doc/p/pb8eizu3) is used for entitlement labels. Free endpoints are live-checked without paid credentials; paid endpoints are checked against official method names, paths, parameters, and symbol formats, but remain marked unverified until a permitted live request succeeds.
 
 The registry in `tools/fetch.py` is intentionally small. Do not add a URL because an upstream response suggests it. Add a candidate only after checking its official documentation and testing its method, path, parameters, symbol format, authentication behavior, and response fields.
 

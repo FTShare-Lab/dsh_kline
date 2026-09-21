@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import stat
 import tempfile
 import unittest
@@ -214,6 +215,37 @@ class ProviderNeutralTests(unittest.TestCase):
         for field in ("python", "injected_path", "module_file", "import_error"):
             self.assertNotIn(field, status)
 
+    def test_ftshare_status_identifies_host_environment_without_exposing_key(self):
+        with patch.dict("os.environ", {"FTSHARE_API_KEY": "host-key"}, clear=True), patch(
+            "tools.fetch._FTSHARE_RUNTIME_CREDENTIAL_SOURCE", None
+        ), patch("tools.fetch.ftshare_available", return_value=True):
+            status = ftshare_status()
+            blocked = configure_ftshare_api_key("", test_connection=False)
+
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["credential_source"], "environment")
+        self.assertFalse(status["can_clear"])
+        self.assertNotIn("host-key", str(status))
+        self.assertFalse(blocked["ok"])
+        self.assertEqual(blocked["error"], "external_credential_managed")
+
+    def test_ftshare_status_identifies_explicit_credential_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credential_file = Path(directory) / "credentials.json"
+            credential_file.write_text(json.dumps({"version": 1, "api_key": "file-key"}), encoding="utf-8")
+            if os.name == "posix":
+                os.chmod(credential_file, 0o600)
+            with patch.dict("os.environ", {"FTSHARE_API_KEY_FILE": str(credential_file)}, clear=True), patch(
+                "tools.fetch._FTSHARE_RUNTIME_CREDENTIAL_SOURCE", None
+            ), patch("tools.fetch.ftshare_available", return_value=True):
+                status = ftshare_status()
+
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["credential_source"], "external_file")
+        self.assertFalse(status["can_clear"])
+        self.assertNotIn("file-key", str(status))
+        self.assertNotIn(str(credential_file), str(status))
+
     def test_temporary_ftshare_key_keeps_the_saved_credential(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             "os.environ", {"FTSHARE_API_KEY_FILE": str(Path(directory) / "credentials.json")}, clear=True
@@ -321,8 +353,8 @@ class ProviderNeutralTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(calls, [("http_get", "api/v1/market/data/stock-candlesticks"), ("sdk", "Day")])
 
-    def test_ftshare_103_contract_metadata_matches_official_tiers(self):
-        self.assertEqual({spec["verified_sdk_version"] for spec in FT_CONTRACTS.values()}, {"1.0.3"})
+    def test_ftshare_107_contract_metadata_matches_official_tiers(self):
+        self.assertEqual({spec["verified_sdk_version"] for spec in FT_CONTRACTS.values()}, {"1.0.7"})
         self.assertEqual(FT_CONTRACTS["daily_candles"]["tier"], "free")
         self.assertEqual(FT_CONTRACTS["index_daily_candles"]["tier"], "free")
         self.assertEqual(FT_CONTRACTS["history_minute_candles"]["tier"], "base+")
@@ -333,14 +365,14 @@ class ProviderNeutralTests(unittest.TestCase):
             "https://market.ft.tech/gateway/doc/p/ls85mq5n",
         )
 
-    def test_installed_ftshare_103_sdk_surface_matches_registered_contracts(self):
+    def test_installed_ftshare_107_sdk_surface_matches_registered_contracts(self):
         from importlib.metadata import version
 
         import ftshare
         from ftshare.config import DEFAULT_BASE_URL
         from ftshare.endpoints import ENDPOINTS
 
-        self.assertEqual(version("ftshare"), "1.0.3")
+        self.assertEqual(version("ftshare"), "1.0.7")
         self.assertEqual(DEFAULT_BASE_URL, "https://market.ft.tech/gateway/")
         expected_paths = {
             "stock_candlesticks": "api/v1/market/data/stock-candlesticks",
