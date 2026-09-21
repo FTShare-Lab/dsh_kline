@@ -101,6 +101,20 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把自己的标准 OHLCV 数据交给 `analyze_kline_rows`，继续使用指标、关键点位、图表和工作台。接入说明见 [数据源适配指南](docs/provider-adaptation.md)。
 
+### 由宿主提供 Python 运行环境
+
+普通安装默认使用 `DSH_KLINE_RUNTIME_MODE=auto`，沿用现有的 Python/venv 选择和依赖准备流程。桌面应用、容器等宿主可在启动 DSH 前设置：
+
+| 环境变量 | 含义 |
+| --- | --- |
+| `DSH_KLINE_PACKAGE_ROOT` | 可选的插件包根目录绝对路径；未设置时按原 profile 安装位置定位。 |
+| `DSH_KLINE_PYTHON` | 宿主提供的 Python 解释器路径。 |
+| `DSH_KLINE_RUNTIME_MODE` | `auto`（默认）或 `external`。 |
+
+`external` 模式要求 Python 3.10+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
+
+宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），插件不推导宿主目录布局。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心；直接运行 Node 启动器时，插件根目录由启动器自身位置决定。
+
 ## 更新与许可
 
 更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。本项目采用 [MIT License](LICENSE)，前端来源说明见 [PROVENANCE.md](PROVENANCE.md)。

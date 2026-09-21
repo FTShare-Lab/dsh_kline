@@ -349,6 +349,25 @@ export async function main(argv = process.argv.slice(2)) {
   const runtimeDirectory = defaultRuntimeDirectory()
   const configuredVenv = String(process.env.DSH_KLINE_VENV || '').trim()
   const configuredPython = String(process.env.DSH_KLINE_PYTHON || '').trim()
+  const runtimeMode = String(process.env.DSH_KLINE_RUNTIME_MODE || '').trim() || 'auto'
+  if (!['auto', 'external'].includes(runtimeMode)) {
+    throw new Error('DSH_KLINE_RUNTIME_MODE must be auto or external')
+  }
+  if (runtimeMode === 'external') {
+    if (configuredVenv || prepareProject || bootstrapRuntime) {
+      throw new Error('External runtime cannot be combined with DSH_KLINE_VENV, --prepare-project or --bootstrap-runtime')
+    }
+    if (!configuredPython) {
+      throw new Error('External runtime requires DSH_KLINE_PYTHON')
+    }
+    if (!commandPasses(configuredPython, [], VERSION_CHECK)) {
+      throw new Error('External DSH_KLINE_PYTHON must be a working Python 3.10 or newer; automatic installation is disabled')
+    }
+    if (!commandPasses(configuredPython, [], IMPORT_CHECK)) {
+      throw new Error('External DSH_KLINE_PYTHON is missing required dependencies; the host must provision them, automatic installation is disabled')
+    }
+    return await launchServer(configuredPython, runtimeDirectory)
+  }
   const projectVenv = join(PROJECT_ROOT, '.venv')
   const projectPython = pythonPathForVenv(projectVenv)
   const hasProjectRuntime = await pathExists(projectPython)

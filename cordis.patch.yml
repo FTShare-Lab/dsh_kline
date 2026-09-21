@@ -2,7 +2,8 @@
     # This row lives in the bundle patch so `dsh plugin add github:…` gets
     # both the sidebar and its MCP service. `ctx.baseUrl` is the profile's
     # cordis.yml URL, making the installed package root independent of the
-    # caller's workspace directory.
+    # caller's workspace directory. Hosts with a different layout may provide
+    # DSH_KLINE_PACKAGE_ROOT as an absolute package directory.
     - id: mcp-dsh-kline
       name: '@deepseek-ai/dsh-mcp-client'
       config:
@@ -11,7 +12,7 @@
         command: !!js process.execPath
         args:
           - scripts/run-dsh-kline.mjs
-        cwd: !!js (process.platform === 'win32' && /^\/[A-Za-z]:\//.test(decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)) && decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname).slice(1)) || decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)
+        cwd: !!js String(process.env.DSH_KLINE_PACKAGE_ROOT || '').trim() || ((process.platform === 'win32' && /^\/[A-Za-z]:\//.test(decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname)) && decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname).slice(1)) || decodeURIComponent(new URL('./node_modules/@ftshare-lab/dsh-kline/', ctx.baseUrl).pathname))
         env:
           DSH_KLINE_HOST_PID: !!js String(process.pid)
           DSH_KLINE_DEFER_BOOTSTRAP: '1'
@@ -19,6 +20,7 @@
           DSH_KLINE_VENV: !!js process.env.DSH_KLINE_VENV || ''
           DSH_KLINE_CACHE_DIR: !!js process.env.DSH_KLINE_CACHE_DIR || ''
           DSH_KLINE_RUNTIME_DIR: !!js process.env.DSH_KLINE_RUNTIME_DIR || ''
+          DSH_KLINE_RUNTIME_MODE: !!js process.env.DSH_KLINE_RUNTIME_MODE || 'auto'
           DSH_KLINE_CHART_HOST: !!js process.env.DSH_KLINE_CHART_HOST || '127.0.0.1'
           DSH_KLINE_CHART_PORT: !!js process.env.DSH_KLINE_CHART_PORT || '8765'
           FTSHARE_SDK_SRC: !!js process.env.FTSHARE_SDK_SRC || ''
