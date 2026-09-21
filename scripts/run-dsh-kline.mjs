@@ -310,6 +310,12 @@ async function startBackgroundBootstrap(venvDirectory) {
     child.once('error', () => { void clearBootstrapMarker(venvDirectory, child?.pid || process.pid) })
     child.once('exit', () => { void clearBootstrapMarker(venvDirectory, child?.pid || process.pid) })
     await writeBootstrapMarker(marker, { pid: child.pid, started_at: startedAt })
+    // The child can finish before the marker write reaches disk (especially
+    // in the tiny fake runtimes used by tests). Re-check its state so a late
+    // write cannot resurrect a stale running marker.
+    if (child.exitCode !== null || child.signalCode !== null) {
+      await clearBootstrapMarker(venvDirectory, child.pid || process.pid)
+    }
     child.unref()
     return true
   } catch (error) {
@@ -320,7 +326,7 @@ async function startBackgroundBootstrap(venvDirectory) {
 }
 
 async function launchServer(runtimePython, runtimeDirectory) {
-  await mkdir(runtimeDirectory, { recursive: true })
+  if (process.env.DSH_KLINE_ADAPTER !== 'codex') await mkdir(runtimeDirectory, { recursive: true })
   const child = spawn(runtimePython, [join(PROJECT_ROOT, 'server.py')], {
     cwd: PROJECT_ROOT,
     env: pythonEnvironment({ ...process.env, DSH_KLINE_RUNTIME_DIR: runtimeDirectory }),
@@ -420,6 +426,8 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // An explicit host entry wins over unrelated inherited environment variables.
+  process.env.DSH_KLINE_ADAPTER = 'dsh'
   main().then(code => { process.exitCode = code }).catch(error => {
     process.stderr.write(`[dsh_kline] ${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1

@@ -1,5 +1,8 @@
 # 非凸 K 线助手 / dsh_kline
 
+Local dual-host build: one market/analysis/chart runtime for DeepSeek Harness and
+Codex MCP Apps. See the [dual-host guide](docs/codex-adapter.md).
+
 [简体中文](README.md) | English
 
 Explore markets, read charts, and find key price levels inside DeepSeek Harness. Ask AI for an analysis, or open a hands-on workspace to search symbols, change timeframes, and study a chart yourself.

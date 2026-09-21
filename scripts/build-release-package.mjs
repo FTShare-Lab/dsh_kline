@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { copyFile, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, lstat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +25,33 @@ function safeSource(entry) {
   return source
 }
 
+const SKIP_DIRECTORY_NAMES = new Set(['.git', '.venv', 'node_modules', '__pycache__', '.pytest_cache', 'tests', 'runtime', 'cache', 'credentials'])
+const ALLOWED_DOT_PATHS = new Set(['plugins/dsh-kline/.codex-plugin', 'plugins/dsh-kline/.mcp.json'])
+const SAFE_FILE_PATTERN = /\.(?:json|yml|yaml|md|txt|js|map|d\.ts|py|sh|html|jpg|jpeg|png)$/i
+
+async function collectFiles(entry) {
+  const source = safeSource(entry)
+  const details = await lstat(source)
+  if (details.isSymbolicLink()) throw new Error(`symbolic links are not distributable: ${entry}`)
+  if (details.isFile()) return [entry]
+  if (!details.isDirectory()) return []
+  const output = []
+  async function visit(directory, relativeDirectory) {
+    for (const name of await readdir(directory, { withFileTypes: true })) {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${name.name}` : name.name
+      if ((name.name.startsWith('.') && !ALLOWED_DOT_PATHS.has(relativePath)) || SKIP_DIRECTORY_NAMES.has(name.name)) continue
+      const absolutePath = join(directory, name.name)
+      if (name.isDirectory()) {
+        await visit(absolutePath, relativePath)
+      } else if (name.isFile() && SAFE_FILE_PATTERN.test(name.name)) {
+        output.push(relativePath)
+      }
+    }
+  }
+  await visit(source, entry)
+  return output
+}
+
 try {
   await mkdir(packageDir, { recursive: true })
   const includes = ['package.json', ...manifest.files.filter(entry => typeof entry === 'string' && !entry.startsWith('!'))]
@@ -35,18 +62,12 @@ try {
     relativePath.split('/').includes('__pycache__') || /\.py[cod]$/.test(relativePath)
       || excludes.some(pattern => pattern === relativePath)
   )
-  const tracked = execFileSync(
-    'git',
-    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...includes],
-    { cwd: root },
-  )
-    .toString('utf8')
-    .split('\0')
-    .filter(Boolean)
+  const tracked = (await Promise.all(includes.map(collectFiles)))
+    .flat()
     .filter(entry => !isExcluded(entry))
   for (const entry of includes) {
     if (!tracked.some(path => path === entry || path.startsWith(`${entry}/`))) {
-      throw new Error(`package files entry contains no tracked files: ${entry}`)
+      throw new Error(`package files entry contains no distributable files: ${entry}`)
     }
   }
   for (const entry of tracked) {
@@ -56,18 +77,38 @@ try {
     await cp(source, target, { preserveTimestamps: true })
   }
 
-  const output = execFileSync(
-    process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch],
-    { cwd: packageDir, encoding: 'utf8', shell: process.platform === 'win32' },
-  )
-  const packed = JSON.parse(output)[0]
-  if (typeof packed?.filename !== 'string') throw new Error('npm pack returned no archive filename')
+  // Both host descriptors travel with the same runtime. Codex copies the plugin
+  // root into its cache, so nothing may point back to a source checkout or SSH host.
+  for (const name of ['.codex-plugin', '.mcp.json', 'assets']) {
+    await cp(join(packageDir, 'plugins/dsh-kline', name), join(packageDir, name), { recursive: true })
+  }
+  const pluginManifest = JSON.parse(await readFile(join(packageDir, '.codex-plugin/plugin.json'), 'utf8'))
+  if (pluginManifest.version !== manifest.version) throw new Error('Codex and DSH package versions must match')
+  const stagedManifest = { ...manifest, files: [...manifest.files, '.codex-plugin', '.mcp.json', 'assets'] }
+  await writeFile(join(packageDir, 'package.json'), JSON.stringify(stagedManifest, null, 2) + '\n')
 
-  await mkdir(dirname(destination), { recursive: true })
-  await rm(destination, { force: true })
-  await copyFile(join(scratch, packed.filename), destination)
-  console.log(`Release package ready: ${destination}`)
+  if (process.argv.includes('--codex')) {
+    // A Codex plugin archive has its natural folder name, while npm expects package/.
+    const pluginRoot = join(scratch, 'dsh-kline')
+    await cp(packageDir, pluginRoot, { recursive: true })
+    await mkdir(dirname(destination), { recursive: true })
+    const archive = join(scratch, 'codex.tgz')
+    execFileSync('tar', ['-czf', archive, '-C', scratch, 'dsh-kline'])
+    await copyFile(archive, destination)
+    console.log(`Codex plugin ready: ${destination}`)
+  } else {
+    const output = execFileSync(
+      process.platform === 'win32' ? 'npm.cmd' : 'npm',
+      ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch],
+      { cwd: packageDir, encoding: 'utf8', shell: process.platform === 'win32' },
+    )
+    const packed = JSON.parse(output)[0]
+    if (typeof packed?.filename !== 'string') throw new Error('npm pack returned no archive filename')
+
+    await mkdir(dirname(destination), { recursive: true })
+    await copyFile(join(scratch, packed.filename), destination)
+    console.log(`Release package ready: ${destination}`)
+  }
 } finally {
   await rm(scratch, { recursive: true, force: true })
 }

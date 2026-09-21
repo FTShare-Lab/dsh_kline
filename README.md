@@ -1,5 +1,8 @@
 # 非凸 K 线助手 / dsh_kline
 
+本地双宿主开发版：共享同一套行情、指标和图表，可安装到 DeepSeek Harness 或 Codex。
+宿主分别使用 DSH sidebar 和通用 MCP Apps；见 [双宿主安装指南](docs/codex-adapter.md)。
+
 简体中文 | [English](README.en.md)
 
 在 DeepSeek Harness 里看行情、读图表、找关键价位。你可以直接问 AI，也可以自己搜索标的、切换周期和指标，把 K 线当作一个随时可打开的工作台。

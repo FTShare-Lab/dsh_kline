@@ -159,6 +159,10 @@ def test_release_packer_ignores_files_outside_the_allowlist(tmp_path):
     assert "package/lib/index.js" in names
     assert "package/scripts/run-dsh-kline.mjs" in names
     assert "package/requirements.txt" in names
+    assert "package/.codex-plugin/plugin.json" in names
+    assert "package/.mcp.json" in names
+    assert "package/scripts/run-codex-kline.mjs" in names
+    assert "package/adapters/mcp-app-bridge.js" in names
     assert not any("/node_modules/" in name or "/tests/" in name or "/.venv" in name for name in names)
     assert not any("/__pycache__/" in name or name.endswith((".pyc", ".pyo", ".pyd")) for name in names)
 
@@ -172,6 +176,32 @@ def test_launcher_path_contracts_run_in_node():
         timeout=15,
     )
     assert result.returncode == 0, result.stderr or result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="PATH fixture uses POSIX symlinks")
+@pytest.mark.parametrize("codex", [False, True])
+def test_both_packages_build_without_git_on_path(tmp_path, codex):
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    for name in ("node", "npm", "sh", "tar", "gzip"):
+        executable = shutil.which(name)
+        assert executable, name
+        (binaries / name).symlink_to(Path(executable).resolve())
+    env = {**os.environ, "PATH": str(binaries)}
+    assert shutil.which("git", path=env["PATH"]) is None
+    archive = tmp_path / "plugin.tgz"
+    command = [str(binaries / "node"), str(ROOT / "scripts/build-release-package.mjs"), str(archive)]
+    if codex:
+        command.append("--codex")
+    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, timeout=40)
+    assert result.returncode == 0, result.stderr
+    with tarfile.open(archive) as packed:
+        names = set(packed.getnames())
+    prefix = "dsh-kline" if codex else "package"
+    assert f"{prefix}/.codex-plugin/plugin.json" in names
+    assert f"{prefix}/.mcp.json" in names
+    assert f"{prefix}/scripts/run-codex-kline.mjs" in names
+    assert not any(".git" in Path(name).parts for name in names)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")

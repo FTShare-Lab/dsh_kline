@@ -1,0 +1,40 @@
+{
+  "name": "dsh-kline",
+  "version": "0.3.4",
+  "description": "FTShare-backed interactive K-line analysis for Codex MCP Apps.",
+  "author": {
+    "name": "FTShare Lab",
+    "url": "https://github.com/FTShare-Lab"
+  },
+  "homepage": "https://github.com/FTShare-Lab/dsh_kline",
+  "repository": "https://github.com/FTShare-Lab/dsh_kline",
+  "license": "MIT",
+  "keywords": [
+    "kline",
+    "market-data",
+    "technical-analysis",
+    "mcp-apps"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "FtAI K-Line",
+    "shortDescription": "Interactive K-line charts and technical analysis.",
+    "longDescription": "Analyze market data with FTShare and open an interactive K-line chart directly in Codex through the standard MCP Apps protocol.",
+    "developerName": "FTShare Lab",
+    "category": "Finance",
+    "capabilities": [
+      "Interactive",
+      "Market Data",
+      "Technical Analysis"
+    ],
+    "websiteURL": "https://github.com/FTShare-Lab/dsh_kline",
+    "defaultPrompt": [
+      "分析一只股票并打开交互式 K 线图。",
+      "搜索股票代码并查看近期技术指标。",
+      "用我提供的 OHLCV 数据绘制 K 线图。"
+    ],
+    "brandColor": "#FF6B00",
+    "composerIcon": "./assets/logo.jpg",
+    "logo": "./assets/logo.jpg"
+  }
+}
