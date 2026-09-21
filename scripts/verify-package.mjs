@@ -14,10 +14,6 @@ const requiredFiles = [
   'config/basic-symbols.json',
   'core/analysis.py',
   'services/chart_actions.py',
-  'adapters/mcp-app-bridge.js',
-  'scripts/run-codex-kline.mjs',
-  'plugins/dsh-kline/.codex-plugin/plugin.json',
-  'plugins/dsh-kline/.mcp.json',
 ]
 
 for (const relativePath of requiredFiles) {

@@ -129,9 +129,11 @@ def test_release_package_is_bounded_and_attached_with_a_stable_name():
     packer = (ROOT / "scripts" / "build-release-package.mjs").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert '"files"' in manifest
-    for required in ('"lib"', '"view"', '"requirements.txt"', '"scripts/run-dsh-kline.mjs"'):
-        assert required in manifest
+    assert 'const DSH_FILES' in packer
+    assert 'const CODEX_FILES' in packer
+    assert 'const FORBIDDEN' in packer
+    for required in ("'lib'", "'view'", "'requirements.txt'", "'scripts/run-dsh-kline.mjs'"):
+        assert required in packer
     assert "dsh-kline-release-" in packer
     assert "npm.cmd" in packer
     assert "RELEASE_TAG" in workflow
@@ -159,10 +161,15 @@ def test_release_packer_ignores_files_outside_the_allowlist(tmp_path):
     assert "package/lib/index.js" in names
     assert "package/scripts/run-dsh-kline.mjs" in names
     assert "package/requirements.txt" in names
-    assert "package/.codex-plugin/plugin.json" in names
-    assert "package/.mcp.json" in names
-    assert "package/scripts/run-codex-kline.mjs" in names
-    assert "package/adapters/mcp-app-bridge.js" in names
+    assert "package/cordis.patch.yml" in names
+    assert "package/view/kline.html" in names
+    assert "package/lib/index.js" in names
+    assert "package/scripts/run-codex-kline.mjs" not in names
+    assert "package/adapters/mcp-app-bridge.js" not in names
+    assert "package/.codex-plugin/plugin.json" not in names
+    assert "package/.mcp.json" not in names
+    assert "package/config/upstream-baseline.json" not in names
+    assert "package/docs/upstream-baseline.md" not in names
     assert not any("/node_modules/" in name or "/tests/" in name or "/.venv" in name for name in names)
     assert not any("/__pycache__/" in name or name.endswith((".pyc", ".pyo", ".pyd")) for name in names)
 
@@ -198,9 +205,19 @@ def test_both_packages_build_without_git_on_path(tmp_path, codex):
     with tarfile.open(archive) as packed:
         names = set(packed.getnames())
     prefix = "dsh-kline" if codex else "package"
-    assert f"{prefix}/.codex-plugin/plugin.json" in names
-    assert f"{prefix}/.mcp.json" in names
-    assert f"{prefix}/scripts/run-codex-kline.mjs" in names
+    if codex:
+        assert f"{prefix}/.codex-plugin/plugin.json" in names
+        assert f"{prefix}/.mcp.json" in names
+        assert f"{prefix}/scripts/run-codex-kline.mjs" in names
+        assert f"{prefix}/adapters/mcp-app-bridge.js" in names
+        assert f"{prefix}/cordis.patch.yml" not in names
+        assert f"{prefix}/view/kline.html" in names
+        assert not any("upstream-baseline" in name for name in names)
+    else:
+        assert f"{prefix}/cordis.patch.yml" in names
+        assert f"{prefix}/view/kline.html" in names
+        assert f"{prefix}/scripts/run-codex-kline.mjs" not in names
+        assert f"{prefix}/adapters/mcp-app-bridge.js" not in names
     assert not any(".git" in Path(name).parts for name in names)
 
 
@@ -255,7 +272,13 @@ def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
     while time.monotonic() < deadline and not stamp.exists():
         time.sleep(0.05)
     assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
-    assert not (venv / ".dsh-kline-bootstrap-running").exists()
+    # The dependency stamp is written before the detached helper removes its
+    # ownership marker. On slow CI the child can still be running for a brief
+    # moment after the stamp becomes visible.
+    marker = venv / ".dsh-kline-bootstrap-running"
+    while time.monotonic() < deadline and marker.exists():
+        time.sleep(0.05)
+    assert not marker.exists()
     assert not (project / ".server-launched").exists()
 
 

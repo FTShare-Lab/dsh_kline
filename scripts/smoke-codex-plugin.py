@@ -31,7 +31,8 @@ async def main():
     assert config["command"] == "node"
     args = [arg.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin)) for arg in config["args"]]
     assert Path(args[0]).is_relative_to(plugin)
-    assert (plugin / "cordis.patch.yml").is_file(), "Both host descriptors must ship"
+    assert not (plugin / "cordis.patch.yml").exists(), "Codex package must not ship DSH's Cordis patch"
+    assert (plugin / "view" / "kline.html").is_file(), "Codex package needs the shared chart frontend"
     env = {k: v for k, v in os.environ.items() if not k.startswith(("FTSHARE_", "DSH_"))}
     runtime = scratch / "must-not-exist"
     env.update(DSH_KLINE_ADAPTER="dsh", DSH_KLINE_HOST_PID="not-a-dsh-pid",

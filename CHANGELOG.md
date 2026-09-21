@@ -2,12 +2,12 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased — local dual-host adaptation]
+## 0.4.0 - 2026-09-21
 
-- Based on the complete upstream v0.3.4 snapshot at `8d231c1c98d8112462f1d4a6c814c441b82e5365`.
 - One shared runtime and upstream chart frontend, with independent DSH and Codex MCP Apps entry points.
 - Portable Codex plugin bundle with no fixed server, username or source-checkout dependency.
 - MCP Apps-only icon button and internal UI action bridge; original 14 model-facing tool schemas preserved.
+- DSH and Codex now use separate strict package allowlists; neither package carries the other host's UI assets or private validation records.
 - Filesystem-only packaging; FTShare v1.0.7 matches the upstream dependency.
 - MCP Apps host context drives the shared frontend's theme/language preferences; both UI transports preserve credential provenance.
 

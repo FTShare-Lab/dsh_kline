@@ -1,6 +1,6 @@
 # 一个项目，两个宿主
 
-本地开发版基于完整上游 v0.3.4，详见 [基线记录](upstream-baseline.md)。
+双宿主版本从 v0.4.0 开始发布：DSH 与 Codex 共用行情和分析运行时，但各自使用独立的宿主适配器与发行包。
 行情 provider、核心指标、应用服务、`view/kline.html` 和 KLineCharts 都只有一份。
 
 | 宿主 | 安装产物 | 入口 | 图表承载 |
@@ -22,10 +22,11 @@ pnpm pack:release
 pnpm pack:codex
 ```
 
-两个包来自同一个文件白名单。Codex 包解压后是一个完整的 `dsh-kline/` 插件目录，
+两个包使用严格独立的文件白名单。Codex 包解压后是一个完整的 `dsh-kline/` 插件目录，
 包含 `.codex-plugin/plugin.json`、`.mcp.json`、运行时、数据目录和图表资源。
 不需要旁边存在源代码仓库，也不需要访问开发者的服务器。
-DSH npm 包也携带两份宿主描述，但 DSH 只使用 `package.json` / `cordis.patch.yml`。
+DSH npm 包仅包含 DSH 所需的 `package.json` / `cordis.patch.yml`、侧栏和 chart service；
+它不携带 Codex 清单、MCP Apps bridge 或 Codex 文档。
 
 `plugins/dsh-kline/` 是插件清单和品牌资源的**构建模板**，不是完整安装目录；
 不要只把这个小目录安装到 Codex。应解压 `release/dsh-kline-codex.tgz`，再把得到的

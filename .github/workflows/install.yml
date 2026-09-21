@@ -60,6 +60,11 @@ jobs:
       - name: Create the release package
         run: pnpm pack:release
 
+      - name: Create and validate the Codex plugin package
+        run: |
+          pnpm pack:codex
+          python scripts/smoke-codex-plugin.py release/dsh-kline-codex.tgz
+
       - name: Exercise the packed ordinary-user install
         run: node scripts/smoke-packed-install.mjs release/dsh-kline.tgz
 
