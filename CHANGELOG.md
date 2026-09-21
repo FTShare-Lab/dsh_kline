@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## 0.3.4 - 2026-09-21
+
+### Added
+
+- 宿主现在可显式以 `DSH_KLINE_RUNTIME_MODE=external` 和 `DSH_KLINE_PYTHON` 提供已配置的 Python 运行时；插件会验证 Python 版本和必需依赖后直接使用它，不会创建虚拟环境、安装依赖或静默回退。
+
+### Fixed
+
+- 修复 Windows 嵌入式 Python 在隔离导入路径下无法定位插件同目录模块的问题，提升桌面宿主中的启动稳定性。
+
+### Compatibility
+
+- 未设置外部运行时模式时，继续使用原有的 `auto` 运行方式；现有安装和 FTShare 配置无需调整。
+
 ## 0.3.3 - 2026-09-17
 
 ### Improved
