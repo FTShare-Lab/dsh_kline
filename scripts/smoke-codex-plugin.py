@@ -5,7 +5,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import anyio
 from mcp.client.session import ClientSession
@@ -17,13 +17,19 @@ async def main():
     scratch = Path(tempfile.mkdtemp(prefix="dsh-kline-codex-"))
     relocated = scratch / "plugin cache 空格"
     relocated.mkdir()
+    root = relocated.resolve()
     with tarfile.open(archive) as packed:
         members = packed.getmembers()
         for member in members:
-            target = (relocated / member.name).resolve()
-            assert target.is_relative_to(relocated) and not member.issym() and not member.islnk()
+            posix_member = PurePosixPath(member.name)
+            windows_member = PureWindowsPath(member.name)
+            assert not posix_member.is_absolute() and not windows_member.anchor, f"absolute or rooted archive member: {member.name!r}"
+            assert ".." not in posix_member.parts and ".." not in windows_member.parts, f"parent path archive member: {member.name!r}"
+            assert not member.issym() and not member.islnk(), f"link archive member: {member.name!r}"
+            target = (root / member.name).resolve()
+            assert target.is_relative_to(root), f"archive member escapes extraction root: {member.name!r}"
             assert not {".git", ".venv", "node_modules", "tests", "__pycache__"}.intersection(Path(member.name).parts)
-        packed.extractall(relocated)
+        packed.extractall(root)
     plugin = relocated / "dsh-kline"
     manifests = {
         "portable_plugin": json.loads((plugin / "plugin.json").read_text(encoding="utf-8")),
