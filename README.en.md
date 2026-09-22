@@ -1,4 +1,4 @@
-# 非凸 K 线助手 / dsh_kline
+# FT K-Line · 非凸K线助手 (`dsh_kline`)
 
 Local dual-host build: one market/analysis/chart runtime for DeepSeek Harness and
 Codex MCP Apps. See the [dual-host guide](docs/codex-adapter.md).
@@ -54,7 +54,7 @@ The plugin supports macOS, Linux, and native Windows. Install a working DSH Web 
 - `Analyze NVIDIA's volume, MACD, and RSI over the past month`
 - `What recent news and fundamentals should I know about this company?`
 
-**Open the workspace directly**: click the K button on the right, or choose **非凸 K 线助手 / dsh_kline** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
+**Open the workspace directly**: click the K button on the right, or choose **FT K-Line · 非凸K线助手** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
 
 Both entry points open the same chart experience. Each conversation keeps its own chart state so analyses never overwrite one another, while watchlists, annotations, and preferences remain available.
 

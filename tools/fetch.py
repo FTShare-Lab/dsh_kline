@@ -3364,7 +3364,7 @@ def _workspace_value(row: Mapping[str, Any], *keys: str) -> Any:
 def _intelligence_item(row: Mapping[str, Any], *, fallback: str = "--") -> dict[str, str]:
     """Normalize heterogeneous FTShare rows into a small, stable UI record."""
     title = _workspace_value(
-        row, "name", "stock_name", "security_name", "sector_name", "industry_name",
+        row, "name", "stock_name", "security_name", "sector_name", "board_name", "industry_name",
         "concept_name", "title", "event_name", "symbol", "stock_code", "code",
     )
     # Capital-flow endpoints use ``main_net`` / ``main_pct`` while quote
@@ -3420,11 +3420,15 @@ def _latest_intelligence_rows(rows: list[dict[str, Any]], *, limit: int = 1) -> 
 
 def _industry_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
     """Return the strongest industry flows, never a provider's arbitrary regional prefix."""
-    industries = [row for row in rows if str(row.get("sector_type") or "").lower() == "industry"]
-    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
-    # Keep provider-neutral adapters and older SDK responses useful when they
-    # do not label the sector type at all.
-    candidates = industries or concepts or rows
+    def board_type(row: Mapping[str, Any]) -> str:
+        return str(_workspace_value(row, "sector_type", "board_type") or "").strip().lower()
+
+    industries = [row for row in rows if board_type(row) == "industry"]
+    # Older providers may not expose a category.  They remain usable as a
+    # fallback, but never mix explicitly labelled concepts or regional boards
+    # into an industry ranking merely to fill the panel.
+    untyped = [row for row in rows if not board_type(row)]
+    candidates = industries or untyped
     return sorted(
         candidates,
         key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
@@ -3439,7 +3443,10 @@ def _concept_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[di
     different questions.  Never relabel an industry or regional board as a
     concept merely to fill a panel.
     """
-    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
+    concepts = [
+        row for row in rows
+        if str(_workspace_value(row, "sector_type", "board_type") or "").strip().lower() == "concept"
+    ]
     return sorted(
         concepts,
         key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
@@ -3453,7 +3460,7 @@ def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[d
     seen = set()
     for row in rows:
         code = str(_workspace_value(row, "sector_code", "board_code", "code") or "").strip().upper()
-        name = str(_workspace_value(row, "sector_name", "board", "name") or "").strip()
+        name = str(_workspace_value(row, "sector_name", "board_name", "board", "name") or "").strip()
         key = f"code:{code}" if code else f"name:{name}"
         if key == "name:" or key in seen:
             continue

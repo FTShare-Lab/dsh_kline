@@ -112,7 +112,7 @@ try {
       throw new Error('plugin.json must link to the FtAI website')
     }
     if (portableInterface?.category !== 'Finance') {
-      throw new Error('plugin.json must identify FtAI K-Line as a Finance plugin')
+      throw new Error('plugin.json must identify FT K-Line as a Finance plugin')
     }
     const codexMcp = pluginManifests.find(({ entry }) => entry === '.mcp.json')?.value
     if (codexMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== 'scripts/run-codex-kline.mjs') {

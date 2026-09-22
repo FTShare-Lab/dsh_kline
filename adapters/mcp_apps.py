@@ -85,7 +85,7 @@ def register_mcp_app(mcp) -> None:
     from services.chart_actions import dispatch
 
     @mcp.resource(
-        MCP_APP_RESOURCE_URI, name="dsh_kline_chart_app", title="FtAI K-Line",
+        MCP_APP_RESOURCE_URI, name="dsh_kline_chart_app", title="FT K-Line · 非凸K线助手",
         mime_type=MCP_APP_RESOURCE_MIME,
         meta={"ui": {"prefersBorder": False, "csp": {"connectDomains": [], "resourceDomains": []}}},
     )

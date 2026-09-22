@@ -56,8 +56,7 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   const button = html.match(/<button[^>]*id="interfaceBtn"[^>]*>(.*?)<\/button>/)?.[1]
   assert.equal(button, '<span data-i18n="interfaceLabel">UI</span>')
   assert.ok(!html.includes('interface-label') && !html.includes('interface-new'))
-  assert.ok(html.includes('productName: "非凸 K 线助手"'))
-  assert.ok(html.includes('productName: "FtAI K-Line"'))
+  assert.ok(html.includes('productName: "FT K-Line · 非凸K线助手"'))
   assert.ok(!html.includes('document.title = t("productName")'))
   const tab = readFileSync(new URL('../src/client/BetterSidebarTab.tsx', import.meta.url), 'utf8')
   assert.ok(tab.includes('title: klineTabTitle()'))

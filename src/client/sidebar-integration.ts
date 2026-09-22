@@ -1,8 +1,8 @@
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 
 export const KLINE_TAB_ID = 'ftshare-kline:chart'
-export const KLINE_TAB_TITLE_ZH = '非凸 K 线助手'
-export const KLINE_TAB_TITLE_EN = 'FtAI K-Line'
+export const KLINE_TAB_TITLE_ZH = 'FT K-Line · 非凸K线助手'
+export const KLINE_TAB_TITLE_EN = 'FT K-Line · 非凸K线助手'
 
 // The tab belongs to the host interface. Keep its product label separate from
 // the internal package id, and follow the host/browser language.
@@ -11,7 +11,7 @@ export function klineTabTitle(locale = globalThis.navigator?.language ?? ''): st
 }
 
 export function migrateKlineTabTitle(service: BetterSidebarService, tab: {id: string; type: string; title?: string}, sessionId?: string): void {
-  if (tab.type !== KLINE_TAB_ID || !['K线分析 / K-line', 'K线分析', '非凸K线助手 / dsh_kline', KLINE_TAB_TITLE_ZH, KLINE_TAB_TITLE_EN].includes(tab.title ?? '')
+  if (tab.type !== KLINE_TAB_ID || !['K线分析 / K-line', 'K线分析', '非凸K线助手 / dsh_kline', '非凸 K 线助手', 'FtAI K-Line', KLINE_TAB_TITLE_ZH, KLINE_TAB_TITLE_EN].includes(tab.title ?? '')
     || !service.features?.includes('updateTab') || !service.features?.includes('stateSubscription')
     || typeof service.updateTab !== 'function' || typeof service.getSnapshot !== 'function') return
   try {

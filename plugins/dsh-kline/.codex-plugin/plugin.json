@@ -1,7 +1,7 @@
 {
   "name": "dsh-kline",
   "version": "0.4.0",
-  "description": "FTShare-backed interactive K-line analysis for Codex MCP Apps.",
+  "description": "FT K-Line · 非凸K线助手 — interactive K-line analysis for Codex MCP Apps.",
   "author": {
     "name": "FTShare Lab",
     "url": "https://github.com/FTShare-Lab"
@@ -17,9 +17,9 @@
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "FtAI K-Line",
+    "displayName": "FT K-Line · 非凸K线助手",
     "shortDescription": "Interactive K-line charts and technical analysis.",
-    "longDescription": "Analyze market data with FTShare and open an interactive K-line chart directly in Codex through the standard MCP Apps protocol.",
+    "longDescription": "FT K-Line · 非凸K线助手 uses FTShare market data for interactive charts and technical analysis in Codex.",
     "developerName": "FTShare Lab",
     "category": "Finance",
     "capabilities": [

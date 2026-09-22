@@ -93,6 +93,27 @@ def test_market_pulse_keeps_concepts_and_actionable_stock_rankings_separate():
     assert pulse["rankings"]["surging"][0]["symbol"] == "600519.XSHG"
 
 
+def test_market_pulse_supports_current_ftshare_board_fields_without_mixing_categories():
+    market = SimpleNamespace(
+        limit_list=lambda **_: [],
+        eastmoney_dapan_flow=lambda **_: [],
+        northbound=lambda **_: [],
+        southbound=lambda **_: [],
+        eastmoney_sector_flow=lambda **_: [
+            {"board_code": "BK001", "board_name": "航空机场", "board_type": "industry", "main_net": "8"},
+            {"board_code": "BK002", "board_name": "机器人", "board_type": "concept", "main_net": "12"},
+            {"board_code": "BK003", "board_name": "上海板块", "board_type": "regional", "main_net": "99"},
+        ],
+    )
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market):
+        result = f.fetch_market_pulse()
+    pulse = result["market_pulse"]
+    assert [item["title"] for item in pulse["hot_sectors"]] == ["航空机场"]
+    assert [item["title"] for item in pulse["hot_concepts"]] == ["机器人"]
+    assert pulse["hot_sectors"][0]["board_code"] == "BK001"
+    assert pulse["hot_concepts"][0]["board_kind"] == "concept"
+
+
 def test_market_pulse_falls_back_to_xueqiu_popularity_and_exposes_abnormal_trading():
     market = SimpleNamespace(
         limit_list=lambda **_: [],
