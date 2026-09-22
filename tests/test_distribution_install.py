@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -204,21 +205,31 @@ def test_both_packages_build_without_git_on_path(tmp_path, codex):
     assert result.returncode == 0, result.stderr
     with tarfile.open(archive) as packed:
         names = set(packed.getnames())
-    prefix = "dsh-kline" if codex else "package"
-    if codex:
-        assert f"{prefix}/.codex-plugin/plugin.json" in names
-        assert f"{prefix}/.mcp.json" in names
-        assert f"{prefix}/scripts/run-codex-kline.mjs" in names
-        assert f"{prefix}/adapters/mcp-app-bridge.js" in names
-        assert f"{prefix}/cordis.patch.yml" not in names
-        assert f"{prefix}/view/kline.html" in names
-        assert not any("upstream-baseline" in name for name in names)
-    else:
-        assert f"{prefix}/cordis.patch.yml" in names
-        assert f"{prefix}/view/kline.html" in names
-        assert f"{prefix}/scripts/run-codex-kline.mjs" not in names
-        assert f"{prefix}/adapters/mcp-app-bridge.js" not in names
-    assert not any(".git" in Path(name).parts for name in names)
+        prefix = "dsh-kline" if codex else "package"
+        if codex:
+            for manifest in ("plugin.json", "mcp.json", ".codex-plugin/plugin.json", ".mcp.json"):
+                assert f"{prefix}/{manifest}" in names
+            versions = {
+                json.loads(packed.extractfile(f"{prefix}/{manifest}").read())["version"]
+                for manifest in ("plugin.json", ".codex-plugin/plugin.json")
+            }
+            assert versions == {json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]}
+            portable = json.loads(packed.extractfile(f"{prefix}/mcp.json").read())
+            fallback = json.loads(packed.extractfile(f"{prefix}/.mcp.json").read())
+            assert portable["mcpServers"]["dsh-kline"]["type"] == "stdio"
+            assert portable["mcpServers"]["dsh-kline"]["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+            assert fallback["mcpServers"]["dsh-kline"]["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+            assert f"{prefix}/scripts/run-codex-kline.mjs" in names
+            assert f"{prefix}/adapters/mcp-app-bridge.js" in names
+            assert f"{prefix}/cordis.patch.yml" not in names
+            assert f"{prefix}/view/kline.html" in names
+            assert not any("upstream-baseline" in name for name in names)
+        else:
+            assert f"{prefix}/cordis.patch.yml" in names
+            assert f"{prefix}/view/kline.html" in names
+            assert f"{prefix}/scripts/run-codex-kline.mjs" not in names
+            assert f"{prefix}/adapters/mcp-app-bridge.js" not in names
+        assert not any(".git" in Path(name).parts for name in names)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")

@@ -23,7 +23,8 @@ pnpm pack:codex
 ```
 
 两个包使用严格独立的文件白名单。Codex 包解压后是一个完整的 `dsh-kline/` 插件目录，
-包含 `.codex-plugin/plugin.json`、`.mcp.json`、运行时、数据目录和图表资源。
+包含可移植的 `plugin.json`、`mcp.json` 以及 Codex 兼容 fallback
+`.codex-plugin/plugin.json`、`.mcp.json`、运行时、数据目录和图表资源。
 不需要旁边存在源代码仓库，也不需要访问开发者的服务器。
 DSH npm 包仅包含 DSH 所需的 `package.json` / `cordis.patch.yml`、侧栏和 chart service；
 它不携带 Codex 清单、MCP Apps bridge 或 Codex 文档。
@@ -33,8 +34,9 @@ DSH npm 包仅包含 DSH 所需的 `package.json` / `cordis.patch.yml`、侧栏�
 完整目录作为本地插件 marketplace 的 source。未自动创建 marketplace、安装插件，
 也未修改任何真实 Codex 配置。正式安装还需在用户自己的 Codex 中验收。
 
-MCP 配置使用插件根路径占位符 `${CLAUDE_PLUGIN_ROOT}` 定位 Node 启动器；
-不依赖终端当前目录、用户名或 SSH 别名。Node/Python 必须能被桌面宿主找到；
+可移植 `mcp.json` 使用 `${PLUGIN_ROOT}` 定位 Node 启动器；兼容 fallback
+`.mcp.json` 保留 `${CLAUDE_PLUGIN_ROOT}`。两者都不依赖终端当前目录、用户名或 SSH 别名。
+Node/Python 必须能被桌面宿主找到；
 第一次启动会在用户缓存目录安装独立 Python 环境。
 
 如果桌面宿主已提供 Python 3.10+ 与全部依赖，可显式设置

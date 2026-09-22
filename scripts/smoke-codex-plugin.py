@@ -25,17 +25,37 @@ async def main():
             assert not {".git", ".venv", "node_modules", "tests", "__pycache__"}.intersection(Path(member.name).parts)
         packed.extractall(relocated)
     plugin = relocated / "dsh-kline"
-    manifest = json.loads((plugin / ".codex-plugin/plugin.json").read_text())
-    config = json.loads((plugin / ".mcp.json").read_text())["mcpServers"]["dsh-kline"]
+    manifests = {
+        "portable_plugin": json.loads((plugin / "plugin.json").read_text(encoding="utf-8")),
+        "portable_mcp": json.loads((plugin / "mcp.json").read_text(encoding="utf-8")),
+        "codex_plugin": json.loads((plugin / ".codex-plugin/plugin.json").read_text(encoding="utf-8")),
+        "codex_mcp": json.loads((plugin / ".mcp.json").read_text(encoding="utf-8")),
+        "package": json.loads((plugin / "package.json").read_text(encoding="utf-8")),
+    }
+    assert {
+        manifests["portable_plugin"]["version"],
+        manifests["codex_plugin"]["version"],
+        manifests["package"]["version"],
+    } == {manifests["package"]["version"]}
+    manifest = manifests["portable_plugin"]
+    config = manifests["portable_mcp"]["mcpServers"]["dsh-kline"]
     assert manifest["name"] == plugin.name
-    assert config["command"] == "node"
-    args = [arg.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin)) for arg in config["args"]]
+    assert manifest["mcp"] == "./mcp.json"
+    assert manifest["extensions"]["com.openai"]["mcpApps"]["resourceUri"] == "ui://dsh-kline/kline"
+    assert config["type"] == "stdio" and config["command"] == "node"
+    assert config["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+    assert manifests["codex_plugin"]["mcpServers"] == "./.mcp.json"
+    assert manifests["codex_mcp"]["mcpServers"]["dsh-kline"]["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+    plugin_root_token = "${PLUGIN_ROOT}"
+    launcher = config["args"][0]
+    assert launcher.startswith(plugin_root_token + "/")
+    args = [str(plugin / launcher.removeprefix(plugin_root_token + "/"))]
     assert Path(args[0]).is_relative_to(plugin)
     assert not (plugin / "cordis.patch.yml").exists(), "Codex package must not ship DSH's Cordis patch"
     assert (plugin / "view" / "kline.html").is_file(), "Codex package needs the shared chart frontend"
     env = {k: v for k, v in os.environ.items() if not k.startswith(("FTSHARE_", "DSH_"))}
     runtime = scratch / "must-not-exist"
-    env.update(DSH_KLINE_ADAPTER="dsh", DSH_KLINE_HOST_PID="not-a-dsh-pid",
+    env.update(PLUGIN_ROOT=str(plugin), DSH_KLINE_ADAPTER="dsh", DSH_KLINE_HOST_PID="not-a-dsh-pid",
                DSH_KLINE_RUNTIME_DIR=str(runtime), DSH_KLINE_CACHE_DIR=str(scratch / "cache"),
                DSH_KLINE_VENV=str(scratch / "fresh-venv"), DSH_KLINE_STATE_DIR=str(scratch / "state"),
                FTSHARE_API_KEY_FILE=str(scratch / "no-credentials.json"))

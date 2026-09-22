@@ -1,0 +1,39 @@
+{
+  "$schema": "https://agentplugins.org/schema.json",
+  "name": "dsh-kline",
+  "version": "0.4.0",
+  "description": "FTShare-backed interactive K-line analysis and charts.",
+  "displayName": "FtAI K-Line",
+  "author": {
+    "name": "FTShare Lab",
+    "url": "https://github.com/FTShare-Lab"
+  },
+  "homepage": "https://github.com/FTShare-Lab/dsh_kline",
+  "repository": "https://github.com/FTShare-Lab/dsh_kline",
+  "license": "MIT",
+  "keywords": [
+    "kline",
+    "market-data",
+    "technical-analysis",
+    "mcp-apps"
+  ],
+  "mcp": "./mcp.json",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "FtAI K-Line",
+        "shortDescription": "Interactive K-line charts and technical analysis.",
+        "brandColor": "#FF6B00",
+        "icon": "./assets/logo.jpg"
+      },
+      "mcpApps": {
+        "resourceUri": "ui://dsh-kline/kline",
+        "mimeType": "text/html;profile=mcp-app",
+        "displayModes": [
+          "inline",
+          "fullscreen"
+        ]
+      }
+    }
+  }
+}

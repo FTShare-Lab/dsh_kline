@@ -81,11 +81,23 @@ try {
   }
 
   if (codex) {
-    for (const entry of ['.codex-plugin', '.mcp.json', 'assets']) {
+    for (const entry of ['plugin.json', 'mcp.json', '.codex-plugin', '.mcp.json', 'assets']) {
       await cp(join(root, 'plugins/dsh-kline', entry), join(packageDir, entry), { recursive: true })
     }
-    const pluginManifest = JSON.parse(await readFile(join(packageDir, '.codex-plugin/plugin.json'), 'utf8'))
-    if (pluginManifest.version !== manifest.version) throw new Error('Codex plugin and package versions must match')
+    const pluginManifests = await Promise.all([
+      'plugin.json', 'mcp.json', '.codex-plugin/plugin.json', '.mcp.json',
+    ].map(async entry => ({ entry, value: JSON.parse(await readFile(join(packageDir, entry), 'utf8')) })))
+    for (const { entry, value } of pluginManifests.filter(({ entry }) => entry.endsWith('plugin.json'))) {
+      if (value.version !== manifest.version) throw new Error(`${entry} and package versions must match`)
+    }
+    const portableMcp = pluginManifests.find(({ entry }) => entry === 'mcp.json')?.value
+    if (portableMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== '${PLUGIN_ROOT}/scripts/run-codex-kline.mjs') {
+      throw new Error('mcp.json must use the portable ${PLUGIN_ROOT} launcher path')
+    }
+    const codexMcp = pluginManifests.find(({ entry }) => entry === '.mcp.json')?.value
+    if (codexMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== '${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs') {
+      throw new Error('.mcp.json must retain the Codex compatibility launcher path')
+    }
   }
   const stagedManifest = { ...manifest, files: includes }
   if (codex) delete stagedManifest.dsh

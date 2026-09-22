@@ -36,7 +36,7 @@ def _schema(value):
 
 
 def test_mcp_controls_are_not_in_the_upstream_dsh_view():
-    original = (ROOT / "view/kline.html").read_text()
+    original = (ROOT / "view/kline.html").read_text(encoding="utf-8")
     assert 'mcpDisplayModeBtn' not in original
     rendered = mcp_app_html()
     assert 'mcpDisplayModeBtn' in rendered
