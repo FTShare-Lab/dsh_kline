@@ -219,13 +219,21 @@ def test_both_packages_build_without_git_on_path(tmp_path, codex):
             fallback = json.loads(packed.extractfile(f"{prefix}/.mcp.json").read())
             assert portable_plugin["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
             assert "mcp" not in portable_plugin
+            interface = portable_plugin["extensions"]["com.openai"]["interface"]
+            assert interface["composerIcon"] == "./assets/logo.jpg"
+            assert interface["logo"] == "./assets/logo.jpg"
+            assert interface["websiteURL"] == "https://ft.tech/"
+            assert interface["category"] == "Finance"
+            assert "icon" not in interface
             assert portable["$schema"] == "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
             assert portable["mcpServers"]["dsh-kline"]["type"] == "stdio"
             assert portable["mcpServers"]["dsh-kline"]["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+            assert set(portable["mcpServers"]["dsh-kline"]) == {"type", "command", "args", "env"}
             assert fallback["mcpServers"]["dsh-kline"]["args"] == ["scripts/run-codex-kline.mjs"]
             assert all("${" not in value for value in fallback["mcpServers"]["dsh-kline"]["args"])
             assert f"{prefix}/scripts/run-codex-kline.mjs" in names
             assert f"{prefix}/adapters/mcp-app-bridge.js" in names
+            assert f"{prefix}/assets/logo.jpg" in names
             assert f"{prefix}/cordis.patch.yml" not in names
             assert f"{prefix}/view/kline.html" in names
             assert not any("upstream-baseline" in name for name in names)

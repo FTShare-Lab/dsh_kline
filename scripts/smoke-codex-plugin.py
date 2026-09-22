@@ -49,10 +49,18 @@ async def main():
     assert manifest["name"] == plugin.name
     assert manifest["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
     assert "mcp" not in manifest
+    interface = manifest["extensions"]["com.openai"]["interface"]
+    assert interface["composerIcon"] == "./assets/logo.jpg"
+    assert interface["logo"] == "./assets/logo.jpg"
+    assert interface["websiteURL"] == "https://ft.tech/"
+    assert interface["category"] == "Finance"
+    assert "icon" not in interface
     assert manifests["portable_mcp"]["$schema"] == "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
     assert manifest["extensions"]["com.openai"]["mcpApps"]["resourceUri"] == "ui://dsh-kline/kline"
+    assert (plugin / "assets" / "logo.jpg").is_file()
     assert config["type"] == "stdio" and config["command"] == "node"
     assert config["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+    assert set(config) == {"type", "command", "args", "env"}
     assert manifests["codex_plugin"]["mcpServers"] == "./.mcp.json"
     assert fallback_config["args"] == ["scripts/run-codex-kline.mjs"]
     assert all("${" not in value for value in fallback_config["args"])

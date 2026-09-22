@@ -104,6 +104,16 @@ try {
     if (portableMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== '${PLUGIN_ROOT}/scripts/run-codex-kline.mjs') {
       throw new Error('mcp.json must use the portable ${PLUGIN_ROOT} launcher path')
     }
+    const portableInterface = portablePlugin?.extensions?.['com.openai']?.interface
+    if (portableInterface?.composerIcon !== './assets/logo.jpg' || portableInterface?.logo !== './assets/logo.jpg') {
+      throw new Error('plugin.json must provide Codex-compatible FtAI icon fields')
+    }
+    if (portableInterface?.websiteURL !== 'https://ft.tech/') {
+      throw new Error('plugin.json must link to the FtAI website')
+    }
+    if (portableInterface?.category !== 'Finance') {
+      throw new Error('plugin.json must identify FtAI K-Line as a Finance plugin')
+    }
     const codexMcp = pluginManifests.find(({ entry }) => entry === '.mcp.json')?.value
     if (codexMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== 'scripts/run-codex-kline.mjs') {
       throw new Error('.mcp.json must use a plugin-relative launcher path')

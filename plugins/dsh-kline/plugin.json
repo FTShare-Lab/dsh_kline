@@ -21,8 +21,23 @@
       "interface": {
         "displayName": "FtAI K-Line",
         "shortDescription": "Interactive K-line charts and technical analysis.",
+        "longDescription": "Analyze market data with FTShare and open an interactive K-line chart directly in Codex through the standard MCP Apps protocol.",
+        "developerName": "FTShare Lab",
+        "category": "Finance",
+        "capabilities": [
+          "Interactive",
+          "Market Data",
+          "Technical Analysis"
+        ],
+        "defaultPrompt": [
+          "分析一只股票并打开交互式 K 线图。",
+          "搜索股票代码并查看近期技术指标。",
+          "用我提供的 OHLCV 数据绘制 K 线图。"
+        ],
         "brandColor": "#FF6B00",
-        "icon": "./assets/logo.jpg"
+        "composerIcon": "./assets/logo.jpg",
+        "logo": "./assets/logo.jpg",
+        "websiteURL": "https://ft.tech/"
       },
       "mcpApps": {
         "resourceUri": "ui://dsh-kline/kline",
