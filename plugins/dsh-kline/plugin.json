@@ -1,9 +1,8 @@
 {
-  "$schema": "https://agentplugins.org/schema.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dsh-kline",
   "version": "0.4.0",
   "description": "FTShare-backed interactive K-line analysis and charts.",
-  "displayName": "FtAI K-Line",
   "author": {
     "name": "FTShare Lab",
     "url": "https://github.com/FTShare-Lab"
@@ -17,7 +16,6 @@
     "technical-analysis",
     "mcp-apps"
   ],
-  "mcp": "./mcp.json",
   "extensions": {
     "com.openai": {
       "interface": {

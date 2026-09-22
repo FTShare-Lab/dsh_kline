@@ -40,6 +40,9 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
 
+      - name: Install Codex CLI host
+        run: npm install --global @openai/codex@0.155.1
+
       - name: Install and build
         run: |
           pnpm install --frozen-lockfile
@@ -64,6 +67,7 @@ jobs:
         run: |
           pnpm pack:codex
           python scripts/smoke-codex-plugin.py release/dsh-kline-codex.tgz
+          python scripts/smoke-codex-plugin-host.py release/dsh-kline-codex.tgz
 
       - name: Exercise the packed ordinary-user install
         run: node scripts/smoke-packed-install.mjs release/dsh-kline.tgz

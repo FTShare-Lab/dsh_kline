@@ -45,13 +45,17 @@ async def main():
     } == {manifests["package"]["version"]}
     manifest = manifests["portable_plugin"]
     config = manifests["portable_mcp"]["mcpServers"]["dsh-kline"]
+    fallback_config = manifests["codex_mcp"]["mcpServers"]["dsh-kline"]
     assert manifest["name"] == plugin.name
-    assert manifest["mcp"] == "./mcp.json"
+    assert manifest["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+    assert "mcp" not in manifest
+    assert manifests["portable_mcp"]["$schema"] == "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
     assert manifest["extensions"]["com.openai"]["mcpApps"]["resourceUri"] == "ui://dsh-kline/kline"
     assert config["type"] == "stdio" and config["command"] == "node"
     assert config["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
     assert manifests["codex_plugin"]["mcpServers"] == "./.mcp.json"
-    assert manifests["codex_mcp"]["mcpServers"]["dsh-kline"]["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+    assert fallback_config["args"] == ["scripts/run-codex-kline.mjs"]
+    assert all("${" not in value for value in fallback_config["args"])
     plugin_root_token = "${PLUGIN_ROOT}"
     launcher = config["args"][0]
     assert launcher.startswith(plugin_root_token + "/")
@@ -94,6 +98,21 @@ async def main():
                     assert not response.isError, (action, response)
                 assert not runtime.exists(), "Codex must not create DSH locator/session files"
                 print("PASS MCP Apps resource + chart actions + no DSH service/locator")
+    fallback_env = dict(env)
+    fallback_env["PLUGIN_ROOT"] = str(plugin)
+    fallback_params = StdioServerParameters(
+        command=shutil.which(fallback_config["command"]),
+        args=fallback_config["args"],
+        env=fallback_env,
+        cwd=plugin,
+    )
+    with anyio.fail_after(60):
+        async with stdio_client(fallback_params) as streams:
+            async with ClientSession(*streams) as session:
+                await session.initialize()
+                listed = (await session.list_tools()).tools
+                assert len(listed) == 15
+                print("PASS Codex compatibility manifest + relative launcher")
     print("PASS isolated Codex plugin smoke")
 
 

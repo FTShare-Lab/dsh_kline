@@ -90,13 +90,23 @@ try {
     for (const { entry, value } of pluginManifests.filter(({ entry }) => entry.endsWith('plugin.json'))) {
       if (value.version !== manifest.version) throw new Error(`${entry} and package versions must match`)
     }
+    const portablePlugin = pluginManifests.find(({ entry }) => entry === 'plugin.json')?.value
+    if (portablePlugin?.$schema !== 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json') {
+      throw new Error('plugin.json must target Agent Plugins 1.0.0')
+    }
+    if (Object.hasOwn(portablePlugin ?? {}, 'mcp')) {
+      throw new Error('plugin.json must not override fixed mcp.json discovery')
+    }
     const portableMcp = pluginManifests.find(({ entry }) => entry === 'mcp.json')?.value
+    if (portableMcp?.$schema !== 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json') {
+      throw new Error('mcp.json must target Agent Plugins 1.0.0')
+    }
     if (portableMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== '${PLUGIN_ROOT}/scripts/run-codex-kline.mjs') {
       throw new Error('mcp.json must use the portable ${PLUGIN_ROOT} launcher path')
     }
     const codexMcp = pluginManifests.find(({ entry }) => entry === '.mcp.json')?.value
-    if (codexMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== '${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs') {
-      throw new Error('.mcp.json must retain the Codex compatibility launcher path')
+    if (codexMcp?.mcpServers?.['dsh-kline']?.args?.[0] !== 'scripts/run-codex-kline.mjs') {
+      throw new Error('.mcp.json must use a plugin-relative launcher path')
     }
   }
   const stagedManifest = { ...manifest, files: includes }

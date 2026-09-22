@@ -34,8 +34,10 @@ DSH npm 包仅包含 DSH 所需的 `package.json` / `cordis.patch.yml`、侧栏�
 完整目录作为本地插件 marketplace 的 source。未自动创建 marketplace、安装插件，
 也未修改任何真实 Codex 配置。正式安装还需在用户自己的 Codex 中验收。
 
-可移植 `mcp.json` 使用 `${PLUGIN_ROOT}` 定位 Node 启动器；兼容 fallback
-`.mcp.json` 保留 `${CLAUDE_PLUGIN_ROOT}`。两者都不依赖终端当前目录、用户名或 SSH 别名。
+可移植 `plugin.json` / `mcp.json` 使用 Agent Plugins 1.0.0 的 versioned schema，MCP
+由根目录 `mcp.json` 自动发现，不通过 manifest 指针配置。可移植 `mcp.json` 使用
+`${PLUGIN_ROOT}` 定位 Node 启动器；兼容 fallback `.mcp.json` 使用插件根目录默认工作目录
+和 `scripts/run-codex-kline.mjs` 相对参数，不依赖 `${CLAUDE_PLUGIN_ROOT}` 替换。
 Node/Python 必须能被桌面宿主找到；
 第一次启动会在用户缓存目录安装独立 Python 环境。
 
@@ -93,6 +95,8 @@ pnpm pack:codex
 node scripts/smoke-packed-install.mjs release/dsh-kline.tgz
 node scripts/smoke-dsh-profile.mjs release/dsh-kline.tgz
 python3 scripts/smoke-codex-plugin.py release/dsh-kline-codex.tgz
+# 需要已安装 Codex CLI；该测试会在隔离 CODEX_HOME 中安装插件并启动兼容 MCP
+python3 scripts/smoke-codex-plugin-host.py release/dsh-kline-codex.tgz
 # Linux 有 Chrome 时可运行真实浏览器 + 模拟 MCP Apps 宿主验收：
 node scripts/smoke-mcp-app-browser.mjs
 ```

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://agentplugins.org/mcp.schema.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
     "dsh-kline": {
       "type": "stdio",
@@ -9,9 +9,7 @@
       ],
       "env": {
         "DSH_KLINE_ADAPTER": "codex"
-      },
-      "startup_timeout_sec": 300,
-      "tool_timeout_sec": 180
+      }
     }
   }
 }

@@ -214,11 +214,16 @@ def test_both_packages_build_without_git_on_path(tmp_path, codex):
                 for manifest in ("plugin.json", ".codex-plugin/plugin.json")
             }
             assert versions == {json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]}
+            portable_plugin = json.loads(packed.extractfile(f"{prefix}/plugin.json").read())
             portable = json.loads(packed.extractfile(f"{prefix}/mcp.json").read())
             fallback = json.loads(packed.extractfile(f"{prefix}/.mcp.json").read())
+            assert portable_plugin["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+            assert "mcp" not in portable_plugin
+            assert portable["$schema"] == "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
             assert portable["mcpServers"]["dsh-kline"]["type"] == "stdio"
             assert portable["mcpServers"]["dsh-kline"]["args"] == ["${PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
-            assert fallback["mcpServers"]["dsh-kline"]["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/run-codex-kline.mjs"]
+            assert fallback["mcpServers"]["dsh-kline"]["args"] == ["scripts/run-codex-kline.mjs"]
+            assert all("${" not in value for value in fallback["mcpServers"]["dsh-kline"]["args"])
             assert f"{prefix}/scripts/run-codex-kline.mjs" in names
             assert f"{prefix}/adapters/mcp-app-bridge.js" in names
             assert f"{prefix}/cordis.patch.yml" not in names
