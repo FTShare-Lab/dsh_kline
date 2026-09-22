@@ -94,7 +94,7 @@ async def main():
                     assert not response.isError, (action, response)
                 assert not runtime.exists(), "Codex must not create DSH locator/session files"
                 print("PASS MCP Apps resource + chart actions + no DSH service/locator")
-    print(f"Isolated plugin retained at {plugin}")
+    print("PASS isolated Codex plugin smoke")
 
 
 if __name__ == "__main__":
