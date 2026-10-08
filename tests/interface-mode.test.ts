@@ -105,9 +105,10 @@ test('interface popup stays inside a narrow chart even when the trigger is not a
   assert.equal(panel.style.top, '46px')
   assert.equal(panel.style.maxHeight, '542px')
 })
-test('missing or older sidebar APIs never block the classic shell', () => {
+test('the callable public sidebar API enables the tab even when feature metadata is stale', () => {
   assert.equal(isSidebarUsable(), false)
-  assert.equal(isSidebarUsable({registerTab() {}, openTab() {}, features:[]} as unknown as BetterSidebarService), false)
+  assert.equal(isSidebarUsable({registerTab() {}, openTab() {}, features:[]} as unknown as BetterSidebarService), true)
+  assert.equal(isSidebarUsable({registerTab() {}, openTab() {}} as unknown as BetterSidebarService), true)
   assert.equal(isSidebarUsable({registerTab() {}, openTab() {}, features:['targetedOpen']} as unknown as BetterSidebarService), true)
 })
 test('RC users can see the stable release without treating older stable or another RC as an upgrade', () => {

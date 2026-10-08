@@ -21,8 +21,12 @@ export function migrateKlineTabTitle(service: BetterSidebarService, tab: {id: st
   } catch { /* Older/disposed integrations keep their saved title harmlessly. */ }
 }
 export function isSidebarUsable(service?: BetterSidebarService): boolean {
-  return Boolean(service && typeof service.registerTab === 'function' && typeof service.openTab === 'function'
-    && service.features?.includes('targetedOpen'))
+  // Some DSH Desktop builds expose the stable public methods through a
+  // compatibility proxy but omit (or stale-cache) Better Sidebar's optional
+  // feature list. The tab itself can still be registered and opened, so use
+  // the callable public contract as the availability test. Optional helpers
+  // below remain individually feature-gated.
+  return Boolean(service && typeof service.registerTab === 'function' && typeof service.openTab === 'function')
 }
 
 // The framework persists open tabs across reloads. In Classic mode remove only

@@ -12,10 +12,15 @@ const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const REQUIREMENTS_FILE = join(PROJECT_ROOT, 'requirements.txt')
 const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings'
 const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 10))'
+const RUNTIME_VERSION_CHECK = 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
 const BOOTSTRAP_FAILURE = '.dsh-kline-bootstrap-failed'
 const BOOTSTRAP_RUNNING = '.dsh-kline-bootstrap-running'
 const BACKGROUND_BOOTSTRAP_STALE_MS = 10 * 60 * 1000
+// A failed download or a temporarily unavailable index must not turn into a
+// permanent startup failure. Keep reconnect storms from repeatedly invoking
+// pip, but let a later launch repair the environment by itself.
+const BOOTSTRAP_FAILURE_RETRY_MS = 5 * 60 * 1000
 
 export function pythonPathForVenv(venvDirectory, platform = process.platform) {
   const paths = platform === 'win32' ? win32 : posix
@@ -88,6 +93,17 @@ function commandPasses(command, args, code) {
   return result.status === 0
 }
 
+function commandOutput(command, args, code) {
+  const result = spawnSync(command, [...args, '-c', code], {
+    env: pythonEnvironment(),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    timeout: 10_000,
+    windowsHide: true,
+  })
+  return result.status === 0 ? result.stdout.trim() : ''
+}
+
 async function pathExists(path) {
   try {
     await access(path)
@@ -117,6 +133,18 @@ async function writeStamp(venvDirectory, fingerprint) {
     await replaceWithRetry(temporary, destination)
   } finally {
     await rm(temporary, { force: true })
+  }
+}
+
+async function venvInterpreterMatches(venvDirectory, runtimePython) {
+  const runtimeVersion = commandOutput(runtimePython, [], RUNTIME_VERSION_CHECK)
+  if (!/^\d+\.\d+$/.test(runtimeVersion)) return false
+  try {
+    const config = await readFile(join(venvDirectory, 'pyvenv.cfg'), 'utf8')
+    const match = config.match(/^\s*version\s*=\s*(\d+\.\d+)(?:\.\d+)?\s*$/mi)
+    return match?.[1] === runtimeVersion
+  } catch {
+    return false
   }
 }
 
@@ -202,17 +230,20 @@ async function runLogged(command, args, logPath) {
   })
 }
 
-async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPython = '') {
+async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPython = '', clearExisting = false) {
   const base = findBootstrapPython(preferredPython)
   await mkdir(dirname(venvDirectory), { recursive: true })
   await mkdir(dirname(logPath), { recursive: true })
   await writeFile(logPath, '', { encoding: 'utf8', mode: 0o600 })
   process.stderr.write('[dsh_kline] Creating or repairing the Python environment…\n')
-  const venvMs = await runLogged(base.command, [...base.args, '-m', 'venv', venvDirectory], logPath)
+  const venvArgs = [...base.args, '-m', 'venv', ...(clearExisting ? ['--clear'] : []), venvDirectory]
+  const venvMs = await runLogged(base.command, venvArgs, logPath)
   process.stderr.write(`[dsh_kline] Python environment ready in ${Math.ceil(venvMs / 1000)}s.\n`)
   const runtimePython = pythonPathForVenv(venvDirectory)
   process.stderr.write('[dsh_kline] Installing dependencies…\n')
-  const dependenciesMs = await runLogged(runtimePython, ['-m', 'pip', 'install', '-r', REQUIREMENTS_FILE], logPath)
+  // Isolate pip from a user's config (notably `user = true`, which makes a
+  // venv install fail before it can write the ready stamp).
+  const dependenciesMs = await runLogged(runtimePython, ['-m', 'pip', '--isolated', 'install', '-r', REQUIREMENTS_FILE], logPath)
   process.stderr.write(`[dsh_kline] Dependencies ready in ${Math.ceil(dependenciesMs / 1000)}s.\n`)
   process.stderr.write('[dsh_kline] Verifying the runtime…\n')
   await runLogged(runtimePython, ['-c', IMPORT_CHECK], logPath)
@@ -237,6 +268,11 @@ async function readBootstrapFailure(venvDirectory, fingerprint) {
 async function writeBootstrapFailure(venvDirectory, fingerprint, error) {
   await mkdir(venvDirectory, { recursive: true })
   await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
+}
+
+function bootstrapFailureRetryAt(failure) {
+  const failedAt = Date.parse(String(failure?.at || ''))
+  return Number.isFinite(failedAt) ? failedAt + BOOTSTRAP_FAILURE_RETRY_MS : 0
 }
 
 function processIsAlive(pid) {
@@ -380,18 +416,41 @@ export async function main(argv = process.argv.slice(2)) {
   const managedRuntime = !configuredPythonWorks && (prepareProject || Boolean(configuredVenv) || !hasProjectRuntime)
   let runtimePython = configuredPythonWorks ? configuredPython : pythonPathForVenv(venvDirectory)
   const fingerprint = await requirementsFingerprint()
-  const runtimeWorks = await pathExists(runtimePython) && commandPasses(runtimePython, [], IMPORT_CHECK)
+  const runtimeImportsWork = await pathExists(runtimePython) && commandPasses(runtimePython, [], IMPORT_CHECK)
+  const runtimeVenvMatches = configuredPythonWorks || !runtimeImportsWork
+    ? true
+    : await venvInterpreterMatches(venvDirectory, runtimePython)
+  const runtimeWorks = runtimeImportsWork && runtimeVenvMatches
+  const previousFailure = managedRuntime ? await readBootstrapFailure(venvDirectory, fingerprint) : null
+  let requirementsMatch = !managedRuntime || await stampMatches(venvDirectory, fingerprint)
+  // A previous bootstrap can fail after pip has installed every dependency
+  // but before the fingerprint is written. Re-verify imports above, then
+  // atomically restore the stamp and clear the stale failure instead of
+  // indefinitely rejecting an already-healthy runtime.
+  if (runtimeWorks && managedRuntime && !requirementsMatch && previousFailure && !prepareProject) {
+    try {
+      await writeStamp(venvDirectory, fingerprint)
+      requirementsMatch = await stampMatches(venvDirectory, fingerprint)
+      if (requirementsMatch) await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true })
+    } catch { /* Normal bootstrap below remains the safe fallback. */ }
+  }
   let reason = ''
-  if (!runtimeWorks) reason = 'Python runtime is missing or incomplete'
-  else if (managedRuntime && !(await stampMatches(venvDirectory, fingerprint))) reason = 'dependency requirements changed'
+  if (!runtimeWorks) reason = runtimeImportsWork
+    ? 'Python runtime interpreter metadata is inconsistent'
+    : 'Python runtime is missing or incomplete'
+  else if (!requirementsMatch) reason = 'dependency requirements changed'
 
   if (reason) {
     if (!managedRuntime) {
       throw new Error('The project .venv is incomplete. Run: pnpm bootstrap')
     }
-    const previousFailure = await readBootstrapFailure(venvDirectory, fingerprint)
     if (previousFailure && !prepareProject) {
-      throw new Error(`Python runtime preparation previously failed for these dependencies. Run: pnpm bootstrap and inspect the bootstrap log.`)
+      const logPath = join(stateDirectory, 'bootstrap.log')
+      const retryAt = bootstrapFailureRetryAt(previousFailure)
+      if (retryAt > Date.now()) {
+        throw new Error(`Python runtime preparation recently failed; automatic retry will resume after ${new Date(retryAt).toISOString()}. Run: pnpm bootstrap to retry now. See ${logPath}.`)
+      }
+      await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true }).catch(() => {})
     }
     const deferredBootstrap = String(process.env.DSH_KLINE_DEFER_BOOTSTRAP || '').trim() === '1'
     if (deferredBootstrap && !prepareProject && !bootstrapRuntime) {
@@ -403,7 +462,13 @@ export async function main(argv = process.argv.slice(2)) {
     process.stderr.write(`[dsh_kline] Preparing Python runtime: ${reason}.\n`)
     process.stderr.write(`[dsh_kline] Installation details: ${logPath}\n`)
     try {
-      runtimePython = await prepareRuntime(venvDirectory, fingerprint, logPath, hasProjectRuntime ? projectPython : '')
+      runtimePython = await prepareRuntime(
+        venvDirectory,
+        fingerprint,
+        logPath,
+        hasProjectRuntime ? projectPython : '',
+        runtimeImportsWork && !runtimeVenvMatches,
+      )
     } catch (error) {
       await writeBootstrapFailure(venvDirectory, fingerprint, error).catch(() => {})
       throw new Error(`Runtime preparation failed. See ${logPath}. ${error instanceof Error ? error.message : String(error)}`)

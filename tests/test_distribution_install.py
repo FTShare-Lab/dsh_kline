@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -25,6 +26,9 @@ import sys
 
 args = sys.argv[1:]
 if args[:1] == ['-c']:
+    if 'print(f"{sys.version_info.major}.{sys.version_info.minor}")' in args[1]:
+        print('3.12')
+        raise SystemExit(0)
     if 'version_info' in args[1]:
         raise SystemExit(1 if os.environ.get('FAKE_OLD_PYTHON') else 0)
     ready = (Path(__file__).parent / '.imports-ready').exists() or (Path(__file__).parent.parent / '.imports-ready').exists()
@@ -33,12 +37,13 @@ if args[:2] == ['-m', 'venv']:
     if os.environ.get('FAKE_VENV_FAILURE'):
         print('simulated install failure', file=sys.stderr)
         raise SystemExit(23)
-    target = Path(args[2])
+    target = Path(args[-1])
     executable = target / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     executable.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(__file__, executable)
     executable.chmod(0o755)
     (target / '.imports-ready').write_text('ready')
+    (target / 'pyvenv.cfg').write_text('version = 3.12.0\n')
     print('venv completed')
     raise SystemExit(0)
 if args[:2] == ['-m', 'pip']:
@@ -69,6 +74,7 @@ def _prepare_launcher_fixture(tmp_path, *, runtime_exists=False, stamp=None, imp
         runtime.chmod(0o755)
         if imports_ready:
             (venv / ".imports-ready").write_text("ready")
+        (venv / "pyvenv.cfg").write_text("version = 3.12.0\n")
     if stamp is not None:
         venv.mkdir(parents=True, exist_ok=True)
         (venv / ".dsh-kline-requirements").write_text(f"{stamp}\n")
@@ -120,6 +126,7 @@ def test_launcher_contains_native_windows_runtime_support():
         "DSH_KLINE_RUNTIME_DIR",
         "bootstrap.log",
         "Python 3.10 or newer",
+        "--isolated",
     ):
         assert marker in launcher
 
@@ -241,6 +248,73 @@ def test_healthy_matching_runtime_starts_without_bootstrap(tmp_path):
     assert result.returncode == 0, result.stderr
     assert result.stdout == "mcp-ready\n"
     assert "venv completed" not in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+def test_ready_runtime_recovers_from_an_interrupted_bootstrap(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path, runtime_exists=True)
+    fingerprint = _requirements_fingerprint(project / "requirements.txt")
+    failure = venv / ".dsh-kline-bootstrap-failed"
+    failure.write_text(json.dumps({"fingerprint": fingerprint, "at": "2026-10-01T00:00:00.000Z", "error": "interrupted"}))
+
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "mcp-ready\n"
+    assert (venv / ".dsh-kline-requirements").read_text().strip() == fingerprint
+    assert not failure.exists()
+    assert "venv completed" not in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+def test_expired_bootstrap_failure_is_retried_automatically(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    fingerprint = _requirements_fingerprint(project / "requirements.txt")
+    failure = venv / ".dsh-kline-bootstrap-failed"
+    venv.mkdir(parents=True, exist_ok=True)
+    failure.write_text(json.dumps({"fingerprint": fingerprint, "at": "2000-01-01T00:00:00.000Z", "error": "network unavailable"}))
+
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 0, result.stderr
+    assert "venv completed" in result.stderr
+    assert not failure.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+def test_recent_bootstrap_failure_reports_its_log_and_defers_retry(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    fingerprint = _requirements_fingerprint(project / "requirements.txt")
+    venv.mkdir(parents=True, exist_ok=True)
+    (venv / ".dsh-kline-bootstrap-failed").write_text(json.dumps({
+        "fingerprint": fingerprint,
+        "at": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+        "error": "network unavailable",
+    }))
+
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 1
+    assert "recently failed" in result.stderr
+    assert str(tmp_path / "cache" / "bootstrap.log") in result.stderr
+    assert "venv completed" not in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
+def test_inconsistent_venv_metadata_is_cleared_and_rebuilt(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(
+        tmp_path,
+        runtime_exists=True,
+        stamp=_requirements_fingerprint(ROOT / "requirements.txt"),
+    )
+    (venv / "pyvenv.cfg").write_text("version = 3.11.9\n")
+
+    result = _run_launcher(project, env)
+
+    assert result.returncode == 0, result.stderr
+    assert "interpreter metadata is inconsistent" in result.stderr
+    assert "venv completed" in result.stderr
+    assert (venv / "pyvenv.cfg").read_text() == "version = 3.12.0\n"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
