@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## 0.3.5 - 2026-10-08
+
+### Fixed
+
+- Python 运行时在依赖已验证可用、但启动曾被中断时会自动恢复指纹并清除旧失败记录；失败后的自动重试有短暂冷却期，不再永久阻断 MCP 服务。
+- 检测到虚拟环境解释器与 `pyvenv.cfg` 元数据不一致时会清理并重建环境；安装依赖时隔离用户级 pip 配置，避免 `user = true` 等设置破坏 venv 安装。
+- Better Sidebar 的兼容代理即使未暴露能力列表，只要公开注册与打开接口可用，也不会错误回退到经典界面。
+
+### Security
+
+- 锁定并覆盖已修复的传递依赖：MCP SDK、Sharp、KaTeX、proxy-addr、ip-address 和 DOMPurify，清除 Dependabot 告警。
+
 ## 0.3.4 - 2026-09-21
 
 ### Added
