@@ -72,7 +72,9 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 普通 A 股当日分时优先使用 FTShare 的实时一分钟数据；指数、ETF 与多日分钟历史会继续使用各自适用的历史接口，保证覆盖范围与图表周期一致。
 
-插件会按以下顺序复用 FTShare 凭据：当前 DSH 服务已注入的 `FTSHARE_API_KEY`、用户显式指定的 `FTSHARE_API_KEY_FILE`，以及此前由本插件保存的本机凭据。也就是说，若你已把 Key 配给启动 DSH 的环境，插件会直接使用；仅安装 FTShare SDK、或把 Key 留在其他应用的私有配置中，并不会被自动读取。
+插件会按以下顺序复用 FTShare 凭据：当前 DSH 服务已注入的 `FTSHARE_API_KEY`、用户显式指定的 `FTSHARE_API_KEY_FILE`、DSH 的 FTShare 设置所保存的 Key，以及此前由本插件保存的本机凭据。也就是说，若你已把 Key 配给启动 DSH 的环境，插件会直接使用；仅安装 FTShare SDK、或把 Key 留在其他应用的私有配置中，并不会被自动读取。
+
+DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布给 MCP 服务，插件在每次取数前重新读取，因此在设置页新增、更换或清除 Key 后无需重启 dsh；该 Key 由设置页管理，插件不会显示或清除它。
 
 出于安全考虑，插件不会扫描 `.env`、shell 配置、钥匙串或其他应用的配置文件，也不会显示 Key 或文件路径。**设置 → 数据源** 会清楚标出当前来源；需要更换时，在“管理 FTShare 配置”中粘贴 Key 并测试连接，可选择仅本次使用，或保存到本机供下次启动加载。
 

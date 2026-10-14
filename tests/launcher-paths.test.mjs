@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { join } from 'node:path'
 
 import {
   defaultRuntimeDirectory,
@@ -8,6 +9,8 @@ import {
   pythonCandidates,
   pythonEnvironment,
   pythonPathForVenv,
+  settingsCredentialEnvironment,
+  settingsCredentialFile,
 } from '../scripts/run-dsh-kline.mjs'
 
 test('Windows uses native venv and LOCALAPPDATA paths', () => {
@@ -65,4 +68,16 @@ test('deferred bootstrap is detached on every host, including Windows', () => {
   assert.equal(backgroundBootstrapSpawnOptions('win32', {}).detached, true)
   assert.equal(backgroundBootstrapSpawnOptions('win32', {}).windowsHide, true)
   assert.equal(backgroundBootstrapSpawnOptions('linux', {}).detached, true)
+})
+
+test('the settings credential file is keyed to the owning DSH host', () => {
+  assert.equal(settingsCredentialFile('/tmp/runtime', 42), join('/tmp/runtime', 'credentials', 'ftshare-42.json'))
+  assert.deepEqual(settingsCredentialEnvironment('/tmp/runtime', { DSH_KLINE_HOST_PID: '42' }),
+    { DSH_KLINE_SETTINGS_KEY_FILE: join('/tmp/runtime', 'credentials', 'ftshare-42.json') })
+})
+
+test('a server launched without a DSH host keeps its previous credential resolution', () => {
+  for (const env of [{}, { DSH_KLINE_HOST_PID: '' }, { DSH_KLINE_HOST_PID: '   ' }, { DSH_KLINE_HOST_PID: 'host' }]) {
+    assert.deepEqual(settingsCredentialEnvironment('/tmp/runtime', env), {})
+  }
 })

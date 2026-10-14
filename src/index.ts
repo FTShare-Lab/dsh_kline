@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { startFtshareSettingsBridge, type FtshareSettingsService } from './ftshare-settings-bridge.ts'
 
 export const name = 'dsh-kline-sidebar'
 export const inject = ['webServer']
@@ -42,6 +43,17 @@ interface WebServerContext {
       handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
     }): () => void
   }
+  /**
+   * Cordis runs the callback once every listed service is available, and tears
+   * the nested fiber down when one disappears.  Optional here because a host
+   * without the FTShare settings plugin — and every test stub — omits it.
+   */
+  inject?(inject: string[], callback: (ctx: SettingsContext) => void): unknown
+}
+
+interface SettingsContext {
+  effect(callback: () => () => void, label: string): void
+  ftshareSettings: FtshareSettingsService
 }
 
 export function apply(ctx: WebServerContext): void {
@@ -50,6 +62,24 @@ export function apply(ctx: WebServerContext): void {
     path: '/dsh-kline',
     handler: serveRuntimeSession,
   }), 'dsh-kline: chart session route')
+  followFtshareSettings(ctx)
+}
+
+/**
+ * Publish the host's saved FTShare Key for the MCP server while it exists.
+ *
+ * `inject` deliberately stays `['webServer']`: the settings service is an
+ * addition, not a dependency, so this plugin loads unchanged on a host that
+ * does not provide it.
+ */
+function followFtshareSettings(ctx: WebServerContext): void {
+  if (typeof ctx.inject !== 'function') return
+  ctx.inject(['ftshareSettings'], settingsCtx => {
+    const settings = settingsCtx.ftshareSettings
+    if (!settings?.apiKey) return
+    const bridge = startFtshareSettingsBridge({ settings, runtimeDirectory: RUNTIME_DIR })
+    settingsCtx.effect(() => () => { void bridge.dispose() }, 'dsh-kline: FTShare settings credential bridge')
+  })
 }
 
 async function serveRuntimeSession(request: IncomingMessage, response: ServerResponse): Promise<void> {

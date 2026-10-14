@@ -306,9 +306,33 @@ def _ftshare_key_path() -> Path:
     return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
 
 
-def _configured_ftshare_file_source() -> str:
-    """Classify only the explicit credential file currently in use."""
-    return "external_file" if (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip() else "plugin_store"
+def _ftshare_settings_key_path() -> Path | None:
+    """Credential file published by the DSH FTShare settings bridge.
+
+    The DSH host writes it when the FTShare settings plugin is installed and
+    the launcher points this process at it.  Without that file this process
+    resolves credentials exactly as it did before the bridge existed.
+    """
+    configured = (os.environ.get("DSH_KLINE_SETTINGS_KEY_FILE") or "").strip()
+    return Path(configured).expanduser() if configured else None
+
+
+def _ftshare_credential_files() -> tuple[tuple[Path, str], ...]:
+    """Credential files in precedence order, each with its provenance label.
+
+    An explicit ``FTSHARE_API_KEY_FILE`` stays authoritative for hosts and
+    tests that set one; otherwise a Key saved in the DSH FTShare settings
+    outranks the one this plugin stored for itself.
+    """
+    explicit = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if explicit:
+        return ((Path(explicit).expanduser(), "external_file"),)
+    files: list[tuple[Path, str]] = []
+    bridge = _ftshare_settings_key_path()
+    if bridge is not None:
+        files.append((bridge, "settings_bridge"))
+    files.append((_ftshare_key_path(), "plugin_store"))
+    return tuple(files)
 
 
 def _valid_ftshare_key(value: Any) -> str:
@@ -318,8 +342,7 @@ def _valid_ftshare_key(value: Any) -> str:
     return key
 
 
-def _read_persisted_ftshare_key() -> str:
-    path = _ftshare_key_path()
+def _read_ftshare_key_file(path: Path) -> str:
     try:
         if not path.is_file() or path.is_symlink():
             return ""
@@ -333,11 +356,24 @@ def _read_persisted_ftshare_key() -> str:
         return ""
 
 
+def _resolve_persisted_ftshare_key() -> tuple[str, str]:
+    """Return the first usable file credential, with where it came from."""
+    for path, source in _ftshare_credential_files():
+        value = _read_ftshare_key_file(path)
+        if value:
+            return value, source
+    return "", ""
+
+
+def _read_persisted_ftshare_key() -> str:
+    return _resolve_persisted_ftshare_key()[0]
+
+
 def _load_persisted_ftshare_key() -> bool:
     global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
     if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
         return False
-    value = _read_persisted_ftshare_key()
+    value, source = _resolve_persisted_ftshare_key()
     if not value:
         return False
     os.environ["FTSHARE_API_KEY"] = value
@@ -345,8 +381,38 @@ def _load_persisted_ftshare_key() -> bool:
     # even when a test/developer chose a custom file path.  A fresh process
     # correctly reports that same explicit path as externally managed.
     if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store":
-        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = _configured_ftshare_file_source()
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = source
     return True
+
+
+def _refresh_persisted_ftshare_key() -> None:
+    """Follow file-backed credentials before each FTShare client is created.
+
+    The DSH bridge can replace or clear its file while this process runs, so a
+    Key change applies without restarting the MCP server.  A Key the host
+    environment supplied, a temporary in-process override, or this plugin's own
+    saved credential is never replaced here.
+    """
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    source = _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    current = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if source in {"environment", "session"}:
+        return
+    if source is None and current:
+        return
+    value, resolved = _resolve_persisted_ftshare_key()
+    if value == current:
+        return
+    if value:
+        os.environ["FTSHARE_API_KEY"] = value
+        # A credential this process saved for itself keeps reporting as the
+        # plugin's own, even when it lives at an explicitly configured path; a
+        # Key published by the DSH settings always reports its own source.
+        if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store" or resolved == "settings_bridge":
+            _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = resolved
+    else:
+        os.environ.pop("FTSHARE_API_KEY", None)
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
 
 
 def _ftshare_credential_source() -> str:
@@ -425,6 +491,7 @@ def _ftshare_market_api(timeout: float) -> Any:
     """Create an SDK client with the process key attached to every request."""
     import ftshare as ft
 
+    _refresh_persisted_ftshare_key()
     key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
     headers = {"FTSHARE_API_KEY": key} if key else None
     return ft.market_api(timeout=timeout, headers=headers)
@@ -631,17 +698,18 @@ def _ftshare_etf_minutes(market: Any, **params: Any) -> Any:
 
 def ftshare_status() -> dict[str, Any]:
     """Return safe provider status without host paths or module locations."""
+    _refresh_persisted_ftshare_key()
     _load_persisted_ftshare_key()
     ok = ftshare_available()
     credential_source = _ftshare_credential_source()
     info: dict[str, Any] = {
         "available": ok,
         "configured": credential_source != "none",
-        "persistent": credential_source in {"plugin_store", "external_file"},
+        "persistent": credential_source in {"plugin_store", "external_file", "settings_bridge"},
         "credential_source": credential_source,
         # Only a key explicitly saved by this running plugin can be safely
-        # removed from this UI.  Environment and externally supplied files
-        # remain owned by the host/user.
+        # removed from this UI.  Environment, externally supplied files, and a
+        # Key owned by the DSH FTShare settings remain owned by the host/user.
         "can_clear": credential_source == "plugin_store",
         "contracts": _ftshare_contract_status(),
     }
