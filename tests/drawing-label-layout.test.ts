@@ -4,7 +4,14 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 
 const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
-const helpers = html.slice(html.indexOf('  let agentLabelCache ='), html.indexOf('  try {\n    window.klinecharts.registerOverlay'))
+function extractHelpers(source:string) {
+  const normalized=source.replace(/\r\n?/g,'\n')
+  const start=normalized.indexOf('  let agentLabelCache =')
+  const end=normalized.indexOf('  try {\n    window.klinecharts.registerOverlay',start)
+  assert.ok(start>=0 && end>start,'label helper boundaries must exist')
+  return normalized.slice(start,end)
+}
+const helpers = extractHelpers(html)
 const plain = (value:any) => JSON.parse(JSON.stringify(value))
 function fixture() {
   const objects = new Map<string,any>(), payload:any = {chartCommands:[]}
@@ -34,6 +41,12 @@ function textBox(figures:any[]) {
     height:text.length*15+4,text:text.map(f=>f.attrs.text).join('')}
 }
 const overlaps = (a:any,b:any) => a.x < b.x+b.width && a.x+a.width > b.x && a.y < b.y+b.height && a.y+a.height > b.y
+
+test('actual label helper extraction accepts LF and Windows CRLF without capturing unrelated chart code',()=>{
+  const lf=html.replace(/\r\n?/g,'\n')
+  assert.equal(extractHelpers(lf),extractHelpers(lf.replace(/\n/g,'\r\n')))
+  assert.doesNotMatch(extractHelpers(lf),/registerOverlay|applyNewData|fetch\(/)
+})
 
 test('coincident same-name labels separate deterministically regardless of callback order; geometry is immutable',()=>{
   const f=fixture(); f.add('B'); f.add('A')

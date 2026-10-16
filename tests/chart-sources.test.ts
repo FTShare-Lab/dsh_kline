@@ -213,12 +213,17 @@ test('explicit source retry only rechecks current state, while unchanged rejecte
     const f=await fixture(),broker=new ChartContextBroker(join(f.runtime,'views',String(process.pid)),()=>Date.now(),f.runtime)
     let current=state(),publisher:any,bad=true,offers=0,binds=0,confirms=0,failSeen=false
     const statuses:any[]=[],sent:any[]=[]
+    let releaseFinalStatus:()=>void=()=>{}
+    const finalStatusGate=new Promise<void>(resolve=>{releaseFinalStatus=resolve})
     try {
       publisher=createChartContextPublisher({conversationId:'A',viewId,isActive:()=>true,capture:()=>current,
         captureSource:()=>bad && fail==='invalid_payload'?{...payload(),chartCommands:[{type:'BAD'}]}:payload(),
         apply:()=>assert.fail('recheck must not execute a drawing'),onSourceStatus:s=>statuses.push(s),
         bindSource:token=>{binds++;current={...current,source_chart_session:token}},confirmSource:(_,confirmed)=>{if(confirmed)confirms++},
         transport:async raw=>{sent.push(raw);const response=await broker.publish(raw)
+          // Hold the observation after confirmation: the callback alone does
+          // not mean the following source-status publication has settled.
+          if(confirms===1 && raw.active!==false)await finalStatusGate
           if(response.source_handoff) {offers++;if(bad && fail==='expired_offer')return {...response,source_handoff:{...response.source_handoff,expires_at_ms:Date.now()-1}}}
           if(response.source_status.phase==='blocked')failSeen=true
           return response}})
@@ -227,9 +232,11 @@ test('explicit source retry only rechecks current state, while unchanged rejecte
       assert.equal(binds,0);assert.equal(confirms,0);assert.equal(offers,fail==='expired_offer'?1:0)
       bad=false;publisher.retrySource();await until(()=>confirms===1)
       assert.equal(binds,1);assert.deepEqual(current.candles,weekly)
+      assert.equal(statuses.at(-1).phase,'checking')
+      releaseFinalStatus();await until(()=>statuses.at(-1)?.phase==='aligned')
       assert.ok(statuses.some(s=>s.phase==='checking'));assert.equal(statuses.at(-1).phase,'aligned')
       assert.ok(sent.every(raw=>!raw.edit && !raw.candidate_chart_session && !raw.request_id))
-    } finally {publisher?.dispose();await new Promise(resolve=>setTimeout(resolve,50));await f.close()}
+    } finally {releaseFinalStatus();publisher?.dispose();await new Promise(resolve=>setTimeout(resolve,50));await f.close()}
   }
 })
 
