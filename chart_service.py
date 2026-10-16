@@ -11,6 +11,8 @@ import json
 import hmac
 import os
 import secrets
+import re
+from copy import deepcopy
 import tempfile
 import threading
 import time
@@ -33,6 +35,7 @@ from core.calc import (
 )
 from tools.calc import run_calc_metrics
 from core.rows import validate_rows, RowsValidationError
+from core.adjustment import normalize_adjustment, adjustment_error
 from tools.draw import draw_kline
 from tools.watchlist import get_watchlist_state, save_watchlist_state
 from tools.fetch import (
@@ -214,12 +217,12 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
         if interval_error:
             return {"ok": False, **interval_error}
         interval = normalized_interval or "day"
+        adjust = normalize_adjustment(args.get("adjust", "none"))
+        if adjust is None:
+            return adjustment_error()
         resolved_symbol, resolved_name, symbol_error = _resolve_symbol_input(symbol)
         if symbol_error:
             return {"ok": False, **symbol_error}
-        adjust = str(args.get("adjust") or "none").strip().lower()
-        if adjust not in {"none", "forward", "backward"}:
-            adjust = "none"
         interval_value = int(_positive(args.get("interval_value"), 1, 1, 240))
         raw_sessions = args.get("session_count")
         session_count = int(_positive(raw_sessions, 5, 1, 10)) if raw_sessions is not None else None
@@ -235,6 +238,9 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
         )
         if not fetched.get("ok"):
             return dict(fetched)
+        effective_adjust = normalize_adjustment(fetched.get("adjust"))
+        if effective_adjust is None:
+            return adjustment_error(metadata=True)
         rows = list(fetched.get("rows") or [])[-requested:]
         if len(rows) < 2:
             return {"ok": False, "error": "insufficient_candles", "message": "fewer than two candles", "symbol": symbol}
@@ -285,7 +291,8 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
             {
                 "ok": True,
                 "workflow": "chart_api_analyze_key_levels",
-                "adjust": adjust,
+                "adjust": effective_adjust,
+                **({"adjust_requested": adjust, "adjustment_warning": fetched.get("warning") or "Requested adjustment was not applied by the provider."} if effective_adjust != adjust else {}),
                 "source": str(fetched.get("source") or "ftshare"),
                 "count": len(rows),
                 "fetched_count": len(fetched.get("rows") or []),
@@ -559,6 +566,29 @@ def ensure_chart_service() -> ChartService:
 
 def publish_chart(payload: dict[str, Any]) -> tuple[str, str]:
     return ensure_chart_service().publish(payload)
+
+
+def read_chart_snapshot(token: str) -> dict[str, Any] | None:
+    """Read only an explicitly named snapshot owned by this Harness instance.
+
+    Never consult the global latest manifest. Historical snapshots are readable
+    after an MCP restart, but edits publish a new token, keeping history intact.
+    """
+    if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", token):
+        return None
+    path = RUNTIME_DIR / "sessions" / f"{token}.json"
+    try:
+        if path.stat().st_size > MAX_REQUEST_BYTES:
+            return None
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        if saved.get("ok") is not True or saved.get("session") != token or saved.get("host_process_id") != HOST_PROCESS_ID:
+            return None
+        payload = saved.get("payload")
+        if not isinstance(payload, dict) or not isinstance(payload.get("chartCommands"), list):
+            return None
+        return deepcopy(payload)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
 
 
 def start_chart_service() -> None:

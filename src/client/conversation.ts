@@ -1,6 +1,6 @@
 // The host's session store is the identity authority. Never inspect DOM titles
 // or scan another conversation for a chart reference.
-export interface ChartReference { session: string; order: number }
+export interface ChartReference { session: string; order: number; recovery?: boolean; recoverySourceSessions?: string[] }
 export interface Observable<T> {
   getSnapshot(): T
   subscribe(listener: () => void): () => void
@@ -56,7 +56,7 @@ export function latestChart(nodes: readonly any[]): ChartReference | undefined {
   const visit = (node: any) => {
     for (const child of node.subCalls ?? []) visit(child)
     if (node.kind !== 'tool-result' || node.isError) return
-    if (!/^mcp__dsh[_-]kline__analyze_kline(?:_rows)?(?:_[a-f0-9]+)?$/.test(node.call?.name ?? '')) return
+    if (!/^mcp__dsh[_-]kline__(?:analyze_kline(?:_rows)?|(?:create|update|delete)_(?:(?:horizontal|trend)_line|channel|rectangle))(?:_[a-f0-9]+)?$/.test(node.call?.name ?? '')) return
     const serialized = JSON.stringify(node.content ?? [])
     const match = serialized.match(/chart_session(?:\\?"\s*:\s*\\?"|=)([A-Za-z0-9_-]{32})/)
     if (!match) return

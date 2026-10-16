@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "private": true,
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
@@ -16,6 +16,7 @@
     "cordis.patch.yml",
     "core",
     "docs/images",
+    "docs/release-acceptance-v0.4.0.md",
     "!core/**/__pycache__/**",
     "!core/**/*.py[cod]",
     "lib",
@@ -81,6 +82,9 @@
     "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts && pnpm verify:package",
     "verify:package": "node ./scripts/verify-package.mjs",
     "dsh:web": "bash ./scripts/run-dsh-web.sh",
+    "test": "node ./scripts/run-tests.mjs",
+    "test:node": "node ./scripts/run-tests.mjs --node",
+    "test:python": "node ./scripts/run-tests.mjs --python",
     "test:launcher": "node --test tests/launcher-paths.test.mjs"
   },
   "devDependencies": {

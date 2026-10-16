@@ -30,30 +30,40 @@ const markup = body
 
 const generated = `// @ts-nocheck
 // Generated from view/kline.html by scripts/generate-client-view.mjs.
+import { mergeHorizontalLineSnapshot } from './horizontal-lines'
+import { createChartContextPublisher } from './chart-context'
+import { collectDrawingFeedback } from '../drawing-feedback'
 export const PACKAGE_VERSION = ${JSON.stringify(packageJson.version)}
 
 const VIEW_STYLE = ${JSON.stringify(scopedStyle)}
 const VIEW_MARKUP = ${JSON.stringify(markup)}
 
 export function mountKlineView(root, payload, dependencies = {}) {
+  if (payload?.view_source_guard) throw new Error('当前图来源凭证不能作为普通图表入口渲染。')
+  if (payload?.drawing_guard) throw new Error('绘图准备结果尚未应用，不能通过普通图表入口绕过状态检查。')
   const host = root.host
   const storagePrefix = 'dsh-kline:conversation:' + encodeURIComponent(dependencies.conversationId || '')
   const viewKey = storagePrefix + ':view'
   let restored = false
   try {
     const saved = JSON.parse(globalThis.localStorage.getItem(viewKey) || 'null')
+    const drawingUpdate = mergeHorizontalLineSnapshot(payload, saved)
+    if (drawingUpdate) { payload = drawingUpdate; restored = true }
     // A launcher deliberately has no selected instrument. It must never be
     // replaced by a saved chart payload, even when the host temporarily
     // reuses the previous conversation scope for its New Session screen.
-    if (payload?.workspace_mode !== 'launcher' && saved?.session === dependencies.chartSession && Array.isArray(saved.payload?.chartCommands)) {
+    const confirmedRestore = payload?._live_chart_session === dependencies.chartSession && payload?._live_application_pending === false
+      && saved?.payload?._live_chart_session === dependencies.chartSession && saved?.payload?._live_application_pending === false
+    if (!drawingUpdate && payload?.workspace_mode !== 'launcher' && (saved?.session === dependencies.chartSession || confirmedRestore) && Array.isArray(saved.payload?.chartCommands)) {
       payload = saved.payload
       restored = true
     }
   } catch {}
+  if (payload?.drawing_guard || payload?.view_source_guard || payload?._live_application_pending) throw new Error('缓存中的绘图候选尚未确认，不能直接渲染。')
   const controller = new AbortController()
   dependencies.restored = restored
   dependencies.saveView = next => {
-    if (controller.signal.aborted) return
+    if (controller.signal.aborted || next?._live_application_pending) return
     dependencies.onIdentity?.(next.symbol, next.name)
     try { globalThis.localStorage.setItem(viewKey, JSON.stringify({ session: dependencies.chartSession, payload: next })) } catch {}
   }
@@ -75,10 +85,29 @@ export function mountKlineView(root, payload, dependencies = {}) {
     }
     return globalThis.fetch(input, init)
   }
+  const contextPublisher = createChartContextPublisher({
+    conversationId: dependencies.ownerConversationId,
+    capture: () => captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession),
+    isActive: () => !controller.signal.aborted && host.isConnected && globalThis.document.visibilityState !== 'hidden'
+      && (dependencies.isVisible?.() ?? true),
+    apply: (next, token) => applyLiveDrawingCommands(next, token),
+    confirm: token => confirmLiveDrawingApplication(token),
+    captureSource: () => captureLiveChartSource(),
+    bindSource: (token, previous) => bindLiveChartSource(token, previous),
+    confirmSource: (token, confirmed) => confirmLiveChartSource(token, confirmed),
+    onSourceStatus: status => renderLiveSourceStatus(status),
+    feedback: () => collectDrawingFeedback(lastChartPayload, captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart),
+  })
+  window.__DSH_KLINE_DRAWING_FEEDBACK__ = (next, previous, phase) => collectDrawingFeedback(next,
+    captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart, previous, phase)
+  window.__DSH_KLINE_REPORT_CONTEXT__ = contextPublisher.notify
+  window.__DSH_KLINE_RETRY_SOURCE__ = contextPublisher.retrySource
+  dependencies.onContextPublisher?.(contextPublisher)
 
 ${runtime}
 
   return () => {
+    contextPublisher.dispose()
     lifecycle.dispose()
     controller.abort()
     root.innerHTML = ''

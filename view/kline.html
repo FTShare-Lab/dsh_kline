@@ -410,6 +410,12 @@
     background: var(--bg); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
     pointer-events: none; display: none;
   }
+  .source-handoff-status { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:11px; line-height:1.5; color:var(--text-soft); }
+  .source-handoff-status[hidden] { display:none; }
+  .source-handoff-status[data-phase="blocked"] { color:var(--accent); }
+  .source-handoff-status[data-phase="aligned"] { color:var(--text-soft); }
+  .source-handoff-status span { flex:1; min-width:0; overflow-wrap:anywhere; }
+  .source-handoff-status button { flex:0 0 auto; font-size:11px; }
   .chart-loading-overlay {
     position: absolute; z-index: 14; inset: 0; display: flex; align-items: center; justify-content: center;
     background: color-mix(in srgb, var(--bg) 72%, transparent); pointer-events: none;
@@ -1035,11 +1041,11 @@
     <div class="clear-menu-wrap">
       <button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除标注</button>
       <div class="clear-popover" id="clearPopover" role="dialog" aria-label="清除标注">
-        <div class="clear-scope" data-i18n="clearScope">仅影响当前对话、当前标的；保留指标和预警。</div>
+        <div class="clear-scope" data-i18n="clearScope">仅清除当前对话、当前标的的以下三类标注；保留 AI 图形、指标和预警。删除 AI 图形请在对话中指定目标。</div>
         <button class="btn" type="button" data-clear-kind="analysis" data-i18n="clearAnalysis">清除关键点位与分析标注</button>
         <button class="btn" type="button" data-clear-kind="drawings" data-i18n="clearDrawings">清除手动画线</button>
         <button class="btn" type="button" data-clear-kind="custom" data-i18n="clearCustom">清除自定义点位</button>
-        <button class="btn" type="button" data-clear-kind="all" data-i18n="clearAll">全部清除…</button>
+        <button class="btn" type="button" data-clear-kind="all" data-i18n="clearAll">清除以上三类…</button>
         <div id="clearConfirm" hidden>
           <p class="clear-scope" id="clearConfirmText"></p>
           <button class="btn" id="cancelClearBtn" type="button" data-i18n="clearCancel">取消</button>
@@ -1131,7 +1137,9 @@
   <div class="comparison-performance-head"><span class="comparison-performance-title" id="comparisonPerformanceTitle">区间涨跌</span><span class="comparison-performance-subtitle" id="comparisonPerformanceSubtitle">以首个共同交易点为 0%</span><div class="comparison-performance-legend" id="comparisonPerformanceLegend"></div></div>
   <div class="comparison-performance-canvas"><svg class="comparison-performance-svg" id="comparisonPerformanceSvg" aria-hidden="true"></svg></div>
 </section>
+<div class="source-handoff-status" id="sourceHandoffStatus" role="status" aria-live="polite" hidden><span id="sourceHandoffText"></span><button class="btn" type="button" id="sourceHandoffRetry" hidden>重新核对当前图</button></div>
 <div class="chart-meta" id="chartMeta" aria-live="polite">
+  <div class="chart-meta-row muted" id="chartMetaWindow" hidden></div>
   <div class="chart-meta-row" id="chartMetaCandle" hidden></div>
   <div class="chart-meta-row" id="chartMetaIndicators" hidden></div>
 </div>
@@ -1316,6 +1324,7 @@ let customRangeEnd = "";
 let currentCandles = []; // [{time(close sec), open_time?(sec), session?, open, high, low, close, volume}]
 let sourceCandles = [];
 let sourceCandleInterval = "day";
+let sourceCandleIntervalValue = null; // Explicit source metadata; never inferred from timestamps/UI.
 let lastChartPayload = null;
 let localChartDataMeta = null;
 let exchangeTimezone = "Asia/Shanghai";
@@ -1327,6 +1336,10 @@ let localIndicatorCache = [];
 let localIndicatorCacheByKey = new Map();
 let lastMarks = [];
 let lastLines = [];
+let lastHorizontalLines = [];
+let lastAgentTrendLines = [];
+let lastAgentChannels = [];
+let lastAgentRectangles = [];
 let maVisible = true;
 let vwapVisible = false;
 let volVisible = true;
@@ -1531,10 +1544,10 @@ const UI_COPY = {
     volume: "量", volumeUnit: "成交量单位", switchVolume: "切换成交量单位", noResults: "未找到标的", searching: "搜索中…", loading: "加载 K 线…", fetchingData: "正在拉取数据…", renderingChart: "正在更新图表…", dataReady: "数据拉取完成", dataFailed: "数据拉取失败", retry: "重试", sessionOpen: "开盘", sessionClose: "收盘", intradayRangeFallback: "{range} 历史分钟数据暂未返回，已切换为 1D",
     switchToLight: "切换至日间模式", switchToDark: "切换至夜间模式", percentAxis: "涨跌幅", resizeCanvas: "调整画布高度",
     closeTab: "关闭标签页", chartTabs: "图表标签页", level: "价位", securityTabs: "标的内容", chart: "图表", news: "新闻", company: "简况", overview: "概览", financials: "财务", holders: "股东", latestFinancials: "核心财务", majorHolders: "主要股东", noWorkspaceData: "该页等待数据源提供标准化信息", workspaceLoading: "正在从当前数据源加载新闻与简况…", workspaceReady: "新闻与简况已更新", workspaceUnavailable: "温馨提示：当前数据源暂未提供新闻与简况数据", workspaceDataHint: "温馨提示：当前数据源暂未提供这部分信息", externalDataHint: "支持接入其他数据源，具体能力取决于数据源提供的内容", marketTickerUnavailable: "大盘行情将在数据源接入后展示", sourceEastmoneyFree: "东方财富免费行情", sourceTencentFree: "腾讯免费行情", openIndexChart: "查看 {name} K 线图", friendlyNotice: "温馨提示", ftshareMinuteKeyRequired: "FTShare 免费数据暂不支持分钟 K，请配置 FTSHARE_API_KEY 后重试。", help: "使用帮助", helpTitle: "使用帮助", helpVersion: "当前版本", helpRelease: "查看版本与更新", localPreview: "本地预览",
-    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 连接", ftshareManage: "管理 FTShare 配置", testCurrentConnection: "测试当前连接", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "仅复用当前 DSH 服务可读取的配置；不会扫描其他应用、.env、shell 配置或钥匙串。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除插件保存的 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusEnvironment: "已自动连接 · 使用宿主环境配置", ftshareStatusExternalFile: "已自动连接 · 使用指定凭据文件", ftshareStatusSession: "已连接 · 仅当前进程", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareHintEnvironment: "当前 DSH 服务已读取 FTSHARE_API_KEY。Key 不会显示、保存或被插件清除。", ftshareHintExternalFile: "当前 DSH 服务从指定凭据文件读取 Key；请在宿主侧管理它。", ftshareHintPluginStore: "此 Key 由插件安全保存到本机；可在这里清除。", ftshareHintSession: "此 Key 只在当前 DSH 进程有效，重启后失效。", ftshareHintAnonymous: "未检测到可由当前 DSH 服务读取的 FTShare Key；基础免费能力仍可使用。", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
+    newsUnavailable: "温馨提示：当前数据源暂未提供新闻数据", newsUnavailableHint: "接入支持新闻的数据源后，即可在这里查看资讯。", newsEmpty: "当前标的暂无新闻数据", newsEmptyHint: "可以稍后重试，或切换到支持新闻的数据源。", companyUnavailable: "温馨提示：当前数据源暂未提供简况数据", companyUnavailableHint: "接入支持公司资料的数据源后，即可在这里查看。", companyEmpty: "当前标的暂无简况数据", companyEmptyHint: "可以稍后重试，或切换到支持公司资料的数据源。", settingsTitle: "设置", closeSettings: "关闭设置", language: "语言", theme: "主题", dataSource: "数据源", settingsSourceHint: "能力取决于当前数据源。", sourceConnected: "已连接", sourceUnavailable: "等待数据源", localDataTitle: "本机数据", localDataDescription: "自选和分组会保存在当前用户的 dsh_kline 中；画线和价格标记保存在当前浏览器。你可以导出备份，或在另一台设备导入。", exportLocalData: "导出本机数据", importLocalData: "导入本机数据", localDataExported: "本机数据已导出", localDataImported: "本机数据已导入", localDataInvalid: "文件格式不正确，未导入任何数据。", ftshareConfigTitle: "FTShare 连接", ftshareManage: "管理 FTShare 配置", testCurrentConnection: "测试当前连接", configureAndTest: "配置并测试", clearConfig: "清除", ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY（可选）", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "保存到本机（推荐）", ftshareConfigNote: "仅复用当前 DSH 服务可读取的配置；不会扫描其他应用、.env、shell 配置或钥匙串。", ftshareConfigured: "FTShare API Key 已配置并连接成功", ftshareConfiguredSaved: "已配置并保存，下次启动自动使用", ftshareCleared: "已清除插件保存的 FTShare 配置", ftshareStatusConfigured: "已安装 · API Key 已配置", ftshareStatusConfiguredSaved: "已安装 · 已保存，下次启动自动使用", ftshareStatusEnvironment: "已自动连接 · 使用宿主环境配置", ftshareStatusExternalFile: "已自动连接 · 使用指定凭据文件", ftshareStatusSettingsBridge: "已自动连接 · 使用 DSH FTShare 设置", ftshareStatusSession: "已连接 · 仅当前进程", ftshareStatusAnonymous: "已安装 · 使用免费数据", ftshareStatusMissing: "未安装 FTShare SDK", ftshareHintEnvironment: "当前 DSH 服务已读取 FTSHARE_API_KEY。Key 不会显示、保存或被插件清除。", ftshareHintExternalFile: "当前 DSH 服务从指定凭据文件读取 Key；请在宿主侧管理它。", ftshareHintSettingsBridge: "当前 Key 来自 DSH 的 FTShare 设置页；插件不会显示或清除它，请在设置中管理。", ftshareHintPluginStore: "此 Key 由插件安全保存到本机；可在这里清除。", ftshareHintSession: "此 Key 只在当前 DSH 进程有效，重启后失效。", ftshareHintAnonymous: "未检测到可由当前 DSH 服务读取的 FTShare Key；基础免费能力仍可使用。", ftshareConfigTesting: "正在测试 FTShare 连接…", ftshareConfigFailed: "FTShare 连接失败，请检查 API Key 或稍后重试。", ftshareConfigInvalid: "请输入 API Key，或点击清除恢复免费模式。", ftshareConfigProcessOnly: "配置仅对当前 dsh 进程生效", ftshareWebsite: "打开 FTShare 官网", ftshareDocs: "查看 API 文档", welcomeTitle: "欢迎使用非凸 K 线助手", welcomeLead: "用自然语言查看行情、K 线、指标和标的信息。", welcomeItemChart: "先选择标的，再按需加载数据和分析图表。", welcomeItemSource: "支持 FTShare，也支持其他数据源提供标准化 OHLCV 数据。", welcomeItemWatchlist: "自选和分组会跨对话保留。", welcomeFtshareTitle: "想使用更多数据？", welcomeFtshareDetail: "FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。", welcomeConfigure: "配置 FTShare", welcomeLater: "稍后设置",
     watchlist: "自选", watchlistEmpty: "尚未添加自选标的", addWatch: "加入自选", removeWatch: "移出自选", defaultGroup: "默认分组", newGroup: "新建分组", renameGroup: "重命名分组", save: "保存", groupName: "分组名称", groupNameRequired: "请输入分组名称", groupNameExists: "该分组已存在", create: "创建", cancel: "取消", deleteGroup: "删除分组", deleteGroupConfirm: "删除此分组及其中全部标的？", openWatchlistRail: "展开自选侧栏", closeWatchlistRail: "收起自选侧栏",
     rangeLabel: "时间范围", intervalLabel: "K 线周期", custom: "自定义", apply: "应用", resetZoom: "重置缩放", alert: "预警", alertPrice: "价格", alertNote: "备注（可选）", alertScopeNote: "仅在当前页面打开时检查，不提供后台推送。", alertEmpty: "当前标的暂无预警", alertAdded: "已添加价格预警", alertRemoved: "已移除价格预警", addWatchAtCandle: "加入自选", analyzeCandle: "分析此 K 线", marketUpdated: "更新", beijingTime: "北京时间", delayed: "延迟", closed: "收盘", stale: "过期", open: "开市", source: "数据源", refresh: "刷新", refreshing: "正在刷新", retrying: "刷新失败，保留上一份有效数据并自动重试", compare: "对比", comparePlaceholder: "代码或名称", compareEmpty: "暂无对比标的", compareLimit: "最多叠加 3 个标的", compareIndexUnavailable: "当前数据源暂不支持指数 K 线对比", compareReturn: "相对收益", compareAbsolute: "绝对价格", relativeStrength: "相对强弱", excessReturn: "超额收益", correlation: "收益相关性", lastPrice: "最新价", comparisonPerformance: "区间涨跌", comparisonPerformanceHint: "以首个共同交易点为 0%", comparisonAbsoluteHint: "各标的独立归一化至 0-100", intraday: "分时", intradayUnavailable: "分时范围内仅支持分钟 K", ftshareIntradayUnavailable: "当前接入的 FTShare 接口不支持此标的的分钟 K，并非 Key 无效。请切换到 30日或更长范围。", drawing: "画线", drawingName: "名称（可选）", drawingEmpty: "暂无保存的画线", drawingTrend: "趋势线", drawingHorizontal: "水平线", drawingRect: "矩形", drawingFibonacci: "斐波那契", drawingHintOne: "点击一根 K 线设置价位", drawingHintTwo: "再点击一根 K 线完成绘制", drawingSaved: "画线已保存", drawingCleared: "已清除画线", sortManual: "手动排序", sortChangeDesc: "涨幅从高到低", sortChangeAsc: "涨幅从低到高", batchOpen: "打开所选", batchSelectAll: "全选", batchDelete: "删除所选", batchMoveTo: "移动到…", batchRemoved: "已删除 {count} 只", batchMoved: "已移动 {count} 只", importDone: "已导入 {count} 只", groupSummary: "分组总览", noQuote: "暂无行情",
-    sourceIntroTitle: "数据源简介", sourceIntro: "FTShare 是默认数据源；日 K 与常用指标可直接使用，分钟 K、新闻和其他内容取决于接口与套餐。", sourceAutoloadTitle: "自动使用已有的 FTShare Key", sourceAutoload: "dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。", ftshareConfigTitle: "当前连接", checkAvailability: "检测接口可用性", changeConfig: "更改配置", ftshareConfigDialogTitle: "更改 FTShare 配置", ftshareConfigMenuTitle: "FTShare 配置", sourceCapabilities: "接口可用性检测",
+    sourceIntroTitle: "数据源简介", sourceIntro: "FTShare 是默认数据源；日 K 与常用指标可直接使用，分钟 K、新闻和其他内容取决于接口与套餐。", sourceAutoloadTitle: "自动使用已有的 FTShare Key", sourceAutoload: "dsh_kline 会先复用当前 DSH 可读取的 Key（宿主环境、指定凭据文件或 DSH 的 FTShare 设置）；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。", ftshareConfigTitle: "当前连接", checkAvailability: "检测接口可用性", changeConfig: "更改配置", ftshareConfigDialogTitle: "更改 FTShare 配置", ftshareConfigMenuTitle: "FTShare 配置", sourceCapabilities: "接口可用性检测",
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸 K 线助手",
   },
   en: {
@@ -1551,10 +1564,10 @@ const UI_COPY = {
     volume: "Vol", volumeUnit: "Volume unit", switchVolume: "Switch volume unit", noResults: "No matching symbols", searching: "Searching…", loading: "Loading candles…", fetchingData: "Fetching market data…", renderingChart: "Updating chart…", dataReady: "Market data ready", dataFailed: "Market data unavailable", retry: "Retry", sessionOpen: "Open", sessionClose: "Close", intradayRangeFallback: "{range} minute history is unavailable; switched to 1D",
     switchToLight: "Switch to light mode", switchToDark: "Switch to dark mode", percentAxis: "Change %", resizeCanvas: "Resize chart height",
     closeTab: "Close tab", chartTabs: "Chart tabs", level: "Level", securityTabs: "Security content", chart: "Chart", news: "News", company: "Company", overview: "Overview", financials: "Financials", holders: "Holders", latestFinancials: "Key financials", majorHolders: "Major holders", noWorkspaceData: "This view is waiting for normalized data from the source", workspaceLoading: "Loading news and company information from the current source…", workspaceReady: "News and company information updated", workspaceUnavailable: "Notice: the current source has not provided news or company data", workspaceDataHint: "Notice: the current source has not provided this information", externalDataHint: "Other sources can be connected; available features depend on what they provide", marketTickerUnavailable: "Market data will appear when a source is connected", sourceEastmoneyFree: "Eastmoney free quotes", sourceTencentFree: "Tencent free quotes", openIndexChart: "Open {name} chart", friendlyNotice: "Notice", ftshareMinuteKeyRequired: "FTShare free data does not include minute bars. Set FTSHARE_API_KEY and retry.", help: "Help", helpTitle: "How to use", helpVersion: "Current version", helpRelease: "View releases and updates", localPreview: "Local preview",
-    newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare connection", ftshareManage: "Manage FTShare configuration", testCurrentConnection: "Test current connection", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "Only configurations readable by the current DSH service are reused. The plugin does not scan other apps, .env files, shell configuration, or keychains.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The FTShare configuration saved by this plugin was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusEnvironment: "Connected automatically · Host environment", ftshareStatusExternalFile: "Connected automatically · Specified credential file", ftshareStatusSession: "Connected · Current process only", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareHintEnvironment: "The current DSH service already has FTSHARE_API_KEY. It is never shown, saved, or cleared by the plugin.", ftshareHintExternalFile: "The current DSH service reads the key from a specified credential file; manage it in the host.", ftshareHintPluginStore: "This key was securely saved locally by the plugin and can be cleared here.", ftshareHintSession: "This key works only for the current DSH process and is lost after restart.", ftshareHintAnonymous: "No FTShare key readable by the current DSH service was detected; basic free capability remains available.", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
+    newsUnavailable: "Notice: the current source has not provided news data", newsUnavailableHint: "Connect a source that supports news to view updates here.", newsEmpty: "No news is available for this symbol", newsEmptyHint: "Try again later or switch to a source that supports news.", companyUnavailable: "Notice: the current source has not provided company data", companyUnavailableHint: "Connect a source that supports company information to view it here.", companyEmpty: "No company information is available for this symbol", companyEmptyHint: "Try again later or switch to a source that supports company information.", settingsTitle: "Settings", closeSettings: "Close settings", language: "Language", theme: "Theme", dataSource: "Data source", settingsSourceHint: "Capabilities depend on the active source.", sourceConnected: "Connected", sourceUnavailable: "Waiting for source", localDataTitle: "Local data", localDataDescription: "Watchlists, groups, drawings, and price markers are saved in this browser. Export a backup or import it on another device.", exportLocalData: "Export local data", importLocalData: "Import local data", localDataExported: "Local data exported", localDataImported: "Local data imported", localDataInvalid: "The file format is invalid; nothing was imported.", ftshareConfigTitle: "FTShare connection", ftshareManage: "Manage FTShare configuration", testCurrentConnection: "Test current connection", configureAndTest: "Configure & test", clearConfig: "Clear", ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY (optional)", ftshareApiKeyLabel: "FTShare API Key", ftsharePersist: "Save on this device (recommended)", ftshareConfigNote: "Only configurations readable by the current DSH service are reused. The plugin does not scan other apps, .env files, shell configuration, or keychains.", ftshareConfigured: "FTShare API Key configured and connection succeeded", ftshareConfiguredSaved: "Configured and saved; it will be reused after restart", ftshareCleared: "The FTShare configuration saved by this plugin was cleared", ftshareStatusConfigured: "Installed · API Key configured", ftshareStatusConfiguredSaved: "Installed · Saved for reuse after restart", ftshareStatusEnvironment: "Connected automatically · Host environment", ftshareStatusExternalFile: "Connected automatically · Specified credential file", ftshareStatusSettingsBridge: "Connected automatically · DSH FTShare settings", ftshareStatusSession: "Connected · Current process only", ftshareStatusAnonymous: "Installed · Free data mode", ftshareStatusMissing: "FTShare SDK not installed", ftshareHintEnvironment: "The current DSH service already has FTSHARE_API_KEY. It is never shown, saved, or cleared by the plugin.", ftshareHintExternalFile: "The current DSH service reads the key from a specified credential file; manage it in the host.", ftshareHintSettingsBridge: "The key comes from the DSH FTShare settings page; the plugin never shows or clears it.", ftshareHintPluginStore: "This key was securely saved locally by the plugin and can be cleared here.", ftshareHintSession: "This key works only for the current DSH process and is lost after restart.", ftshareHintAnonymous: "No FTShare key readable by the current DSH service was detected; basic free capability remains available.", ftshareConfigTesting: "Testing FTShare connection…", ftshareConfigFailed: "FTShare connection failed. Check the API Key or try again later.", ftshareConfigInvalid: "Enter an API Key, or click Clear to restore free mode.", ftshareConfigProcessOnly: "This configuration applies only to the current dsh process", ftshareWebsite: "Open FTShare website", ftshareDocs: "View API docs", welcomeTitle: "Welcome to dsh_kline", welcomeLead: "Use natural language to explore quotes, K-lines, indicators, and symbol information.", welcomeItemChart: "Choose a symbol first, then load data and chart analysis when needed.", welcomeItemSource: "FTShare is supported, and other sources can provide normalized OHLCV rows.", welcomeItemWatchlist: "Watchlists and groups are saved in this browser.", welcomeFtshareTitle: "Need more data?", welcomeFtshareDetail: "FTShare access is tiered; minute bars, news, market data, and fundamentals depend on the specific API and plan.", welcomeConfigure: "Configure FTShare", welcomeLater: "Later",
     watchlist: "Watchlist", watchlistEmpty: "No symbols in watchlist", addWatch: "Add to watchlist", removeWatch: "Remove from watchlist", defaultGroup: "Default", newGroup: "New group", renameGroup: "Rename group", save: "Save", groupName: "Group name", groupNameRequired: "Enter a group name", groupNameExists: "That group already exists", create: "Create", cancel: "Cancel", deleteGroup: "Delete group", deleteGroupConfirm: "Delete this group and all of its symbols?", openWatchlistRail: "Open watchlist sidebar", closeWatchlistRail: "Close watchlist sidebar",
     rangeLabel: "Range", intervalLabel: "Interval", custom: "Custom", apply: "Apply", resetZoom: "Reset zoom", alert: "Alerts", alertPrice: "Price", alertNote: "Note (optional)", alertScopeNote: "Checked only while this page is open; no background notifications.", alertEmpty: "No alerts for this symbol", alertAdded: "Price alert added", alertRemoved: "Price alert removed", addWatchAtCandle: "Add to watchlist", analyzeCandle: "Analyze this candle", marketUpdated: "Updated", beijingTime: "Beijing time", delayed: "Delayed", closed: "Closed", stale: "Stale", open: "Open", source: "Source", refresh: "Refresh", refreshing: "Refreshing", retrying: "Refresh failed; keeping the last valid data and retrying", compare: "Compare", comparePlaceholder: "Symbol or name", compareEmpty: "No comparison symbols", compareLimit: "Up to 3 comparison symbols", compareIndexUnavailable: "Index comparison is unavailable with the current data source", compareReturn: "Relative return", compareAbsolute: "Absolute price", relativeStrength: "Relative strength", excessReturn: "Excess return", correlation: "Return correlation", lastPrice: "Last price", comparisonPerformance: "Period return", comparisonPerformanceHint: "First shared point = 0%", comparisonAbsoluteHint: "Each symbol normalized to 0-100", intraday: "Intraday", intradayUnavailable: "Minute candles only for this range", ftshareIntradayUnavailable: "The connected FTShare endpoint does not support minute bars for this symbol; this does not mean the key is invalid. Choose 30-day or longer.", drawing: "Draw", drawingName: "Name (optional)", drawingEmpty: "No saved drawings", drawingTrend: "Trend line", drawingHorizontal: "Horizontal line", drawingRect: "Rectangle", drawingFibonacci: "Fibonacci", drawingHintOne: "Click a candle to set the level", drawingHintTwo: "Click another candle to finish", drawingSaved: "Drawing saved", drawingCleared: "Drawings cleared", sortManual: "Manual order", sortChangeDesc: "Change: high to low", sortChangeAsc: "Change: low to high", batchOpen: "Open selected", batchSelectAll: "Select all", batchDelete: "Delete selected", batchMoveTo: "Move to…", batchRemoved: "Removed {count}", batchMoved: "Moved {count}", importDone: "Imported {count}", groupSummary: "Group overview", noQuote: "No quote",
-    sourceIntroTitle: "Data source", sourceIntro: "FTShare is the default source. Daily bars and common indicators are available; minute bars, news, and other data depend on the endpoint and plan.", sourceAutoloadTitle: "Automatically reuse an existing FTShare key", sourceAutoload: "At startup, dsh_kline first reuses a key readable by the current DSH service; if none is available, it uses a key previously saved by this plugin. Keys are never shown or uploaded.", ftshareConfigTitle: "Current connection", checkAvailability: "Check API availability", changeConfig: "Change configuration", ftshareConfigDialogTitle: "Change FTShare configuration", ftshareConfigMenuTitle: "FTShare configuration", sourceCapabilities: "API availability checks",
+    sourceIntroTitle: "Data source", sourceIntro: "FTShare is the default source. Daily bars and common indicators are available; minute bars, news, and other data depend on the endpoint and plan.", sourceAutoloadTitle: "Automatically reuse an existing FTShare key", sourceAutoload: "At startup, dsh_kline first reuses a key readable by the current DSH service (host environment, a specified credential file, or the DSH FTShare settings); if none is available, it uses a key previously saved by this plugin. Keys are never shown or uploaded.", ftshareConfigTitle: "Current connection", checkAvailability: "Check API availability", changeConfig: "Change configuration", ftshareConfigDialogTitle: "Change FTShare configuration", ftshareConfigMenuTitle: "FTShare configuration", sourceCapabilities: "API availability checks",
     day: "Daily", week: "Weekly", month: "Monthly", quarter: "Quarterly", year: "Yearly", productName: "FtAI K-Line",
   },
 };
@@ -1567,9 +1580,9 @@ Object.assign(UI_COPY.zh, {
   workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
   workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
-  clearAnnotations: "清除标注", clearScope: "仅影响当前对话、当前标的；保留指标和预警。",
-  clearAnalysis: "清除关键点位与分析标注", clearDrawings: "清除手动画线", clearCustom: "清除自定义点位", clearAll: "全部清除…",
-  clearCancel: "取消", clearConfirmAction: "确认清除", clearConfirmMessage: "确认清除 {symbol} 的全部标注？此操作无法撤销。", clearAllDone: "已清除当前标的的全部标注",
+  clearAnnotations: "清除标注", clearScope: "仅清除当前对话、当前标的的以下三类标注；保留 AI 图形、指标和预警。删除 AI 图形请在对话中指定目标。",
+  clearAnalysis: "清除关键点位与分析标注", clearDrawings: "清除手动画线", clearCustom: "清除自定义点位", clearAll: "清除以上三类…",
+  clearCancel: "取消", clearConfirmAction: "确认清除", clearConfirmMessage: "确认清除 {symbol} 的关键点位与分析标注、手动画线及自定义点位？AI 图形、指标和预警将保留；此操作无法撤销。", clearAllDone: "已清除当前标的的三类标注；AI 图形、指标和预警已保留",
   keyLevelsInsufficient: "关键点位分析至少需要 5 根有效 K 线，请扩大时间范围。", keyLevelsEmpty: "分析完成：当前数据未识别出有效支撑或压力点位。",
   keyLevelsLocalFailed: "关键点位计算失败，请检查本地服务连接后重试。",
   keyLevelsCancelled: "图表已变更，本次分析已取消。",
@@ -1594,9 +1607,9 @@ Object.assign(UI_COPY.en, {
   workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
   workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
-  clearAnnotations: "Clear annotations", clearScope: "Current conversation and symbol only. Indicators and alerts are kept.",
-  clearAnalysis: "Clear analysis annotations", clearDrawings: "Clear drawings", clearCustom: "Clear custom levels", clearAll: "Clear all…",
-  clearCancel: "Cancel", clearConfirmAction: "Confirm clear", clearConfirmMessage: "Clear all annotations for {symbol}? This cannot be undone.", clearAllDone: "All annotations for this symbol cleared",
+  clearAnnotations: "Clear annotations", clearScope: "Only the three categories below, for this conversation and symbol. AI drawings, indicators and alerts are kept. Request AI drawing deletion by identifying the target in chat.",
+  clearAnalysis: "Clear analysis annotations", clearDrawings: "Clear manual drawings", clearCustom: "Clear custom levels", clearAll: "Clear these three categories…",
+  clearCancel: "Cancel", clearConfirmAction: "Confirm clear", clearConfirmMessage: "Clear analysis annotations, manual drawings and custom levels for {symbol}? AI drawings, indicators and alerts are kept. This cannot be undone.", clearAllDone: "Three annotation categories cleared; AI drawings, indicators and alerts kept",
   keyLevelsInsufficient: "At least 5 valid candles are needed. Expand the date range.", keyLevelsEmpty: "Analysis complete: no valid support or resistance levels found.",
   keyLevelsLocalFailed: "Key-level calculation failed. Check the local service connection and retry.",
   keyLevelsCancelled: "Chart changed; this analysis was cancelled.",
@@ -1679,6 +1692,7 @@ const COMPANY_LABELS = {
 };
 function ct(label) { return viewLanguage === "en" ? (COMPANY_LABELS[label] || label) : label; }
 function saveWorkspacePreferences() {
+  window.__DSH_KLINE_REPORT_CONTEXT__?.();
   try {
     window.localStorage?.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
       version: 12,
@@ -1805,9 +1819,17 @@ function rememberAnalysisCommands(payload) {
   if (!Array.isArray(structured.chartCommands)) return;
   lastMarks = [];
   lastLines = [];
+  lastHorizontalLines = [];
+  lastAgentTrendLines = [];
+  lastAgentChannels = [];
+  lastAgentRectangles = [];
   for (const cmd of structured.chartCommands) {
     if (cmd.type === "TEXT_MARKER") lastMarks.push(cmd);
     if (cmd.type === "DRAW_TREND_LINE") lastLines.push(cmd);
+    if (cmd.type === "DRAW_HORIZONTAL_LINE") lastHorizontalLines.push(cmd);
+    if (cmd.type === "DRAW_AGENT_TREND_LINE") lastAgentTrendLines.push(cmd);
+    if (cmd.type === "DRAW_AGENT_CHANNEL") lastAgentChannels.push(cmd);
+    if (cmd.type === "DRAW_AGENT_RECTANGLE") lastAgentRectangles.push(cmd);
   }
 }
 
@@ -1862,7 +1884,10 @@ function currentTheme() {
   return userThemeOverride || hostTheme();
 }
 function applyTheme() {
-  document.documentElement.dataset.theme = currentTheme();
+  const theme = currentTheme();
+  // In standalone preview the observed host is this same document element.
+  // Rewriting an unchanged attribute retriggers its MutationObserver forever.
+  if (document.documentElement.dataset.theme !== theme) document.documentElement.dataset.theme = theme;
   refreshChartTheme();
   syncThemeToggle();
 }
@@ -2020,6 +2045,7 @@ async function setLanguage(nextLanguage, { persist = true } = {}) {
   volumeUnit = viewLanguage === "zh" ? "wan" : "k";
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
   syncLanguageControls();
+  if(liveSourceStatus)renderLiveSourceStatus(liveSourceStatus);
   if (lastChartPayload) await applyChartCommands(lastChartPayload);
   if (currentCandles.length) renderHeader(currentName, currentSymbol, currentCandles);
   renderWorkspaceTabs();
@@ -2175,6 +2201,87 @@ function visibleCandles() {
   const to = Math.min(currentCandles.length, Math.ceil(Number(range.to) || currentCandles.length));
   return currentCandles.slice(from, Math.max(from + 1, to));
 }
+function captureChartContext(sourceSession) {
+  const sourceInterval = typeof sourceCandleInterval === "string" ? sourceCandleInterval : currentInterval;
+  const displayInterval = sourceInterval === "minute" ? "minute" : currentInterval;
+  // Intraday source bars can be shown while the disabled UI interval control still says day.
+  const sourceStep = typeof sourceCandleIntervalValue === "undefined" ? null : sourceCandleIntervalValue;
+  const intervalValue = displayInterval !== "minute" ? 1
+    : Number.isInteger(sourceStep) && sourceStep >= 1 && sourceStep <= 240 ? sourceStep : null;
+  const aligned = lastChartPayload?.symbol === currentSymbol && lastChartPayload?.interval === currentInterval
+    && (!lastChartPayload?.range_key || lastChartPayload.range_key === currentRangeKey);
+  const state = activeSecurityTab !== "chart" ? "not_chart" : openingSymbol || currentCandles.length && !aligned
+    ? "loading" : currentSymbol && currentCandles.length ? "ready" : "empty";
+  const rows = state === "ready" ? currentCandles.map((r) => ({ time: Number(r.time), open: Number(r.open),
+    high: Number(r.high), low: Number(r.low), close: Number(r.close), volume: Number(r.volume) })) : [];
+  let viewport = { available: false };
+  // Loaded data is not the viewport. Unsupported viewport APIs stay explicitly unknown.
+  const range = state === "ready" ? kchart?.getVisibleRange?.() : null;
+  if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
+    const from = Math.max(0, Math.min(rows.length, Math.floor(range.from)));
+    const to = Math.max(from, Math.min(rows.length, Math.ceil(range.to)));
+    viewport = { available: true, index_from: from, index_to_exclusive: to };
+  }
+  const drawings = [];
+  if (state === "ready") {
+    const kinds = { DRAW_HORIZONTAL_LINE: "horizontal_line", DRAW_AGENT_TREND_LINE: "trend_line",
+      DRAW_AGENT_CHANNEL: "channel", DRAW_AGENT_RECTANGLE: "rectangle" };
+    for (const [index, cmd] of (lastChartPayload?.chartCommands || []).entries()) {
+      if (kinds[cmd.type]) {
+        const item = { id: String(cmd.id), kind: kinds[cmd.type], origin: "ai", name: String(cmd.label || ""),
+          color: cmd.color || "info", interval: cmd.interval || currentInterval };
+        if (cmd.type === "DRAW_HORIZONTAL_LINE") item.price = cmd.price;
+        else if (cmd.type === "DRAW_AGENT_RECTANGLE") {
+          for (const key of ["start_time", "end_time", "lower_price", "upper_price", "show_fill"]) item[key] = cmd[key];
+        } else {
+          item.points = [cmd.from, cmd.to, ...(cmd.parallel ? [cmd.parallel] : [])];
+          if (cmd.type === "DRAW_AGENT_CHANNEL") item.show_midline = cmd.show_midline;
+        }
+        drawings.push(item);
+      } else if (cmd.type === "TEXT_MARKER" || cmd.type === "DRAW_TREND_LINE") {
+        const points = cmd.type === "DRAW_TREND_LINE" ? [cmd.from, cmd.to] : [{time: cmd.time, price: cmd.price}];
+        if (points.every(p => Number.isFinite(p?.time) && Number.isFinite(p?.price))) drawings.push({
+          id: "auto:" + (cmd.id || index), kind: cmd.type === "TEXT_MARKER" ? "text_marker" : "trend_line",
+          origin: "automatic", name: String(cmd.label || cmd.text || ""), color: cmd.color || "info", points });
+      }
+    }
+    for (const drawing of userDrawings.filter(d => d.symbol === currentSymbol)) {
+      drawings.push({id:"manual:" + drawing.id, kind:drawing.type, origin:"manual", name:drawing.name || "", points:drawing.points});
+    }
+    for (const [origin, levels] of [["manual", customLevels], ["automatic", analysisLevels]]) {
+      for (const level of levels.filter(l => l.symbol === currentSymbol && Number.isFinite(Number(l.price)))) {
+        drawings.push({id:origin + "-level:" + level.id, kind:"horizontal_line", origin, name:level.name || level.label || "", price:Number(level.price)});
+      }
+    }
+  }
+  const times = new Set(rows.map(r => r.time));
+  let selection = null;
+  if (currentSelection?.symbol === currentSymbol && currentSelection?.interval === currentInterval) {
+    if (currentSelection.kind === "candle" && times.has(currentSelection.candle?.time)) selection = {kind:"candle",time:currentSelection.candle.time};
+    if (currentSelection.kind === "range" && times.has(currentSelection.range?.start_time) && times.has(currentSelection.range?.end_time))
+      selection = {kind:"range",start_time:currentSelection.range.start_time,end_time:currentSelection.range.end_time};
+  }
+  return { state, symbol:currentSymbol || "", name:currentName || "", interval:displayInterval, interval_value:intervalValue,
+    adjust:typeof currentAdjust === "string" ? currentAdjust : "",
+    source_interval:sourceInterval, ui_interval:currentInterval, display_volume_unit:volumeUnit,
+    range_key:currentRangeKey, active_page:activeSecurityTab, candles:rows, visible_range:viewport, drawings, selection,
+    selection_status:currentSelection && !["candle", "range"].includes(currentSelection.kind) ? "not_supported" : selection ? "selected" : "none",
+    source_chart_session:/^[A-Za-z0-9_-]{32}$/.test(sourceSession || "") ? sourceSession : null,
+    indicators:[["ma",maVisible],["vwap",vwapVisible],["vol",volVisible],["macd",macdVisible],["kdj",kdjVisible],
+      ["boll",bollVisible],["rsi",rsiVisible],["atr",atrVisible]].filter(([,visible])=>visible).map(([name])=>name),
+    data_status:chartDataStatus,
+    // Describe the actual browser path, not native vendor granularity or source alignment.
+    // Use this payload's metadata; global sidebar labels may belong to a previous symbol.
+    data_provenance:state === "ready" ? {
+      provider:(lastChartPayload?.data_meta || lastChartPayload?.dataMeta)?.source,
+      transformation:sourceInterval === displayInterval ? "none"
+        : sourceInterval === "day" && ["week", "month", "quarter", "year"].includes(displayInterval)
+          && lastChartPayload?.local_render === true ? "local_aggregation" : "unknown",
+      aggregation:{timezone:typeof exchangeTimezone === "string" ? exchangeTimezone : null},
+    } : null,
+  };
+}
+
 function refreshMirrorAxes() {
   const axis = document.getElementById("percentAxis");
   if (!axis || !kchart) return;
@@ -2426,6 +2533,7 @@ function scheduleChartResize() {
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
     positionRangeStatsCard();
+    window.__DSH_KLINE_REPORT_CONTEXT__?.();
   });
 }
 let chartOverlayFrame = 0;
@@ -2441,6 +2549,7 @@ function scheduleChartOverlayRender() {
     renderIntradaySessionGuides();
     refreshPercentAxis();
     positionRangeStatsCard();
+    window.__DSH_KLINE_REPORT_CONTEXT__?.();
   });
 }
 function initCanvasResizer() {
@@ -2666,7 +2775,16 @@ function chartSeriesValue(series, candle) {
   }
   return NaN;
 }
+function renderChartWindow() {
+  const row = document.getElementById("chartMetaWindow");
+  if (!row) return;
+  row.hidden = !currentCandles.length;
+  row.textContent = currentCandles.length
+    ? `${viewLanguage === "zh" ? `图表数据：${currentCandles.length} 根` : `Chart data: ${currentCandles.length} bars`} · ${fmtCandleTimestamp(currentCandles[0])} — ${fmtCandleTimestamp(currentCandles.at(-1))}`
+    : "";
+}
 function renderChartMeta(candle = currentCandles.at(-1)) {
+  renderChartWindow();
   const candleRow = document.getElementById("chartMetaCandle");
   const indicatorRow = document.getElementById("chartMetaIndicators");
   if (!candleRow || !indicatorRow) return;
@@ -3492,10 +3610,12 @@ function updateSelectionBanner(selection) {
 function publishSelection(selection) {
   hideRangeStatsCard();
   currentSelection = selection;
+  window.__DSH_KLINE_REPORT_CONTEXT__?.();
   updateSelectionBanner(selection);
 }
 function clearSelectionContext() {
   currentSelection = null;
+  window.__DSH_KLINE_REPORT_CONTEXT__?.();
 }
 function candleSelection(candle) {
   const snap = snapshotCandle(candle);
@@ -3693,7 +3813,137 @@ function syncIndicatorConfigFromCommands(commands) {
 /* ---------- custom indicators from backend series ---------- */
 function registerOverlays() {
   if (!window.klinecharts || overlaysRegistered) return;
+  // Screen-space presentation only: never change anchors, IDs, names or payloads.
+  // Cache by measured text + actual projected geometry, not by chart revision:
+  // pan/zoom/resize can change pixels without changing the drawing snapshot.
+  let agentLabelCache = { key: "", placements: new Map() }, labelMeasureContext = null;
+  function wrapAgentLabelText(text, maxWidth, measure) {
+    const lines = []; let line = "";
+    for (const char of Array.from(text)) {
+      if (line && measure(line + char) > maxWidth) { lines.push(line); line = ""; }
+      line += char;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+  function placeAgentLabels(entries, width, height) {
+    const margin = 4, gap = 4, occupied = [], placements = new Map();
+    let comparisonsLeft = 30000; // Dense inventories must not monopolize a pan/zoom frame.
+    const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.width + gap, b.x + b.width) - Math.max(a.x - gap, b.x))
+      * Math.max(0, Math.min(a.y + a.height + gap, b.y + b.height) - Math.max(a.y - gap, b.y));
+    // Stable IDs, not callback order: repeated SDK paints must not jitter labels.
+    for (const entry of [...entries].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) {
+      const clamp = (x, y) => ({ x: Math.max(margin, Math.min(width - margin - entry.width, x)),
+        y: Math.max(margin, Math.min(height - margin - entry.height, y)), width: entry.width, height: entry.height });
+      let best = null, bestScore = Infinity;
+      const step = entry.height + gap;
+      // Bounded local search. In a crowded pane overlap remains best-effort;
+      // do not hide/truncate names or move the underlying drawing to make space.
+      const offsets = [0];
+      for (let row = 1; row <= 12; row++) offsets.push(-row * step, row * step);
+      search: for (const dx of [0, -entry.width - gap, entry.width + gap]) {
+        for (const dy of offsets) {
+          if (occupied.length > comparisonsLeft) break search;
+          comparisonsLeft -= occupied.length;
+          const candidate = clamp(entry.x + dx, entry.y + dy);
+          const area = occupied.reduce((total, box) => total + overlapArea(candidate, box), 0);
+          const distance = Math.abs(candidate.x - entry.x) + Math.abs(candidate.y - entry.y);
+          const score = area * 100000 + distance;
+          if (score < bestScore) { bestScore = score; best = candidate; }
+          if (area === 0) break;
+        }
+      }
+      best ||= clamp(entry.x, entry.y);
+      placements.set(entry.id, best); occupied.push(best);
+    }
+    return placements;
+  }
+  function agentLabelEntry(overlay, coordinates, width, height, measure) {
+    if (!overlay || !coordinates?.length || coordinates.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
+    const ex = overlay.extendData || {}, name = overlay.name;
+    let text = String(ex.label || ""), x, y, anchor;
+    if (name === "ftvHorizontalLine") {
+      text = `${text} ${ex.price}`;
+      anchor = { x: width - 6, y: coordinates[0].y }; x = width - 6; y = anchor.y - 18;
+      if (anchor.y < 0 || anchor.y > height) return null;
+    } else {
+      if (!text || (name === "ftvTrendLine" && !ex.agent)) return null;
+      const needed = name === "ftvAgentChannel" ? 4 : 2;
+      if (coordinates.length < needed) return null;
+      const xs = coordinates.map(p => p.x), ys = coordinates.map(p => p.y);
+      if (Math.max(...xs) < 0 || Math.min(...xs) > width || Math.max(...ys) < 0 || Math.min(...ys) > height) return null;
+      if (name === "ftvAgentRectangle") {
+        anchor = { x: Math.min(...xs), y: Math.min(...ys) }; x = anchor.x + 6; y = anchor.y + 6;
+      } else if (name === "ftvAgentChannel" || name === "ftvTrendLine") {
+        anchor = { x: xs.reduce((a, b) => a + b) / xs.length, y: ys.reduce((a, b) => a + b) / ys.length };
+        x = anchor.x; y = anchor.y - (name === "ftvTrendLine" ? 22 : 20);
+      } else return null;
+    }
+    const lines = wrapAgentLabelText(text, Math.max(12, Math.min(280, width - 18)), measure);
+    const labelWidth = Math.ceil(Math.max(...lines.map(measure))) + 10, labelHeight = lines.length * 15 + 4;
+    if (name === "ftvHorizontalLine") x -= labelWidth;
+    else if (name !== "ftvAgentRectangle") x -= labelWidth / 2;
+    return { id: overlay.id, text, lines, x, y, width: labelWidth, height: labelHeight, anchor };
+  }
+  function agentDrawingLabelFigures(overlay, coordinates, bounding, fallback) {
+    if (!(Number.isFinite(bounding?.width) && Number.isFinite(bounding?.height)) || !overlay?.id
+      || typeof kchart === "undefined" || !kchart?.getOverlayById || !kchart?.convertToPixel) return [fallback];
+    try {
+      if (!labelMeasureContext) labelMeasureContext = document.createElement("canvas").getContext("2d");
+      if (!labelMeasureContext) return [fallback];
+      labelMeasureContext.font = "normal 11px sans-serif";
+      const measure = text => Math.ceil(labelMeasureContext.measureText(text).width);
+      const gutter = document.getElementById("percentAxis") ? rightAxisGutterWidth() : 0;
+      const width = Math.max(0, bounding.width - gutter), height = bounding.height;
+      if (width < 40 || height < 24) return [fallback];
+      const ids = new Set((lastChartPayload?.chartCommands || []).filter(c =>
+        ["DRAW_HORIZONTAL_LINE", "DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_RECTANGLE"].includes(c.type)).map(c => c.id));
+      ids.add(overlay.id);
+      const entries = [];
+      for (const id of ids) {
+        const actual = id === overlay.id ? overlay : kchart.getOverlayById(id);
+        if (!actual || actual.visible === false) continue;
+        // Use the same SDK projection for every object, including the caller;
+        // callback rounding must not invalidate the shared layout on every label.
+        const pixels = kchart.convertToPixel(actual.points, { paneId: "candle_pane", absolute: false });
+        const entry = agentLabelEntry(actual, pixels, width, height, measure);
+        if (entry) entries.push(entry);
+      }
+      const own = entries.find(e => e.id === overlay.id);
+      if (!own) return []; // Wholly offscreen shapes must not leave floating labels.
+      const key = JSON.stringify([width, height, entries.slice().sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)]);
+      if (agentLabelCache.key !== key) agentLabelCache = { key, placements: placeAgentLabels(entries, width, height) };
+      const box = agentLabelCache.placements.get(overlay.id);
+      const figures = [], center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      if (Math.abs(box.x - own.x) + Math.abs(box.y - own.y) > 6) {
+        figures.push({ type: "line", ignoreEvent: true,
+          attrs: { coordinates: [own.anchor, center] }, styles: { color: fallback.styles.backgroundColor, size: 1, style: "dashed", dashedValue: [2, 2] } });
+      }
+      own.lines.forEach((line, index) => figures.push({ ...fallback, ignoreEvent: true,
+        attrs: { x: box.x, y: box.y + index * 15, text: line, align: "left", baseline: "top" },
+        styles: { ...fallback.styles, family: "sans-serif" } }));
+      return figures;
+    } catch { return [fallback]; } // Layout failure must not prevent geometry rendering.
+  }
   try {
+    window.klinecharts.registerOverlay({
+      name: "ftvHorizontalLine", totalStep: 1,
+      needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+      createPointFigures: ({ overlay, coordinates, bounding }) => {
+        if (!coordinates?.length || !bounding) return [];
+        const info = overlay?.extendData || {}, color = colorFor(info.colorName || "info");
+        const y = coordinates[0].y;
+        // The product's mirrored percentage axis covers the pane's right edge.
+        const gutter = document.getElementById("percentAxis") ? rightAxisGutterWidth() : 0;
+        const right = Math.max(0, bounding.width - gutter);
+        return [
+          { type: "line", attrs: { coordinates: [{ x: 0, y }, { x: right, y }] }, styles: { color, size: 1.5 } },
+          ...agentDrawingLabelFigures(overlay, coordinates, bounding, { type: "text", attrs: { x: right - 6, y: y - 10, text: `${info.label || ""} ${info.price}`, align: "right", baseline: "middle" },
+            styles: { color: "#ffffff", backgroundColor: color, size: 11,
+              paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2, borderRadius: 2 } }),
+        ];
+      },
+    });
     window.klinecharts.registerOverlay({
       name: "ftvTextMarker",
       totalStep: 1,
@@ -3713,7 +3963,7 @@ function registerOverlays() {
     window.klinecharts.registerOverlay({
       name: "ftvTrendLine",
       totalStep: 2,
-      createPointFigures: ({ overlay, coordinates }) => {
+      createPointFigures: ({ overlay, coordinates, bounding }) => {
         if (!coordinates || coordinates.length < 2) return [];
         const ex = overlay?.extendData || {};
         const color = colorFor(ex.colorName || "danger");
@@ -3723,7 +3973,12 @@ function registerOverlays() {
             attrs: { coordinates: [{ x: coordinates[0].x, y: coordinates[0].y }, { x: coordinates[1].x, y: coordinates[1].y }] },
             styles: { color, size: 2, dashedValue: [4, 4] },
           },
-          {
+          ...(ex.agent ? agentDrawingLabelFigures(overlay, coordinates, bounding, {
+            type: "text", attrs: { x: (coordinates[0].x + coordinates[1].x) / 2,
+              y: (coordinates[0].y + coordinates[1].y) / 2 - 14, text: String(ex.label || ""), align: "center", baseline: "middle" },
+            styles: { color: "#ffffff", backgroundColor: color, size: 11,
+              paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2, borderRadius: 2 },
+          }) : [{
             type: "text",
             attrs: {
               x: (coordinates[0].x + coordinates[1].x) / 2,
@@ -3731,11 +3986,55 @@ function registerOverlays() {
               text: String(ex.label || ""), align: "center", baseline: "middle",
             },
             styles: {
-              color: chartColors().labelText, backgroundColor: color, size: 11,
+              color: ex.agent ? "#ffffff" : chartColors().labelText, backgroundColor: color, size: 11,
               paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2, borderRadius: 2,
             },
-          },
+          }]),
         ];
+      },
+    });
+    window.klinecharts.registerOverlay({
+      name: "ftvAgentChannel",
+      totalStep: 5,
+      needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+      createPointFigures: ({ overlay, coordinates, bounding }) => {
+        if (!coordinates || coordinates.length < 4) return [];
+        const [a, b, c, d] = coordinates;
+        const ex = overlay?.extendData || {}, color = colorFor(ex.colorName || "info");
+        const left = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 };
+        const right = { x: (b.x + d.x) / 2, y: (b.y + d.y) / 2 };
+        const figures = [
+          { type: "line", attrs: { coordinates: [a, b] }, styles: { color, size: 2 } },
+          { type: "line", attrs: { coordinates: [c, d] }, styles: { color, size: 2 } },
+        ];
+        if (ex.showMidline) figures.push({ type: "line", attrs: { coordinates: [left, right] }, styles: { color, size: 1, style: "dashed", dashedValue: [4, 4] } });
+        if (ex.label) figures.push(...agentDrawingLabelFigures(overlay, coordinates, bounding, { type: "text",
+          attrs: { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 - 12, text: String(ex.label), align: "center", baseline: "middle" },
+          styles: { color: "#ffffff", backgroundColor: color, size: 11,
+            paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2, borderRadius: 2 } }));
+        return figures;
+      },
+    });
+    window.klinecharts.registerOverlay({
+      name: "ftvAgentRectangle",
+      totalStep: 3,
+      needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+      createPointFigures: ({ overlay, coordinates, bounding }) => {
+        if (!coordinates || coordinates.length < 2) return [];
+        const [a, b] = coordinates, ex = overlay?.extendData || {};
+        const color = colorFor(ex.colorName || "info");
+        const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y);
+        const figures = [{ type: "rect",
+          attrs: { x: left, y: top, width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) },
+          // The vendor draws both fill and border only with stroke_fill (not fill).
+          styles: { style: ex.showFill ? "stroke_fill" : "stroke", color: `${color}18`,
+            borderColor: color, borderSize: 1.5, borderStyle: "solid", borderRadius: 0 },
+        }];
+        if (ex.label) figures.push(...agentDrawingLabelFigures(overlay, coordinates, bounding, { type: "text",
+          attrs: { x: left + 6, y: top + 6, text: String(ex.label), align: "left", baseline: "top" },
+          styles: { color: "#ffffff", backgroundColor: color, size: 11,
+            paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2, borderRadius: 2 } }));
+        return figures;
       },
     });
     window.klinecharts.registerOverlay({
@@ -5306,6 +5605,230 @@ function applyIndicatorSeries(cmd) {
   }
 }
 
+function drawHorizontalLineCommands(commands, strict = false) {
+  if (!kchart || !currentCandles.length) return;
+  kchart.removeOverlay({ groupId: "agentHorizontalLines" });
+  const timestamp = Number(currentCandles.at(-1).time) * 1000;
+  for (const cmd of commands || []) {
+    if (cmd?.type !== "DRAW_HORIZONTAL_LINE") continue;
+    const price = Number(cmd.price);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    // User-specified full-width lines are separate from automatic level labels.
+    // Lock pointer edits until bidirectional state synchronization is available.
+    const created = kchart.createOverlay({ name: "ftvHorizontalLine", id: cmd.id,
+      groupId: "agentHorizontalLines", paneId: "candle_pane", lock: true,
+      onRightClick: (event) => { event.preventDefault(); return true; },
+      points: [{ timestamp, value: price }],
+      extendData: { label: cmd.label || "", price, colorName: cmd.color || "info" },
+    });
+    if (strict && !created) throw new Error("水平线对象创建失败");
+  }
+}
+
+function drawAgentTrendLineCommands(commands, strict = false) {
+  if (!kchart) return;
+  kchart.removeOverlay({ groupId: "agentTrendLines" });
+  const times = new Set(currentCandles.map((row) => Number(row.time)));
+  for (const cmd of commands || []) {
+    if (cmd?.type !== "DRAW_AGENT_TREND_LINE") continue;
+    const start = Number(cmd.from?.time), end = Number(cmd.to?.time);
+    const startPrice = Number(cmd.from?.price), endPrice = Number(cmd.to?.price);
+    // Never use nearestCandle: backend anchors are exact bar-close timestamps.
+    if (!times.has(start) || !times.has(end) || start >= end
+      || !Number.isFinite(startPrice) || !Number.isFinite(endPrice) || startPrice <= 0 || endPrice <= 0) continue;
+    const created = kchart.createOverlay({ name: "ftvTrendLine", id: cmd.id,
+      groupId: "agentTrendLines", paneId: "candle_pane", lock: true,
+      onRightClick: (event) => { event.preventDefault(); return true; },
+      points: [{ timestamp: start * 1000, value: startPrice }, { timestamp: end * 1000, value: endPrice }],
+      extendData: { label: cmd.label || "", colorName: cmd.color || "info", agent: true },
+    });
+    if (strict && !created) throw new Error("趋势线对象创建失败");
+  }
+}
+
+function drawAgentChannelCommands(commands, strict = false) {
+  if (!kchart) return;
+  kchart.removeOverlay({ groupId: "agentChannels" });
+  const times = new Set(currentCandles.map((row) => Number(row.time)));
+  for (const cmd of commands || []) {
+    if (cmd?.type !== "DRAW_AGENT_CHANNEL" || cmd.interval !== currentInterval
+      || cmd.geometry_basis !== "candle_index_linear_price") continue;
+    const start = Number(cmd.from?.time), end = Number(cmd.to?.time), third = Number(cmd.parallel?.time);
+    if (!times.has(start) || !times.has(end) || !times.has(third) || start >= end || third < start || third > end) continue;
+    const anchors = [cmd.upper?.from, cmd.upper?.to, cmd.lower?.from, cmd.lower?.to];
+    if (anchors.some((point, index) => Number(point?.time) !== (index % 2 ? end : start)
+      || !Number.isFinite(Number(point?.price)) || Number(point.price) <= 0)) continue;
+    const startWidth = Number(anchors[0].price) - Number(anchors[2].price);
+    const endWidth = Number(anchors[1].price) - Number(anchors[3].price);
+    const widthTolerance = Math.max(startWidth, endWidth) * 1e-8 + Math.max(...anchors.map((point) => Number(point.price))) * Number.EPSILON * 16;
+    if (startWidth <= 0 || endWidth <= 0 || Math.abs(startWidth - endWidth) > widthTolerance) continue;
+    // One overlay owns both boundaries/midline, so an ID update/delete is atomic.
+    const created = kchart.createOverlay({ name: "ftvAgentChannel", id: cmd.id,
+      groupId: "agentChannels", paneId: "candle_pane", lock: true,
+      onRightClick: (event) => { event.preventDefault(); return true; },
+      points: anchors.map((point) => ({ timestamp: Number(point.time) * 1000, value: Number(point.price) })),
+      extendData: { label: cmd.label || "", colorName: cmd.color || "info", showMidline: cmd.show_midline !== false },
+    });
+    if (strict && !created) throw new Error("通道对象创建失败");
+  }
+}
+
+function drawAgentRectangleCommands(commands, strict = false) {
+  if (!kchart) return;
+  kchart.removeOverlay({ groupId: "agentRectangles" });
+  const times = new Set(currentCandles.map((row) => Number(row.time)));
+  for (const cmd of commands || []) {
+    if (cmd?.type !== "DRAW_AGENT_RECTANGLE" || cmd.interval !== currentInterval) continue;
+    const start = Number(cmd.start_time), end = Number(cmd.end_time);
+    const lower = Number(cmd.lower_price), upper = Number(cmd.upper_price);
+    if (!times.has(start) || !times.has(end) || start >= end || !Number.isFinite(lower)
+      || !Number.isFinite(upper) || lower <= 0 || lower >= upper) continue;
+    // All four edges/fill share one stable ID; no disconnected boundary-line IDs.
+    const created = kchart.createOverlay({ name: "ftvAgentRectangle", id: cmd.id,
+      groupId: "agentRectangles", paneId: "candle_pane", lock: true, zLevel: -1,
+      onRightClick: (event) => { event.preventDefault(); return true; },
+      points: [{ timestamp: start * 1000, value: upper }, { timestamp: end * 1000, value: lower }],
+      extendData: { label: cmd.label || "", colorName: cmd.color || "info", showFill: cmd.show_fill !== false },
+    });
+    if (strict && !created) throw new Error("平台框对象创建失败");
+  }
+}
+
+let pendingLiveDrawingPayload = null;
+let pendingLiveSource = null;
+let liveSourceStatus = null;
+const SOURCE_STATUS_COPY = {
+  zh: {
+    not_checked:"绘图来源尚未核对。可重新核对当前图；不会重新取行情或重发绘图。",
+    chart_not_ready:"等待当前图表就绪后核对绘图来源。",
+    client_unsupported:"当前网页不支持安全续画，请更新或重新加载插件网页。",
+    view_inactive:"请回到当前对话的活动图表后继续。",
+    ambiguous_views:"有多个活动图表，请只保留一个活动视图后继续。",
+    source_missing:"当前图缺少可核对来源，请在本对话重新打开所需图表；不会自动取数。",
+    source_unavailable:"当前图来源不可用，请在本对话重新打开所需图表；不会借用旧图。",
+    source_owner_mismatch:"来源不属于当前运行实例，请在本对话重新打开图表；不能沿用旧图修改。",
+    source_unconfirmed:"当前来源尚未确认，请先在对话中查询上次绘图状态；不要重复提交。",
+    source_metadata_unknown:"周期、复权或分钟粒度不明确，请检查图表设置后再核对。",
+    source_limit_exceeded:"当前加载超过4000根，请缩小范围后再核对。",
+    drawing_pending:"绘图正在等待确认，暂不衔接来源。请先查询本次绘图状态，不要重复提交。",
+    drawing_outcome_unknown:"上次绘图结果尚不确定，已暂停来源衔接。请先在对话中查询状态，不要重发绘图。",
+    source_snapshot_mismatch:"当前图与原来源不一致，暂不能安全续画。请重新核对当前图。",
+    source_payload_invalid:"当前来源数据未通过核对，本次核对未执行绘图。可重新核对；持续失败请反馈问题。",
+    source_handoff_pending:"正在核对当前绘图来源，请稍候；尚未批准或执行新绘图。",
+    source_handoff_rejected:"核对期间视图已变化或确认已失效，未确认来源。请稳定视图后重新核对。",
+    source_matches_view:"当前绘图来源已对齐；后续绘图仍需确认与安全校验。",
+    context_transport_unavailable:"当前图上报连接暂不可用，未确认来源。可重新核对；不要重复提交绘图。",
+    source_handoff_unavailable:"来源衔接暂未完成，未确认新来源。可重新核对；持续失败请反馈问题。",
+  },
+  en: {
+    not_checked:"Drawing source not checked. Recheck the current chart; no quote refetch or drawing resend.",
+    chart_not_ready:"Waiting for the current chart before checking its drawing source.",
+    client_unsupported:"This page does not support guarded drawing. Update or reload the plugin page.",
+    view_inactive:"Return to this conversation's active chart to continue.",
+    ambiguous_views:"Multiple active charts. Keep one active view before continuing.",
+    source_missing:"No checkable source. Reopen the intended chart in this conversation; no automatic data fetch.",
+    source_unavailable:"Source unavailable. Reopen the intended chart in this conversation; no older-chart fallback.",
+    source_owner_mismatch:"Source belongs to another running instance. Reopen the chart here; old charts cannot be edited.",
+    source_unconfirmed:"Source not confirmed. Ask in chat to check the last drawing status; do not submit it again.",
+    source_metadata_unknown:"Period, adjustment or minute size is unknown. Check chart settings before rechecking.",
+    source_limit_exceeded:"More than 4000 loaded bars. Reduce the range before rechecking.",
+    drawing_pending:"Drawing awaits confirmation; source handoff is paused. Check its status, do not resubmit.",
+    drawing_outcome_unknown:"Last drawing outcome is uncertain; source handoff is paused. Ask in chat to check its status, do not resend.",
+    source_snapshot_mismatch:"Current chart differs from its source. Recheck before continuing guarded drawing.",
+    source_payload_invalid:"Source validation failed; this check did not draw. Recheck, or report persistent failure.",
+    source_handoff_pending:"Checking the current drawing source. No new drawing is approved or executed.",
+    source_handoff_rejected:"View changed or confirmation expired during checking. Keep the view stable and recheck.",
+    source_matches_view:"Drawing source aligned; further drawings still require confirmation and safety checks.",
+    context_transport_unavailable:"Chart reporting connection unavailable; source not confirmed. Recheck, do not resubmit drawings.",
+    source_handoff_unavailable:"Source handoff incomplete; new source not confirmed. Recheck, or report persistent failure.",
+  },
+};
+function renderLiveSourceStatus(status) {
+  if(window.__DSH_KLINE_DISPOSED__)return;
+  liveSourceStatus=status;
+  const box=document.getElementById("sourceHandoffStatus"),label=document.getElementById("sourceHandoffText"),button=document.getElementById("sourceHandoffRetry");
+  if(!box || !label || !button)return;
+  const copy=SOURCE_STATUS_COPY[viewLanguage] || SOURCE_STATUS_COPY.zh;
+  const reason=Object.hasOwn(copy,status?.reason)?status.reason:"not_checked";
+  box.hidden=reason==="chart_not_ready";
+  box.dataset.phase=["checking","aligned","blocked"].includes(status?.phase)?status.phase:"not_checked";
+  label.textContent=copy[reason];
+  button.textContent=viewLanguage==="zh"?"重新核对当前图":"Recheck current chart";
+  button.hidden=status?.next_action!=="retry_observation" || typeof window.__DSH_KLINE_RETRY_SOURCE__!=="function";
+  button.onclick=()=>{
+    renderLiveSourceStatus({phase:"checking",reason:"source_handoff_pending",next_action:"wait_for_report"});
+    window.__DSH_KLINE_RETRY_SOURCE__?.();
+  };
+}
+function captureLiveChartSource() {
+  const state=captureChartContext(lastChartPayload?._live_chart_session);
+  if(state.state!=="ready" || !lastChartPayload?.local_render || lastChartPayload?._live_application_pending) return null;
+  return {...lastChartPayload,interval:state.interval,interval_value:state.interval_value,adjust:state.adjust};
+}
+function bindLiveChartSource(token,previous) {
+  if(window.__DSH_KLINE_DISPOSED__ || !lastChartPayload || lastChartPayload._live_application_pending || pendingLiveSource)
+    throw new Error("当前图来源绑定尚未就绪");
+  pendingLiveSource={token,previous};
+  lastChartPayload={...lastChartPayload,_live_chart_session:token,_live_application_pending:true};
+}
+function confirmLiveChartSource(token,confirmed) {
+  if(!pendingLiveSource || pendingLiveSource.token!==token) return;
+  if(lastChartPayload?._live_chart_session===token) {
+    lastChartPayload={...lastChartPayload,_live_chart_session:confirmed?token:pendingLiveSource.previous,_live_application_pending:false};
+    if(confirmed && !window.__DSH_KLINE_DISPOSED__) {
+      rememberWorkspaceTab(lastChartPayload);
+      window.__DSH_KLINE_SAVE_VIEW__?.({...lastChartPayload,local_render:false,indicators_explicit:false});
+    }
+  }
+  pendingLiveSource=null;
+}
+function applyLiveDrawingCommands(candidate, token) {
+  const ai = new Set(["DRAW_HORIZONTAL_LINE", "DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_RECTANGLE"]);
+  const previous = lastChartPayload;
+  const redraw = (commands) => {
+    drawAgentRectangleCommands(commands, true);
+    drawHorizontalLineCommands(commands, true);
+    drawAgentTrendLineCommands(commands, true);
+    drawAgentChannelCommands(commands, true);
+  };
+  if (!kchart || !previous || openingSymbol || candidate.symbol !== currentSymbol
+    || !Array.isArray(candidate.chartCommands) || candidate.chartCommands.some(c => !ai.has(c.type))) {
+    const error = new Error("当前图无法安全应用绘图指令"); error.rolledBack = true; throw error;
+  }
+  const merged = { ...previous, _live_chart_session: token, _live_application_pending: true,
+    chartCommands: [...previous.chartCommands.filter(c => !ai.has(c.type)), ...candidate.chartCommands] };
+  // No SET_CANDLES, applyNewData, indicator reset, viewport move or asynchronous yield.
+  try {
+    redraw(merged.chartCommands);
+    lastChartPayload = merged;
+    rememberAnalysisCommands(merged);
+    pendingLiveDrawingPayload = merged;
+    try { return window.__DSH_KLINE_DRAWING_FEEDBACK__?.(merged, previous.chartCommands, "applied"); }
+    catch { return { report_status: "invalid", items: [] }; }
+  } catch (error) {
+    lastChartPayload = previous;
+    rememberAnalysisCommands(previous);
+    try { redraw(previous.chartCommands); error.rolledBack = true; }
+    catch { error.rolledBack = false; }
+    try { error.drawing_feedback = window.__DSH_KLINE_DRAWING_FEEDBACK__?.(merged, previous.chartCommands,
+      error.rolledBack ? "rolled_back" : "rollback_unknown"); } catch {}
+    throw error;
+  }
+}
+function confirmLiveDrawingApplication(token) {
+  if (window.__DSH_KLINE_DISPOSED__) return;
+  const next = pendingLiveDrawingPayload;
+  if (!next || next._live_chart_session !== token) return;
+  // A late acknowledgment never persists a different currently selected chart.
+  next._live_application_pending = false;
+  if (lastChartPayload?._live_chart_session === token && lastChartPayload.symbol === next.symbol) {
+    lastChartPayload = { ...lastChartPayload, _live_application_pending: false };
+    rememberWorkspaceTab(lastChartPayload);
+    window.__DSH_KLINE_SAVE_VIEW__?.({ ...lastChartPayload, local_render: false, indicators_explicit: false });
+  }
+  pendingLiveDrawingPayload = null;
+}
+
 function isSupportResistanceLevel(cmd) {
   const from = Number(cmd?.from?.price);
   const to = Number(cmd?.to?.price);
@@ -5320,6 +5843,7 @@ function levelLineText(cmd, price) {
 }
 
 async function applyChartCommands(payload) {
+  if (payload?.drawing_guard || payload?.view_source_guard) throw new Error("尚未通过网页应用协议的候选不能直接渲染");
   if (!kchart) return;
   lastChartPayload = payload;
   clearOverlays();
@@ -5356,6 +5880,10 @@ async function applyChartCommands(payload) {
     renderComparisons();
   }
   // Indicators + marks + range
+  drawAgentRectangleCommands(cmds);
+  drawHorizontalLineCommands(cmds);
+  drawAgentTrendLineCommands(cmds);
+  drawAgentChannelCommands(cmds);
   const renderedLevelPrices = new Set();
   for (const cmd of cmds) {
     if (cmd.type === "SET_RANGE" && (!payload.local_render || payload.fit_to_data)) {
@@ -6083,11 +6611,16 @@ function buildLocalChartPayload(rows, overrides = {}) {
   const chartRows = Array.isArray(rows) ? rows : [];
   const contextRows = sourceRowsForCurrentInterval();
   const dataMeta = overrides.dataMeta || localChartDataMeta || { source: "mcp", updated_at: Math.floor(Date.now() / 1000), status: "delayed" };
+  const sourceStep = typeof sourceCandleIntervalValue === "undefined" ? null : sourceCandleIntervalValue;
   return {
     local_render: true,
+    _live_chart_session: lastChartPayload?.symbol === (overrides.symbol || currentSymbol) ? lastChartPayload._live_chart_session : undefined,
+    _live_application_pending: lastChartPayload?.symbol === (overrides.symbol || currentSymbol) ? lastChartPayload._live_application_pending : undefined,
     symbol: overrides.symbol || currentSymbol,
     name: overrides.name || currentName || currentSymbol,
     interval: overrides.interval || currentInterval,
+    interval_value: sourceCandleInterval !== "minute" ? 1
+      : Number.isInteger(sourceStep) && sourceStep >= 1 && sourceStep <= 240 ? sourceStep : null,
     range_key: currentRangeKey,
     adjust: currentAdjust,
     fit_to_data: Boolean(overrides.fitToData),
@@ -6113,6 +6646,10 @@ function buildLocalChartPayload(rows, overrides = {}) {
       ...buildLocalIndicatorCommands(sourceRowsForCurrentInterval()),
       ...lastLines,
       ...lastMarks,
+      ...lastHorizontalLines,
+      ...lastAgentTrendLines,
+      ...lastAgentChannels,
+      ...lastAgentRectangles,
     ],
   };
 }
@@ -7288,6 +7825,7 @@ function renderDataSourceStatus(data) {
   const labelBySource = {
     environment: "ftshareStatusEnvironment",
     external_file: "ftshareStatusExternalFile",
+    settings_bridge: "ftshareStatusSettingsBridge",
     plugin_store: "ftshareStatusConfiguredSaved",
     session: "ftshareStatusSession",
     none: "ftshareStatusAnonymous",
@@ -7295,6 +7833,7 @@ function renderDataSourceStatus(data) {
   const hintBySource = {
     environment: "ftshareHintEnvironment",
     external_file: "ftshareHintExternalFile",
+    settings_bridge: "ftshareHintSettingsBridge",
     plugin_store: "ftshareHintPluginStore",
     session: "ftshareHintSession",
     none: "ftshareHintAnonymous",
@@ -7651,6 +8190,8 @@ function rememberWorkspaceTab(payload) {
     payload,
     sourceRows: sourceCandles.slice(),
     sourceInterval: sourceCandleInterval,
+    sourceIntervalValue: typeof sourceCandleIntervalValue === "undefined" ? null : sourceCandleIntervalValue,
+    sourceDataMeta: localChartDataMeta,
     workspace: currentSymbol === id ? securityWorkspaceData : (existing?.workspace || null),
     workspaceLoading: currentSymbol === id ? securityWorkspaceLoading : Boolean(existing?.workspaceLoading),
     intelligence: currentSymbol === id ? securityIntelligenceData : (existing?.intelligence || null),
@@ -7675,8 +8216,11 @@ async function selectWorkspaceTab(id) {
   activeWorkspaceTabId = tab.id;
   currentRangeKey = tab.rangeKey || currentRangeKey;
   currentInterval = tab.payload?.interval || currentInterval;
+  currentAdjust = typeof tab.payload?.adjust === "string" ? tab.payload.adjust : "";
   if (Array.isArray(tab.sourceRows) && tab.sourceRows.length) sourceCandles = tab.sourceRows.slice();
   sourceCandleInterval = tab.sourceInterval || currentInterval;
+  sourceCandleIntervalValue = Number.isInteger(tab.sourceIntervalValue) && tab.sourceIntervalValue >= 1 && tab.sourceIntervalValue <= 240 ? tab.sourceIntervalValue : null;
+  localChartDataMeta = tab.sourceDataMeta || null;
   securityWorkspaceRequestId += 1;
   securityWorkspaceData = tab.workspace || null;
   securityWorkspaceLoading = Boolean(tab.workspaceLoading);
@@ -8015,8 +8559,10 @@ async function openSymbol(symbol, name, options = {}) {
     }
     sourceCandles = fetched.rows.slice();
     sourceCandleInterval = String(fetched.interval || (intraday ? "minute" : currentInterval) || "day");
+    sourceCandleIntervalValue = Number.isInteger(fetched.interval_value) && fetched.interval_value >= 1 && fetched.interval_value <= 240 ? fetched.interval_value : null;
+    currentAdjust = typeof fetched.adjust === "string" ? fetched.adjust : "";
     localChartDataMeta = {
-      source: fetched.source || "ftshare",
+      source: fetched.source || "unknown",
       source_url: fetched.source_url || fetched.sourceUrl || "",
       updated_at: fetched.updated_at || Math.floor(Date.now() / 1000),
       status: fetched.status || "delayed",
@@ -8041,6 +8587,10 @@ async function openSymbol(symbol, name, options = {}) {
       clearRangePick();
       lastMarks = [];
       lastLines = [];
+      lastHorizontalLines = [];
+      lastAgentTrendLines = [];
+      lastAgentChannels = [];
+      lastAgentRectangles = [];
     }
     await renderCurrentViewLocally({ fitToData: true });
     clearDataFetchError();
@@ -8095,6 +8645,10 @@ async function openSymbol(symbol, name, options = {}) {
 /* ---------- main tool-result handler ---------- */
 async function handleToolResult(result) {
   const structured = result?.structuredContent || result || {};
+  if (structured.drawing_guard || structured.view_source_guard) {
+    showError("绘图准备结果尚未应用，不能通过普通图表入口绕过状态检查。");
+    return;
+  }
   if (result?.isError || structured.error) {
     showError(structured.message || structured.error || "tool error");
     setChartStatus("失败");
@@ -8129,9 +8683,14 @@ async function handleToolResult(result) {
     if (!structured.local_render && structured.workspace_mode !== "launcher" && !existingTab) setSecurityTab("chart");
     if (!structured.local_render) {
       const sourceCommand = structured.chartCommands.find((command) => command.type === "SET_CANDLES" && Array.isArray(command.rows));
-      if (sourceCommand?.rows?.length) sourceCandles = sourceCommand.rows.slice();
-      sourceCandleInterval = String(structured.interval || sourceCandleInterval || "day");
-      localChartDataMeta = structured.data_meta || structured.dataMeta || localChartDataMeta;
+      if (sourceCommand?.rows?.length) {
+        sourceCandles = sourceCommand.rows.slice();
+        sourceCandleInterval = String(structured.interval || "");
+        sourceCandleIntervalValue = Number.isInteger(structured.interval_value) && structured.interval_value >= 1 && structured.interval_value <= 240 ? structured.interval_value : null;
+        currentAdjust = typeof structured.adjust === "string" ? structured.adjust : "";
+        // A new candle source without metadata is unknown, never the previous provider.
+        localChartDataMeta = structured.data_meta || structured.dataMeta || null;
+      }
     }
     const previousSymbol = String(currentSymbol || "").trim().toUpperCase();
     currentSymbol = structured.symbol || currentSymbol;
@@ -8182,6 +8741,7 @@ async function handleToolResult(result) {
     saveWorkspacePreferences();
     await applyChartCommands(structured);
     window.__DSH_KLINE_SAVE_VIEW__?.({ ...structured, local_render: false, indicators_explicit: false });
+    window.__DSH_KLINE_REPORT_CONTEXT__?.();
     // A host can send draw_kline without the optional security_workspace
     // payload. Start that non-blocking request here as well as after search so
     // News and Company do not remain blank just because this was the first
@@ -8192,7 +8752,7 @@ async function handleToolResult(result) {
     // A persisted 1D/5D selection requires minute candles. The first host
     // draw_kline payload is often a daily warm-up series, so replace it before
     // rendering rather than leaving a disabled day chart under an intraday tab.
-    if (!structured.local_render && isIntradayRange() && sourceCandleInterval !== "minute" && currentSymbol && !openingSymbol) {
+    if (!structured.drawing_only && !structured.local_render && isIntradayRange() && sourceCandleInterval !== "minute" && currentSymbol && !openingSymbol) {
       applyIntradayPresentationDefaults();
       await openSymbol(currentSymbol, currentName);
       return;
@@ -8203,7 +8763,7 @@ async function handleToolResult(result) {
     // of leaving a 10D/30D button active while the full source series remains
     // on screen. The nested render is local_render=true, so this is one pass
     // only and never repeats on later tool results.
-    if (!structured.local_render && !structured.range_key && sourceCandles.length >= 2) {
+    if (!structured.drawing_only && !structured.local_render && !structured.range_key && sourceCandles.length >= 2) {
       if (!isIntradayRange() && sourceCandleInterval === "day" && !hasLocalRowsForRange(currentRangeKey) && currentSymbol && !openingSymbol) {
         await openSymbol(currentSymbol, currentName, { preserveOnFailure: true });
         return;
@@ -8931,6 +9491,24 @@ window.addEventListener("beforeunload", () => {
   try { kchart && kchart.dispose && kchart.dispose(); } catch {}
 });
 
+function initializeAnalysisWindow(payload) {
+  // A fresh agent chart owns its requested window. Default/persisted UI presets
+  // must not expand e.g. 20 supplied daily candles into a new YTD market fetch.
+  // Restored views and deliberate browser range choices remain authoritative.
+  if (payload?.workspace_mode === "launcher" || payload?.local_render
+      || !["day", "week", "month", "quarter", "year"].includes(payload?.interval)) return;
+  const freshWindow = !window.__DSH_KLINE_RESTORED__ && !payload.range_key;
+  const legacyAnnualWindow = payload.interval === "year" && payload.range_key === "ytd";
+  if (!freshWindow && !legacyAnnualWindow) return;
+  const rows = payload.chartCommands?.find(command => command.type === "SET_CANDLES")?.rows || [];
+  if (rows.length < 2) return;
+  const start = Number(rows[0].time), end = Number(rows.at(-1).time);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end < start) return;
+  customRangeStart = dateInputValue(start);
+  customRangeEnd = dateInputValue(end);
+  currentRangeKey = payload.range_key = "custom";
+}
+
 async function init() {
   initInterfaceControls();
   loadWatchlist();
@@ -8967,18 +9545,7 @@ async function init() {
     showError("图表会话已失效，请在 dsh 中重新运行 analyze_kline。");
     return;
   }
-  // A weekly-or-larger host series is already the requested analysis window.
-  // Do not label ten annual candles as “今年” or silently crop to one candle.
-  if (["week", "month", "quarter", "year"].includes(payload.interval)
-      && ((!window.__DSH_KLINE_RESTORED__ && !payload.range_key)
-          || (payload.interval === "year" && payload.range_key === "ytd"))) {
-    const rows = payload.chartCommands.find(command => command.type === "SET_CANDLES")?.rows || [];
-    if (rows.length > 1) {
-      customRangeStart = dateInputValue(rows[0].time);
-      customRangeEnd = dateInputValue(rows.at(-1).time);
-      currentRangeKey = payload.range_key = "custom";
-    }
-  }
+  initializeAnalysisWindow(payload);
   const isLauncher = payload.workspace_mode === "launcher";
   if (isLauncher) {
     // A launcher has no user-selected instrument. Lead with market context

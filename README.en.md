@@ -70,9 +70,12 @@ Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspac
 
 FTShare is the default optional source. After you configure an API key, the plugin exposes the quote, intraday, news, and company-data capabilities available to your account. Availability differs by market and plan.
 
-Current-session intraday charts for regular A-share stocks prefer FTShare's realtime one-minute feed. Indices, ETFs, and multi-session minute history keep their applicable history endpoints so coverage and chart timeframes remain consistent.
+Only unadjusted (`none`) single-session one-minute requests for regular A-share stocks prefer FTShare's raw realtime feed. Forward/backward requests (including qfq/hfq) use history with the matching `adjust_kind`; failure never silently falls back to raw realtime rows. Indices, ETFs and multi-session history retain their applicable endpoints. Full-session returns and adjustment-isolated caching are unchanged; routing is not independent verification of vendor-adjusted prices.
+Explicit source minute size survives ingestion, local redraw and workspace state. Missing/invalid metadata stays unknown; it is not inferred from timestamp spacing, UI labels or the previous symbol. Unconfirmed sources still cannot authorize guarded drawing.
 
-The plugin reuses FTShare credentials in this order: an `FTSHARE_API_KEY` already injected into the current DSH service, an explicitly configured `FTSHARE_API_KEY_FILE`, and a local credential previously saved by this plugin. If the key is already available to the process that starts DSH, it is used automatically. Installing the FTShare SDK alone, or storing a key in another app's private configuration, is not enough for the plugin to read it.
+The plugin reuses FTShare credentials in this order: an `FTSHARE_API_KEY` already injected into the current DSH service, an explicitly configured `FTSHARE_API_KEY_FILE`, a Key saved in the DSH FTShare settings, and a local credential previously saved by this plugin. If the key is already available to the process that starts DSH, it is used automatically. Installing the FTShare SDK alone, or storing a key in another app's private configuration, is not enough for the plugin to read it.
+
+When the DSH FTShare settings plugin is installed, the host publishes its Key to the MCP server, which re-reads it before every request — so adding, rotating, or clearing the Key in the settings page needs no dsh restart. That Key belongs to the settings page; this plugin never displays or clears it.
 
 For safety, the plugin never scans `.env` files, shell configuration, keychains, or other apps' configuration files, and never displays a key or path. **Settings → Data source** identifies the active source; use **Manage FTShare configuration** to paste and test a replacement key, either for the current session or saved locally for future launches.
 
@@ -97,9 +100,49 @@ Quotes can be delayed and may differ with adjustment policy, exchange convention
 
 ## For AI and developers
 
-Most workflows only need `analyze_kline`. The plugin also exposes `fetch_candles`, `search_symbols`, `calc_metrics`, `analyze_kline_rows`, `data_source_status`, `configure_ftshare`, `test_ftshare_connection`, and `health` for raw data, external OHLCV, configuration, and diagnostics; `market_pulse`, `market_board_detail`, and `security_intelligence` provide market and security intelligence, while `get_watchlist` and `save_watchlist` manage watchlist groups.
+### Natural-language drawing (v0.4.0 foundation)
 
-FTShare is a default adapter, not a prerequisite for analysis. Callers can pass normalized OHLCV rows to `analyze_kline_rows` and keep using indicators, key levels, charts, and the workspace. See the [provider adaptation guide](docs/provider-adaptation.md).
+Create, update and delete four AI drawing families on the current chart: horizontal levels,
+two-anchor trend segments, three-anchor finite parallel channels, and rectangular ranges.
+Names, blue/green/orange/red colors, channel midlines and rectangle fills are supported.
+
+Try “draw a blue level at 31.2 called support”, “move support to 30.8; leave everything else”,
+or “propose a descending channel with three anchors and explain deviations; wait for approval”.
+
+The host interprets language, analyzes candles and selects anchors. The plugin observes,
+measures, executes and reports; it does not embed another AI or replay predefined drawing skills.
+Explicit parameters may execute directly; proposal-first requests must wait for approval.
+Host explanations and professional anchor selection can be wrong and require user judgement.
+
+Foundation scope and limitations:
+
+- Daily/weekly paths are the main acceptance scope. Anchors must match actual loaded bars.
+  The plugin does not guess missing dates, snap anchors or fetch extra candles to repair edits.
+- Trend segments and channels are finite, with no automatic extension or logarithmic geometry.
+  Channels and rectangles retain their creation interval.
+- Guarded edits target stable IDs without resetting candles, indicators or the viewport.
+  Manual drawings, automatic annotations and AI objects remain separate.
+- Confirmed drawings can restore and be edited after browser refresh within the same host run.
+  Conversations are isolated. Returning to a conversation restores its last confirmed drawing
+  checkpoint, **not necessarily its last manually selected interval, range or viewport**.
+- AI mouse dragging, undo, cross-process old-chart editing and complete automatic failure
+  recovery are not supported. Unknown outcomes stop automatic retries.
+- The combined clear action removes analysis annotations, manual drawings and custom levels;
+  AI objects, indicators and alerts remain. Request an exact AI target for deletion.
+- An object may be outside the visible time/price range. Object state and application receipts
+  do not prove screen pixels, professional pattern quality or vendor quote correctness.
+- Minute availability depends on source/permissions; not all markets, minute sizes or operation
+  combinations are accepted. Natural-language Fibonacci/waves and Chan analysis are deferred.
+
+Host integration uses `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`.
+Read fresh context after approval and verify against independently retained approved parameters.
+A `context_ref` is not a `chart_session`. Read-only `preview_chart_channel` and `verify_chart_drawings`
+measure geometry/check parameters; neither selects patterns or grants drawing permission.
+Legacy per-family tools manipulate explicit snapshots, not the guarded live-chart workflow.
+
+Run `pnpm build:sidebar` and `pnpm test` for the build and complete Node/Python regression suite.
+See the [foundation acceptance notes](docs/release-acceptance-v0.4.0.md) for scope and limits.
+First-time automatic dependency preparation needs network access and may take several minutes.
 
 ### Host-provided Python runtime
 

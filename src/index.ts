@@ -3,6 +3,9 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { ChartContextBroker } from './chart-context.ts'
+import { ChartApplications } from './chart-applications.ts'
+import { startFtshareSettingsBridge, type FtshareSettingsService } from './ftshare-settings-bridge.ts'
 
 export const name = 'dsh-kline-sidebar'
 export const inject = ['webServer']
@@ -35,6 +38,9 @@ const CHART_ACTIONS = new Set([
 
 interface WebServerContext {
   effect(callback: () => () => void, label: string): void
+  inject?(deps: string[], callback: (ctx: WebServerContext) => void): unknown
+  systemPrompt?: { context(input: {name: string; order: number; text: (context: any) => string}): () => void }
+  ftshareSettings?: FtshareSettingsService
   webServer: {
     register(route: {
       kind: 'prefix'
@@ -45,17 +51,49 @@ interface WebServerContext {
 }
 
 export function apply(ctx: WebServerContext): void {
+  const contexts = new ChartContextBroker(join(RUNTIME_DIR, 'views', String(process.pid)),()=>Date.now(),RUNTIME_DIR)
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: '/dsh-kline',
-    handler: serveRuntimeSession,
+    handler: (request, response) => serveRuntimeSession(request, response, contexts),
   }), 'dsh-kline: chart session route')
+  ctx.inject?.(['systemPrompt'], scoped => {
+    if (typeof scoped.systemPrompt?.context !== 'function') return
+    scoped.effect(() => scoped.systemPrompt!.context({name: 'dsh-kline:current-view', order: 350,
+      text: context => contexts.prompt(context)}), 'dsh-kline: current chart context')
+  })
+  ctx.inject?.(['ftshareSettings'], scoped => {
+    if (!scoped.ftshareSettings?.apiKey) return
+    const bridge = startFtshareSettingsBridge({settings: scoped.ftshareSettings, runtimeDirectory: RUNTIME_DIR})
+    scoped.effect(() => () => { void bridge.dispose() }, 'dsh-kline: FTShare settings credential bridge')
+  })
 }
 
-async function serveRuntimeSession(request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function serveRuntimeSession(request: IncomingMessage, response: ServerResponse, contexts: ChartContextBroker): Promise<void> {
   const url = new URL(request.url ?? '/', 'http://localhost')
   const pathname = url.pathname
   try {
+    if (pathname === '/dsh-kline/recovery' && request.method === 'GET') {
+      try {
+        const recovery = await new ChartApplications(RUNTIME_DIR).recover(url.searchParams.get('conversation') ?? '')
+        sendJson(response, 200, recovery)
+      } catch { sendJson(response, 200, {ok:false,error:'confirmed_chart_recovery_unavailable'}) }
+      return
+    }
+    if (pathname === '/dsh-kline/context') {
+      if (request.method !== 'POST') { sendJson(response, 405, {ok:false,error:'method_not_allowed'}); return }
+      if (request.headers['content-type']?.split(';')[0] !== 'application/json'
+        || request.headers.origin && new URL(request.headers.origin).host !== request.headers.host) {
+        sendJson(response, 403, {ok:false,error:'invalid_context_origin'}); return
+      }
+      try {
+        const result = await contexts.publish(JSON.parse((await readRequestBody(request)).toString('utf8')))
+        sendJson(response, 200, result)
+      } catch {
+        sendJson(response, 400, {ok:false,error:'context_publication_rejected'})
+      }
+      return
+    }
     // Static browser assets must remain available before the first chart session exists.
     if (pathname === '/dsh-kline/vendor/klinecharts.min.js' && (request.method === 'GET' || request.method === 'HEAD')) {
       const body = await readFile(VENDOR_FILE)

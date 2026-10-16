@@ -103,3 +103,33 @@ test('chart routes require an explicit token and never expose service credential
     await new Promise<void>(resolve => server.close(() => resolve()))
   }
 })
+
+test('browser context route registers public host runtime context and rejects cross-origin reports', async () => {
+  let handler:any, provider:any
+  apply({effect: callback=>{callback()},webServer:{register: route=>{handler=route.handler;return()=>{}}},
+    inject: (_deps, callback)=>callback({effect:callback=>{callback()},webServer:{register:()=>()=>{}},
+      systemPrompt:{context: input=>{provider=input;return()=>{}}}})})
+  const server=createServer((request,response)=>{void handler(request,response)})
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve))
+  const origin=`http://127.0.0.1:${(server.address() as any).port}`
+  const view=randomBytes(24).toString('base64url')
+  const body={conversation_id:'context-conversation',view_id:view,sequence:1,captured_at_ms:Date.now(),active:true,
+    state:{state:'ready',symbol:'TEST.X',name:'测试',interval:'day',range_key:'custom',active_page:'chart',
+      candles:[{time:1,open:31,high:33,low:30,close:32,volume:1}],visible_range:{available:true,index_from:0,index_to_exclusive:1},drawings:[]}}
+  try {
+    assert.equal(provider.name,'dsh-kline:current-view')
+    assert.equal((await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://other-origin.test'},body:JSON.stringify(body)})).status,403)
+    const result=await (await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(body)})).json()
+    assert.equal(result.ok,true); assert.match(result.context_ref,/^[A-Za-z0-9_-]{32}$/)
+    const agent={session:{id:'context-conversation'}}
+    assert.ok(provider.text({agent,scope:agent}).includes(result.context_ref))
+    const other={session:{id:'other'}}
+    assert.ok(!provider.text({agent:other,scope:other}).includes(result.context_ref))
+    assert.equal((await fetch(origin+'/dsh-kline/context')).status,405)
+    const closed={...body,sequence:2,active:false,state:null}
+    assert.equal((await (await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(closed)})).json()).ok,true)
+    assert.match(provider.text({agent,scope:agent}),/unavailable/)
+  } finally {
+    server.closeAllConnections(); await new Promise<void>(resolve=>server.close(()=>resolve()))
+  }
+})

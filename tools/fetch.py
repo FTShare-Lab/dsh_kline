@@ -31,6 +31,7 @@ from typing import Any, Mapping, Sequence
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
+from core.adjustment import normalize_adjustment, adjustment_error
 
 try:  # Built-in free fallback source; never required for the FTShare path.
     from tools.free_sources import (
@@ -289,6 +290,7 @@ _INJECTED_FTSHARE_PATH = _maybe_inject_local_ftshare()
 # a path or a value.  It lets the UI explain why FTShare is already connected
 # without guessing at, or scanning, a user's shell, .env files, or keychain.
 _FTSHARE_RUNTIME_CREDENTIAL_SOURCE: str | None = None
+_FTSHARE_RUNTIME_FILE_KEY: str | None = None
 
 
 def _uses_posix_permissions() -> bool:
@@ -306,47 +308,121 @@ def _ftshare_key_path() -> Path:
     return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
 
 
-def _configured_ftshare_file_source() -> str:
-    """Classify only the explicit credential file currently in use."""
-    return "external_file" if (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip() else "plugin_store"
+def _ftshare_settings_key_path() -> Path | None:
+    """Credential file published by the DSH FTShare settings bridge.
+
+    The DSH host writes it when the FTShare settings plugin is installed and
+    the launcher points this process at it.  Without that file this process
+    resolves credentials exactly as it did before the bridge existed.
+    """
+    configured = (os.environ.get("DSH_KLINE_SETTINGS_KEY_FILE") or "").strip()
+    return Path(configured).expanduser() if configured else None
+
+
+def _ftshare_credential_files() -> tuple[tuple[Path, str], ...]:
+    """Credential files in precedence order, each with its provenance label.
+
+    An explicit ``FTSHARE_API_KEY_FILE`` stays authoritative for hosts and
+    tests that set one; otherwise a Key saved in the DSH FTShare settings
+    outranks the one this plugin stored for itself.
+    """
+    explicit = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if explicit:
+        return ((Path(explicit).expanduser(), "external_file"),)
+    files: list[tuple[Path, str]] = []
+    bridge = _ftshare_settings_key_path()
+    if bridge is not None:
+        files.append((bridge, "settings_bridge"))
+    files.append((_ftshare_key_path(), "plugin_store"))
+    return tuple(files)
 
 
 def _valid_ftshare_key(value: Any) -> str:
-    key = str(value or "").strip()
+    key = value.strip() if isinstance(value, str) else ""
     if not key or len(key) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in key):
         return ""
     return key
 
 
-def _read_persisted_ftshare_key() -> str:
-    path = _ftshare_key_path()
+def _read_ftshare_key_file(path: Path) -> str:
     try:
         if not path.is_file() or path.is_symlink():
             return ""
         if _uses_posix_permissions() and stat.S_IMODE(path.stat().st_mode) & 0o077:
             return ""
         payload = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(payload, Mapping) or payload.get("version") != 1:
+        if not isinstance(payload, Mapping) or type(payload.get("version")) is not int or payload["version"] != 1:
             return ""
         return _valid_ftshare_key(payload.get("api_key"))
     except (OSError, ValueError, TypeError):
         return ""
 
 
+def _resolve_persisted_ftshare_key() -> tuple[str, str]:
+    """Return the first usable file credential, with where it came from."""
+    for path, source in _ftshare_credential_files():
+        value = _read_ftshare_key_file(path)
+        if value:
+            return value, source
+    return "", ""
+
+
+def _read_persisted_ftshare_key() -> str:
+    return _resolve_persisted_ftshare_key()[0]
+
+
 def _load_persisted_ftshare_key() -> bool:
-    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
     if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
         return False
-    value = _read_persisted_ftshare_key()
+    value, source = _resolve_persisted_ftshare_key()
     if not value:
         return False
     os.environ["FTSHARE_API_KEY"] = value
+    _FTSHARE_RUNTIME_FILE_KEY = value
     # Preserve the fact that this process itself wrote the saved credential,
     # even when a test/developer chose a custom file path.  A fresh process
     # correctly reports that same explicit path as externally managed.
     if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store":
-        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = _configured_ftshare_file_source()
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = source
     return True
+
+
+def _refresh_persisted_ftshare_key() -> None:
+    """Follow file-backed credentials before each FTShare client is created.
+
+    The DSH bridge can replace or clear its file while this process runs, so a
+    Key change applies without restarting the MCP server.  A Key the host
+    environment supplied or a temporary in-process override is never replaced
+    here. The plugin's saved credential remains the lower-priority fallback.
+    """
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
+    source = _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    current = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if source in {"environment", "session"}:
+        return
+    if source is None and current:
+        return
+    if current and current != _FTSHARE_RUNTIME_FILE_KEY:
+        # Someone explicitly replaced the environment since our last file
+        # load. Never overwrite that new credential with a stale file source.
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+        _FTSHARE_RUNTIME_FILE_KEY = None
+        return
+    value, resolved = _resolve_persisted_ftshare_key()
+    if value:
+        os.environ["FTSHARE_API_KEY"] = value
+        # A credential this process saved for itself keeps reporting as the
+        # plugin's own, even when it lives at an explicitly configured path; a
+        # Key published by the DSH settings always reports its own source.
+        if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store" or resolved == "settings_bridge":
+            _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = resolved
+    else:
+        os.environ.pop("FTSHARE_API_KEY", None)
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+    _FTSHARE_RUNTIME_FILE_KEY = value or None
+    if value != current:
+        clear_provider_caches()
 
 
 def _ftshare_credential_source() -> str:
@@ -425,7 +501,12 @@ def _ftshare_market_api(timeout: float) -> Any:
     """Create an SDK client with the process key attached to every request."""
     import ftshare as ft
 
+    _refresh_persisted_ftshare_key()
     key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if not key:
+        # The SDK also reads the environment: an explicit empty string would
+        # otherwise be sent as a malformed key instead of anonymous access.
+        os.environ.pop("FTSHARE_API_KEY", None)
     headers = {"FTSHARE_API_KEY": key} if key else None
     return ft.market_api(timeout=timeout, headers=headers)
 
@@ -631,17 +712,18 @@ def _ftshare_etf_minutes(market: Any, **params: Any) -> Any:
 
 def ftshare_status() -> dict[str, Any]:
     """Return safe provider status without host paths or module locations."""
+    _refresh_persisted_ftshare_key()
     _load_persisted_ftshare_key()
     ok = ftshare_available()
     credential_source = _ftshare_credential_source()
     info: dict[str, Any] = {
         "available": ok,
         "configured": credential_source != "none",
-        "persistent": credential_source in {"plugin_store", "external_file"},
+        "persistent": credential_source in {"plugin_store", "external_file", "settings_bridge"},
         "credential_source": credential_source,
         # Only a key explicitly saved by this running plugin can be safely
-        # removed from this UI.  Environment and externally supplied files
-        # remain owned by the host/user.
+        # removed from this UI.  Environment, externally supplied files, and a
+        # Key owned by the DSH FTShare settings remain owned by the host/user.
         "can_clear": credential_source == "plugin_store",
         "contracts": _ftshare_contract_status(),
     }
@@ -778,7 +860,7 @@ def configure_ftshare_api_key(
     persist: bool = True,
 ) -> dict[str, Any]:
     """Configure FTShare for this process and optionally persist it locally."""
-    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
     value = (api_key or "").strip()
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
         return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 包含不可用字符"}
@@ -807,6 +889,7 @@ def configure_ftshare_api_key(
     else:
         os.environ.pop("FTSHARE_API_KEY", None)
         _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+    _FTSHARE_RUNTIME_FILE_KEY = value if persist and value else None
     clear_provider_caches()
 
     result: dict[str, Any] = {
@@ -954,14 +1037,10 @@ def _interval_to_sdk(unit: str) -> str:
 
 
 def _adjust_to_sdk(adjust: str) -> str:
-    a = (adjust or "none").strip().lower()
-    if a in ("", "none", "null", "raw"):
-        return "none"
-    if a in ("forward", "qfq", "pre"):
-        return "forward"
-    if a in ("backward", "hfq", "post"):
-        return "backward"
-    return "none"
+    value = normalize_adjustment(adjust)
+    if value is None:
+        raise ValueError("unsupported_adjustment")
+    return value
 
 
 def _normalize_raw(raw: Any) -> list[dict[str, Any]]:
@@ -2789,6 +2868,10 @@ def _fetch_candles_ftshare(
       overfetch/correct here (keep the new MCP thin). Agent wanting N bars
       should request a larger limit.
     """
+    normalized_adjust = normalize_adjustment(adjust)
+    if normalized_adjust is None:
+        return adjustment_error()
+    adjust = normalized_adjust
     sym = _canonical_market_symbol(symbol)
     if not sym:
         return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
@@ -2937,7 +3020,7 @@ def _fetch_candles_ftshare(
                         interval=normalized_interval,
                         interval_unit=unit,
                         interval_value=step,
-                        adjust_kind=adj,
+                        adjust_kind="none",
                         limit=lim,
                     )
             elif _is_hk_symbol(sym) and normalized_interval in {"day", "week", "month", "quarter", "year"}:
@@ -2972,9 +3055,11 @@ def _fetch_candles_ftshare(
                     complete_dates: set[Any] = set()
                     # v4 is the raw one-minute stream for the current A-share
                     # stock session.  Do not re-aggregate it: the UI has no
-                    # intraday period selector. Multi-session history, ETFs
-                    # and indexes retain v2, whose contract covers them.
-                    if _page == 0 and not is_etf and sessions == 1 and step == 1:
+                    # intraday period selector. This endpoint has no adjustment
+                    # parameter: adjusted requests must use history, including
+                    # when history fails; never relabel the raw realtime feed.
+                    # Multi-session history, ETFs and indexes also retain v2.
+                    if _page == 0 and not is_etf and sessions == 1 and step == 1 and adj == "none":
                         try:
                             realtime_chunk = _complete_intraday_bars(
                                 _normalize_realtime_minute_raw(
@@ -3141,7 +3226,7 @@ def _fetch_candles_ftshare(
         "session_count": sessions if normalized_interval == "minute" else None,
         "adjust": (
             "none"
-            if _is_us_symbol(sym) and normalized_interval != "minute"
+            if (_is_us_symbol(sym) and normalized_interval != "minute") or is_global_index
             else (adjust or "none").strip().lower()
         ),
         "count": len(rows),
@@ -3162,6 +3247,8 @@ def _fetch_candles_ftshare(
     if _is_us_symbol(sym) and normalized_interval != "minute" and (adjust or "none").strip().lower() != "none":
         result["adjust_requested"] = (adjust or "none").strip().lower()
         result["warning"] = "FTShare US daily history is returned unadjusted; adjust was not applied."
+    if is_global_index and adjust != "none":
+        result.update(adjust_requested=adjust, warning="FTShare global-index history is unadjusted; adjust was not applied.")
     if hk_history_error is not None:
         result["warning"] = "FTShare HK history endpoint failed; used generic candle fallback."
         result["upstream_error"] = str(hk_history_error)[:500]
@@ -3234,7 +3321,8 @@ def _free_index_candles_result(
         "interval": normalized_interval,
         "interval_value": 1,
         "session_count": None,
-        "adjust": (adjust or "none").strip().lower(),
+        "adjust": "none",
+        **({"adjust_requested": adjust, "warning": "Free index history is unadjusted; adjust was not applied."} if adjust != "none" else {}),
         "count": len(rows),
         "rows": rows,
         "source": source_name,
@@ -3270,6 +3358,10 @@ def fetch_candles(
     the daily index series with ``source="eastmoney_free"`` so charts and
     comparison features stay usable for free users.
     """
+    normalized_adjust = normalize_adjustment(adjust)
+    if normalized_adjust is None:
+        return adjustment_error()
+    adjust = normalized_adjust
     primary = _fetch_candles_ftshare(
         symbol,
         interval=interval,

@@ -4,6 +4,7 @@ export interface ChartSession {
     symbol?: string;
     name?: string;
     published_at: number;
+    recovery?: boolean;
 }
 export interface ChartIdentity {
     symbol?: string;
@@ -19,12 +20,16 @@ declare global {
         __dshKlineVwapRegistered?: boolean;
     }
 }
-export declare function NativeKlineApp({ session, conversationId, onIdentity }: {
+export declare function NativeKlineApp({ session, conversationId, ownerConversationId, visible, onIdentity }: {
     session: ChartSession;
     conversationId: string;
+    ownerConversationId?: string;
+    visible?: boolean;
     onIdentity: (symbol?: string, name?: string) => void;
 }): import("react").JSX.Element;
-export declare function StandaloneKlineApp({ conversationId, onIdentity }: {
+export declare function StandaloneKlineApp({ conversationId, ownerConversationId, visible, onIdentity }: {
     conversationId: string;
+    ownerConversationId?: string;
+    visible?: boolean;
     onIdentity: (symbol?: string, name?: string) => void;
 }): import("react").JSX.Element;

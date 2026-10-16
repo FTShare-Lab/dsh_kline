@@ -17,11 +17,12 @@ function KlineTabContent({ sessions, conversationId }: { sessions: Sessions; con
   const onNewChart = useCallback((reference: NonNullable<ReturnType<typeof useChartReference>>) => {
     setLiveReference(reference)
   }, [])
-  useChartReference(sessions, conversationId, onNewChart)
+  const reference = useChartReference(sessions, conversationId, onNewChart)
+  const selectedReference = liveReference ?? (reference?.recovery ? reference : undefined)
   const onIdentity = useCallback(() => {}, [])
-  return liveReference
-    ? <NativeKlineApp key={liveReference.session} session={{ ok: true, ...liveReference, published_at: liveReference.order }} conversationId={conversationId ?? ''} onIdentity={onIdentity} />
-    : <StandaloneKlineApp conversationId={standaloneWorkspaceScope(conversationId)} onIdentity={onIdentity} />
+  return selectedReference
+    ? <NativeKlineApp key={selectedReference.session} session={{ ok: true, ...selectedReference, published_at: selectedReference.order }} conversationId={conversationId ?? ''} ownerConversationId={conversationId} onIdentity={onIdentity} />
+    : <StandaloneKlineApp conversationId={standaloneWorkspaceScope(conversationId)} ownerConversationId={conversationId} onIdentity={onIdentity} />
 }
 function AutoOpen({ service, sessions, conversationId }: { service: BetterSidebarService; sessions: Sessions; conversationId: string }) {
   const onNewChart = useCallback((reference: { session: string }) => {

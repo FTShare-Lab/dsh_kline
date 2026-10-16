@@ -107,3 +107,45 @@ test('cleared raw commands are removed from the saved chart without removing can
   assert.equal(state.savedView.chartCommands.length, 1)
   assert.equal(state.savedView.chartCommands[0], candles)
 })
+
+test('combined clear removes exactly the three advertised categories while preserving every AI family and chart settings', () => {
+  const { state, context } = fixture()
+  const commands = ['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE']
+    .map((type, i) => ({ type, id: 'ai-' + i }))
+  const candles = { type: 'SET_CANDLES', rows: state.currentCandles }
+  Object.assign(state, { userDrawings: [{symbol:'A'}, {symbol:'B'}], customLevels: [{symbol:'A'}, {symbol:'B'}],
+    lastHorizontalLines:[commands[0]], lastAgentTrendLines:[commands[1]], lastAgentChannels:[commands[2]], lastAgentRectangles:[commands[3]],
+    lastChartPayload:{symbol:'A',_live_chart_session:'a'.repeat(32),chartCommands:[candles,...commands,{type:'TEXT_MARKER'}]},
+    maVisible:true, priceAlerts:[{symbol:'A',price:31}], setDrawingCaptureActive() {}, renderUserDrawings() {}, rememberWorkspaceTab() {} })
+  state.window.__DSH_KLINE_SAVE_VIEW__ = (payload: any) => { state.savedView = payload }
+  runInContext(html.slice(html.indexOf('function clearCurrentUserDrawings('), html.indexOf('function resetChartViewport(')), context)
+  runInContext(html.slice(html.indexOf('function clearCurrentCustomLevels('), html.indexOf('function clearAnalysisAnnotations(')), context)
+  runInContext('clearAnnotationsByKind("all")', context)
+  assert.deepEqual(state.lastChartPayload.chartCommands, [candles,...commands])
+  assert.equal(state.lastChartPayload._live_chart_session,'a'.repeat(32))
+  assert.deepEqual(state.savedView.chartCommands,[candles,...commands])
+  for(const [index,key] of ['lastHorizontalLines','lastAgentTrendLines','lastAgentChannels','lastAgentRectangles'].entries()) {
+    assert.equal(state[key][0],commands[index])
+  }
+  assert.deepEqual(state.userDrawings,[{symbol:'B'}]); assert.deepEqual(state.customLevels,[{symbol:'B'}])
+  assert.deepEqual(state.analysisLevels,[{symbol:'B'}]); assert.equal(state.maVisible,true)
+  assert.deepEqual(state.priceAlerts,[{symbol:'A',price:31}]); assert.equal(state.currentInterval,'year')
+  assert.equal(state.statuses.at(-1),'clearAllDone')
+})
+
+test('Chinese and English clear labels, confirmation and success message explicitly retain AI drawings', () => {
+  const copy = html.slice(html.indexOf('Object.assign(UI_COPY.zh,'), html.indexOf('function restoreCanvasHeight('))
+  const vm: any = {UI_COPY:{zh:{},en:{}}}
+  // Read only the two copy blocks, without running any browser initialization.
+  for(const language of ['zh','en']) {
+    const start=copy.indexOf(`Object.assign(UI_COPY.${language},`)
+    const end=copy.indexOf('\n});',start)+4
+    runInContext(copy.slice(start,end),createContext(vm))
+    const labels=vm.UI_COPY[language]
+    for(const key of ['clearScope','clearConfirmMessage','clearAllDone']) assert.match(labels[key],/AI/)
+    assert.doesNotMatch(labels.clearAll,/全部|Clear all/)
+    assert.match(labels.clearAll,language==='zh'?/三类/:/three categories/)
+  }
+  assert.match(html, /data-i18n="clearScope">[^<]*AI 图形/)
+  assert.doesNotMatch(html, /data-i18n="clearAll">全部清除/)
+})

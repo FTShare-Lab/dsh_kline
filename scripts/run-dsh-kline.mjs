@@ -47,6 +47,29 @@ export function defaultRuntimeDirectory(env = process.env, platform = process.pl
   return explicit ? paths.resolve(explicit) : paths.join(defaultStateDirectory(env, platform, userHome), 'runtime')
 }
 
+/**
+ * Credential file the DSH host publishes from its FTShare settings service.
+ *
+ * Mirrors `settingsCredentialFile()` in `src/ftshare-settings-bridge.ts`; the
+ * host_process_id keeps a file from an earlier DSH run from being reused.
+ */
+export function settingsCredentialFile(runtimeDirectory, hostPid) {
+  return join(runtimeDirectory, 'credentials', `ftshare-${hostPid}.json`)
+}
+
+/**
+ * Point the MCP server at the host's settings credential when this process was
+ * launched by a DSH host that could publish one.  Without that locator the
+ * server keeps its previous credential resolution untouched.
+ */
+export function settingsCredentialEnvironment(runtimeDirectory, env = process.env) {
+  const rawPid = String(env.DSH_KLINE_HOST_PID || '').trim()
+  if (!/^[1-9]\d*$/.test(rawPid)) return {}
+  const hostPid = Number(rawPid)
+  if (!Number.isSafeInteger(hostPid) || hostPid <= 0) return {}
+  return { DSH_KLINE_SETTINGS_KEY_FILE: settingsCredentialFile(runtimeDirectory, hostPid) }
+}
+
 export function pythonCandidates(env = process.env, platform = process.platform) {
   const explicit = String(env.DSH_KLINE_PYTHON || '').trim()
   if (explicit) return [{ command: explicit, args: [] }]
@@ -359,7 +382,11 @@ async function launchServer(runtimePython, runtimeDirectory) {
   await mkdir(runtimeDirectory, { recursive: true })
   const child = spawn(runtimePython, [join(PROJECT_ROOT, 'server.py')], {
     cwd: PROJECT_ROOT,
-    env: pythonEnvironment({ ...process.env, DSH_KLINE_RUNTIME_DIR: runtimeDirectory }),
+    env: pythonEnvironment({
+      ...process.env,
+      DSH_KLINE_RUNTIME_DIR: runtimeDirectory,
+      ...settingsCredentialEnvironment(runtimeDirectory),
+    }),
     stdio: 'inherit',
     windowsHide: true,
   })

@@ -61,11 +61,12 @@ function KlineSidebar({ conversationId, sessions }: { conversationId?: string; s
     if (!reference) return
     const refresh = async () => {
       try {
-        const response = await fetch(`${SESSION_ENDPOINT}?session=${encodeURIComponent(reference.session)}`, { cache: 'no-store', signal: controller.signal })
+        const response = await fetch(reference.recovery ? `/dsh-kline/recovery?conversation=${encodeURIComponent(conversationId ?? '')}`
+          : `${SESSION_ENDPOINT}?session=${encodeURIComponent(reference.session)}`, { cache: 'no-store', signal: controller.signal })
         const payload = await response.json() as Partial<ChartSession> & { ok?: boolean }
         if (!active) return
         if (response.ok && payload.ok === true && typeof payload.session === 'string') {
-          setSession(payload as ChartSession)
+          setSession({...payload,recovery:reference.recovery} as ChartSession)
           setAvailable(true)
         } else {
           setAvailable(response.ok)
@@ -167,11 +168,13 @@ function KlineSidebar({ conversationId, sessions }: { conversationId?: string; s
         <div className="dsh-kline-content">
           {session ? (
             <NativeKlineApp key={session.session} session={session} conversationId={conversationId ?? 'standalone'}
+              ownerConversationId={conversationId} visible={state.open}
               onIdentity={(symbol, name) => setSession(current => current ? { ...current, symbol, name } : current)} />
           ) : available ? (
             <StandaloneKlineApp
               key={standaloneChartSession(conversationId)}
               conversationId={standaloneWorkspaceScope(conversationId)}
+              ownerConversationId={conversationId} visible={state.open}
               onIdentity={setStandaloneIdentity}
             />
           ) : (

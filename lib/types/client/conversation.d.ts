@@ -1,6 +1,8 @@
 export interface ChartReference {
     session: string;
     order: number;
+    recovery?: boolean;
+    recoverySourceSessions?: string[];
 }
 export interface Observable<T> {
     getSnapshot(): T;

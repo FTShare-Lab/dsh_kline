@@ -27,6 +27,22 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
   // DSH conversation inherit an old chart, bypassing the Market launcher.
   const [reference, setReference] = useState<ChartReference | undefined>()
   useEffect(() => {
+    // Use only the host's actual active conversation. No browser-cache or
+    // global-latest discovery: the server checks a confirmed application.
+    if (!conversationId || sessions.list.getSnapshot().current !== conversationId) return
+    const controller = new AbortController()
+    void fetch('/dsh-kline/recovery?conversation=' + encodeURIComponent(conversationId), {cache:'no-store',signal:controller.signal})
+      .then(response=>response.json()).then(saved=>{
+        if(controller.signal.aborted || saved?.ok!==true || saved.recovery!==true || saved.conversation_id!==conversationId
+          || !/^[A-Za-z0-9_-]{32}$/.test(saved.session) || !Number.isSafeInteger(saved.published_at))return
+        if(!Array.isArray(saved.recovery_source_sessions) || saved.recovery_source_sessions.some((token:any)=>typeof token!=='string' || !/^[A-Za-z0-9_-]{32}$/.test(token)))return
+        const next={session:saved.session,order:0,recovery:true,recoverySourceSessions:saved.recovery_source_sessions}
+        // Host event clocks are not compared with server acknowledgment time.
+        setReference(current=>!current || next.recoverySourceSessions.includes(current.session) ? next : current)
+      }).catch(()=>{})
+    return ()=>controller.abort()
+  },[conversationId,sessions])
+  useEffect(() => {
     // DSH's event window can arrive one subscription tick after this hook
     // mounts. Treat that short hydration window as historical state, not as a
     // new analysis that should replace the Market launcher.
@@ -35,6 +51,7 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
   }, [conversationId])
   useEffect(() => {
     if (!conversationId || !discovered || (reference && reference.order >= discovered.order)) return
+    if(reference?.recovery && reference.recoverySourceSessions?.includes(discovered.session))return
     setReference(discovered)
     // Reveal only a result that appeared after this hook mounted. Merely
     // reopening historical messages must not override the Market launcher.

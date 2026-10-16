@@ -9,6 +9,7 @@ export interface ChartSession {
   symbol?: string
   name?: string
   published_at: number
+  recovery?: boolean
 }
 
 export interface ChartIdentity {
@@ -60,8 +61,11 @@ declare global {
   }
 }
 
-export function NativeKlineApp({ session, conversationId, onIdentity }: { session: ChartSession; conversationId: string; onIdentity: (symbol?: string, name?: string) => void }) {
+export function NativeKlineApp({ session, conversationId, ownerConversationId, visible = true, onIdentity }: { session: ChartSession; conversationId: string; ownerConversationId?: string; visible?: boolean; onIdentity: (symbol?: string, name?: string) => void }) {
   const host = useRef<HTMLDivElement>(null)
+  const visibility = useRef(visible); visibility.current = visible
+  const contextNotice = useRef<() => void>(() => {})
+  useEffect(() => contextNotice.current(), [visible])
   const interfaceMode = { ...useContext(InterfaceContext), onboardingKind, acknowledgeOnboarding }
   const [error, setError] = useState('')
 
@@ -70,13 +74,16 @@ export function NativeKlineApp({ session, conversationId, onIdentity }: { sessio
     const controller = new AbortController()
     let dispose: (() => void) | undefined
     Promise.all([
-      fetch(`/dsh-kline/data?session=${encodeURIComponent(session.session)}`, { cache: 'no-store', signal: controller.signal }).then(response => response.json()),
+      fetch(session.recovery ? `/dsh-kline/recovery?conversation=${encodeURIComponent(ownerConversationId ?? '')}`
+        : `/dsh-kline/data?session=${encodeURIComponent(session.session)}`, { cache: 'no-store', signal: controller.signal }).then(response => response.json()),
       loadKlinecharts(),
     ]).then(([result, klinecharts]) => {
       if (!active || !host.current) return
       if (!result?.ok || !result?.payload) throw new Error(result?.message || '图表会话不可用')
+      if(session.recovery && (result.session!==session.session || result.conversation_id!==ownerConversationId)) throw new Error('图表恢复来源已变化，请重新打开当前对话。')
       const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
-      dispose = mountKlineView(root, result.payload, { klinecharts, conversationId, chartSession: session.session, onIdentity, interfaceMode })
+      dispose = mountKlineView(root, result.payload, { klinecharts, conversationId, ownerConversationId, isVisible: () => visibility.current,
+        onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify }, chartSession: session.session, onIdentity, interfaceMode })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
@@ -92,8 +99,11 @@ export function NativeKlineApp({ session, conversationId, onIdentity }: { sessio
   )
 }
 
-export function StandaloneKlineApp({ conversationId, onIdentity }: { conversationId: string; onIdentity: (symbol?: string, name?: string) => void }) {
+export function StandaloneKlineApp({ conversationId, ownerConversationId, visible = true, onIdentity }: { conversationId: string; ownerConversationId?: string; visible?: boolean; onIdentity: (symbol?: string, name?: string) => void }) {
   const host = useRef<HTMLDivElement>(null)
+  const visibility = useRef(visible); visibility.current = visible
+  const contextNotice = useRef<() => void>(() => {})
+  useEffect(() => contextNotice.current(), [visible])
   const interfaceMode = { ...useContext(InterfaceContext), onboardingKind, acknowledgeOnboarding }
   const [error, setError] = useState('')
 
@@ -106,6 +116,9 @@ export function StandaloneKlineApp({ conversationId, onIdentity }: { conversatio
       dispose = mountKlineView(root, STANDALONE_CHART_PAYLOAD, {
         klinecharts,
         conversationId,
+        ownerConversationId,
+        isVisible: () => visibility.current,
+        onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify },
         chartSession: standaloneChartSession(conversationId),
         onIdentity,
         interfaceMode,
