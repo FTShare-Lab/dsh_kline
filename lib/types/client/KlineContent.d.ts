@@ -1,3 +1,4 @@
+import { type KlineHostProps } from './embed';
 export interface ChartSession {
     ok: true;
     session: string;
@@ -27,9 +28,10 @@ export declare function NativeKlineApp({ session, conversationId, ownerConversat
     visible?: boolean;
     onIdentity: (symbol?: string, name?: string) => void;
 }): import("react").JSX.Element;
-export declare function StandaloneKlineApp({ conversationId, ownerConversationId, visible, onIdentity }: {
+export type { KlineChrome, KlineHostProps, KlineEmbedApi } from './embed';
+export declare function StandaloneKlineApp({ conversationId, ownerConversationId, visible, onIdentity, embedded, chrome, theme, symbol, name }: {
     conversationId: string;
     ownerConversationId?: string;
     visible?: boolean;
     onIdentity: (symbol?: string, name?: string) => void;
-}): import("react").JSX.Element;
+} & KlineHostProps): import("react").JSX.Element;

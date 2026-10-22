@@ -110,6 +110,17 @@ export function mountKlineView(root, payload, dependencies = {}) {
 
 ${runtime}
 
+  // Hand the runtime's window-level bridge to the React host once the view is
+  // live. Absent for the sidebar mount, where nothing outside the shadow root
+  // drives the view.
+  const embed = window.__DSH_KLINE_EMBED__
+  if (embed !== undefined && typeof dependencies.onReady === 'function') {
+    embed.ready.then(
+      () => { if (!controller.signal.aborted) dependencies.onReady(embed) },
+      () => {},
+    )
+  }
+
   return () => {
     contextPublisher.dispose()
     lifecycle.dispose()
@@ -144,6 +155,10 @@ function createScopedWindow(host, payload, dependencies) {
   local.set('__DSH_KLINE_SAVE_VIEW__', dependencies.saveView)
   local.set('__DSH_KLINE_DISPOSED__', false)
   local.set('__DSH_KLINE_INTERFACE__', dependencies.interfaceMode)
+  // Host panel facts the view reads once at boot: nil for the sidebar mount,
+  // which keeps following the document and lays out for the window.
+  local.set('__DSH_KLINE_EMBEDDED__', dependencies.embedded === true)
+  local.set('__DSH_KLINE_THEME__', dependencies.theme)
   if (dependencies.klinecharts) {
     local.set('klinecharts', dependencies.klinecharts)
     local.set('__FTV_KLINECHARTS_VENDOR__', { started: true, source: 'client_dependency' })

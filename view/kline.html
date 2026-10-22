@@ -858,6 +858,22 @@
   .welcome-ftshare-title { color: var(--text); font-weight: 700; }
   .welcome-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
   .welcome-actions .btn { min-height: 29px; }
+  /* Embedded hosts (a free-canvas panel, the paper-trading rail) ask for less
+     chrome than the sidebar workspace, and anchor their dialogs to themselves:
+     a viewport-anchored backdrop would cover the whole application. */
+  :host([data-embedded]) .group-dialog-backdrop,
+  :host([data-embedded]) .welcome-backdrop { position: absolute; }
+  /* `chart` = the chart page and nothing else; `chart-search` keeps the symbol
+     search in the workspace bar and hides the rest of it. */
+  :host([data-chrome="chart"]) #securityNav,
+  :host([data-chrome="chart-search"]) #securityNav,
+  :host([data-chrome="chart"]) #marketTicker,
+  :host([data-chrome="chart-search"]) #marketTicker,
+  :host([data-chrome="chart"]) #watchlistRail,
+  :host([data-chrome="chart-search"]) #watchlistRail,
+  :host([data-chrome="chart"]) .workspace-bar,
+  :host([data-chrome="chart-search"]) .brand,
+  :host([data-chrome="chart-search"]) .header-controls { display: none !important; }
   .interface-toggle { height: 30px; min-width: 32px; padding: 0 8px; font-weight: 600; flex-shrink: 0; }
   .interface-popover { position: absolute; z-index: 80; top: 45px; right: 12px; width: min(350px, calc(100% - 24px)); max-height: calc(100% - 58px); overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow); }
   .interface-popover[hidden], .interface-toggle[hidden], #interfaceFallbackBanner[hidden] { display: none; }
@@ -1375,6 +1391,10 @@
 <script>
 "use strict";
 let currentAdjust = window.__DSH_CHART_SESSION__?.adjust || "none";
+// Host fact read once at boot. It stays at script scope because both init()
+// and the host bridge below branch on it; declaring it inside init() leaves
+// the bridge reading an undeclared name.
+const embedded = Boolean(window.__DSH_KLINE_EMBEDDED__);
 
 /* ---------- standalone dsh_kline chart API ---------- */
 function sanitizeToolArguments(args = {}) {
@@ -1499,6 +1519,10 @@ let currentSelection = null;
 let selectionOverlayId = null;
 let volumeUnit = "wan";
 let canvasBaseHeightOverride = null;
+// An embedded host that owns its palette (the free canvas) pins the theme
+// through `window.__DSH_KLINE_THEME__`; without it these stay empty and the
+// view keeps following the host document exactly as before.
+let hostThemeOverride = ["light", "dark"].includes(window.__DSH_KLINE_THEME__) ? window.__DSH_KLINE_THEME__ : null;
 let userThemeOverride = null;
 let colorMode = "a-share";
 let languagePreference = "host";
@@ -1912,7 +1936,9 @@ function loadWorkspacePreferences() {
     // so migrate them to host-following instead of silently pinning either.
     if (Number(parsed.version) >= 12) {
       if (["host", "zh", "en"].includes(parsed.language)) languagePreference = parsed.language;
-      if (["light", "dark"].includes(parsed.theme)) userThemeOverride = parsed.theme;
+      // A host palette outranks the saved preference; only store one when no
+      // host pins the theme.
+      if (!hostThemeOverride && ["light", "dark"].includes(parsed.theme)) userThemeOverride = parsed.theme;
     }
     if (["a-share", "international"].includes(parsed.colorMode)) {
       colorMode = parsed.colorMode;
@@ -2067,7 +2093,9 @@ function hostTheme() {
   return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 function currentTheme() {
-  return userThemeOverride || hostTheme();
+  // A host palette wins over both the saved preference and the document: the
+  // panel around this view cannot repaint itself to match a mismatched chart.
+  return hostThemeOverride || userThemeOverride || hostTheme();
 }
 function applyTheme() {
   const theme = currentTheme();
@@ -2082,6 +2110,12 @@ async function setTheme(theme) {
   applyTheme();
   if (lastChartPayload) await applyChartCommands(lastChartPayload);
   saveWorkspacePreferences();
+}
+/** The palette of the panel around this view; `undefined` means follow the document. */
+function setHostTheme(theme) {
+  hostThemeOverride = theme === "light" || theme === "dark" ? theme : null;
+  applyTheme();
+  if (lastChartPayload) applyChartCommands(lastChartPayload).catch(console.warn);
 }
 function syncThemeToggle() {
   const control = document.getElementById("themeToggle");
@@ -2607,7 +2641,11 @@ function applyViewportHeight(context) {
   const cd = context?.containerDimensions;
   const hostHeight = Number(cd?.height) || Number(cd?.maxHeight) || 0;
   const windowHeight = Number(window.innerHeight) || 0;
-  const availableHeight = hostHeight || windowHeight || 800;
+  // An embedded view lives inside a bounded panel: its own host element is the
+  // only height that matters, or the chart lays out for the whole window and
+  // gets clipped by the panel.
+  const panelHeight = window.__DSH_KLINE_EMBEDDED__ ? Number(document.documentElement?.clientHeight) || 0 : 0;
+  const availableHeight = hostHeight || panelHeight || windowHeight || 800;
   viewportMaxHeight = Math.max(1, Math.floor(availableHeight));
   const shellEl = document.getElementById("viewShell");
   if (shellEl) {
@@ -11015,8 +11053,14 @@ async function init() {
     // A launcher has no user-selected instrument. Lead with market context
     // instead of quietly opening a default index chart.  Start its index strip
     // before selecting the market tab, whose rich panels load afterward.
-    startMarketTickerRefresh();
-    setSecurityTab("market");
+    // An embedded panel is a chart, not a workspace: open the chart page and
+    // leave the (hidden) market chrome idle.
+    if (embedded) {
+      setSecurityTab("chart");
+    } else {
+      startMarketTickerRefresh();
+      setSecurityTab("market");
+    }
   } else {
     rememberAnalysisCommands(payload);
     await handleToolResult({ structuredContent: payload });
@@ -11036,15 +11080,37 @@ async function init() {
     startWatchlistQuoteRefresh();
     scheduleSymbolDirectoryRefresh();
   }, MARKET_BACKGROUND_DELAY_MS);
-  window.setTimeout(showWelcomeIfFirstRun, 300);
+  // The welcome tour belongs to the main entry, not to every panel a host
+  // mounts: an embedded view must not pop dialogs over someone's canvas.
+  if (!embedded) window.setTimeout(showWelcomeIfFirstRun, 300);
   reportSize();
   setChartStatus(isLauncher ? "搜索股票名称或代码开始查看 K 线" : "");
 }
-init().catch((error) => {
+// One statement on purpose: the Codex host injects its bridge by rewriting the
+// `init().catch(...)` prefix in `codex-bootstrap.mjs` and `codex_runtime/mcp_app.py`,
+// and an embedded mount needs the promise of that same call.
+const booted = init().catch((error) => {
   if (window.__DSH_KLINE_DISPOSED__) return;
   console.error("dsh_kline chart init", error);
   showError(`图表初始化失败：${String(error?.message || error)}`);
 });
+// Host panels (free canvas, paper-trading rail) drive this view from outside:
+// they wait for `ready`, turn a selection into `openSymbol`, read the
+// instrument on screen, and pass their palette via `setTheme`. The API is only
+// installed for embedded mounts, so a sidebar view keeps the surface it had.
+if (embedded) {
+  window.__DSH_KLINE_EMBED__ = {
+    ready: booted,
+    openSymbol(symbol, name) {
+      if (window.__DSH_KLINE_DISPOSED__) return Promise.resolve();
+      if (typeof symbol !== "string" || symbol.length === 0) return Promise.resolve();
+      setSecurityTab("chart");
+      return openSymbol(symbol, name || symbol);
+    },
+    currentSymbol: () => currentSymbol,
+    setTheme: setHostTheme,
+  };
+}
 </script>
 </body>
 </html>

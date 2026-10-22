@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react'
 import { mountKlineView } from './generated-view'
 import { InterfaceContext } from './mode-preferences'
 import { onboardingKind, acknowledgeOnboarding } from './ui-onboarding'
+import { klineHostDataset, sameSymbol, type KlineEmbedApi, type KlineHostProps } from './embed'
 
 export interface ChartSession {
   ok: true
@@ -99,17 +100,33 @@ export function NativeKlineApp({ session, conversationId, ownerConversationId, v
   )
 }
 
-export function StandaloneKlineApp({ conversationId, ownerConversationId, visible = true, onIdentity }: { conversationId: string; ownerConversationId?: string; visible?: boolean; onIdentity: (symbol?: string, name?: string) => void }) {
+// Host-facing contract lives in ./embed so tests can check the no-host defaults
+// without loading React or the generated view.
+export type { KlineChrome, KlineHostProps, KlineEmbedApi } from './embed'
+
+export function StandaloneKlineApp({ conversationId, ownerConversationId, visible = true, onIdentity, embedded = false, chrome = 'full', theme, symbol, name }: {
+  conversationId: string
+  ownerConversationId?: string
+  visible?: boolean
+  onIdentity: (symbol?: string, name?: string) => void
+} & KlineHostProps) {
   const host = useRef<HTMLDivElement>(null)
   const visibility = useRef(visible); visibility.current = visible
   const contextNotice = useRef<() => void>(() => {})
+  // The theme is read once at mount (the runtime needs it before first paint);
+  // later changes go through the bridge, so they never remount the view.
+  const themeAtMount = useRef(theme)
   useEffect(() => contextNotice.current(), [visible])
   const interfaceMode = { ...useContext(InterfaceContext), onboardingKind, acknowledgeOnboarding }
   const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+  const bridge = useRef<KlineEmbedApi | null>(null)
 
   useEffect(() => {
     let active = true
     let dispose: (() => void) | undefined
+    setReady(false)
+    bridge.current = null
     loadKlinecharts().then(klinecharts => {
       if (!active || !host.current) return
       const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
@@ -122,16 +139,40 @@ export function StandaloneKlineApp({ conversationId, ownerConversationId, visibl
         chartSession: standaloneChartSession(conversationId),
         onIdentity,
         interfaceMode,
+        embedded,
+        theme: themeAtMount.current,
+        onReady: (api: KlineEmbedApi) => { bridge.current = api; setReady(true) },
       })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
       dispose?.()
     }
-  }, [conversationId, onIdentity])
+  }, [conversationId, onIdentity, embedded])
+
+  // Follow an external selection once the view is live. A symbol the chart
+  // already shows is skipped: the panel publishes its own selection back, and
+  // that round trip through the host bus must not reopen the same instrument.
+  useEffect(() => {
+    if (!ready || symbol === undefined || symbol === '') return
+    if (sameSymbol(bridge.current?.currentSymbol(), symbol)) return
+    void bridge.current?.openSymbol(symbol, name).catch(() => {})
+  }, [ready, symbol, name])
+
+  // A host palette pins the chart theme; a change repaints without a remount.
+  // No theme means "follow the host document", which is the old behaviour.
+  useEffect(() => {
+    if (!ready || theme === undefined) return
+    bridge.current?.setTheme(theme)
+  }, [ready, theme])
 
   return (
-    <div className="dsh-kline-native-host" style={{ width: '100%', height: '100%', overflow: 'hidden' }} ref={host}>
+    <div
+      className="dsh-kline-native-host"
+      {...klineHostDataset({ embedded, chrome })}
+      style={{ width: '100%', height: '100%', overflow: 'hidden' }}
+      ref={host}
+    >
       {error && <div className="dsh-kline-error" role="alert">{error}</div>}
     </div>
   )
