@@ -43,7 +43,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 首次启动会自动准备所需运行环境。以后有新版本时，在插件市场或设置页更新即可。
 
-插件支持 macOS、Linux 和原生 Windows。用户需要先安装可运行的 DSH Web，以及 Python 3.10 或更高版本；Windows 推荐使用 [python.org](https://www.python.org/downloads/windows/) 安装包并启用 Python Launcher。插件不要求 Git Bash 或 WSL。首次启动的依赖安装日志位于用户缓存目录下的 `dsh_kline/bootstrap.log`；Windows 默认为 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。
+插件支持 macOS、Linux 和原生 Windows。用户需要先安装可运行的 DSH Web，以及 Python 3.11 或更高版本；Windows 推荐使用 [python.org](https://www.python.org/downloads/windows/) 安装包并启用 Python Launcher。插件不要求 Git Bash 或 WSL。首次启动的依赖安装日志位于用户缓存目录下的 `dsh_kline/bootstrap.log`；Windows 默认为 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。
 
 ![在插件市场安装和更新 dsh_kline](docs/images/dsh-market.png)
 
@@ -146,7 +146,7 @@ DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布�
 
 **Windows 首次启动失败怎么办？**
 
-先在终端执行 `py -3.10 --version`（更高版本也可以），确认 Python Launcher 能找到 Python。然后查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`；如果 Python 安装在自定义位置，可在启动 DSH Web 前设置 `DSH_KLINE_PYTHON` 为 `python.exe` 的完整路径。DSH Web 本身的安装或 Windows sandbox 问题需要参考 DSH 官方文档。
+先在终端执行 `py -3.11 --version`（更高版本也可以），确认 Python Launcher 能找到 Python。然后查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`；如果 Python 安装在自定义位置，可在启动 DSH Web 前设置 `DSH_KLINE_PYTHON` 为 `python.exe` 的完整路径。DSH Web 本身的安装或 Windows sandbox 问题需要参考 DSH 官方文档。
 
 **为什么两个对话显示不同的图？**
 这是刻意设计：图表会绑定各自对话，避免 A 对话的分析覆盖 B 对话。需要在另一个对话查看时，直接搜索或重新发起分析即可。
@@ -170,7 +170,7 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 | `DSH_KLINE_PYTHON` | 宿主提供的 Python 解释器路径。 |
 | `DSH_KLINE_RUNTIME_MODE` | `auto`（默认）或 `external`。 |
 
-`external` 模式要求 Python 3.10+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
+`external` 模式要求 Python 3.11+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
 
 宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），插件不推导宿主目录布局。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心；直接运行 Node 启动器时，插件根目录由启动器自身位置决定。
 

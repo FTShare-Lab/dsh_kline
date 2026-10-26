@@ -30,11 +30,10 @@ test('Windows uses native venv and LOCALAPPDATA paths', () => {
 })
 
 test('Windows Python Launcher candidates are version bounded and ordered', () => {
-  assert.deepEqual(pythonCandidates({}, 'win32').slice(0, 4), [
+  assert.deepEqual(pythonCandidates({}, 'win32').slice(0, 3), [
     { command: 'py', args: ['-3.13'] },
     { command: 'py', args: ['-3.12'] },
     { command: 'py', args: ['-3.11'] },
-    { command: 'py', args: ['-3.10'] },
   ])
   assert.deepEqual(pythonCandidates({ DSH_KLINE_PYTHON: 'D:\\Python\\python.exe' }, 'win32'), [
     { command: 'D:\\Python\\python.exe', args: [] },

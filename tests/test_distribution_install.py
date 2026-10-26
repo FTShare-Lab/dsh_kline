@@ -125,7 +125,7 @@ def test_launcher_contains_native_windows_runtime_support():
         "BOOTSTRAP_RUNNING",
         "DSH_KLINE_RUNTIME_DIR",
         "bootstrap.log",
-        "Python 3.10 or newer",
+        "Python 3.11 or newer",
         "--isolated",
     ):
         assert marker in launcher
@@ -354,8 +354,8 @@ def test_external_runtime_starts_without_managing_dependencies(tmp_path):
 @pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
 @pytest.mark.parametrize("failure, message", [
     ("missing_python", "requires DSH_KLINE_PYTHON"),
-    ("broken_python", "working Python 3.10 or newer"),
-    ("old_python", "working Python 3.10 or newer"),
+    ("broken_python", "working Python 3.11 or newer"),
+    ("old_python", "working Python 3.11 or newer"),
     ("dependencies", "missing required dependencies"),
     ("venv", "cannot be combined"),
     ("prepare", "cannot be combined"),

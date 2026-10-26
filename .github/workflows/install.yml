@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2025]
-        python: ['3.10', '3.11', '3.12', '3.13']
+        python: ['3.11', '3.12', '3.13']
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
@@ -42,8 +42,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build:sidebar
 
-      - name: Confirm clean Python 3.10 TA-Lib starting point
-        if: matrix.python == '3.10'
+      - name: Confirm clean TA-Lib starting point
         run: python -c "import importlib.util; assert importlib.util.find_spec('talib') is None, 'TA-Lib Python module was preinstalled'"
 
       - name: Install test dependencies
@@ -51,8 +50,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
 
-      - name: Verify Python 3.10 TA-Lib installation
-        if: matrix.python == '3.10'
+      - name: Verify pinned TA-Lib installation
         run: python -c "import talib; assert talib.__version__ == '0.8.2'"
 
       - name: Verify all Node and Python behavior
