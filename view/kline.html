@@ -5568,14 +5568,17 @@ function clearCurrentUserDrawings(silent = false) {
 }
 /* Curated workbench: UI and host both use the same guarded chart edit protocol. */
 const workbenchState = { anchors: [], picking: false, replaceIndex: null, pending: null, selectedId: null,
-  selectedParameters: null, busy: false, scope: null, mode: "drawing", candidate: null, candidateResults: null };
+  selectedParameters: null, busy: false, scope: null, mode: "drawing", candidate: null, candidateResults: null,
+  previewSuppressed: false };
 const WORKBENCH_KINDS = { sma: "series_line", ema: "series_line", boll: "price_band", horizontal: "horizontal_line",
   trend: "trend_line", channel: "channel", rectangle: "rectangle", fibonacci: "fibonacci_retracement", abc: "labeled_polyline" };
 const WORKBENCH_ANCHORS = { horizontal: 1, trend: 2, channel: 3, rectangle: 2, fibonacci: 2, abc: 3 };
 function workbenchType() { return document.getElementById("workbenchType")?.value || "sma"; }
 function workbenchStatus(message) { const node = document.getElementById("workbenchStatus"); if (node) node.textContent = message; }
-function workbenchInvalidate() {
+function workbenchCopy(zh, en) { return viewLanguage === "en" ? en : zh; }
+function workbenchInvalidate(showPreview = true) {
   workbenchState.pending = null;
+  workbenchState.previewSuppressed = !showPreview;
   const button = document.getElementById("workbenchConfirm");
   if (button) button.textContent = "预览图形";
   drawWorkbenchPreview();
@@ -5586,12 +5589,15 @@ function clearWorkbenchCandidate() {
   const list = document.getElementById("workbenchCandidateList");
   if (list) { list.replaceChildren(); list.hidden = true; }
 }
-function workbenchAnchorLabel(index) { return workbenchType() === "abc" ? "ABC"[index] : ["起点", "终点", "平行点"][index]; }
+function workbenchAnchorLabel(index) { return workbenchType() === "abc" ? "ABC"[index]
+  : (viewLanguage === "en" ? ["Start", "End", "Parallel"] : ["起点", "终点", "平行点"])[index]; }
 function workbenchPickInstruction() {
   const type = workbenchType(), count = WORKBENCH_ANCHORS[type] || 0;
   if (!count) return "";
   const next = workbenchAnchorLabel(workbenchState.replaceIndex ?? Math.min(workbenchState.anchors.length, count - 1));
-  return `在图上点${next}（${Math.min(workbenchState.anchors.length, count)}/${count}）${type === "channel" && workbenchState.anchors.length === 2 ? "，平行点位于起点和终点之间" : ""}`;
+  return viewLanguage === "en"
+    ? `Select ${next} on the chart (${Math.min(workbenchState.anchors.length, count)}/${count})${type === "channel" && workbenchState.anchors.length === 2 ? "; parallel anchor between start and end" : ""}`
+    : `在图上点${next}（${Math.min(workbenchState.anchors.length, count)}/${count}）${type === "channel" && workbenchState.anchors.length === 2 ? "，平行点位于起点和终点之间" : ""}`;
 }
 function syncWorkbenchPickUi() {
   const type = workbenchType(), count = WORKBENCH_ANCHORS[type] || 0;
@@ -5608,16 +5614,16 @@ function renderWorkbenchAnchors() {
   node.replaceChildren();
   if (WORKBENCH_ANCHORS[workbenchType()]) {
     const progress = document.createElement("strong");
-    progress.textContent = `已选 ${workbenchState.anchors.length}/${WORKBENCH_ANCHORS[workbenchType()]}`;
+    progress.textContent = `${workbenchCopy("已选", "Selected")} ${workbenchState.anchors.length}/${WORKBENCH_ANCHORS[workbenchType()]}`;
     node.append(progress);
   }
   for (let index = 0; index < workbenchState.anchors.length; index++) {
     const anchor = workbenchState.anchors[index];
     const entry = document.createElement("div"); entry.className = "workbench-anchor-entry";
     const label = document.createElement("label"); label.className = "workbench-field";
-    label.append(document.createTextNode(`${workbenchAnchorLabel(index)} · ${anchor ? fmtCandleTimestamp({ time: anchor.time }) : "待点选"} · 价格`));
+    label.append(document.createTextNode(`${workbenchAnchorLabel(index)} · ${anchor ? fmtCandleTimestamp({ time: anchor.time }) : workbenchCopy("待点选", "Pending")} · ${workbenchCopy("价格", "Price")}`));
     const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.min = "0.000001";
-    input.placeholder = "先在图上选 K 线"; input.disabled = !anchor; input.value = anchor?.price ?? "";
+    input.placeholder = workbenchCopy("先在图上选 K 线", "Select a candle first"); input.disabled = !anchor; input.value = anchor?.price ?? "";
     input.addEventListener("input", () => {
       if (!workbenchState.anchors[index]) return;
       workbenchState.anchors[index].price = Number(input.value);
@@ -5626,7 +5632,7 @@ function renderWorkbenchAnchors() {
     });
     label.append(input); entry.append(label);
     const replace = document.createElement("button"); replace.type = "button"; replace.className = "btn";
-    replace.textContent = `改${workbenchAnchorLabel(index)}`;
+    replace.textContent = `${workbenchCopy("改", "Change ")}${workbenchAnchorLabel(index)}`;
     replace.addEventListener("click", () => beginWorkbenchReplace(index));
     entry.append(replace); node.append(entry);
   }
@@ -5644,7 +5650,8 @@ function setWorkbenchType(type, preserve = false) {
   document.getElementById("workbenchPick").hidden = !WORKBENCH_ANCHORS[type];
   const candidateButton = document.getElementById("workbenchCandidateBtn");
   candidateButton.hidden = !["channel", "rectangle"].includes(type);
-  candidateButton.textContent = type === "channel" ? "找通道候选" : "找平台候选";
+  candidateButton.textContent = type === "channel" ? workbenchCopy("找通道候选", "Find channel candidates")
+    : workbenchCopy("找平台候选", "Find range candidates");
   if (!preserve) { workbenchState.anchors = []; workbenchState.selectedId = null; workbenchState.selectedParameters = null;
     workbenchState.picking = false; workbenchState.replaceIndex = null; clearWorkbenchCandidate(); setDrawingCaptureActive(false); }
   workbenchInvalidate(); renderWorkbenchAnchors(); renderDrawingWorkbench();
@@ -5697,7 +5704,7 @@ async function findWorkbenchCandidates(scope = "current") {
   clearWorkbenchCandidate(); workbenchInvalidate();
   const button = document.getElementById("workbenchCandidateBtn");
   button.disabled = true;
-  workbenchStatus("正在查找当前图的候选…");
+  workbenchStatus(workbenchCopy("正在查找当前图的候选…", "Finding candidates for this chart…"));
   try {
     const binding = workbenchCurrentBinding();
     const result = await workbenchTool("workbench_run_chart_function", {
@@ -5711,12 +5718,13 @@ async function findWorkbenchCandidates(scope = "current") {
     list.hidden = false;
     workbenchState.candidateResults = { binding, ref: result.result_ref, candidates, type, scope };
     if (!candidates.length) {
-      list.textContent = scope === "historical" ? "历史区间也没有符合规则的通道，可手动选点。" : "当前区间没有符合规则的候选，可手动选点。";
+      list.textContent = scope === "historical" ? workbenchCopy("历史区间也没有符合规则的通道，可手动选点。", "No historical channel meets the rules. You can select anchors manually.")
+        : workbenchCopy("当前区间没有符合规则的候选，可手动选点。", "No candidate meets the rules for the current range. You can select anchors manually.");
       if (type === "channel" && scope === "current") {
         const historyButton = document.createElement("button");
         historyButton.type = "button"; historyButton.className = "btn";
-        historyButton.textContent = "查看历史候选";
-        historyButton.title = "历史候选不代表当前走势仍在通道内";
+        historyButton.textContent = workbenchCopy("查看历史候选", "View historical candidates");
+        historyButton.title = workbenchCopy("历史候选不代表当前走势仍在通道内", "A historical candidate may no longer fit the current price action");
         historyButton.addEventListener("click", () => { void findWorkbenchCandidates("historical"); });
         list.append(historyButton);
       }
@@ -5724,17 +5732,17 @@ async function findWorkbenchCandidates(scope = "current") {
       return;
     }
     const caption = document.createElement("span");
-    caption.textContent = `${scope === "historical" ? "历史候选（不代表当前有效）" : "当前候选"} · ${currentSymbol} · ${currentInterval}`;
+    caption.textContent = `${scope === "historical" ? workbenchCopy("历史候选（不代表当前有效）", "Historical candidates (may be stale)") : workbenchCopy("当前候选", "Current candidates")} · ${currentSymbol} · ${currentInterval}`;
     list.append(caption);
     candidates.forEach((candidate, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "btn";
       button.textContent = type === "channel"
-        ? `候选 ${index + 1} · ${candidate.direction === "ascending" ? "上升" : "下降"}通道 · 宽 ${formatPrice(candidate.width)}`
-        : `候选 ${index + 1} · ${candidate.bar_count} 根 · ${formatPrice(candidate.lower_price)}–${formatPrice(candidate.upper_price)}`;
+        ? `${workbenchCopy("候选", "Candidate")} ${index + 1} · ${candidate.direction === "ascending" ? workbenchCopy("上升通道", "rising channel") : workbenchCopy("下降通道", "falling channel")} · ${workbenchCopy("宽", "width ")}${formatPrice(candidate.width)}`
+        : `${workbenchCopy("候选", "Candidate")} ${index + 1} · ${candidate.bar_count} ${workbenchCopy("根", "bars")} · ${formatPrice(candidate.lower_price)}–${formatPrice(candidate.upper_price)}`;
       button.addEventListener("click", () => selectWorkbenchCandidate(index));
       list.append(button);
     });
-    workbenchStatus("选择一组候选，再预览确认；查找本身不会画图。");
+    workbenchStatus(workbenchCopy("选择一组候选，再预览确认；查找本身不会画图。", "Choose a candidate, review the preview, then save. Searching never draws automatically."));
   } catch (error) {
     const message = error?.code === "workbench_function_not_selected"
       ? "当前绘图服务尚未加载候选功能，请重新启动本地插件后重试。"
@@ -5760,7 +5768,8 @@ function selectWorkbenchCandidate(index) {
   workbenchState.candidate = { ref: result.ref, number: index + 1, binding: result.binding, type: result.type };
   workbenchState.picking = false; workbenchState.replaceIndex = null; setDrawingCaptureActive(false);
   workbenchInvalidate(); renderWorkbenchAnchors(); renderDrawingWorkbench();
-  workbenchStatus(`候选 ${index + 1} 已填入预览；请核对图形，再明确保存。`);
+  workbenchStatus(workbenchCopy(`候选 ${index + 1} 已填入预览；请核对图形，再明确保存。`,
+    `Candidate ${index + 1} is in the preview. Check its shape before saving.`));
 }
 function workbenchPixel(time, price) {
   try {
@@ -5774,6 +5783,7 @@ function drawWorkbenchPreview() {
   const svg = document.getElementById("workbenchPreview");
   if (!svg) return;
   svg.replaceChildren();
+  if (workbenchState.previewSuppressed) return;
   const type = workbenchType(), points = workbenchState.anchors;
   const chart = document.getElementById("klineChart");
   if (!chart || !currentCandles.length || (!points.length && type !== "horizontal")
@@ -5966,7 +5976,7 @@ async function workbenchConfirm() {
       const result = await workbenchApplyProposal(proposal);
       workbenchState.selectedId = result.prepared.object?.id || workbenchState.selectedId;
       workbenchState.selectedParameters = workbenchParameterSignature(proposal.input);
-      workbenchInvalidate();
+      workbenchInvalidate(false);
       // The stored overlay is now authoritative; do not leave the orange
       // unsaved ghost over the confirmed drawing.
       document.getElementById("workbenchPreview")?.replaceChildren();

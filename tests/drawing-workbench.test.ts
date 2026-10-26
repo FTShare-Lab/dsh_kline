@@ -21,7 +21,7 @@ function fixture(type: string, selectedId: string | null = null) {
     lastChartPayload: { _live_chart_session: 'b'.repeat(32) },
     captureChartContext: () => ({ state: 'ready', source_chart_session: 'b'.repeat(32), drawings: [] }),
     currentSymbol: 'TEST.X', currentCandles: [{ time: 1, close: 100 }],
-    currentInterval: 'day',
+    currentInterval: 'day', viewLanguage: 'zh',
     callTool: async (name: string, args: any) => {
       calls.push({ name, args })
       if (name === 'workbench_run_ta') return { structuredContent: { ok: true, result_ref: 'c'.repeat(64),
@@ -231,4 +231,7 @@ test('channel preview draws both edges and optional midline without an endpoint-
   midline = 'no'
   api.preview()
   assert.equal(elements.filter(element => element.tag === 'line').length, 2)
+  api.state.previewSuppressed = true
+  api.preview()
+  assert.equal(elements.length, 0, 'a saved object must not be covered by the unsaved ghost on redraw')
 })
