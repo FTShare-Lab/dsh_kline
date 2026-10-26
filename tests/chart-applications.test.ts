@@ -144,7 +144,9 @@ test('real HTTP socket loss after real broker delivery stays unconfirmed and sub
     const address=server.address() as any
     globalThis.fetch=((input:any,init:any)=>{assert.equal(input,'/dsh-kline/context');return nativeFetch(`http://127.0.0.1:${address.port}/dsh-kline/context`,init)}) as any
     publisher=createChartContextPublisher({conversationId:'A',viewId:view,capture:()=>f.state,isActive:()=>true,
-      publicationTimeoutMs:1000,onSourceStatus:s=>statuses.push(s),apply:()=>{applied++}})
+      // Socket-loss behavior is under test here, not the separate timeout path.
+      // Mac CI may spend tens of seconds in the synchronous Python fixture.
+      publicationTimeoutMs:90000,onSourceStatus:s=>statuses.push(s),apply:()=>{applied++}})
     await until(()=>statuses.at(-1)?.reason==='not_checked')
     const observed=published[0],prepared=prepare(f.runtime,observed.context_ref,observed.revision)
     const queued=queue(f.runtime,observed.context_ref,prepared.chart_session)
