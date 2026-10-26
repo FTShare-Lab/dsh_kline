@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | English
 
-Turn a natural-language request into a checkable drawing inside DeepSeek Harness—or open the drawing workbench to pick candle anchors and edit the same protected chart objects yourself.
+Analyze, draw, and revise a K-line chart through natural language in DeepSeek Harness—or pick anchors yourself on the chart. Chat and the drawing workbench share the current chart and its protected objects: levels, trend lines, channels, range boxes, Fibonacci retracements, ABC labels, and selected drawable indicators.
 
 > Quotes and technical analysis are for research and education only, not investment advice.
 
@@ -11,7 +11,7 @@ Turn a natural-language request into a checkable drawing inside DeepSeek Harness
 - **Start with a sentence**: ask for a chart, a trend read, or an indicator analysis in natural language.
 - **Explore on your own**: open the K-line workspace, search a name or ticker, and switch among daily, weekly, monthly, quarterly, yearly, and available intraday views.
 - **Read trend and momentum**: use MA, volume, MACD, KDJ, RSI, BOLL, ATR, and VWAP.
-- **Draw and revise**: use SMA, EMA, BOLL, horizontal/trend lines, parallel channels, range boxes, Fibonacci retracements, and user-anchored ABC labels in the workbench. Preview before confirming; then edit by stable object ID from the UI or AI chat.
+- **Put your analysis on the chart**: create horizontal/trend lines, parallel channels, range boxes, Fibonacci retracements, and ABC polylines by chat or point selection. Preview first; save only when the result looks right.
 - **Explore TA-Lib**: search and run all 201 TA-Lib 0.8.2 functions read-only on the loaded chart. Only selected SMA, EMA, and BBANDS results are directly drawable in this release; the other functions are not advertised as chart objects.
 - **Find price areas**: identify support and resistance, or draw and save your own levels and notes.
 - **Compare and review**: overlay indices or symbols, then select a period to inspect return, range, drawdown, and activity.
@@ -20,15 +20,28 @@ Turn a natural-language request into a checkable drawing inside DeepSeek Harness
 
 ## Preview
 
+ABC on BYD's daily chart: select A, B, and C, save the group, then move C to a new price. This is an editable polyline, **not automatic Elliott-wave recognition**.
+
+![BYD daily chart with a saved ABC polyline and A/B/C price labels; the workbench shows C's revised price](docs/images/abc-drawing-v0.5.0.jpg)
+
+The same workbench supports a three-anchor parallel channel with an optional midpoint line.
+
+![BYD daily chart with a saved three-anchor parallel channel and midpoint line](docs/images/channel-drawing-v0.5.0.jpg)
+
+<details>
+<summary>More screenshots</summary>
+
 ![Ask AI to analyse a symbol and inspect support, resistance, and technical indicators in the K-line workspace](docs/images/dsh-kline-tab-workspace.png)
 
-![The local web drawing workbench with a confirmed Fibonacci object on a daily chart](docs/images/drawing-workbench-v0.5.0.jpg)
+![A confirmed Fibonacci retracement on a daily chart](docs/images/drawing-workbench-v0.5.0.jpg)
 
-![Market view with eight major indices, sector rankings, and Dragon & Tiger List](docs/images/kline-support.png)
+![Market view with major indices, sector rankings, and Dragon & Tiger List](docs/images/kline-support.png)
 
 ![Watchlist groups and company profile](docs/images/kline-range-stats.png)
 
 ![News view with articles related to the active symbol](docs/images/kline-news.png)
+
+</details>
 
 ## Get started
 
@@ -42,7 +55,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 The first launch prepares its runtime automatically. Later, update from the marketplace or Settings when a new version is available.
 
-The plugin supports macOS, Linux, and native Windows. Install a working DSH Web host and Python 3.10 or newer first. On Windows, use the [python.org installer](https://www.python.org/downloads/windows/) with the Python Launcher enabled. Git Bash and WSL are not required. First-launch details are stored in `dsh_kline/bootstrap.log` under the user cache directory; the Windows default is `%LOCALAPPDATA%\dsh_kline\bootstrap.log`.
+The plugin supports macOS, Linux, and native Windows. Install a working DSH Web host and Python 3.11 or newer first. On Windows, use the [python.org installer](https://www.python.org/downloads/windows/) with the Python Launcher enabled. Git Bash and WSL are not required. First-launch details are stored in `dsh_kline/bootstrap.log` under the user cache directory; the Windows default is `%LOCALAPPDATA%\dsh_kline\bootstrap.log`.
 
 ![Install and update dsh_kline from the plugin marketplace](docs/images/dsh-market.png)
 
@@ -59,14 +72,14 @@ The plugin supports macOS, Linux, and native Windows. Install a working DSH Web 
 
 **Open the workspace directly**: click the K button on the right, or choose **非凸 K 线助手 / dsh_kline** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
 
-Both entry points can operate on the same new drawing objects in the active chart. In the chart toolbar, **专业绘图** opens the selected drawing workbench: choose a tool, click candles or enter parameters, preview, then confirm. Conversations retain separate chart states; watchlists remain user-level data.
+Both entry points can operate on the same new drawing objects in the active chart. In the chart toolbar, **Draw** opens the drawing workbench: choose a tool, click candles or enter parameters, preview, then confirm. Conversations retain separate chart states; watchlists remain user-level data.
 
 ## Using the chart
 
 1. Search for a company or ticker at the top.
 2. Pick a time range and candle timeframe. Intraday availability depends on the market and data entitlement.
 3. Enable the indicators you need, then pan, zoom, or use the crosshair for detail.
-4. Select **Key levels** for support and resistance, or **专业绘图** for selected drawing tools. The older **Draw** and **Levels** controls remain available.
+4. Select **Key levels** for support and resistance, or **Draw** to choose a drawing tool, pick anchors or enter parameters, and save the preview. Manage your own price lines under **Levels**.
 5. Click two candles in sequence to review return, range, drawdown, and trading activity for that interval.
 6. Select the star beside a symbol to add it to a watchlist.
 
@@ -96,7 +109,7 @@ Intraday access depends on the symbol's market, your account plan, and the sourc
 
 **What if the first launch fails on Windows?**
 
-Run `py -3.10 --version` in a terminal (a newer version is also supported) to confirm that the Python Launcher can find Python, then inspect `%LOCALAPPDATA%\dsh_kline\bootstrap.log`. For a custom Python location, set `DSH_KLINE_PYTHON` to the full `python.exe` path before starting DSH Web. Installing DSH Web itself and troubleshooting its Windows sandbox remain host-level concerns covered by the DSH documentation.
+Run `py -3.11 --version` in a terminal (a newer version is also supported) to confirm that the Python Launcher can find Python, then inspect `%LOCALAPPDATA%\dsh_kline\bootstrap.log`. For a custom Python location, set `DSH_KLINE_PYTHON` to the full `python.exe` path before starting DSH Web. Installing DSH Web itself and troubleshooting its Windows sandbox remain host-level concerns covered by the DSH documentation.
 
 **Why do two conversations show different charts?**
 This is intentional: each chart belongs to its conversation, so an analysis in one conversation cannot replace another's chart. Search or start a new analysis in the other conversation when needed.
@@ -131,8 +144,9 @@ Foundation scope and limitations:
   checkpoint, **not necessarily its last manually selected interval, range or viewport**.
 - Workbench point selection and form editing are supported; AI mouse dragging, undo, cross-process old-chart editing and complete automatic failure
   recovery are not supported. Unknown outcomes stop automatic retries.
-- The combined clear action removes analysis annotations, manual drawings and custom levels;
-  AI objects, indicators and alerts remain. Request an exact AI target for deletion.
+- **Clear drawings and annotations** asks for confirmation, then removes AI objects,
+  analysis annotations, manual drawings, and custom levels for the current symbol and interval.
+  Indicators and alerts remain. Request an exact AI target when you want to delete only one object.
 - An object may be outside the visible time/price range. Object state and application receipts
   do not prove screen pixels, professional pattern quality or vendor quote correctness.
 - Minute availability depends on source/permissions; not all markets, minute sizes or operation combinations are accepted. Channels, boxes and ABC labels are not automatically recognized professional patterns. Chan analysis is not included. The 201 TA-Lib functions are primarily read-only; only the selected SMA/EMA/BBANDS outputs have a guarded drawing conversion.
@@ -157,7 +171,7 @@ Ordinary installs default to `DSH_KLINE_RUNTIME_MODE=auto`, preserving existing 
 | `DSH_KLINE_PYTHON` | Path to the Python interpreter provided by the host. |
 | `DSH_KLINE_RUNTIME_MODE` | `auto` (default) or `external`. |
 
-`external` requires Python 3.10+ with the required dependencies already available. It only validates and launches the service: no venv creation, dependency installation, or interpreter fallback. The host must repair failures. This mode rejects `DSH_KLINE_VENV`, `--prepare-project`, and `--bootstrap-runtime`. `DSH_KLINE_DEFER_BOOTSTRAP` does not trigger background installation in this mode.
+`external` requires Python 3.11+ with the required dependencies already available. It only validates and launches the service: no venv creation, dependency installation, or interpreter fallback. The host must repair failures. This mode rejects `DSH_KLINE_VENV`, `--prepare-project`, and `--bootstrap-runtime`. `DSH_KLINE_DEFER_BOOTSTRAP` does not trigger background installation in this mode.
 
 The host owns the interpreter, dependency search paths, and isolation settings (such as `PYTHONPATH`, `PYTHONNOUSERSITE`, or Windows embedded Python's `._pth`); the plugin does not infer the host's directory layout. Set `DSH_KLINE_CHART_PORT=0` for a dynamic port. The MCP patch explicitly forwards the runtime variables without changes to DSH core. When running the Node launcher directly, its own location determines the package root.
 

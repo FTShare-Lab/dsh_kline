@@ -2,7 +2,7 @@
   "name": "@ftshare-lab/dsh-kline",
   "version": "0.5.0",
   "private": true,
-  "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
+  "description": "DeepSeek Harness K-line plugin for conversational and manual chart drawing, TA-Lib indicators, and FTShare market data.",
   "license": "MIT",
   "type": "module",
   "files": [
