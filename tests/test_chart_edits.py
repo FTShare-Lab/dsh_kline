@@ -11,6 +11,7 @@ import chart_service
 import server
 from tools.chart_context import read_chart_context
 from tools.chart_edits import ChartEdit, prepare_chart_edit, snapshot_inventory
+from tools.chart_applications import read_edit_status
 from tools.lines import LineError, edit_horizontal_line
 from tools.trend_lines import edit_trend_line
 from tools.channels import edit_channel
@@ -79,6 +80,29 @@ class GuardedEditTests(unittest.TestCase):
         self.assertEqual(self.path.read_text(), before); self.assertEqual(chart_service.read_chart_snapshot(self.token), source)
         self.assertEqual(self.published[0]["chartCommands"][:2], source["chartCommands"][:2])
         self.assertEqual(self.published[0]["chartCommands"][3:], source["chartCommands"][3:])
+
+    def test_batch_clear_is_one_guarded_candidate_for_current_interval_only(self):
+        weekly = deepcopy(self.payload["chartCommands"][1])
+        weekly["id"] = "weekly-line"
+        weekly["interval"] = "week"
+        self.payload["chartCommands"].append(weekly)
+        self.record["state"]["drawings"] = snapshot_inventory(self.payload)
+        self.save_context(); self.save_snapshot(self.token, self.payload)
+        before = deepcopy(self.payload)
+        result = self.prepare(ChartEdit(kind="all_drawings", action="delete"))
+        self.assertEqual(result["object"]["deleted_count"], 4)
+        self.assertEqual([cmd["id"] for cmd in self.published[0]["chartCommands"] if cmd.get("id")], ["auto", "weekly-line"])
+        self.assertEqual(self.payload, before)
+        self.assertEqual(result["drawing_guard"]["kind"], "all_drawings")
+        self.assertEqual(result["apply_status"], "not_requested")
+        self.assertEqual(read_edit_status(self.ref, result["chart_session"])["apply_status"], "not_requested")
+
+    def test_batch_clear_refuses_wrong_action_and_stale_observation(self):
+        self.assert_code("invalid_object_identity", lambda: self.prepare(ChartEdit(kind="all_drawings", action="create")))
+        self.assert_code("invalid_object_identity", lambda: self.prepare(ChartEdit(kind="all_drawings", action="delete", object_id=self.h["id"])))
+        self.record["revision"] = 2; self.save_context()
+        self.assert_code("chart_context_revision_conflict", lambda: self.prepare(ChartEdit(kind="all_drawings", action="delete")))
+        self.assertEqual(self.published, [])
 
     def test_same_request_replays_same_token_and_normalizes_color_aliases(self):
         first = self.prepare(ChartEdit(kind="horizontal_line", action="create", price=32, name=" A ", color="绿色"))

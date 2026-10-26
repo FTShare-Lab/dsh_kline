@@ -13,6 +13,8 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable
 
+from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION, arrays as _ta_arrays, finite_map as _ta_map, talib
+
 
 # ---------------------------------------------------------------------------
 # Defaults (shared by calc_metrics + draw_kline)
@@ -47,82 +49,6 @@ def _round(v: float | None, n: int = 4) -> float | None:
     if v is None:
         return None
     return round(float(v), n)
-
-
-def _sma(values: list[float | None], period: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(values)
-    if period <= 0:
-        return out
-    window = 0.0
-    count = 0
-    for i, v in enumerate(values):
-        if v is None:
-            # restart window on missing
-            window = 0.0
-            count = 0
-            continue
-        window += v
-        count += 1
-        if count > period:
-            prev = values[i - period]
-            if prev is not None:
-                window -= prev
-            count = period
-        if count >= period:
-            out[i] = window / period
-    return out
-
-
-def _ema(values: list[float | None], period: int) -> list[float | None]:
-    """EMA with SMA-of-first-period seed (NOT used by MACD).
-
-    Kept for non-Tongdaxin paths / future helpers. MACD must use `_ema_tdx`.
-    """
-    out: list[float | None] = [None] * len(values)
-    if period <= 0:
-        return out
-    k = 2.0 / (period + 1)
-    prev: float | None = None
-    for i, v in enumerate(values):
-        if v is None:
-            out[i] = prev
-            continue
-        if prev is None:
-            # seed with SMA of first `period` finite values if possible
-            seed_vals = [x for x in values[: i + 1] if x is not None]
-            if len(seed_vals) < period:
-                continue
-            prev = sum(seed_vals[-period:]) / period
-            out[i] = prev
-        else:
-            prev = v * k + prev * (1 - k)
-            out[i] = prev
-    return out
-
-
-def _ema_tdx(values: list[float | None], period: int) -> list[float | None]:
-    """Tongdaxin / Eastmoney EMA seed: Y[0] = first finite X, then recurse.
-
-    k = 2 / (period + 1). Emits from the first finite input (no SMA warm-up).
-    Used only by `series_macd` (DIF EMAs + DEA on DIF). RSI/ATR stay on their
-    own Wilder-style paths and are intentionally not switched here.
-    """
-    out: list[float | None] = [None] * len(values)
-    if period <= 0:
-        return out
-    k = 2.0 / (period + 1)
-    prev: float | None = None
-    for i, v in enumerate(values):
-        if v is None:
-            out[i] = prev
-            continue
-        if prev is None:
-            prev = float(v)  # Y[0] = X[0]
-            out[i] = prev
-        else:
-            prev = float(v) * k + prev * (1.0 - k)
-            out[i] = prev
-    return out
 
 
 def _calendar_days(t0: int, t1: int) -> int:
@@ -163,31 +89,20 @@ def series_ma(
 ) -> dict[str, dict[int, float]]:
     """Return {f"ma{p}": {time_sec: value}} for each period."""
     periods = list(periods or DEFAULT_MA_PERIODS)
-    closes = _closes(rows)
-    times = _times(rows)
-    out: dict[str, dict[int, float]] = {}
-    for p in periods:
-        sma = _sma([float(c) for c in closes], int(p))
-        m: dict[int, float] = {}
-        for t, v in zip(times, sma):
-            if v is not None:
-                m[int(t)] = round(float(v), 6)
-        out[f"ma{int(p)}"] = m
-    return out
+    if not rows:
+        return {f"ma{int(p)}": {} for p in periods}
+    close = _ta_arrays(rows)["close"]
+    return {f"ma{int(p)}": _ta_map(rows, talib.SMA(close, timeperiod=int(p))) for p in periods}
 
 
 def series_vol_ma(
     rows: list[dict[str, Any]],
     period: int = DEFAULT_VOLUME_MA,
 ) -> dict[int, float]:
-    vols = _volumes(rows)
-    times = _times(rows)
-    sma = _sma(vols, int(period))
-    m: dict[int, float] = {}
-    for t, v in zip(times, sma):
-        if v is not None:
-            m[int(t)] = round(float(v), 4)
-    return m
+    if not rows:
+        return {}
+    volume = _ta_arrays(rows)["volume"]
+    return _ta_map(rows, talib.SMA(volume, timeperiod=int(period)), digits=4)
 
 
 def series_macd(
@@ -196,39 +111,12 @@ def series_macd(
     slow: int = DEFAULT_MACD[1],
     signal: int = DEFAULT_MACD[2],
 ) -> dict[str, dict[int, float]]:
-    """MACD series — full Tongdaxin / Eastmoney path.
-
-    - EMA seed: Y[0]=X[0] recursive (`_ema_tdx`), not SMA-of-first-period
-    - hist = 2*(DIF-DEA) (column height matches 东财 terminal habit)
-    - Keys = unix **seconds**
-    """
-    closes = [float(c) for c in _closes(rows)]
-    times = _times(rows)
-    ema_fast = _ema_tdx(closes, int(fast))
-    ema_slow = _ema_tdx(closes, int(slow))
-    dif: list[float | None] = []
-    for a, b in zip(ema_fast, ema_slow):
-        if a is None or b is None:
-            dif.append(None)
-        else:
-            dif.append(a - b)
-    dea = _ema_tdx(dif, int(signal))
-    hist: list[float | None] = []
-    for d, e in zip(dif, dea):
-        if d is None or e is None:
-            hist.append(None)
-        else:
-            # 通达信 / 东财口径：MACD 柱 = 2*(DIF-DEA)。西方标准 MACD 柱是 DIF-DEA（不×2）。
-            hist.append((d - e) * 2.0)
-    out = {"dif": {}, "dea": {}, "hist": {}}
-    for t, d, e, h in zip(times, dif, dea, hist):
-        if d is not None:
-            out["dif"][int(t)] = round(float(d), 6)
-        if e is not None:
-            out["dea"][int(t)] = round(float(e), 6)
-        if h is not None:
-            out["hist"][int(t)] = round(float(h), 6)
-    return out  # type: ignore[return-value]
+    """TA-Lib MACD; hist is DIF-DEA without the former x2 convention."""
+    if not rows:
+        return {"dif": {}, "dea": {}, "hist": {}}
+    close = _ta_arrays(rows)["close"]
+    dif, dea, hist = talib.MACD(close, fastperiod=int(fast), slowperiod=int(slow), signalperiod=int(signal))
+    return {"dif": _ta_map(rows, dif), "dea": _ta_map(rows, dea), "hist": _ta_map(rows, hist)}
 
 
 def series_kdj(
@@ -237,34 +125,13 @@ def series_kdj(
     m1: int = DEFAULT_KDJ[1],
     m2: int = DEFAULT_KDJ[2],
 ) -> dict[str, dict[int, float]]:
-    highs = _highs(rows)
-    lows = _lows(rows)
-    closes = _closes(rows)
-    times = _times(rows)
-    k_map: dict[int, float] = {}
-    d_map: dict[int, float] = {}
-    j_map: dict[int, float] = {}
-    k_prev, d_prev = 50.0, 50.0
-    n = max(1, int(n))
-    m1 = max(1, int(m1))
-    m2 = max(1, int(m2))
-    for i in range(len(rows)):
-        start = max(0, i - n + 1)
-        hh = max(highs[start : i + 1])
-        ll = min(lows[start : i + 1])
-        if hh == ll:
-            rsv = 50.0
-        else:
-            rsv = (closes[i] - ll) / (hh - ll) * 100.0
-        k = (m1 - 1) / m1 * k_prev + 1 / m1 * rsv
-        d = (m2 - 1) / m2 * d_prev + 1 / m2 * k
-        j = 3 * k - 2 * d
-        k_prev, d_prev = k, d
-        t = int(times[i])
-        k_map[t] = round(k, 4)
-        d_map[t] = round(d, 4)
-        j_map[t] = round(j, 4)
-    return {"k": k_map, "d": d_map, "j": j_map}
+    if not rows:
+        return {"k": {}, "d": {}, "j": {}}
+    values = _ta_arrays(rows)
+    k, d, j = talib.KDJ(values["high"], values["low"], values["close"],
+                        fastk_period=int(n), slowk_period=int(m1), slowk_matype=13,
+                        slowd_period=int(m2), slowd_matype=13)
+    return {"k": _ta_map(rows, k, 4), "d": _ta_map(rows, d, 4), "j": _ta_map(rows, j, 4)}
 
 
 def series_boll(
@@ -272,120 +139,40 @@ def series_boll(
     period: int = DEFAULT_BOLL_PERIOD,
     std_mult: float = DEFAULT_BOLL_STD,
 ) -> dict[str, dict[int, float]]:
-    closes = _closes(rows)
-    times = _times(rows)
-    period = max(1, int(period))
-    mid_map: dict[int, float] = {}
-    up_map: dict[int, float] = {}
-    low_map: dict[int, float] = {}
-    for i in range(len(rows)):
-        if i + 1 < period:
-            continue
-        window = closes[i + 1 - period : i + 1]
-        mean = sum(window) / period
-        var = sum((x - mean) ** 2 for x in window) / period
-        sd = math.sqrt(var)
-        t = int(times[i])
-        mid_map[t] = round(mean, 6)
-        up_map[t] = round(mean + std_mult * sd, 6)
-        low_map[t] = round(mean - std_mult * sd, 6)
-    return {"mid": mid_map, "upper": up_map, "lower": low_map}
+    if not rows:
+        return {"mid": {}, "upper": {}, "lower": {}}
+    close = _ta_arrays(rows)["close"]
+    upper, mid, lower = talib.BBANDS(close, timeperiod=int(period), nbdevup=float(std_mult),
+                                     nbdevdn=float(std_mult), matype=0)
+    return {"mid": _ta_map(rows, mid), "upper": _ta_map(rows, upper), "lower": _ta_map(rows, lower)}
 
 
 def series_rsi(
     rows: list[dict[str, Any]],
     period: int = DEFAULT_RSI_PERIOD,
 ) -> dict[int, float]:
-    closes = _closes(rows)
-    times = _times(rows)
-    period = max(1, int(period))
-    out: dict[int, float] = {}
-    if len(closes) < period + 1:
-        return out
-    gains = 0.0
-    losses = 0.0
-    for i in range(1, period + 1):
-        d = closes[i] - closes[i - 1]
-        if d >= 0:
-            gains += d
-        else:
-            losses -= d
-    avg_gain = gains / period
-    avg_loss = losses / period
-    if avg_loss == 0:
-        rsi = 50.0 if avg_gain == 0 else 100.0
-    else:
-        rs = avg_gain / avg_loss
-        rsi = 100.0 - 100.0 / (1 + rs)
-    out[int(times[period])] = round(rsi, 4)
-    for i in range(period + 1, len(closes)):
-        d = closes[i] - closes[i - 1]
-        gain = max(d, 0.0)
-        loss = max(-d, 0.0)
-        avg_gain = (avg_gain * (period - 1) + gain) / period
-        avg_loss = (avg_loss * (period - 1) + loss) / period
-        if avg_loss == 0:
-            rsi = 50.0 if avg_gain == 0 else 100.0
-        else:
-            rs = avg_gain / avg_loss
-            rsi = 100.0 - 100.0 / (1 + rs)
-        out[int(times[i])] = round(rsi, 4)
-    return out
+    if not rows:
+        return {}
+    close = _ta_arrays(rows)["close"]
+    return _ta_map(rows, talib.RSI(close, timeperiod=int(period)), digits=4)
 
 
 def series_vwap(rows: list[dict[str, Any]]) -> dict[int, float]:
-    """Return the session-window VWAP series keyed by unix seconds.
-
-    The chart deliberately anchors VWAP at the first supplied context bar.  The
-    view fetches warm-up history independently from the visible range, so a
-    range switch does not make the line jump or require another provider call.
-    """
-    total_price_volume = 0.0
-    total_volume = 0.0
-    out: dict[int, float] = {}
-    for row in rows:
-        high = float(row["high"])
-        low = float(row["low"])
-        close = float(row["close"])
-        volume = max(0.0, float(row.get("volume") or 0.0))
-        if volume <= 0:
-            continue
-        total_price_volume += ((high + low + close) / 3.0) * volume
-        total_volume += volume
-        if total_volume > 0:
-            out[int(row["time"])] = round(total_price_volume / total_volume, 6)
-    return out
+    """TA-Lib path-dependent VWAP anchored at the first supplied bar."""
+    if not rows:
+        return {}
+    values = _ta_arrays(rows)
+    return _ta_map(rows, talib.VWAP(values["high"], values["low"], values["close"], values["volume"]))
 
 
 def series_atr(
     rows: list[dict[str, Any]],
     period: int = DEFAULT_ATR_PERIOD,
 ) -> dict[int, float]:
-    highs = _highs(rows)
-    lows = _lows(rows)
-    closes = _closes(rows)
-    times = _times(rows)
-    period = max(1, int(period))
-    trs: list[float] = []
-    for i in range(len(rows)):
-        if i == 0:
-            trs.append(highs[i] - lows[i])
-        else:
-            tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i - 1]),
-                abs(lows[i] - closes[i - 1]),
-            )
-            trs.append(tr)
-    out: dict[int, float] = {}
-    if len(trs) < period:
-        return out
-    atr = sum(trs[:period]) / period
-    out[int(times[period - 1])] = round(atr, 6)
-    for i in range(period, len(trs)):
-        atr = (atr * (period - 1) + trs[i]) / period
-        out[int(times[i])] = round(atr, 6)
-    return out
+    if not rows:
+        return {}
+    values = _ta_arrays(rows)
+    return _ta_map(rows, talib.ATR(values["high"], values["low"], values["close"], timeperiod=int(period)))
 
 
 # ---------------------------------------------------------------------------
@@ -492,17 +279,22 @@ def metric_support_resistance(
             prices = [p for _, p in cl]
             idxs = [i for i, _ in cl]
             level = sum(prices) / len(prices)
+            # A later bar crossing the level invalidates its original role.
+            # Keep historical pivots out of the current support/resistance set.
+            later = rows[max(idxs) + 1:]
+            if kind == "support" and any(float(r["low"]) < level for r in later):
+                continue
+            if kind == "resistance" and any(float(r["high"]) > level for r in later):
+                continue
             # touches: bars whose high/low within band
             band = level * (tolerance_pct / 100.0)
             touches = 0
             for r in window:
-                            if kind == "resistance":
-                                # Count only high-side near-touches within band.
-                                if abs(float(r["high"]) - level) <= band:
-                                    touches += 1
-                            else:
-                                if abs(float(r["low"]) - level) <= band:
-                                    touches += 1
+                if kind == "resistance":
+                    if abs(float(r["high"]) - level) <= band:
+                        touches += 1
+                elif abs(float(r["low"]) - level) <= band:
+                    touches += 1
             out.append(
                 {
                     "price": round(level, 4),
@@ -513,18 +305,18 @@ def metric_support_resistance(
                     "side": "above" if level >= last_close else "below",
                 }
             )
-        # keep levels on the correct side of last close preferentially, sort by touches
+        # Rank all candidates first. Side filtering happens before the limit so
+        # stale levels cannot consume the five available slots.
         out.sort(key=lambda x: (-x["touches"], abs(x["price"] - last_close)))
-        return out[:max_levels]
+        return out
 
-    supports = [
-        x for x in cluster(swings_low, kind="support") if x["price"] <= float(rows[-1]["close"]) * 1.01
-    ]
+    last_close = float(rows[-1]["close"])
+    supports = [x for x in cluster(swings_low, kind="support") if x["price"] <= last_close][:max_levels]
     resistances = [
         x
         for x in cluster(swings_high, kind="resistance")
-        if x["price"] >= float(rows[-1]["close"]) * 0.99
-    ]
+        if x["price"] >= last_close
+    ][:max_levels]
     return {
         "method": "fractal",
         "lookback": lookback,
@@ -779,6 +571,8 @@ def calc_metrics(
     ordered = [m for m in wanted if m in AVAILABLE_METRICS]
     unknown = [m for m in wanted if m not in AVAILABLE_METRICS]
     result: dict[str, Any] = {
+        "calculation_engine": {"name": "TA-Lib", "wrapper_version": ENGINE_VERSION,
+                               "native_version": NATIVE_VERSION},
         "count": len(rows),
         "start_time": int(rows[0]["time"]) if rows else None,
         "end_time": int(rows[-1]["time"]) if rows else None,

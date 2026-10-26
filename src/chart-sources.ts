@@ -5,9 +5,16 @@ import { join } from 'node:path'
 import { drawingInventory, observationKey, sanitizeChartContext, text } from './chart-observation.ts'
 import { sourceStatus } from './chart-source-status.ts'
 import { normalizeAdjustment } from './chart-adjustment.ts'
+import { fibonacciOverlayPoints } from './fibonacci.ts'
+import { sanitizePolylinePoints } from './labeled-polyline.ts'
+import { sanitizeChartAnnotation } from './chart-annotations.ts'
+import { sanitizePriceSeriesCommand } from './price-series.ts'
+import { sanitizePriceBandCommand } from './price-bands.ts'
+import { candleSequenceHash } from './candle-sequence.ts'
+import { sanitizePriceSticksCommand } from './price-sticks.ts'
 
 const TOKEN = /^[A-Za-z0-9_-]{32}$/
-const AI = new Set(['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE'])
+const AI = new Set(['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION','DRAW_AGENT_SERIES_LINE','DRAW_AGENT_PRICE_BAND','DRAW_AGENT_PRICE_STICKS'])
 const INTERVALS = ['minute','day','week','month','quarter','year']
 function finite(value:any, positive=false):number {
   if(typeof value!=='number' || !Number.isFinite(value) || positive && value<=0)throw Error('invalid_source_number')
@@ -75,6 +82,29 @@ export function sanitizeSourcePayload(raw:any,state:any):any {
       return {type,series:c.series.map((s:any)=>({symbol:text(s.symbol,64),name:text(s.name??'',128),
         rows:sanitizeChartContext({...state,candles:s.rows}).candles}))}
     }
+    if(type==='DRAW_AGENT_ANNOTATION') {
+      const annotation=sanitizeChartAnnotation(c)
+      if(annotation.interval!==state.interval)throw Error('invalid_source_interval')
+      return annotation
+    }
+    if(type==='DRAW_AGENT_SERIES_LINE') {
+      const clean=sanitizePriceSeriesCommand(c,state.candles.length,state.interval)
+      if(clean.interval===state.interval && clean.row_hash && clean.row_hash!==candleSequenceHash(state.candles))
+        throw Error('source_sequence_rows_mismatch')
+      return clean
+    }
+    if(type==='DRAW_AGENT_PRICE_BAND') {
+      const clean=sanitizePriceBandCommand(c,state.candles.length,state.interval)
+      if(clean.interval===state.interval && clean.row_hash && clean.row_hash!==candleSequenceHash(state.candles))
+        throw Error('source_sequence_rows_mismatch')
+      return clean
+    }
+    if(type==='DRAW_AGENT_PRICE_STICKS') {
+      const clean=sanitizePriceSticksCommand(c,state.candles.length,state.interval)
+      if(clean.interval===state.interval && clean.row_hash && clean.row_hash!==candleSequenceHash(state.candles))
+        throw Error('source_sequence_rows_mismatch')
+      return clean
+    }
     if(type==='TEXT_MARKER')return {type,id:text(c.id??'',256),text:text(c.text??'',256),...point(c),color:color(c.color??'info')}
     if(type==='DRAW_TREND_LINE')return {type,id:text(c.id??'',256),label:text(c.label??'',128),
       from:point(c.from),to:point(c.to),color:color(c.color??'info')}
@@ -91,8 +121,17 @@ export function sanitizeSourcePayload(raw:any,state:any):any {
       result.lower_price=finite(c.lower_price,true);result.upper_price=finite(c.upper_price,true)
       if(typeof c.show_fill!=='boolean')throw Error('invalid_source_style')
       result.show_fill=c.show_fill
+    } else if(type==='DRAW_AGENT_POLYLINE') {
+      if(!result.interval)throw Error('invalid_source_interval')
+      result.points=sanitizePolylinePoints(c.points)
     } else {
       result.from=point(c.from);result.to=point(c.to)
+      if(type==='DRAW_AGENT_FIBONACCI') {
+        fibonacciOverlayPoints(c)
+        if(!result.interval)throw Error('invalid_source_interval')
+        Object.assign(result,{ratios:[...c.ratios],levels:c.levels.map((p:any)=>({ratio:p.ratio,price:p.price})),
+          geometry_basis:'linear_price_retracement'})
+      }
       if(type==='DRAW_AGENT_CHANNEL') {
         result.parallel=point(c.parallel)
         for(const edge of ['upper','lower'])result[edge]={from:point(c[edge]?.from),to:point(c[edge]?.to)}
@@ -181,25 +220,32 @@ export class ChartSources {
         ['queued','delivered'].includes(app.status)?'drawing_pending':'drawing_outcome_unknown')
     }
     const parent=view.state.source_chart_session
-    if(!TOKEN.test(parent??''))return result('source_missing')
-    const saved=await this.read(join(this.runtime,'sessions',parent+'.json'))
-    if(saved.host_process_id!==process.pid || saved.session!==parent || saved.ok!==true)throw Error('source_parent_unavailable')
-    const source=saved.payload
-    if(source.drawing_guard) {
+    const hasParent=TOKEN.test(parent??'')
+    // A chart opened by the browser's symbol search has no Agent-created
+    // parent. Bootstrap only from this locally rendered chart; an initial
+    // source must not inherit any unverified AI object.
+    if(!hasParent && raw?.local_render!==true)return result('source_missing')
+    let source:any=null
+    if(hasParent) {
+      const saved=await this.read(join(this.runtime,'sessions',parent+'.json'))
+      if(saved.host_process_id!==process.pid || saved.session!==parent || saved.ok!==true)throw Error('source_parent_unavailable')
+      source=saved.payload
+    }
+    if(source?.drawing_guard) {
       const g=source.drawing_guard
       const app=await this.read(join(this.runtime,'edits',String(process.pid),g.context_ref,'applications',parent+'.json'))
       if(app.status!=='applied' || app.confirmed_chart_session!==parent || app.conversation_id!==view.conversation
         || app.host_process_id!==process.pid || app.view_id!==g.view_id || app.request_id!==g.request_id
         || g.conversation_id!==view.conversation)throw Error('unconfirmed_source_parent')
     }
-    if(source.view_source_guard) {
+    if(source?.view_source_guard) {
       const g=source.view_source_guard,proof=await this.read(this.proofPath(g.context_ref,parent))
       if(proof.status!=='confirmed' || proof.conversation_id!==view.conversation || proof.host_process_id!==process.pid
         || proof.chart_session!==parent || g.chart_session!==parent || proof.view_id!==g.view_id
         || g.conversation_id!==view.conversation)throw Error('unconfirmed_source_parent')
     }
-    const rows=source.chartCommands?.find((c:any)=>c.type==='SET_CANDLES')?.rows
-    if(source.symbol===view.state.symbol && Array.isArray(rows)) {
+    const rows=source?.chartCommands?.find((c:any)=>c.type==='SET_CANDLES')?.rows
+    if(source?.symbol===view.state.symbol && Array.isArray(rows)) {
       const original={...view.state,symbol:source.symbol,interval:source.interval,interval_value:source.interval_value??null,
         adjust:source.adjust??'',candles:rows,drawings:drawingInventory(source)}
       if(sourceKey(original)===sourceKey(view.state))return result('source_matches_view')
@@ -207,10 +253,10 @@ export class ChartSources {
     const previous=this.offers.get(view.ref)
     if(previous?.status==='offered' && observationKey(previous.base_state)===observationKey(view.state)
       && this.now()<=previous.expires_at_ms)return result('source_handoff_pending',previous)
-    if(!raw)return result('source_snapshot_mismatch')
+    if(!raw)return result(hasParent?'source_snapshot_mismatch':'source_missing')
     const payload:any=sanitizeSourcePayload(raw,view.state),token=randomBytes(24).toString('base64url')
     const ai=payload.chartCommands.filter((c:any)=>AI.has(c.type))
-    const old=source.symbol===view.state.symbol ? source.chartCommands.filter((c:any)=>AI.has(c.type)) : []
+    const old=source?.symbol===view.state.symbol ? source.chartCommands.filter((c:any)=>AI.has(c.type)) : []
     if(ai.length!==old.length || new Set(ai.map((c:any)=>c.id)).size!==ai.length)throw Error('source_inventory_mismatch')
     // The handoff may change rows/period, never existing AI definitions or geometry.
     const ordered=(x:any):any=>Array.isArray(x)?x.map(ordered):x&&typeof x==='object'
@@ -221,7 +267,7 @@ export class ChartSources {
     }
     payload.view_source_guard={protocol:'browser-source-v1',context_ref:view.ref,conversation_id:view.conversation,
       view_id:view.view,expected_revision:view.revision,chart_session:token}
-    payload.drawing_parent_session=parent
+    if(hasParent)payload.drawing_parent_session=parent
     await this.write(join(this.runtime,'sessions',token+'.json'),{ok:true,session:token,host_process_id:process.pid,
       symbol:payload.symbol,name:payload.name,published_at:Math.floor(this.now()/1000),payload})
     const offer={chart_session:token,context_ref:view.ref,conversation_id:view.conversation,view_id:view.view,

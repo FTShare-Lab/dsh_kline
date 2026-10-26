@@ -13,6 +13,7 @@ interface Options {
     bindSource?: (token: string, previous: string | null) => void;
     confirmSource?: (token: string, confirmed: boolean) => void;
     onSourceStatus?: (status: any) => void;
+    onPublished?: (publication: any) => void;
 }
 export declare function createChartContextPublisher(options: Options): {
     notify(): void;

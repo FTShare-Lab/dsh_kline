@@ -70,9 +70,14 @@ try {
     'test_ftshare_connection', 'market_pulse', 'market_board_detail',
     'security_intelligence', 'get_watchlist', 'save_watchlist', 'fetch_candles',
     'calc_metrics', 'analyze_kline_rows', 'analyze_kline',
+    'list_ta_functions', 'run_ta_function', 'read_ta_result',
   ]
   for (const name of requiredTools) assert.ok(toolNames.has(name), `Missing MCP tool: ${name}`)
   console.log(`PASS MCP initialize + ${toolNames.size} tools (${requiredTools.length} required)`)
+  const catalog = await request('tools/call', {name:'list_ta_functions', arguments:{limit:1}})
+  assert.equal(catalog.result?.isError ?? false, false)
+  assert.equal(catalog.result?.structuredContent?.total_catalog, 201)
+  console.log('PASS pinned TA-Lib catalog: 201 functions')
   const candles = await request('tools/call', {name:'fetch_candles', arguments:{symbol:'000001.XSHG', interval:'day',limit:10}})
   assert.equal(candles.result?.isError ?? false, false)
   const payload = candles.result?.structuredContent

@@ -3,4 +3,6 @@ export declare function text(value: unknown, max?: number): string;
 export declare function sanitizeDataProvenance(raw: any): any;
 export declare function sanitizeChartContext(raw: any): any;
 export declare function observationKey(raw: any): string;
+/** Identity required for editing the current source, excluding transient UI state. */
+export declare function drawingSourceKey(raw: any): string;
 export declare function drawingInventory(payload: any): any[];

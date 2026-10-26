@@ -43,6 +43,7 @@ from core.calc import (
     series_vol_ma,
 )
 from chart_service import publish_chart, read_chart_snapshot, start_chart_service
+from tools.drawing_interaction import edit_change, edit_interaction, error_interaction
 from core.rows import RowsValidationError, validate_rows
 from core.adjustment import AdjustmentInput, ADJUSTMENT_DESCRIPTION, normalize_adjustment, adjustment_error
 from tools.calc import run_calc_metrics
@@ -54,6 +55,8 @@ from tools.rectangles import rectangles, edit_rectangle
 from tools.drawing_verification import DrawingExpectation, verify_drawings
 from tools.chart_context import read_chart_context
 from tools.chart_edits import ChartEdit, prepare_chart_edit as prepare_guarded_chart_edit
+from tools.chart_functions import ChartFunctionParameters, FunctionName, list_functions, run_function
+from tools.ta_functions import list_ta_catalog, run_ta, read_ta
 from tools.chart_applications import request_chart_apply, read_edit_status
 from tools.fetch import (
     _canonical_market_symbol,
@@ -112,13 +115,27 @@ mcp = FastMCP(
         "from THIS conversation's current runtime context. Never guess a reference, "
         "borrow another conversation or treat an older chart_session as live UI state. "
         "The context reports browser observations, separate loaded/visible ranges and "
+        "stored drawing objects, not visual proof. "
         "After analyze_kline opens a chart, use the newly injected current-view reference "
         "to read its candles; an earlier launcher reference can become inactive during mounting. "
         "An inactive/loading reference is NOT a reason to call fetch_candles or analyze_kline again. "
         "Re-read a fresh reference when available, or report that the view is not ready. "
-        "stored drawing objects, not visual proof. Context references are read-only "
-        "and are NOT chart_session tokens. For current-view edits, prepare_chart_edit "
-        "can prepare one guarded candidate using the observed revision and aligned source "
+        "Context references are read-only "
+        "and are NOT chart_session tokens. For ALL current-view drawing creates/updates/deletes, "
+        "including literal requests, use get_chart_context -> prepare_chart_edit -> apply_chart_edit "
+        "-> get_chart_edit_status, never legacy snapshot mutations. "
+        "For Fibonacci, labeled paths or reusable geometry, discover list_chart_functions and run_chart_function "
+        "against fresh context, then pass edit.result_ref into that same guarded workflow. "
+        "Functions calculate; they do not apply drawings or automatically discover pivots. "
+        "For standard technical indicators on the current loaded chart, discover list_ta_functions, "
+        "then run_ta_function and optionally read_ta_result. These TA-Lib results are analysis_only, "
+        "may have null/no-finite outputs, and do not draw by themselves. Only when the user explicitly "
+        "requests a price-pane drawing may a finite SMA/EMA(close, 2..200) result be selected as "
+        "kind=series_line, or a finite BBANDS(close, SMA middle) result as one kind=price_band "
+        "three-line group, but only when selectable_render_targets advertises that kind. Pass the "
+        "result_ref as edit.ta_result_ref into prepare_chart_edit; other TA results remain read-only. "
+        "Never copy long output arrays into edit parameters. "
+        "prepare_chart_edit prepares one guarded candidate using the observed revision and aligned source "
         "chart_session; supply a stable request_id for retries. Preparation does NOT apply "
         "to the browser. Then apply_chart_edit queues that exact candidate to its owning view; "
         "get_chart_edit_status reads its acknowledgment. queued/delivered are NOT applied. "
@@ -127,19 +144,22 @@ mcp = FastMCP(
         "For pending status use one bounded wait_ms=3000 query; if still pending explain it, "
         "do not tightly poll. expired/needs_attention is not an acknowledgment or permission to resend. "
         "drawing_feedback reports browser chart-object API observations, not screen pixels. "
-        "created means registered object with matched shape/style; outside_time_viewport is geometric "
-        "scope only, and outside_loaded_price_envelope is a warning, NOT proof the line is hidden. "
+        "created means registered object with matched shape/style; time_range_overlap only checks "
+        "the reported time-axis span (current in get_chart_context, historical in get_chart_edit_status), "
+        "NOT price-axis visibility or screen pixels. "
+        "outside_time_viewport is geometric scope only, and outside_loaded_price_envelope is a warning, "
+        "NOT proof the line is hidden. The edit interaction describes only its target object; "
+        "other drawing_feedback items may need separate review. "
         "Explain hidden/failed/unknown items and their reasons; never turn apply_status=applied or "
         "created into a claim of visual verification. get_chart_context feedback is current-view "
         "observation; get_chart_edit_status feedback is historical for that application. "
         "Do not silently apply snapshot-only tools to a different "
         "symbol/period/range shown in the browser. If context is stale, ambiguous or "
         "unavailable explain that state instead of re-fetching market data to guess it. "
-        "For explicit horizontal-line drawing use create_horizontal_line, then "
-        "update_horizontal_line or delete_horizontal_line with its stable line_id. "
-        "Use get_horizontal_lines to read back snapshot state. These tools never "
-        "auto-select anchors. For explicit two-point segments use create_trend_line, "
-        "get_trend_lines, update_trend_line, delete_trend_line. Require two explicit "
+        "The create/update/delete_horizontal_line and create/update/delete_trend_line tools "
+        "are LEGACY SNAPSHOT ONLY, for explicitly requested snapshot editing, not charts on screen. "
+        "get_horizontal_lines/get_trend_lines read named snapshots only. No tool auto-selects "
+        "anchors. Two-point segments require two explicit "
         "times and prices; date-only anchors use Asia/Shanghai and must match existing "
         "bars. Intraday anchors require exact bar-close ISO times with timezone or Unix "
         "seconds. Never fabricate unavailable anchors, snap dates, or substitute automatic levels. "
@@ -173,7 +193,8 @@ mcp = FastMCP(
         "invent prices or imply a profitable prediction. Keep ordinary replies concise: proposal "
         "or changed object, reason/limitation, and one useful confirmation; omit internal IDs, "
         "revisions and protocol fields unless the user requests them or they explain a failure. "
-        "For parallel channels use create_channel/get_channels/update_channel/delete_channel: "
+        "For current-view parallel channels use prepare_chart_edit with kind=channel; "
+        "create/update/delete_channel are LEGACY SNAPSHOT ONLY. Geometry requires "
         "two baseline anchors and a third time/price on the other boundary, within the "
         "start/end window. In literal mode ask for missing anchors; in authorized analysis mode "
         "derive and explain all three from real data under the proposal rules above. Geometry uses candle indices and "
@@ -182,8 +203,8 @@ mcp = FastMCP(
         "anchors to check parallel geometry and full-region per-bar deviations. It never selects/fits "
         "anchors, draws, scores pattern quality or extends beyond the chosen dates. Horizontal body "
         "intersection is not a necessary criterion for a sloped channel. "
-        "For explicit platform/range boxes use create_rectangle/get_rectangles/"
-        "update_rectangle/delete_rectangle with start/end bar times and lower/upper "
+        "For current-view platform/range boxes use prepare_chart_edit with kind=rectangle; "
+        "create/update/delete_rectangle are LEGACY SNAPSHOT ONLY. Specify start/end bar times and lower/upper "
         "prices. These draw finite rectangles, not automatic consolidation detection "
         "or flat channels. Ask for missing bounds in literal mode; an authorized host analysis "
         "may propose bounds from actual candles, but the execution tool always needs explicit values. "
@@ -375,14 +396,15 @@ def _support_resistance_marks(metrics: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             if not math.isfinite(price) or timestamp <= 0:
                 continue
-            text = f"{label} {price:.2f}"
+            display_price = round(price, 2)
+            text = f"{label} {display_price:.2f}"
             if touches:
-                text += f" · 触及{touches}次"
+                text += f" · 邻近{touches}根"
             marks.append(
                 {
                     "id": f"{kind}:{timestamp}:{index}",
                     "time": timestamp,
-                    "price": price,
+                    "price": display_price,
                     "text": text,
                     "color": color,
                 }
@@ -980,7 +1002,26 @@ def _drawing_snapshot(chart_session: str, symbol: str) -> dict[str, Any]:
 
 def _drawing_error(exc: LineError) -> types.CallToolResult:
     # Harness may show only TextContent for isError responses, not structuredContent.
-    return _result({"ok": False, "error": exc.code}, f"{exc} · error={exc.code}", error=True)
+    data = {"ok": False, "error": exc.code, "message": str(exc), "interaction": error_interaction(exc.code)}
+    return _result(data, f"{exc} · error={exc.code} · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")), error=True)
+
+
+def _chart_edit_result(data: dict) -> types.CallToolResult:
+    """Add presentation metadata only; do not change preparation/application proof."""
+    result = {**data}
+    token = data.get("candidate_chart_session") or data.get("chart_session")
+    candidate = read_chart_snapshot(token) if isinstance(token, str) else None
+    guard = candidate.get("drawing_guard") if candidate else None
+    if isinstance(guard, dict) and all(guard.get(key) == data.get(key) for key in
+            ("context_ref", "conversation_id", "view_id", "expected_revision")):
+        parent = read_chart_snapshot(candidate.get("drawing_parent_session"))
+        if parent:
+            change = edit_change(candidate, parent)
+            if change is not None:
+                result["change"] = change
+    result["interaction"] = edit_interaction(data, result.get("change"))
+    return _result(result, result["interaction"]["message"] + " · "
+                   + json.dumps(result, ensure_ascii=False, separators=(",", ":")))
 
 
 def _line_operation(
@@ -1143,6 +1184,149 @@ async def preview_chart_channel(
     return _result(data, "通道几何与偏差核对（只读，不绘图） · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
 
 
+@mcp.tool(name="list_chart_functions", annotations=types.ToolAnnotations(readOnlyHint=True))
+async def list_chart_functions() -> types.CallToolResult:
+    """Discover implemented deterministic chart functions, parameters, versions and limits.
+
+    No market fetch, chart mutation or arbitrary code execution. Candidate functions propose
+    rule-based geometry for review; they do not draw or claim professional pattern confirmation.
+    Functions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,
+    pivot_candidates, regression_channel, channel_candidates, range_candidates, price_series_line,
+    conditional_annotation, price_band, price_sticks.
+    pivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;
+    channel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current
+    requires a recent end anchor and checks the arithmetic extension through the latest bar; scope=historical
+    is for past geometry only, with no current breakout inference. Zero candidates does not prove
+    a lack of recent confirmed pivots; inspect pivot_scan and rejection_counts. range_candidates proposes
+    horizontal boxes ending at the latest loaded bar, distinct from explicitly drawn range_box.
+    All four analysis functions are read-only and may validly return no candidate.
+    labeled_polyline connects 2..8 explicitly labeled anchors, not automatic Elliott wave recognition.
+    price_series_line uses current loaded OHLC or SMA(close, 2..200) and an optional price comparison.
+    It returns a bounded result_ref; null warmup/false-condition bars break the price-pane line.
+    conditional_annotation selects only the latest loaded bar matching a required price condition;
+    its result uses the existing guarded text, number or icon annotation kind, not a batch of marks.
+    price_band fills between two OHLC/SMA price sources in the candle pane. Its upper boundary
+    must stay strictly above the lower boundary on every eligible bar; warmup/false conditions break the band.
+    price_sticks draws independent vertical strokes between two OHLC/SMA price sources on matching bars;
+    zero-length endpoints are omitted. This is not a full formula interpreter.
+    """
+    data = list_functions()
+    return _result(data, "当前可用绘图计算函数 · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
+@mcp.tool(name="list_ta_functions", annotations=types.ToolAnnotations(readOnlyHint=True))
+async def list_ta_functions(
+    group: str | None = None, query: str | None = None,
+    offset: Annotated[int, Field(ge=0, strict=True)] = 0,
+    limit: Annotated[int, Field(ge=1, le=50, strict=True)] = 25,
+) -> types.CallToolResult:
+    """Page/search all 201 pinned TA-Lib functions and their input/parameter/output metadata.
+
+    Analysis only. No data fetch or chart mutation; use run_ta_function on the current chart.
+    """
+    try:
+        data = list_ta_catalog(group=group, query=query, offset=offset, limit=limit)
+    except LineError as exc:
+        return _drawing_error(exc)
+    return _result(data, "TA-Lib 函数目录 · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
+@mcp.tool(name="run_ta_function", annotations=types.ToolAnnotations(readOnlyHint=True))
+async def run_ta_function(
+    context_ref: str, expected_revision: Annotated[int, Field(gt=0, strict=True)],
+    chart_session: str, symbol: str, function: str,
+    parameters: dict[str, int | float] | None = None,
+    price_sources: dict[str, Literal["open", "high", "low", "close"]] | None = None,
+    periods_constant: Annotated[int, Field(ge=2, le=4000, strict=True)] = 14,
+) -> types.CallToolResult:
+    """Run one TA-Lib function on current loaded OHLCV; returns analysis result_ref, never draws.
+
+    Discover parameter names with list_ta_functions. No host-supplied arrays or formula code.
+    price_sources keys are the generic input names from list_ta_functions, not TA-Lib's
+    low-level inReal name. For example SMA uses {"price":"close"}; omit it for default close.
+    Values may only be current open/high/low/close columns.
+    MAVP uses a constant per-bar periods array; periods_constant is ignored for other functions only at 14.
+    Finite SMA/EMA(close, 2..200) may advertise series_line; finite BBANDS(close, SMA middle)
+    may advertise price_band with upper/middle/lower as one object. If the user explicitly asks
+    to draw one, pass result_ref as edit.ta_result_ref with the advertised kind to
+    prepare_chart_edit, then apply_chart_edit and check status. Other TA results stay analysis-only.
+    """
+    try:
+        data = run_ta(context_ref, expected_revision, chart_session, symbol, function,
+                      parameters=parameters, price_sources=price_sources, periods_constant=periods_constant)
+    except LineError as exc:
+        return _drawing_error(exc)
+    return _result(data, "TA-Lib 只读计算 · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
+@mcp.tool(name="read_ta_result", annotations=types.ToolAnnotations(readOnlyHint=True))
+async def read_ta_result(
+    context_ref: str, expected_revision: Annotated[int, Field(gt=0, strict=True)],
+    chart_session: str, symbol: str, result_ref: str, output_name: str,
+    offset: Annotated[int, Field(ge=0, strict=True)] = 0,
+    limit: Annotated[int, Field(ge=1, le=250, strict=True)] = 200,
+) -> types.CallToolResult:
+    """Read one TA-Lib output page from a result bound to the unchanged current chart."""
+    try:
+        data = read_ta(context_ref, expected_revision, chart_session, symbol,
+                       result_ref, output_name, offset=offset, limit=limit)
+    except LineError as exc:
+        return _drawing_error(exc)
+    return _result(data, "TA-Lib 结果分页 · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
+@mcp.tool(name="run_chart_function", annotations=types.ToolAnnotations(readOnlyHint=True))
+async def run_chart_function(
+    context_ref: str, expected_revision: Annotated[int, Field(gt=0, strict=True)], chart_session: str,
+    symbol: str, function: FunctionName, parameters: ChartFunctionParameters,
+) -> types.CallToolResult:
+    """Calculate on explicitly aligned current loaded candles; return immutable result_ref, NOT a drawing.
+
+    Read get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;
+    ask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,
+    regression_channel, channel_candidates and range_candidates return analysis-only results;
+    never pass these refs as edit.result_ref. Channel/range candidates may be selected only after
+    explicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and
+    user_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation
+    before a separate guarded drawing operation. Default channel scope=current may return no candidate;
+    historical scope must not be described as a current channel or current breakout signal.
+    If no candidate passes, report only that no anchor triple met every rule; do not infer
+    that recent pivots or real-world channel structure are absent. Inspect pivot_scan for pivots.
+    No market fetch, LLM coordinate arithmetic,
+    confirmed pattern identification, arbitrary formula/code or chart selection.
+    Fibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.
+    For drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then
+    apply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;
+    only channel/range candidates have the separate explicit-selection route. Recompute after data/period/adjustment changes.
+    price_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},
+    optional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.
+    No host-provided price arrays or executable formulas. Zero matched bars are not drawable.
+    conditional_annotation requires annotation_kind, anchor_source and condition, plus exactly one
+    matching annotation_text / annotation_value / annotation_icon. It chooses the latest matching
+    loaded bar and returns one guarded annotation result_ref; no match means no drawing.
+    price_band requires upper_source and lower_source, with optional condition. Crossing or equal
+    boundaries are rejected; no matched bars are not drawable. Full arrays remain plugin-side.
+    price_sticks requires start_source and end_source, with optional condition. Each matched bar has
+    one independent stroke; equal endpoints, warmup and false conditions do not draw a stroke.
+    Style edits reuse the existing object ID; calculation alone never means drawn/applied.
+    labeled_polyline creates a group from parameters.points (unique labels, increasing times).
+    To move one labeled point, skip recalculation and use prepare_chart_edit with the current
+    object_id, point_label and point_time/point_price. Do NOT copy/rewrite all points or invent anchors.
+    """
+    try:
+        data = run_function(context_ref, expected_revision, chart_session, symbol, function, parameters)
+    except LineError as exc:
+        return _drawing_error(exc)
+    except OSError:
+        return _drawing_error(LineError("chart_function_storage_unavailable", "无法保存函数结果，未修改图表。"))
+    label = ("拐点候选分析完成，未绘图" if function == "pivot_candidates" else
+             "回归通道统计完成，未绘图" if function == "regression_channel" else
+             "通道候选分析完成，未绘图" if function == "channel_candidates" else
+             "平台区间候选分析完成，未绘图" if function == "range_candidates" else
+             "绘图函数计算完成，尚未绘图")
+    return _result(data, label + " · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
 @mcp.tool(name="prepare_chart_edit")
 async def prepare_chart_edit(
     context_ref: Annotated[str, Field(description="本对话 get_chart_context 返回的当前视图引用")],
@@ -1152,13 +1336,47 @@ async def prepare_chart_edit(
     request_id: Annotated[str, Field(min_length=1, max_length=128, description="同一次准备及重试使用同一 ID；不同参数不可复用")],
     edit: ChartEdit,
 ) -> types.CallToolResult:
-    """Prepare, NOT APPLY, one current-view drawing candidate with revision/alignment guards.
+    """DEFAULT entry for ALL browser-chart drawing creates/updates/deletes, including Fibonacci and labeled paths.
+
+    Read get_chart_context first, then prepare here, apply_chart_edit, get_chart_edit_status.
+    Includes literal requests; legacy create/update/delete_* tools edit snapshots, NOT the current view.
+    Prepare, NOT APPLY, one current-view drawing candidate with revision/alignment guards.
 
     For proposal-first requests, call only AFTER the user approves the host's stated candidate;
     read fresh current context first, and preserve independently saved approved coordinates
     and user overrides. If relevant state changed, reassess before preparing. The host reasons,
     the executor does not choose points or validate pattern quality.
-    Reuses the four deterministic AI drawing families. Reject stale/ambiguous/inactive contexts,
+    Accept edit.result_ref from run_chart_function instead of direct anchors/bounds/ratios;
+    name/color and applicable display switches may accompany a result reference.
+    For confirmed channel/range candidates use edit.candidate_result_ref, candidate_number
+    (1-based) and user_confirmed_candidate=true with action=create; do not copy candidate coordinates.
+    An unconfirmed or stale candidate remains analysis only and cannot create a drawing.
+    For series_line, create or change source/condition using the price_series_line result_ref;
+    style-only updates and delete use the stable object_id. Calculation and indicator registration
+    do not prove canvas pixels visible.
+    A finite SMA/EMA(close, 2..200) result may use edit.ta_result_ref for series_line; a finite
+    BBANDS(close, SMA middle) result may use it for one price_band containing upper/middle/lower.
+    Both require an explicit drawing request and selectable_render_targets for the chosen kind.
+    Do not pass other TA outputs, manually copy series values or conflate these AI objects with
+    the built-in indicator toggles.
+    For conditional_annotation, create or recompute an existing text/number/icon annotation using
+    its result_ref with matching edit.kind; style-only edits and deletion use object_id.
+    For price_band, use its result_ref with edit.kind=price_band to create/recompute one bounded
+    price-pane object; style-only updates and deletion use its stable object_id.
+    For price_sticks, use its result_ref with edit.kind=price_sticks; its independent strokes share
+    one stable object_id. Style-only updates and deletion do not recompute the price series.
+    For Fibonacci geometry use the function result; style-only edits/delete need no recalculation.
+    For labeled_polyline creation use run_chart_function and edit.result_ref. For updates pass
+    current object_id + point_label + point_time/point_price, or name/color. Never reserialize
+    the entire point array or use a create result_ref to overwrite an existing path.
+    Point labels are group-local; ambiguous group names require clarification. ABC/1..5 labels
+    are user/host-specified annotations, not algorithmically recognized or validated waves.
+    For explicit point labels, text_annotation uses anchor_time + anchor_price + annotation_text;
+    number_annotation uses anchor_time + anchor_price + annotation_value. Both update/delete by object_id
+    and display literal user-provided content; the plugin does not calculate the value or select anchors.
+    icon_annotation uses anchor_time + anchor_price + annotation_icon (arrow_up, arrow_down or diamond),
+    and follows the same guarded create/update/delete flow.
+    Reuses deterministic AI drawing families. Reject stale/ambiguous/inactive contexts,
     unaligned snapshots, manual objects and parallel edits from a consumed revision.
     A replay returns the same candidate, never publishes another. Unknown publication outcomes
     stop retries. No fetching or automatic chart selection. Use apply_chart_edit explicitly next.
@@ -1169,7 +1387,7 @@ async def prepare_chart_edit(
         return _drawing_error(exc)
     except OSError:
         return _drawing_error(LineError("chart_edit_storage_unavailable", "修改记录存储不可用，未确认准备结果；当前网页未修改。"))
-    return _result(data, "绘图修改已准备，尚未应用到网页 · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    return _chart_edit_result(data)
 
 
 @mcp.tool(name="apply_chart_edit")
@@ -1184,7 +1402,7 @@ async def apply_chart_edit(context_ref: str, candidate_chart_session: str) -> ty
     except LineError as exc: return _drawing_error(exc)
     except (OSError, ValueError, TypeError, KeyError):
         return _drawing_error(LineError("chart_application_unavailable", "应用请求未确认，请读取原候选状态，不自动创建或重发新候选。"))
-    return _result(data, "绘图应用请求状态（不是屏幕核验） · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    return _chart_edit_result(data)
 
 
 @mcp.tool(name="get_chart_edit_status", annotations=types.ToolAnnotations(readOnlyHint=True))
@@ -1206,7 +1424,7 @@ async def get_chart_edit_status(
             await asyncio.sleep(min(0.2, max(0, deadline - asyncio.get_running_loop().time())))
             data = read_edit_status(context_ref, candidate_chart_session)
     except LineError as exc: return _drawing_error(exc)
-    return _result(data, "绘图准备 / 应用历史（不代表当前视图或屏幕像素） · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    return _chart_edit_result(data)
 
 
 @mcp.tool(name="get_horizontal_lines", annotations=types.ToolAnnotations(readOnlyHint=True))
@@ -1227,7 +1445,11 @@ async def create_horizontal_line(
     color: Annotated[ColorInput, Field(description="按用户颜色填写；蓝色/info、绿色/success、橙色/warning、红色/danger；success不是成功状态")] = "info",
     request_id: Annotated[str | None, Field(min_length=1, max_length=128, description="可选重试标识；相同操作重试使用同一值")] = None,
 ) -> types.CallToolResult:
-    """Create a user-requested full-width horizontal line and publish a new chart snapshot."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Creates a full-width horizontal line snapshot.
+    """
     return _horizontal_line_operation("create", chart_session, symbol, price=price, name=name, color=color, request_id=request_id)
 
 
@@ -1240,13 +1462,21 @@ async def update_horizontal_line(
     name: Annotated[str | None, Field(max_length=48, description="修改为用户完整指定名称，不缩写")] = None,
     color: Annotated[ColorInput | None, Field(description="仅在用户要求改色时填写，可直接传绿色/红色等；success=绿色")] = None,
 ) -> types.CallToolResult:
-    """Move/rename/recolor one AI line by ID; preserve source candles and other lines."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Move/rename/recolor one snapshot AI line by ID.
+    """
     return _horizontal_line_operation("update", chart_session, symbol, line_id=line_id, price=price, name=name, color=color)
 
 
 @mcp.tool(name="delete_horizontal_line")
 async def delete_horizontal_line(chart_session: str, symbol: str, line_id: str) -> types.CallToolResult:
-    """Delete only the specified AI horizontal line; return a new snapshot, not a live UI receipt."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Delete one AI line from the snapshot, not the live UI.
+    """
     return _horizontal_line_operation("delete", chart_session, symbol, line_id=line_id)
 
 
@@ -1261,7 +1491,11 @@ async def create_trend_line(
     color: Annotated[ColorInput, Field(description="用户指定颜色；蓝色/info、绿色/success、橙色/warning、红色/danger")] = "info",
     request_id: Annotated[str | None, Field(min_length=1, max_length=128)] = None,
 ) -> types.CallToolResult:
-    """Draw an exact finite two-point segment. No rays, auto anchors, channels or market fetches.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Draw an exact finite two-point segment. No rays, auto anchors, channels or market fetches.
 
     Use the latest chart_session in this conversation and perform mutations sequentially.
     """
@@ -1286,7 +1520,11 @@ async def update_trend_line(
     name: Annotated[str | None, Field(max_length=48, description="用户指定的完整名称，不缩写")] = None,
     color: Annotated[ColorInput | None, Field(description="仅修改所请求颜色；绿色/green/success同义，红色/red/danger同义")] = None,
 ) -> types.CallToolResult:
-    """Modify only supplied anchors/name/color by AI trend line ID. Preserve all other shapes.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Modify only supplied anchors/name/color by AI trend line ID. Preserve all other shapes.
 
     Same exact time rules as create_trend_line. Use latest chart_session, never the old parent.
     """
@@ -1297,7 +1535,11 @@ async def update_trend_line(
 
 @mcp.tool(name="delete_trend_line")
 async def delete_trend_line(chart_session: str, symbol: str, line_id: str) -> types.CallToolResult:
-    """Delete one AI trend segment by ID from the latest snapshot; preserve horizontal/manual/auto lines."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Delete one AI trend segment from the snapshot.
+    """
     return _line_operation("delete", chart_session, symbol, "trend", line_id=line_id)
 
 
@@ -1316,7 +1558,11 @@ async def create_channel(
     show_midline: Annotated[bool, Field(strict=True, description="是否显示通道中线，默认显示")] = True,
     request_id: Annotated[str | None, Field(min_length=1, max_length=128)] = None,
 ) -> types.CallToolResult:
-    """Create one finite parallel channel (ascending/descending/horizontal) from three explicit anchors.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Create one finite parallel channel (ascending/descending/horizontal) from three explicit anchors.
 
     Exact bar-time rules as trend lines. Uses candle-index spacing and linear prices, not calendar
     elapsed time; no rays, log-price geometry, automatic identification or invented anchors.
@@ -1348,7 +1594,11 @@ async def update_channel(
     color: Annotated[ColorInput | None, Field(description="可直接传绿色/红色等；省略表示不改色")] = None,
     show_midline: Annotated[bool | None, Field(strict=True)] = None,
 ) -> types.CallToolResult:
-    """Edit one channel atomically; recalculate parallel boundaries from its three explicit anchors.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Edit one channel atomically; recalculate parallel boundaries from its three explicit anchors.
 
     Unspecified anchors remain fixed. Changing baseline may change width relative to the unchanged
     third anchor. To change width adjust parallel_price; no partial updates on invalid geometry.
@@ -1362,7 +1612,11 @@ async def update_channel(
 
 @mcp.tool(name="delete_channel")
 async def delete_channel(chart_session: str, symbol: str, channel_id: str) -> types.CallToolResult:
-    """Delete one whole AI channel (both edges and optional midline), preserving all other drawings."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Delete one whole AI channel from the snapshot.
+    """
     return _line_operation("delete", chart_session, symbol, "channel", channel_id=channel_id)
 
 
@@ -1379,7 +1633,11 @@ async def create_rectangle(
     show_fill: Annotated[bool, Field(strict=True, description="是否显示淡色填充，默认显示；关闭后保留完整边框")] = True,
     request_id: Annotated[str | None, Field(min_length=1, max_length=128)] = None,
 ) -> types.CallToolResult:
-    """Create one finite time/price rectangle using explicit user or approved-proposal bounds.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Create one finite time/price rectangle using explicit user or approved-proposal bounds.
 
     The executor does no pattern recognition: the host may analyze real candles when authorized,
     propose exact bounds, and honor a user's request to confirm before drawing. No invented bars or rays.
@@ -1408,7 +1666,11 @@ async def update_rectangle(
     color: Annotated[ColorInput | None, Field(description="仅修改所请求颜色；绿色/green/success同义")] = None,
     show_fill: Annotated[bool | None, Field(strict=True)] = None,
 ) -> types.CallToolResult:
-    """Atomically edit one platform rectangle by ID; unspecified bounds/style remain fixed.
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool.
+    Atomically edit one platform rectangle by ID; unspecified bounds/style remain fixed.
 
     Change one bound or both together; invalid time/price order rejects the whole update.
     Use the latest chart_session and verify original requested fields, not copied actual values.
@@ -1420,7 +1682,11 @@ async def update_rectangle(
 
 @mcp.tool(name="delete_rectangle")
 async def delete_rectangle(chart_session: str, symbol: str, rectangle_id: str) -> types.CallToolResult:
-    """Delete one whole AI rectangle (all four edges and fill), preserving every other drawing."""
+    """LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.
+
+    For current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.
+    Only explicit snapshot-editing requests use this tool. Delete one whole AI rectangle from the snapshot.
+    """
     return _line_operation("delete", chart_session, symbol, "rectangle", rectangle_id=rectangle_id)
 
 

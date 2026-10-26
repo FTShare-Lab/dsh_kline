@@ -16,6 +16,8 @@ import { collectDrawingFeedback } from '../src/drawing-feedback.ts'
 import { TEST_PYTHON } from '../scripts/test-runtime.mjs'
 import { createServer } from 'node:http'
 import { sourceStatus } from '../src/chart-source-status.ts'
+import { fibonacciOverlayPoints } from '../src/fibonacci.ts'
+import { polylineOverlayPoints } from '../src/labeled-polyline.ts'
 
 const original='b'.repeat(32), view='v'.repeat(32)
 function base():any {
@@ -216,6 +218,9 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
     const html=readFileSync(new URL('../view/kline.html',import.meta.url),'utf8'), overlays=new Map<string,any>(), saved:any[]=[]
     overlays.set('manual:T',{groupId:'manual'})
     const context:any={lastChartPayload:f.payload,currentCandles:f.state.candles,currentSymbol:'TEST.X',currentName:'测试',
+      activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
+      activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
       currentInterval:'day',currentAdjust:'none',currentRangeKey:'custom',sourceCandleInterval:'day',activeSecurityTab:'chart',
       openingSymbol:false,userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,maVisible:false,vwapVisible:false,
       volVisible:true,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,volumeUnit:'wan',chartDataStatus:'delayed',
@@ -253,14 +258,32 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
     assert.equal(overlays.get(first.object.id).points[0].value,30.5);assert.equal(overlays.get('H').points[0].value,31)
     assert.equal(saved.length,2);assert.equal(status(f.runtime,f.ref,second.chart_session).confirmation_scope,'view_state_only')
     let revision=final.revision, source=second.chart_session, sequence=5
-    for(const kind of ['trend_line','channel','rectangle']) {
+    for(const kind of ['trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline']) {
       const parameters=kind==='rectangle' ? "start_time='1',end_time='4',lower_price=30,upper_price=32"
         : "start_time='1',start_price=30,end_time='4',end_price=32"+(kind==='channel' ? ",parallel_time='2',parallel_price=32" : '')
-      let id=''
+      let id='', originalPoints:any[]=[]
       for(const action of ['create','update','delete']) {
         const fields=action==='create' ? parameters : `object_id='${id}'`+(action==='update'
-          ? kind==='rectangle' ? ',show_fill=False' : kind==='channel' ? ',show_midline=False' : ',end_price=32.5' : '')
-        const prepared=prepare(f.runtime,f.ref,revision,source,kind+'-'+action,`kind='${kind}',action='${action}',${fields}`)
+          ? kind==='rectangle' ? ',show_fill=False' : kind==='channel' ? ',show_midline=False'
+            : kind==='labeled_polyline' ? ",point_label='C',point_time='4',point_price=32.5" : ',end_price=32.5' : '')
+        const prepared=kind==='fibonacci_retracement' && action!=='delete'
+          ? py(f.runtime,`from tools.chart_functions import ChartFunctionParameters
+c=asyncio.run(server.run_chart_function('${f.ref}',${revision},'${source}','TEST.X','fibonacci_retracement',ChartFunctionParameters(start_time='1',start_price=30,end_time='4',end_price=${action==='create'?32:32.5},ratios=[0,.618,1]))).structuredContent
+r=asyncio.run(server.prepare_chart_edit('${f.ref}',${revision},'${source}','TEST.X','${kind}-${action}',ChartEdit(kind='${kind}',action='${action}',result_ref=c['result_ref']${action==='update'?`,object_id='${id}'`:''}))); print(json.dumps(r.structuredContent))`)
+          : kind==='labeled_polyline' && action==='create'
+            ? py(f.runtime,`from tools.chart_functions import ChartFunctionParameters
+c=asyncio.run(server.run_chart_function('${f.ref}',${revision},'${source}','TEST.X','labeled_polyline',ChartFunctionParameters(points=[dict(label='A',time='1',price=30),dict(label='B',time='2',price=32),dict(label='C',time='3',price=31)]))).structuredContent
+r=asyncio.run(server.prepare_chart_edit('${f.ref}',${revision},'${source}','TEST.X','${kind}-${action}',ChartEdit(kind='${kind}',action='create',result_ref=c['result_ref'],name='ABC样板')));print(json.dumps(r.structuredContent))`)
+          : prepare(f.runtime,f.ref,revision,source,kind+'-'+action,`kind='${kind}',action='${action}',${fields}`)
+        assert.equal(prepared.ok,true,JSON.stringify(prepared))
+        if(kind==='labeled_polyline') {
+          if(action==='create')originalPoints=prepared.object.points
+          if(action==='update') {
+            assert.deepEqual(prepared.object.points.slice(0,2),originalPoints.slice(0,2))
+            assert.deepEqual(prepared.change.point_changes.map((p:any)=>p.label),['C'])
+            assert.equal(prepared.change.other_ai_drawings_unchanged,true)
+          }
+        }
         id=prepared.object.id;assert.equal(queue(f.runtime,f.ref,prepared.chart_session).apply_status,'queued')
         const delivery=await f.broker.publish(publication(++sequence,null))
         const localReceipt=controller.consume(delivery.application,delivery)
@@ -269,9 +292,21 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
         assert.equal(acknowledgment.receipt.apply_status,'applied');assert.equal(overlays.has(id),action!=='delete')
         assert.equal(acknowledgment.receipt.drawing_feedback.items.find((i:any)=>i.id===id).status,action==='delete' ? 'removed' : 'created')
         revision=acknowledgment.revision;source=prepared.chart_session
+        if(kind==='fibonacci_retracement' && action==='update') {
+          const recovery=await new ChartApplications(f.runtime).recover('A')
+          const fib=recovery.payload.chartCommands.find((c:any)=>c.id===id)
+          assert.equal(fib.type,'DRAW_AGENT_FIBONACCI');assert.equal(fib.ratios.length,3)
+          assert.deepEqual(fibonacciOverlayPoints(fib),Array.from(overlays.get(id).points,(p:any)=>({timestamp:p.timestamp,value:p.value})))
+        }
+        if(kind==='labeled_polyline' && action==='update') {
+          const recovery=await new ChartApplications(f.runtime).recover('A')
+          const path=recovery.payload.chartCommands.find((c:any)=>c.id===id)
+          assert.equal(path.type,'DRAW_AGENT_POLYLINE');assert.equal(path.points[2].label,'C')
+          assert.deepEqual(polylineOverlayPoints(path),Array.from(overlays.get(id).points,(p:any)=>({timestamp:p.timestamp,value:p.value})))
+        }
       }
     }
-    assert.equal(saved.length,11);assert.equal(context.currentCandles,f.state.candles)
+    assert.equal(saved.length,17);assert.equal(context.currentCandles,f.state.candles)
     assert.equal(overlays.get('H').points[0].value,31);assert.equal(overlays.get(first.object.id).points[0].value,30.5)
     assert.ok(overlays.has('manual:T'))
     const live=collectDrawingFeedback(context.lastChartPayload,api.capture(),context.kchart)
@@ -283,7 +318,7 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
     const recovery=await new ChartApplications(f.runtime).recover('A')
     assert.equal(recovery.session,source);assert.equal(recovery.recovery_scope,'confirmed_historical_chart')
     assert.equal(recovery.payload.drawing_guard,undefined);assert.equal(recovery.payload._live_application_pending,false)
-    assert.ok(recovery.recovery_source_sessions.includes(original));assert.equal(recovery.recovery_source_sessions.length,11)
+    assert.ok(recovery.recovery_source_sessions.includes(original));assert.equal(recovery.recovery_source_sessions.length,17)
     assert.equal(drawingInventory(recovery.payload).length,2)
     assert.ok(!JSON.stringify(recovery).includes('lease_id'));assert.ok(!JSON.stringify(recovery).includes('base_state'))
     await assert.rejects(new ChartApplications(f.runtime).recover('another-conversation'))
@@ -307,6 +342,9 @@ test('inline drawing failure restores prior AI state, and a failed restore stays
     const previous={symbol:'TEST.X',interval:'day',chartCommands:[{type:'SET_CANDLES',rows:base().candles},
       {type:'DRAW_HORIZONTAL_LINE',id:'H',label:'H',color:'info',price:31}]}
     const context:any={lastChartPayload:previous,currentCandles:base().candles,currentSymbol:'TEST.X',currentInterval:'day',openingSymbol:false,
+      activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
+      activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
       rememberAnalysisCommands:()=>{},kchart:{removeOverlay:({groupId}:any)=>{for(const [id,o] of overlays)if(o.groupId===groupId)overlays.delete(id)},
         createOverlay:(o:any)=>{
           if(mode==='rollback_failed' || o.extendData.label==='fail') {

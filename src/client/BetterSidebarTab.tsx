@@ -32,6 +32,7 @@ function AutoOpen({ service, sessions, conversationId }: { service: BetterSideba
   return null
 }
 function KlineTabFrame({service, sessions, scope, tab, visible}: TabComponentProps & {service: BetterSidebarService; sessions: Sessions}) {
+  const interfaceState = useContext(InterfaceContext)
   const sidebar = useSyncExternalStore(
     listener => service.subscribeState(listener),
     () => service.getSnapshot(),
@@ -44,7 +45,9 @@ function KlineTabFrame({service, sessions, scope, tab, visible}: TabComponentPro
   useEffect(() => migrateKlineTabTitle(service, tab, scope.sessionId), [service, tab.id, tab.title, scope.sessionId])
   return (
     <div data-dsh-kline-tab="" style={{width:'100%', height:'100%', minHeight:0, overflow:'hidden'}}>
-      {visible && <KlineTabContent key={conversationId ?? 'launcher'} conversationId={conversationId} sessions={sessions} />}
+      {visible && interfaceState.mode === 'better-sidebar'
+        ? <KlineTabContent key={conversationId ?? 'launcher'} conversationId={conversationId} sessions={sessions} />
+        : visible && <div role="status" style={{padding:16}}>当前使用经典 K 线侧栏；如需在此处打开图表，请在经典侧栏右上角「UI」切换为原生 Tab。</div>}
     </div>
   )
 }

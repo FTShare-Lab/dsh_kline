@@ -39,7 +39,8 @@ class DrawingFeedbackTests(unittest.TestCase):
             value = {**raw, **changes}
             if changes == {"report_status": []}: value["schema_version"] = 2
             self.assertEqual(sanitize_drawing_feedback(value, self.allowed)["report_status"], "invalid")
-        for changes in [{"reason": "period_mismatch"}, {"visibility": "outside_time_viewport"}, {"status": []}, {"reason": "private-exception"}]:
+        for changes in [{"reason": "period_mismatch"}, {"visibility": "outside_time_viewport"}, {"status": []},
+                        {"reason": "private-exception"}, {"time_range_overlap": "yes"}]:
             value = {**raw, "items": [{**raw["items"][0], **changes}]}
             self.assertEqual(sanitize_drawing_feedback(value, self.allowed)["report_status"], "invalid")
 
@@ -71,6 +72,9 @@ class DrawingFeedbackTests(unittest.TestCase):
         result = asyncio.run(server.get_chart_edit_status(fixture.f.ref, fixture.candidate)).structuredContent
         self.assertEqual(result["drawing_feedback"]["phase"], "applied")
         self.assertEqual(len(result["drawing_feedback"]["items"]), len(inventory))
+        self.assertEqual(result["interaction"]["object_status"], "created")
+        self.assertFalse(result["interaction"]["pixel_verified"])
+        self.assertIn("像素未核验", result["interaction"]["message"])
         self.assertTrue(result["record_is_historical"]); self.assertFalse(result["render_verified"])
         self.assertEqual(fixture.record_path().read_text(), before)
         corrupt = deepcopy(record); corrupt["drawing_feedback"]["items"][0]["id"] = "foreign"

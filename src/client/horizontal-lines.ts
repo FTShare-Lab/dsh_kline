@@ -1,5 +1,5 @@
 /** Merge a drawing-only result into its owning view, preserving candles and toggles. */
-const AI_DRAWING_COMMANDS = new Set(['DRAW_HORIZONTAL_LINE', 'DRAW_AGENT_TREND_LINE', 'DRAW_AGENT_CHANNEL', 'DRAW_AGENT_RECTANGLE'])
+const AI_DRAWING_COMMANDS = new Set(['DRAW_HORIZONTAL_LINE', 'DRAW_AGENT_TREND_LINE', 'DRAW_AGENT_CHANNEL', 'DRAW_AGENT_RECTANGLE', 'DRAW_AGENT_FIBONACCI', 'DRAW_AGENT_POLYLINE', 'DRAW_AGENT_ANNOTATION'])
 
 export function mergeHorizontalLineSnapshot(payload: any, saved: any): any {
   if (payload?.drawing_guard || payload?.view_source_guard || !payload?.drawing_only || saved?.session !== payload.drawing_parent_session

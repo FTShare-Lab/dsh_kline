@@ -12,7 +12,7 @@ import pytest
 import chart_service
 import server
 import tools.fetch as f
-from core.calc import calc_metrics, series_rsi
+from core.calc import calc_metrics, metric_support_resistance, series_rsi
 
 
 def bars(count=40, trend=0):
@@ -46,7 +46,44 @@ def test_key_levels_no_levels_is_success():
     assert result['chartCommands'] == []
 
 
-@pytest.mark.parametrize('trend,expected', [(0, 50), (1, 100), (-1, 0)])
+def test_key_levels_exclude_stale_support_and_resistance():
+    prices = [10, 10, 9, 10, 11, 10, 9, 10, 11, 10, 9, 10]
+    rows = [dict(time=1700000000 + i * 86400, open=price, high=price + 0.1,
+                 low=price - 0.1, close=price, volume=100)
+            for i, price in enumerate(prices)]
+    below = [{**row} for row in rows]
+    below[-1].update(open=8, high=8.1, low=7.9, close=8)
+    low_result = metric_support_resistance(below)
+    assert low_result['support'] == []
+    assert all(level['price'] >= 8 for level in low_result['resistance'])
+
+    above = [{**row} for row in rows]
+    above[-1].update(open=12, high=12.1, low=11.9, close=12)
+    high_result = metric_support_resistance(above)
+    assert high_result['resistance'] == []
+    assert all(level['price'] <= 12 for level in high_result['support'])
+
+
+def test_key_levels_drop_support_breached_after_its_pivot():
+    lows = [12, 11, 10, 11, 12, 11, 10.5, 11, 12, 9]
+    rows = [dict(time=1700000000 + i * 86400, open=11, high=13,
+                 low=low, close=11, volume=100) for i, low in enumerate(lows)]
+    result = metric_support_resistance(rows)
+    assert result['support'] == []
+
+
+def test_key_level_marker_uses_the_same_tradable_price_as_its_label():
+    marks = server._support_resistance_marks({
+        'support_resistance': {'support': [], 'resistance': [
+            {'price': 86.085, 'last_time': 1700000000, 'touches': 4},
+        ]},
+    })
+    assert len(marks) == 1
+    assert f"{marks[0]['price']:.2f}" in marks[0]['text']
+    assert '邻近4根' in marks[0]['text']
+
+
+@pytest.mark.parametrize('trend,expected', [(0, 0), (1, 100), (-1, 0)])
 def test_rsi_degenerate_series(trend, expected):
     assert set(series_rsi(bars(trend=trend)).values()) == {expected}
     if trend == 0:

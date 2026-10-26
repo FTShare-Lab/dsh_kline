@@ -3512,11 +3512,11 @@ def _latest_intelligence_rows(rows: list[dict[str, Any]], *, limit: int = 1) -> 
 
 def _industry_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
     """Return the strongest industry flows, never a provider's arbitrary regional prefix."""
-    industries = [row for row in rows if str(row.get("sector_type") or "").lower() == "industry"]
-    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
-    # Keep provider-neutral adapters and older SDK responses useful when they
-    # do not label the sector type at all.
-    candidates = industries or concepts or rows
+    industries = [row for row in rows if str(_workspace_value(row, "sector_type", "board_type") or "").lower() == "industry"]
+    # Only use untyped rows for older providers. A typed concept or regional
+    # board must never be relabeled as an industry to fill an empty panel.
+    has_types = any(_workspace_value(row, "sector_type", "board_type") for row in rows)
+    candidates = industries if has_types else rows
     return sorted(
         candidates,
         key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
@@ -3531,7 +3531,7 @@ def _concept_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[di
     different questions.  Never relabel an industry or regional board as a
     concept merely to fill a panel.
     """
-    concepts = [row for row in rows if str(row.get("sector_type") or "").lower() == "concept"]
+    concepts = [row for row in rows if str(_workspace_value(row, "sector_type", "board_type") or "").lower() == "concept"]
     return sorted(
         concepts,
         key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
@@ -3545,9 +3545,9 @@ def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[d
     seen = set()
     for row in rows:
         code = str(_workspace_value(row, "sector_code", "board_code", "code") or "").strip().upper()
-        name = str(_workspace_value(row, "sector_name", "board", "name") or "").strip()
+        name = str(_workspace_value(row, "sector_name", "board_name", "board", "name") or "").strip()
         key = f"code:{code}" if code else f"name:{name}"
-        if key == "name:" or key in seen:
+        if not name or key in seen:
             continue
         seen.add(key)
         unique_rows.append(row)
@@ -3555,6 +3555,9 @@ def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[d
             break
     items = _intelligence_items(unique_rows, limit=limit, fallback="板块")
     for item, row in zip(items, unique_rows):
+        # The SDK's board endpoint uses board_name, while older providers use
+        # sector_name. Do not replace a real board name with the generic label.
+        item["title"] = str(_workspace_value(row, "sector_name", "board_name", "board", "name") or item["title"])
         item["board_code"] = str(_workspace_value(row, "sector_code", "board_code", "code") or "")
         item["board_kind"] = str(_workspace_value(row, "sector_type", "board_type") or "")
     return items
@@ -3971,7 +3974,10 @@ def fetch_market_board_detail(
     market = _ftshare_market_api(timeout=12)
     errors: dict[str, list[dict[str, str]]] = {}
     snapshot_rows = _read_intelligence_section(market, errors, "board", "eastmoney_sector_flow", limit=500)
-    board = next((row for row in snapshot_rows if (code and str(row.get("sector_code") or "") == code) or (not code and str(row.get("sector_name") or "") == label and str(row.get("sector_type") or "").lower() == requested_kind)), None)
+    board = next((row for row in snapshot_rows if
+                  ((code and str(_workspace_value(row, "sector_code", "board_code") or "") == code)
+                   or (not code and str(_workspace_value(row, "sector_name", "board_name") or "") == label))
+                  and str(_workspace_value(row, "sector_type", "board_type") or "").lower() == requested_kind), None)
     if board is None:
         return {
             "ok": True,
@@ -3979,8 +3985,8 @@ def fetch_market_board_detail(
             "sections": {"board": _intelligence_section_state([], errors.get("board", [])), "members": {"state": "source_dependent", "errors": []}},
             "source": {"name": "FTShare", "status": "empty"},
         }
-    resolved_name = str(board.get("sector_name") or label)
-    resolved_kind = str(board.get("sector_type") or requested_kind).lower()
+    resolved_name = str(_workspace_value(board, "sector_name", "board_name") or label)
+    resolved_kind = str(_workspace_value(board, "sector_type", "board_type") or requested_kind).lower()
     history_rows: list[dict[str, Any]] = []
     if resolved_kind == "industry":
         end = datetime.now(ZoneInfo("Asia/Shanghai")).date()
@@ -3988,13 +3994,15 @@ def fetch_market_board_detail(
             market, errors, "board", "ths_industry_daily_flow", sector_name=resolved_name,
             start_date=(end - timedelta(days=12)).strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), limit=10,
         )
+    snapshot = _intelligence_item(board, fallback=resolved_name)
+    snapshot["title"] = resolved_name
     return {
         "ok": True,
         "board": {
             "name": resolved_name,
-            "code": str(board.get("sector_code") or code),
+            "code": str(_workspace_value(board, "sector_code", "board_code") or code),
             "kind": resolved_kind,
-            "snapshot": _intelligence_item(board, fallback=resolved_name),
+            "snapshot": snapshot,
             "history": _flow_history_items(history_rows, limit=6, fallback=resolved_name, leader=True),
             "members": [],
         },

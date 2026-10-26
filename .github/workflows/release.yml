@@ -65,7 +65,7 @@ jobs:
       - name: Create stable release asset
         run: |
           pnpm pack:release
-          sha256sum release/dsh-kline.tgz > release/dsh-kline.tgz.sha256
+          (cd release && sha256sum dsh-kline.tgz > dsh-kline.tgz.sha256)
           tar -tzf release/dsh-kline.tgz | grep -q '^package/scripts/run-dsh-kline.mjs$'
           tar -tzf release/dsh-kline.tgz | grep -q '^package/requirements.txt$'
           tar -tzf release/dsh-kline.tgz | grep -q '^package/lib/index.js$'

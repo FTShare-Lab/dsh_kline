@@ -81,7 +81,7 @@ def read_edit_status(context_ref: str, candidate: str) -> dict:
         or not isinstance(guard.get("view_id"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", guard["view_id"])
         or not isinstance(guard.get("request_id"), str) or not 1 <= len(guard["request_id"]) <= 128
         or not isinstance(guard.get("chart_session"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", guard["chart_session"])
-        or not isinstance(guard.get("parameters"), dict) or guard.get("kind") not in ("horizontal_line", "trend_line", "channel", "rectangle")
+        or not isinstance(guard.get("parameters"), dict) or guard.get("kind") not in ("horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "all_drawings")
         or guard.get("action") not in ("create", "update", "delete")):
         raise LineError("invalid_chart_application", "候选不属于该准备请求，未推断应用状态。")
     entries = _read(directory / "journal.json").get("entries")

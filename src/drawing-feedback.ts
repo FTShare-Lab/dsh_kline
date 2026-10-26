@@ -1,16 +1,25 @@
 /** Object-API observations, not pixel verification or a trading conclusion. */
 import { drawingInventory } from './chart-observation.ts'
+import { fibonacciOverlayPoints } from './fibonacci.ts'
+import { polylineOverlayPoints } from './labeled-polyline.ts'
+import { chartAnnotationText } from './chart-annotations.ts'
 
-export const FEEDBACK_KINDS=['horizontal_line','trend_line','channel','rectangle']
+export const FEEDBACK_KINDS=['horizontal_line','trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline','text_annotation','number_annotation','icon_annotation','series_line','price_band','price_sticks']
 export const FEEDBACK_STATUSES=['created','hidden','removed','failed','unknown']
 export const FEEDBACK_REASONS=['overlay_registered','period_mismatch','anchors_not_loaded','outside_time_viewport',
   'invalid_geometry','overlay_missing','overlay_mismatch','overlay_api_unavailable','overlay_lookup_failed',
-  'overlay_removed','overlay_still_present','context_not_ready','application_rolled_back','rollback_unknown','creation_failed']
+  'overlay_removed','overlay_still_present','context_not_ready','application_rolled_back','rollback_unknown','creation_failed',
+  'indicator_registered','indicator_removed','indicator_missing','indicator_still_present','indicator_api_unavailable']
 const PHASES=['current','applied','rolled_back','rollback_unknown']
-const STATUS_REASONS:any={created:['overlay_registered','outside_time_viewport'],hidden:['period_mismatch','anchors_not_loaded'],
-  removed:['overlay_removed'],failed:['invalid_geometry','overlay_missing','overlay_mismatch','overlay_still_present','creation_failed'],
-  unknown:['overlay_api_unavailable','overlay_lookup_failed','overlay_mismatch','context_not_ready','application_rolled_back','rollback_unknown']}
+const STATUS_REASONS:any={created:['overlay_registered','outside_time_viewport','indicator_registered'],hidden:['period_mismatch','anchors_not_loaded'],
+  removed:['overlay_removed','indicator_removed'],failed:['invalid_geometry','overlay_missing','overlay_mismatch','overlay_still_present','creation_failed','indicator_missing','indicator_still_present'],
+  unknown:['overlay_api_unavailable','overlay_lookup_failed','overlay_mismatch','context_not_ready','application_rolled_back','rollback_unknown','indicator_api_unavailable']}
 function empty(status:string) {return {schema_version:1,report_status:status,evidence_scope:'chart_object_api',render_verified:false,pixel_verified:false,items:[]}}
+function timeRangeOverlap(points:any[], first:number|undefined, last:number|undefined):boolean|null {
+  if(!first || !last || !points.length)return null
+  const times=points.map(point=>point.timestamp/1000)
+  return Math.max(...times)>=first && Math.min(...times)<=last
+}
 export function sanitizeDrawingFeedback(raw:any, allowed:any[]):any {
   if(raw==null)return empty('not_reported')
   if(['not_reported','invalid'].includes(raw.report_status))return empty(raw.report_status)
@@ -21,26 +30,41 @@ export function sanitizeDrawingFeedback(raw:any, allowed:any[]):any {
       if(typeof item.id!=='string' || !item.id || item.id.length>256 || objects.get(item.id)!==item.kind || seen.has(item.id)
         || !FEEDBACK_KINDS.includes(item.kind) || !FEEDBACK_STATUSES.includes(item.status) || !FEEDBACK_REASONS.includes(item.reason)
         || !STATUS_REASONS[item.status].includes(item.reason)
-        || !['unknown','outside_time_viewport','not_applicable'].includes(item.visibility))throw Error('invalid_item')
+        || !['unknown','outside_time_viewport','not_applicable'].includes(item.visibility)
+        || (item.time_range_overlap!=null && typeof item.time_range_overlap!=='boolean'))throw Error('invalid_item')
       if((item.reason==='outside_time_viewport')!==(item.visibility==='outside_time_viewport'))throw Error('invalid_visibility')
       seen.add(item.id)
       return {id:item.id,kind:item.kind,status:item.status,reason:item.reason,visibility:item.visibility,
-        outside_loaded_price_envelope:item.outside_loaded_price_envelope===true}
+        outside_loaded_price_envelope:item.outside_loaded_price_envelope===true,
+        time_range_overlap:typeof item.time_range_overlap==='boolean' ? item.time_range_overlap : null}
     })
     if(seen.size!==objects.size)throw Error('incomplete_report')
-    return {...empty('reported'),phase:raw.phase,items}
+    const evidence_scope=['chart_object_api','indicator_registry','mixed_chart_api_and_indicator_registry'].includes(raw.evidence_scope)
+      ? raw.evidence_scope : 'chart_object_api'
+    return {...empty('reported'),phase:raw.phase,evidence_scope,items}
   } catch {return empty('invalid')}
 }
 
 function expectedOverlay(command:any, rows:any[], interval:string, times:Set<number>):any {
   const types:any={DRAW_HORIZONTAL_LINE:['ftvHorizontalLine','agentHorizontalLines'],DRAW_AGENT_TREND_LINE:['ftvTrendLine','agentTrendLines'],
-    DRAW_AGENT_CHANNEL:['ftvAgentChannel','agentChannels'],DRAW_AGENT_RECTANGLE:['ftvAgentRectangle','agentRectangles']}
+    DRAW_AGENT_CHANNEL:['ftvAgentChannel','agentChannels'],DRAW_AGENT_RECTANGLE:['ftvAgentRectangle','agentRectangles'],
+    DRAW_AGENT_FIBONACCI:['ftvAgentFibonacci','agentFibonacci'],DRAW_AGENT_POLYLINE:['ftvAgentPolyline','agentPolylines'],
+    DRAW_AGENT_ANNOTATION:['ftvAgentAnnotation','agentAnnotations']}
   const point=(p:any)=>({timestamp:Number(p?.time)*1000,value:Number(p?.price)})
   const type=command.type
-  if(['DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE'].includes(type) && command.interval!==interval)return {skip:'period_mismatch'}
+  if(['DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION'].includes(type) && command.interval!==interval)return {skip:'period_mismatch'}
   let points:any[], sourceTimes:number[]=[]
   if(type==='DRAW_HORIZONTAL_LINE') points=[{timestamp:rows.at(-1)?.time*1000,value:Number(command.price)}]
-  else if(type==='DRAW_AGENT_RECTANGLE') {
+  else if(type==='DRAW_AGENT_ANNOTATION') {
+    try {const clean={...command};points=[{timestamp:clean.time*1000,value:clean.price}];sourceTimes=[clean.time];chartAnnotationText(clean)}
+    catch{return {failure:'invalid_geometry'}}
+  }
+  else if(type==='DRAW_AGENT_POLYLINE') {
+    try {points=polylineOverlayPoints(command);sourceTimes=command.points.map((p:any)=>p.time)}catch{return {failure:'invalid_geometry'}}
+  } else if(type==='DRAW_AGENT_FIBONACCI') {
+    sourceTimes=[command.from?.time,command.to?.time]
+    try {points=fibonacciOverlayPoints(command)}catch{return {failure:'invalid_geometry'}}
+  } else if(type==='DRAW_AGENT_RECTANGLE') {
     sourceTimes=[command.start_time,command.end_time]
     points=[{timestamp:command.start_time*1000,value:command.upper_price},{timestamp:command.end_time*1000,value:command.lower_price}]
     if(!(command.start_time<command.end_time && command.lower_price>0 && command.lower_price<command.upper_price))return {failure:'invalid_geometry'}
@@ -72,10 +96,22 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
   const low=rows.length ? Math.min(...rows.map((r:any)=>r.low)) : NaN, high=rows.length ? Math.max(...rows.map((r:any)=>r.high)) : NaN
   const items=inventory.map((drawing:any)=>{
     const cmd=commands.find((c:any)=>c.id===drawing.id), item:any={id:drawing.id,kind:drawing.kind,status:'unknown',
-      reason:'context_not_ready',visibility:'unknown',outside_loaded_price_envelope:false}
+      reason:'context_not_ready',visibility:'unknown',outside_loaded_price_envelope:false,time_range_overlap:null}
     if(!ready)return item
     if(phase==='rolled_back' || phase==='rollback_unknown') {
       item.reason=phase==='rolled_back' ? 'application_rolled_back' : 'rollback_unknown';return item
+    }
+    if(['series_line','price_band','price_sticks'].includes(drawing.kind)) {
+      if(cmd.interval!==(context.ui_interval || context.interval)) {
+        item.status='hidden';item.reason='period_mismatch';item.visibility='not_applicable';return item
+      }
+      const registry=drawing.kind==='series_line' ? chart?.__dshSeriesLineRegistry
+        : drawing.kind==='price_band' ? chart?.__dshPriceBandRegistry : chart?.__dshPriceSticksRegistry
+      if(!(registry instanceof Map)) {item.reason='indicator_api_unavailable';return item}
+      item.status=registry.get(drawing.id)===(drawing.kind==='series_line' ? cmd.series_hash
+        : drawing.kind==='price_band' ? cmd.band_hash : cmd.sticks_hash) ? 'created' : 'failed'
+      item.reason=item.status==='created' ? 'indicator_registered' : 'indicator_missing'
+      return item
     }
     const expected=expectedOverlay(cmd,rows,context.ui_interval || context.interval,times)
     const prices=expected.points?.map((p:any)=>p.value) ?? []
@@ -88,6 +124,8 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
       item.visibility='not_applicable';return item
     }
     if(expected.failure) {item.status='failed';item.reason=expected.failure;return item}
+    item.time_range_overlap=drawing.kind==='horizontal_line' ? (first && last ? true : null)
+      : timeRangeOverlap(expected.points,first,last)
     if(!observed.value){item.status='failed';item.reason='overlay_missing';return item}
     const overlay=observed.value
     let same=false
@@ -99,12 +137,14 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
         && overlay.extendData?.label===(cmd.label || '') && overlay.extendData?.colorName===(cmd.color || 'info')
         && (drawing.kind!=='channel' || overlay.extendData?.showMidline===(cmd.show_midline!==false))
         && (drawing.kind!=='rectangle' || overlay.extendData?.showFill===(cmd.show_fill!==false))
+        && (drawing.kind!=='fibonacci_retracement' || JSON.stringify(overlay.extendData?.levels)===JSON.stringify(cmd.levels))
+        && (drawing.kind!=='labeled_polyline' || JSON.stringify(overlay.extendData?.pointLabels)===JSON.stringify(cmd.points.map((p:any)=>p.label)))
+        && (!['text_annotation','number_annotation','icon_annotation'].includes(drawing.kind)
+          || overlay.extendData?.annotationKind===cmd.kind && (cmd.kind==='icon_annotation'
+            ? overlay.extendData?.annotationIcon===cmd.icon : overlay.extendData?.text===chartAnnotationText(cmd)))
     } catch {item.reason='overlay_lookup_failed';return item}
     item.status=same ? 'created' : 'failed';item.reason=same ? 'overlay_registered' : 'overlay_mismatch'
-    if(same && drawing.kind!=='horizontal_line' && first && last) {
-      const min=Math.min(...expected.points.map((p:any)=>p.timestamp/1000)), max=Math.max(...expected.points.map((p:any)=>p.timestamp/1000))
-      if(max<first || min>last){item.visibility='outside_time_viewport';item.reason='outside_time_viewport'}
-    }
+    if(same && item.time_range_overlap===false){item.visibility='outside_time_viewport';item.reason='outside_time_viewport'}
     return item
   })
   for(const drawing of deleted) {
@@ -116,10 +156,19 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
       items.push({id:drawing.id,kind:drawing.kind,status:'unknown',reason:'context_not_ready',
         visibility:'not_applicable',outside_loaded_price_envelope:false});continue
     }
+    if(['series_line','price_band','price_sticks'].includes(drawing.kind)) {
+      const registry=drawing.kind==='series_line' ? chart?.__dshSeriesLineRegistry
+        : drawing.kind==='price_band' ? chart?.__dshPriceBandRegistry : chart?.__dshPriceSticksRegistry
+      items.push({id:drawing.id,kind:drawing.kind,status:!(registry instanceof Map) ? 'unknown' : registry.has(drawing.id) ? 'failed' : 'removed',
+        reason:!(registry instanceof Map) ? 'indicator_api_unavailable' : registry.has(drawing.id) ? 'indicator_still_present' : 'indicator_removed',
+        visibility:'not_applicable',outside_loaded_price_envelope:false});continue
+    }
     const observed=canRead ? lookup(drawing.id) : {error:true}
     items.push({id:drawing.id,kind:drawing.kind,status:observed.error ? 'unknown' : observed.value ? 'failed' : 'removed',
       reason:observed.error ? (canRead ? 'overlay_lookup_failed' : 'overlay_api_unavailable') : observed.value ? 'overlay_still_present' : 'overlay_removed',visibility:'not_applicable',
       outside_loaded_price_envelope:false})
   }
-  return {schema_version:1,phase,evidence_scope:'chart_object_api',render_verified:false,pixel_verified:false,items}
+  const hasSeries=items.some((item:any)=>['series_line','price_band','price_sticks'].includes(item.kind)),hasOverlay=items.some((item:any)=>!['series_line','price_band','price_sticks'].includes(item.kind))
+  return {schema_version:1,phase,evidence_scope:hasSeries ? hasOverlay ? 'mixed_chart_api_and_indicator_registry' : 'indicator_registry' : 'chart_object_api',
+    render_verified:false,pixel_verified:false,items}
 }

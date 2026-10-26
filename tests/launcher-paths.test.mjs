@@ -42,6 +42,9 @@ test('Windows Python Launcher candidates are version bounded and ordered', () =>
 })
 
 test('POSIX and explicit runtime paths remain deterministic', () => {
+  const candidates = pythonCandidates({}, 'darwin').map(candidate => candidate.command)
+  assert.ok(candidates.indexOf('/opt/homebrew/bin/python3.13') < candidates.indexOf('python3'))
+  assert.ok(candidates.indexOf('python3.13') < candidates.indexOf('python3'))
   assert.equal(pythonPathForVenv('/tmp/venv', 'linux'), '/tmp/venv/bin/python')
   assert.equal(
     defaultStateDirectory({ XDG_CACHE_HOME: '/tmp/cache root' }, 'linux', '/home/user'),

@@ -229,10 +229,12 @@ def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
     assert "MCP connection will retry automatically" in result.stderr
     deadline = time.monotonic() + 5
     stamp = venv / ".dsh-kline-requirements"
-    while time.monotonic() < deadline and not stamp.exists():
+    marker = venv / ".dsh-kline-bootstrap-running"
+    while time.monotonic() < deadline and (not stamp.exists() or marker.exists()):
         time.sleep(0.05)
+    assert stamp.exists(), "background bootstrap did not finish writing the requirements stamp"
     assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
-    assert not (venv / ".dsh-kline-bootstrap-running").exists()
+    assert not marker.exists(), f"background bootstrap left a running marker: {marker.read_text()}"
     assert not (project / ".server-launched").exists()
 
 

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const REQUIREMENTS_FILE = join(PROJECT_ROOT, 'requirements.txt')
-const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings'
+const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings, talib; assert talib.__version__ == "0.8.2" and len(talib.get_functions()) == 201'
 const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 10))'
 const RUNTIME_VERSION_CHECK = 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
@@ -81,11 +81,12 @@ export function pythonCandidates(env = process.env, platform = process.platform)
     ]
   }
   return [
-    'python3', 'python3.13', 'python3.12', 'python3.11', 'python3.10',
-    '/opt/homebrew/bin/python3', '/opt/homebrew/bin/python3.13', '/opt/homebrew/bin/python3.12',
+    'python3.13', 'python3.12', 'python3.11', 'python3.10',
+    '/opt/homebrew/bin/python3.13', '/opt/homebrew/bin/python3.12',
     '/opt/homebrew/bin/python3.11', '/opt/homebrew/bin/python3.10',
-    '/usr/local/bin/python3', '/usr/local/bin/python3.13', '/usr/local/bin/python3.12',
+    '/usr/local/bin/python3.13', '/usr/local/bin/python3.12',
     '/usr/local/bin/python3.11', '/usr/local/bin/python3.10',
+    'python3', '/opt/homebrew/bin/python3', '/usr/local/bin/python3',
     join(homedir(), 'miniforge3', 'bin', 'python'),
     join(homedir(), 'Caskroom', 'miniforge', 'base', 'bin', 'python3'),
     '/opt/homebrew/Caskroom/miniforge/base/bin/python3',

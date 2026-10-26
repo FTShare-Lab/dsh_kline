@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Standalone DeepSeek Harness K-line MCP powered by FTShare.",
   "license": "MIT",
@@ -17,6 +17,10 @@
     "core",
     "docs/images",
     "docs/release-acceptance-v0.4.0.md",
+    "docs/release-acceptance-v0.4.1.md",
+    "docs/release-acceptance-v0.5.0.md",
+    "docs/release-notes-v0.5.0.md",
+    "docs/chart-functions.md",
     "!core/**/__pycache__/**",
     "!core/**/*.py[cod]",
     "lib",

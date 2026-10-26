@@ -44,6 +44,15 @@ class ChartContextTests(unittest.TestCase):
         self.assertFalse(result["live_view_editable"]); self.assertFalse(result["render_verified"])
         self.assertEqual(result["selected_drawing_status"], "not_supported")
 
+    def test_icon_annotation_survives_python_context_read(self):
+        self.record["state"]["drawings"].append({"id": "I", "kind": "icon_annotation", "origin": "ai",
+            "name": "向上提示", "color": "info", "interval": "day", "time": 2, "price": 31.2, "icon": "arrow_up"})
+        self.save()
+        result = read_chart_context(self.token)
+        drawing = next(item for item in result["drawings"] if item["id"] == "I")
+        self.assertEqual((drawing["kind"], drawing["icon"], drawing["time"], drawing["price"]),
+            ("icon_annotation", "arrow_up", 2, 31.2))
+
     def test_unknown_viewport_is_not_loaded_range(self):
         self.record["state"]["visible_range"] = {"available": False}; self.save()
         result = read_chart_context(self.token)

@@ -86,7 +86,7 @@ test('daily channel survives a day-week-day aggregation round trip without snapp
   const original=JSON.stringify(c),objects=new Map<string,any>()
   const state:any={exchangeTimezone:'Asia/Shanghai',currentInterval:'day',currentCandles:rows,kchart:{
     removeOverlay:()=>objects.clear(),createOverlay:(o:any)=>{objects.set(o.id,o);return o.id},getOverlayById:(id:string)=>objects.get(id)??null}}
-  const source=html.slice(html.indexOf('function aggregateRowsForInterval('),html.indexOf('function localFiniteMap('))
+  const source=html.slice(html.indexOf('function aggregateRowsForInterval('),html.indexOf('async function requestTaIndicatorCommands('))
     +html.slice(html.indexOf('function drawAgentChannelCommands('),html.indexOf('function isSupportResistanceLevel('))
   const api=runInNewContext(source+'; ({aggregateRowsForInterval,drawAgentChannelCommands})',state)
   const inspect=()=>collectDrawingFeedback({chartCommands:[c]}, {state:'ready',interval:state.currentInterval,

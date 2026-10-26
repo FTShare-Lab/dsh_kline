@@ -13,6 +13,12 @@ __pycache__/
 .runtime/
 release/
 .tmp-render/
+# Local QA evidence, scratch files and development log are not public source.
+/benchmarks/
+/tmp/
+/output/
+/codex_air.md
+/docs/drawing-foundation-checklist.md
 .env
 .env.*
 # macOS/Finder conflict copies use names such as "foo 2.py". They are local
