@@ -7,7 +7,8 @@ import { InterfaceContext, readAutoOpen } from './mode-preferences'
 import { KLINE_TAB_ID, klineTabTitle, migrateKlineTabTitle } from './sidebar-integration'
 import { installDefaultKlineTabs } from './default-tab'
 
-function KlineTabContent({ sessions, conversationId }: { sessions: Sessions; conversationId?: string }) {
+/** The chart itself, shared by every host tab: Better Sidebar and the native one. */
+export function KlineTabContent({ sessions, conversationId, visible = true }: { sessions: Sessions; conversationId?: string; visible?: boolean }) {
   // Better Sidebar preserves a tab and its previous scope on the host's
   // New Session screen. Never promote an already-present chart from that
   // scope: only an analysis result that arrives while this view is live may
@@ -21,8 +22,8 @@ function KlineTabContent({ sessions, conversationId }: { sessions: Sessions; con
   const selectedReference = liveReference ?? (reference?.recovery ? reference : undefined)
   const onIdentity = useCallback(() => {}, [])
   return selectedReference
-    ? <NativeKlineApp key={selectedReference.session} session={{ ok: true, ...selectedReference, published_at: selectedReference.order }} conversationId={conversationId ?? ''} ownerConversationId={conversationId} onIdentity={onIdentity} />
-    : <StandaloneKlineApp conversationId={standaloneWorkspaceScope(conversationId)} ownerConversationId={conversationId} onIdentity={onIdentity} />
+    ? <NativeKlineApp key={selectedReference.session} session={{ ok: true, ...selectedReference, published_at: selectedReference.order }} conversationId={conversationId ?? ''} ownerConversationId={conversationId} visible={visible} onIdentity={onIdentity} />
+    : <StandaloneKlineApp conversationId={standaloneWorkspaceScope(conversationId)} ownerConversationId={conversationId} visible={visible} onIdentity={onIdentity} />
 }
 function AutoOpen({ service, sessions, conversationId }: { service: BetterSidebarService; sessions: Sessions; conversationId: string }) {
   const onNewChart = useCallback((reference: { session: string }) => {

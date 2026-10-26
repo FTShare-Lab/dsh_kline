@@ -1,37 +1,49 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
-import type { Sessions } from './conversation'
+import type { ClientContext } from './client-context'
 import { ClassicShell } from './ClassicShell'
 import { BetterSidebarBridge } from './BetterSidebarTab'
-import { isSidebarUsable } from './sidebar-integration'
+import { NativeSidebarBridgeView, registerNativeSidebar } from './native-sidebar'
+import { cleanClassicTabs, isSidebarUsable } from './sidebar-integration'
 import { InterfaceContext, readDisplayMode, resolveDisplayMode } from './mode-preferences'
 import { captureOnboarding } from './ui-onboarding'
 
 export const inject = ['sessions']
-interface ClientContext {
-  effect(callback: () => () => void, label?: string): void
-  inject(deps: string[], callback: (ctx: ClientContext) => void): unknown
-  get(name: string): unknown
-  sessions: Sessions
-}
+export type { ClientContext } from './client-context'
+
 export function apply(ctx: ClientContext) {
   let service: BetterSidebarService | undefined
   const listeners = new Set<() => void>()
   const emit = () => listeners.forEach(listener => listener())
+  const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
+  const subscribeSessions = (listener: () => void) => ctx.sessions.list.subscribe(listener)
   const preference = readDisplayMode()
   captureOnboarding()
+  // Registered before the router paints, so the first frame already knows
+  // whether the host owns a right column this plugin can put a tab in.
+  const native = registerNativeSidebar(ctx, emit)
   function Router() {
-    const sidebar = useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener) } }, () => service)
-    const hostHasRightSidebar = useHostRightSidebar()
-    const available = isSidebarUsable(sidebar)
+    const sidebar = useSyncExternalStore(subscribe, () => service)
+    const nativeTab = useSyncExternalStore(subscribe, () => native.available())
+    const conversation = useSyncExternalStore(
+      subscribeSessions,
+      () => ctx.sessions.list.getSnapshot().current,
+    )
+    const available = nativeTab || isSidebarUsable(sidebar)
     const mode = resolveDisplayMode(preference, available)
-    // Better Sidebar does not create a right-side container on the host's
-    // New Session screen. Keep the classic K launcher there even when the
-    // user prefers native tabs, so the plugin never loses its first entry.
-    const showClassicLauncher = mode === 'classic' || !hostHasRightSidebar
+    // A tab body lives in a Session, so before one exists the chart has no
+    // tab to live in — whichever column the host owns. The classic launcher
+    // covers that screen, which is what the old aria-label probe approximated
+    // and only ever got right in an English UI.
+    const showClassicLauncher = mode === 'classic' || conversation === undefined
     return <InterfaceContext.Provider value={{ preference, mode, available }}>
-      {sidebar && <BetterSidebarBridge service={sidebar} sessions={ctx.sessions} />}
+      {/* The host's own column first: it needs no third-party sidebar. */}
+      {nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge={native} sessions={ctx.sessions} />}
+      {!nativeTab && sidebar && <BetterSidebarBridge service={sidebar} sessions={ctx.sessions} />}
+      {/* Native registration owns the tab kind now; tabs this plugin saved
+          under Better Sidebar would render as "plugin not loaded". */}
+      {nativeTab && sidebar && <RetireBetterSidebarTabs service={sidebar} />}
       {showClassicLauncher && <ClassicShell sessions={ctx.sessions} />}
     </InterfaceContext.Provider>
   }
@@ -53,22 +65,13 @@ export function apply(ctx: ClientContext) {
   })
 }
 
-function hostRightSidebarAvailable(): boolean {
-  const control = document.querySelector<HTMLElement>('[aria-label="Open right sidebar"], [aria-label="Collapse right sidebar"]')
-  if (!control) return false
-  const style = window.getComputedStyle(control)
-  const bounds = control.getBoundingClientRect()
-  return style.display !== 'none' && style.visibility !== 'hidden' && bounds.width > 0 && bounds.height > 0
-}
-
-function useHostRightSidebar(): boolean {
-  const [available, setAvailable] = useState(hostRightSidebarAvailable)
-  useEffect(() => {
-    const refresh = () => setAvailable(hostRightSidebarAvailable())
-    refresh()
-    const observer = new MutationObserver(refresh)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [])
-  return available
+/**
+ * Remove the tabs this plugin saved into Better Sidebar's workbench once the
+ * native tab takes the same kind over. Better Sidebar draws a saved tab of an
+ * unregistered type as "plugin not loaded", so an upgrade would otherwise
+ * leave a broken-looking tab behind.
+ */
+function RetireBetterSidebarTabs({ service }: { service: BetterSidebarService }) {
+  useEffect(() => cleanClassicTabs(service), [service])
+  return null
 }
