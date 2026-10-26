@@ -58,7 +58,7 @@ async function fixture() {
   await writeFile(join(runtime,'sessions',parent+'.json'),JSON.stringify(original))
   const sources=new ChartSources(runtime)
   const v:any={ref,conversation:'A',view:viewId,revision:1,active:true,ambiguous:false,applyCapable:true,state:state()}
-  return {runtime,sources,v,original,close:()=>rm(runtime,{recursive:true,force:true})}
+  return {runtime,sources,v,original,close:()=>rm(runtime,{recursive:true,force:true,maxRetries:5,retryDelay:50})}
 }
 function py(runtime:string,body:string):any {
   const script=`import asyncio,json,server,chart_service

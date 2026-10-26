@@ -1,7 +1,5 @@
 import asyncio
 from copy import deepcopy
-import json
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -16,11 +14,10 @@ from tools.draw import draw_kline
 from tools.lines import LineError
 from tools.ta_functions import list_ta_catalog, read_ta, run_ta
 import test_chart_edits as fixtures
+from ta_sample import sample_rows
 
 
-ROOT = Path(__file__).resolve().parents[1]
-FROZEN = json.loads((ROOT / 'benchmarks/2026-10-12/frozen-charts/B05-2.json').read_text())
-ROWS = next(command['rows'] for command in FROZEN['chartCommands'] if command['type'] == 'SET_CANDLES')
+ROWS = sample_rows()
 
 
 class TalibEngineTests(unittest.TestCase):

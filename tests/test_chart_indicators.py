@@ -1,7 +1,5 @@
 """The browser's local chart must use the same TA-Lib series as MCP summaries."""
 
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,11 +8,10 @@ import chart_service
 from core.calc import series_atr, series_macd, series_rsi
 from tools.chart_indicators import calculate_chart_indicators
 from tools.price_series import candle_sequence_hash
+from ta_sample import sample_rows
 
 
-ROOT = Path(__file__).resolve().parents[1]
-FROZEN = json.loads((ROOT / "benchmarks/2026-10-12/frozen-charts/B05-2.json").read_text())
-ROWS = next(command["rows"] for command in FROZEN["chartCommands"] if command["type"] == "SET_CANDLES")
+ROWS = sample_rows()
 
 
 def args(rows=ROWS):
