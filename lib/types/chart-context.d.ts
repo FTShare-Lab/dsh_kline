@@ -1,5 +1,5 @@
 export { sanitizeChartContext } from './chart-observation.ts';
-export declare const CONTEXT_TTL_MS = 30000;
+export declare const CONTEXT_TTL_MS = 90000;
 export declare class ChartContextBroker {
     private records;
     private queue;
