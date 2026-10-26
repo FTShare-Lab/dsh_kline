@@ -1,7 +1,6 @@
 import asyncio
 from copy import deepcopy
 import json
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -18,6 +17,7 @@ from tools.fibonacci import DEFAULT_RATIOS, edit_fibonacci, fibonacci_levels, va
 from tools.lines import LineError
 from tools.ta_functions import run_ta
 import test_chart_edits as fixtures
+from ta_sample import sample_rows
 
 
 class FibonacciTests(unittest.TestCase):
@@ -50,9 +50,7 @@ class ChartFunctionTests(unittest.TestCase):
     def context(self): return read_chart_context(self.f.ref, candle_scope='loaded', limit=4000)
 
     def install_frozen_250_bars(self):
-        frozen = json.loads((Path(__file__).resolve().parents[1]
-            / 'benchmarks/2026-10-12/frozen-charts/B05-2.json').read_text(encoding='utf-8'))
-        rows = next(command['rows'] for command in frozen['chartCommands'] if command['type'] == 'SET_CANDLES')
+        rows = sample_rows()
         self.assertEqual(len(rows), 250)
         self.f.payload['chartCommands'][0]['rows'] = deepcopy(rows)
         self.f.record['state']['candles'] = deepcopy(rows)
