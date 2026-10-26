@@ -151,6 +151,7 @@ test('real HTTP socket loss after real broker delivery stays unconfirmed and sub
     const observed=published[0],prepared=prepare(f.runtime,observed.context_ref,observed.revision)
     const queued=queue(f.runtime,observed.context_ref,prepared.chart_session)
     assert.equal(queued.apply_status,'queued',JSON.stringify(queued))
+    assert.ok(queued.expires_at_ms-Date.now()>30_000,'queued delivery must survive a slow host turn')
     publisher.notify();await until(()=>statuses.at(-1)?.reason==='context_transport_unavailable')
     assert.equal(lost,1);assert.equal(applied,0)
     assert.equal(status(f.runtime,observed.context_ref,prepared.chart_session).apply_status,'delivered')
@@ -367,11 +368,11 @@ test('inline drawing failure restores prior AI state, and a failed restore stays
 test('delivery is not resent after a lost reply; expiration becomes unknown, not applied',async()=>{
   const f=await fixture()
   try {
-    const prepared=prepare(f.runtime,f.ref,1);queue(f.runtime,f.ref,prepared.chart_session)
+    const prepared=prepare(f.runtime,f.ref,1),queued=queue(f.runtime,f.ref,prepared.chart_session)
     const delivered=await f.broker.publish(publication(2,null));assert.ok(delivered.application)
     const retry=await f.broker.publish(publication(3,null));assert.equal(retry.application,undefined)
     assert.equal(queue(f.runtime,f.ref,prepared.chart_session).apply_status,'delivered')
-    const applications=new ChartApplications(f.runtime,()=>Date.now()+31000)
+    const applications=new ChartApplications(f.runtime,()=>queued.expires_at_ms+1)
     await applications.dispatch({ref:f.ref,view,conversation:'A',revision:1,active:true,ambiguous:false,state:sanitizeChartContext(f.state)})
     assert.equal(status(f.runtime,f.ref,prepared.chart_session).apply_status,'outcome_unknown')
   } finally {await f.cleanup()}
