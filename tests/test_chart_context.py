@@ -92,7 +92,10 @@ class ChartContextTests(unittest.TestCase):
 
     def test_stale_inactive_ambiguous_foreign_or_missing_never_fall_back(self):
         original = deepcopy(self.record)
-        cases = [({"observed_at_ms": 69000}, "chart_context_stale"), ({"active": False}, "chart_view_inactive"),
+        self.record = {**original, "observed_at_ms": 40000}
+        self.save()
+        self.assertEqual(read_chart_context(self.token)["revision"], 1)
+        cases = [({"observed_at_ms": 9000}, "chart_context_stale"), ({"active": False}, "chart_view_inactive"),
                  ({"ambiguous": True}, "ambiguous_chart_views"), ({"host_process_id": 4243}, "chart_context_unavailable")]
         for changes, code in cases:
             self.record = {**original, **changes}; self.save()

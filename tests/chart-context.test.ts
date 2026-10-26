@@ -101,6 +101,7 @@ test('broker scopes by trusted agent.session.id, revisions/sequence, stale views
     await broker.publish({...publication('c'.repeat(32),'A',2,false),state:null})
     assert.ok(broker.prompt(assembly('A')).includes(a.context_ref))
     assert.equal(JSON.parse(await readFile(join(directory,second.context_ref+'.json'),'utf8')).active,false)
+    now+=60_000; assert.ok(broker.prompt(assembly('A')).includes(a.context_ref))
     now+=31_000; assert.match(broker.prompt(assembly('A')),/unavailable/)
     await assert.rejects(broker.publish({...publication(),captured_at_ms:now-6000}),/identity/)
   } finally { await rm(directory,{recursive:true,force:true}) }

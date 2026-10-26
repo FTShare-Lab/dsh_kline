@@ -9,7 +9,8 @@ import { ChartSources } from './chart-sources.ts'
 import { sourceStatus, sourceFailure } from './chart-source-status.ts'
 export { sanitizeChartContext } from './chart-observation.ts'
 
-export const CONTEXT_TTL_MS = 30_000
+// Allow a human confirmation (or a slow host) without relaxing source/revision checks.
+export const CONTEXT_TTL_MS = 90_000
 const TOKEN = /^[A-Za-z0-9_-]{32}$/
 interface ViewRecord {
   ref: string; conversation: string; view: string; sequence: number; revision: number

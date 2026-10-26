@@ -139,7 +139,7 @@ class GuardedEditTests(unittest.TestCase):
     def test_inactive_ambiguous_stale_loading_and_missing_source_rejected(self):
         original = deepcopy(self.record)
         for changes, code in [({"active": False}, "chart_view_inactive"), ({"ambiguous": True}, "ambiguous_chart_views"),
-                              ({"observed_at_ms": 60000}, "chart_context_stale")]:
+                              ({"observed_at_ms": 9000}, "chart_context_stale")]:
             self.record = {**original, **changes}; self.save_context(); self.assert_code(code, self.prepare)
         self.record = deepcopy(original); self.record["state"]["state"] = "loading"; self.save_context()
         self.assert_code("chart_edit_context_not_ready", self.prepare)

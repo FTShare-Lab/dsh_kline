@@ -86,7 +86,7 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
     if isinstance(observed, bool) or not isinstance(observed, (int, float)) or not math.isfinite(observed):
         raise LineError("invalid_chart_context", "图表观察时间无效。")
     age = time.time() * 1000 - observed
-    if age > 30_000 or age < -5000:
+    if age > 90_000 or age < -5000:
         raise LineError("chart_context_stale", "图表上下文已过期或时钟异常，请等待网页重新上报；未回退到旧行情快照。")
     if saved.get("active") is not True: raise LineError("chart_view_inactive", "该图表视图已关闭或未活动。")
     if saved.get("ambiguous") is not False: raise LineError("ambiguous_chart_views", "该对话存在多个活动视图，不能确定当前图；请保留一个活动图表视图。")
