@@ -148,16 +148,30 @@ test('real HTTP socket loss after real broker delivery stays unconfirmed and sub
       // Mac CI may spend tens of seconds in the synchronous Python fixture.
       publicationTimeoutMs:90000,onSourceStatus:s=>statuses.push(s),apply:()=>{applied++}})
     await until(()=>statuses.at(-1)?.reason==='not_checked')
-    const observed=published[0],prepared=prepare(f.runtime,observed.context_ref,observed.revision)
-    const queued=queue(f.runtime,observed.context_ref,prepared.chart_session)
-    assert.equal(queued.apply_status,'queued',JSON.stringify(queued))
-    assert.ok(queued.expires_at_ms-Date.now()>30_000,'queued delivery must survive a slow host turn')
+    // Seed the immutable queue record directly: this test exercises real HTTP
+    // delivery/loss, while Python prepare/queue is covered by the separate
+    // end-to-end test. Slow subprocess startup must not consume the browser's
+    // deliberately bounded 8-second publication timeout here.
+    const observed=published[0],token='c'.repeat(32),requestId='socket-loss-test'
+    const guard={protocol:'prepared-only-v1',context_ref:observed.context_ref,conversation_id:'A',view_id:view,
+      expected_revision:observed.revision,request_id:requestId}
+    const candidate={...f.payload,drawing_guard:guard}
+    const edits=join(f.runtime,'edits',String(process.pid),observed.context_ref)
+    await mkdir(join(edits,'applications'),{recursive:true})
+    await writeFile(join(f.runtime,'sessions',token+'.json'),JSON.stringify({ok:true,session:token,
+      host_process_id:process.pid,payload:candidate}))
+    await writeFile(join(edits,'applications',token+'.json'),JSON.stringify({host_process_id:process.pid,
+      context_ref:observed.context_ref,candidate_chart_session:token,conversation_id:'A',view_id:view,
+      expected_revision:observed.revision,request_id:requestId,status:'queued',created_at_ms:Date.now(),
+      expires_at_ms:Date.now()+30_000,base_state:sanitizeChartContext(f.state)}))
+    await writeFile(join(edits,'pending.json'),JSON.stringify({candidate_chart_session:token}))
     publisher.notify();await until(()=>statuses.at(-1)?.reason==='context_transport_unavailable')
     assert.equal(lost,1);assert.equal(applied,0)
-    assert.equal(status(f.runtime,observed.context_ref,prepared.chart_session).apply_status,'delivered')
+    const record=async()=>JSON.parse(await readFile(join(edits,'applications',token+'.json'),'utf8'))
+    assert.equal((await record()).status,'delivered')
     const count=published.length;publisher.notify();await until(()=>published.length>count)
     assert.equal(published.at(-1).application,undefined);assert.equal(lost,1);assert.equal(applied,0)
-    assert.equal(status(f.runtime,observed.context_ref,prepared.chart_session).apply_status,'delivered')
+    assert.equal((await record()).status,'delivered')
     assert.ok(bodies.every(b=>!b.receipt));assert.deepEqual(f.state,base())
   } finally {
     publisher?.dispose();await new Promise(resolve=>setTimeout(resolve,50));globalThis.fetch=nativeFetch
@@ -368,11 +382,11 @@ test('inline drawing failure restores prior AI state, and a failed restore stays
 test('delivery is not resent after a lost reply; expiration becomes unknown, not applied',async()=>{
   const f=await fixture()
   try {
-    const prepared=prepare(f.runtime,f.ref,1),queued=queue(f.runtime,f.ref,prepared.chart_session)
+    const prepared=prepare(f.runtime,f.ref,1);queue(f.runtime,f.ref,prepared.chart_session)
     const delivered=await f.broker.publish(publication(2,null));assert.ok(delivered.application)
     const retry=await f.broker.publish(publication(3,null));assert.equal(retry.application,undefined)
     assert.equal(queue(f.runtime,f.ref,prepared.chart_session).apply_status,'delivered')
-    const applications=new ChartApplications(f.runtime,()=>queued.expires_at_ms+1)
+    const applications=new ChartApplications(f.runtime,()=>Date.now()+31000)
     await applications.dispatch({ref:f.ref,view,conversation:'A',revision:1,active:true,ambiguous:false,state:sanitizeChartContext(f.state)})
     assert.equal(status(f.runtime,f.ref,prepared.chart_session).apply_status,'outcome_unknown')
   } finally {await f.cleanup()}

@@ -197,10 +197,7 @@ def request_chart_apply(context_ref: str, candidate: str) -> dict:
             existing = {"host_process_id": chart_service.HOST_PROCESS_ID, "context_ref": context_ref,
                 "candidate_chart_session": candidate, "conversation_id": context["conversation_id"], "view_id": context["view_id"],
                 "expected_revision": guard["expected_revision"], "request_id": guard["request_id"], "status": "queued",
-                # Match the live-context lease: a slow host may spend more than
-                # 30 seconds between queueing and the next browser publication.
-                # Dispatch still rechecks the view revision and complete state.
-                "created_at_ms": now, "expires_at_ms": now + 90_000, "base_state": observation["state"]}
+                "created_at_ms": now, "expires_at_ms": now + 30000, "base_state": observation["state"]}
             chart_service._atomic_runtime_json(path, existing)
         chart_service._atomic_runtime_json(pending, {"candidate_chart_session": candidate})
         return application_status(existing)
