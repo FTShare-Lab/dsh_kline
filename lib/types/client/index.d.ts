@@ -1,10 +1,4 @@
-import type { Sessions } from './conversation';
+import type { ClientContext } from './client-context';
 export declare const inject: string[];
-interface ClientContext {
-    effect(callback: () => () => void, label?: string): void;
-    inject(deps: string[], callback: (ctx: ClientContext) => void): unknown;
-    get(name: string): unknown;
-    sessions: Sessions;
-}
+export type { ClientContext } from './client-context';
 export declare function apply(ctx: ClientContext): void;
-export {};

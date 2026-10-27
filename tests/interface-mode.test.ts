@@ -72,16 +72,20 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   assert.match(tab, /visible && interfaceState\.mode === 'better-sidebar'/)
   assert.match(tab, /only an analysis result that arrives while this view is live may/)
 })
-test('classic mode and the host New Session launcher keep the K button while the native tab remains available without auto-opening', () => {
+test('the classic launcher covers screens without a Session; the native path only auto-opens in tab mode', () => {
   const router = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')
-  assert.match(router, /\{sidebar && <BetterSidebarBridge service=\{sidebar\} sessions=\{ctx\.sessions\} \/>\}/)
-  assert.match(router, /function hostRightSidebarAvailable\(\): boolean/)
-  assert.match(router, /Open right sidebar/)
-  assert.match(router, /Collapse right sidebar/)
-  assert.match(router, /bounds\.width > 0 && bounds\.height > 0/)
-  assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| !hostHasRightSidebar/)
+  assert.match(router, /\{!nativeTab && sidebar && <BetterSidebarBridge service=\{sidebar\} sessions=\{ctx\.sessions\} \/>\}/)
+  // A tab body lives in a Session, so the launcher has to cover the rest.
+  assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| conversation === undefined/)
+  // Auto-open belongs to the tab interface, not to a classic-preferring user.
+  assert.match(router, /\{nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge=\{native\} sessions=\{ctx\.sessions\} \/>\}/)
+  // Availability comes from the services, never from the host's UI language.
+  assert.ok(!router.includes('hostRightSidebarAvailable'))
+  assert.ok(!router.includes('Open right sidebar'))
+  assert.ok(!router.includes('Collapse right sidebar'))
   assert.match(router, /\{showClassicLauncher && <ClassicShell sessions=\{ctx\.sessions\} \/>\}/)
-  assert.ok(!router.includes('cleanClassicTabs'))
+  // Native takes the kind over, so saved Better Sidebar tabs are retired.
+  assert.match(router, /cleanClassicTabs\(service\)/)
 })
 test('classic K rail cannot paint over a welcome dialog in the chart panel', () => {
   const classic = readFileSync(new URL('../src/client/ClassicShell.tsx', import.meta.url), 'utf8')
