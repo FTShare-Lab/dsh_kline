@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { PACKAGE_VERSION } from './generated-view'
-import type { Sessions } from './conversation'
+import { currentConversationId, type Sessions } from './conversation'
 import { useChartReference } from './chart-session-resolver'
 import { isNewerStableVersion } from './version'
 import { NativeKlineApp, StandaloneKlineApp, standaloneChartSession, standaloneWorkspaceScope, isSymbolLikeName, type ChartSession, type ChartIdentity } from './KlineContent'
@@ -33,7 +33,8 @@ export function ClassicShell({ sessions }: { sessions: Sessions }) {
     }
   }, [])
   const list = useSyncExternalStore(listener => sessions.list.subscribe(listener), () => sessions.list.getSnapshot())
-  return <KlineSidebar key={list.current ?? 'no-conversation'} conversationId={list.current} sessions={sessions} />
+  const conversationId = currentConversationId(list)
+  return <KlineSidebar key={conversationId ?? 'no-conversation'} conversationId={conversationId} sessions={sessions} />
 }
 
 function KlineSidebar({ conversationId, sessions }: { conversationId?: string; sessions: Sessions }) {

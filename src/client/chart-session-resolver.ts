@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { latestChart, latestChartFromEvents, type ChartReference, type Sessions } from './conversation'
+import { currentConversationId, latestChart, latestChartFromEvents, type ChartReference, type Sessions } from './conversation'
 const EMPTY_CONVERSATION = { nodes: [] }
 const EMPTY_EVENTS = { entries: [] }
 export function useChartReference(sessions: Sessions, conversationId?: string, onNewChart?: (reference: ChartReference) => void) {
@@ -29,7 +29,7 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
   useEffect(() => {
     // Use only the host's actual active conversation. No browser-cache or
     // global-latest discovery: the server checks a confirmed application.
-    if (!conversationId || sessions.list.getSnapshot().current !== conversationId) return
+    if (!conversationId || currentConversationId(sessions.list.getSnapshot()) !== conversationId) return
     const controller = new AbortController()
     void fetch('/dsh-kline/recovery?conversation=' + encodeURIComponent(conversationId), {cache:'no-store',signal:controller.signal})
       .then(response=>response.json()).then(saved=>{

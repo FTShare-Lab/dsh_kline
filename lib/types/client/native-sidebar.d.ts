@@ -1,5 +1,5 @@
 import type { ClientContext } from './client-context';
-import type { Sessions } from './conversation';
+import { type Sessions } from './conversation';
 import type { NativeTabBodyProps } from './native-sidebar-services';
 /**
  * The chart as a tab of the host's own right column.

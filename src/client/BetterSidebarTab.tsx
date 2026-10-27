@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import type { BetterSidebarService, TabComponentProps } from 'dsh-better-sidebar'
-import type { Sessions } from './conversation'
+import { currentConversationId, type Sessions } from './conversation'
 import { useChartReference } from './chart-session-resolver'
 import { NativeKlineApp, StandaloneKlineApp, standaloneWorkspaceScope } from './KlineContent'
 import { InterfaceContext, readAutoOpen } from './mode-preferences'
@@ -55,6 +55,7 @@ function KlineTabFrame({service, sessions, scope, tab, visible}: TabComponentPro
 export function BetterSidebarBridge({ service, sessions }: { service: BetterSidebarService; sessions: Sessions }) {
   const interfaceState = useContext(InterfaceContext)
   const list = useSyncExternalStore(listener => sessions.list.subscribe(listener), () => sessions.list.getSnapshot())
+  const activeConversation = currentConversationId(list)
   const isNativeTabMode = interfaceState.mode === 'better-sidebar'
   useEffect(() => {
     const dispose = service.registerTab({
@@ -74,7 +75,7 @@ export function BetterSidebarBridge({ service, sessions }: { service: BetterSide
     const stopDefaults = isNativeTabMode ? installDefaultKlineTabs(service) : () => {}
     return () => { stopDefaults(); dispose() }
   }, [service, sessions, interfaceState, isNativeTabMode])
-  return isNativeTabMode && list.current
-    ? <AutoOpen key={list.current} service={service} sessions={sessions} conversationId={list.current} />
+  return isNativeTabMode && activeConversation
+    ? <AutoOpen key={activeConversation} service={service} sessions={sessions} conversationId={activeConversation} />
     : null
 }

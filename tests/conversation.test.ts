@@ -1,6 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { latestChart, latestChartFromEvents, chartStorageKey } from '../src/client/conversation.ts'
+import { latestChart, latestChartFromEvents, chartStorageKey, currentConversationId } from '../src/client/conversation.ts'
+
+test('active conversation resolves old and DSH 0.2 session catalogs without guessing', () => {
+  assert.equal(currentConversationId({ current: 'old-session' }), 'old-session')
+  assert.equal(currentConversationId({ byId: {
+    inactive: { retainedBy: { mainView: 0 } },
+    active: { retainedBy: { mainView: 1 } },
+  } }), 'active')
+  assert.equal(currentConversationId({ byId: {} }), undefined)
+  assert.equal(currentConversationId({ byId: {
+    one: { retainedBy: { mainView: 1 } },
+    two: { retainedBy: { mainView: 1 } },
+  } }), undefined)
+})
 
 const a = 'a'.repeat(32), b = 'b'.repeat(32)
 const result = (token: string, time: number, extra = {}) => ({

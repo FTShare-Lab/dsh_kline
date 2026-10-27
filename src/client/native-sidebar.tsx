@@ -2,7 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useChartReference } from './chart-session-resolver'
 import { KlineTabContent } from './BetterSidebarTab'
 import type { ClientContext } from './client-context'
-import type { Sessions } from './conversation'
+import { currentConversationId, type Sessions } from './conversation'
 import { InterfaceContext, readAutoOpen, readDisplayMode, resolveDisplayMode } from './mode-preferences'
 import { registerNativeTab, type NativeTabRegistration } from './native-sidebar-register'
 import type { NativeTabBodyProps, SidebarRightService, SidebarRightTabsService, SlotsService } from './native-sidebar-services'
@@ -30,7 +30,7 @@ export function NativeKlineTabBody({ sessionId, sessions, useTabInfo }: NativeTa
   const preference = useMemo(readDisplayMode, [])
   const mode = resolveDisplayMode(preference, true)
   const subscribe = useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions])
-  const activeConversation = useSyncExternalStore(subscribe, () => sessions.list.getSnapshot().current)
+  const activeConversation = useSyncExternalStore(subscribe, () => currentConversationId(sessions.list.getSnapshot()))
   return (
     <InterfaceContext.Provider value={{ preference, mode, available: true }}>
       <div data-dsh-kline-tab="" style={{ width: '100%', height: '100%', minHeight: 0, overflow: 'hidden' }}>
@@ -60,8 +60,9 @@ function NativeAutoOpen({ sessions, conversationId, bridge }: { sessions: Sessio
 export function NativeSidebarBridgeView({ bridge, sessions }: { bridge: NativeSidebarBridge; sessions: Sessions }) {
   const subscribe = useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions])
   const list = useSyncExternalStore(subscribe, () => sessions.list.getSnapshot())
-  return list.current
-    ? <NativeAutoOpen key={list.current} bridge={bridge} sessions={sessions} conversationId={list.current} />
+  const activeConversation = currentConversationId(list)
+  return activeConversation
+    ? <NativeAutoOpen key={activeConversation} bridge={bridge} sessions={sessions} conversationId={activeConversation} />
     : null
 }
 

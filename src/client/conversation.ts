@@ -7,12 +7,29 @@ export interface Observable<T> {
 }
 export interface ConversationSnapshot { nodes?: readonly any[] }
 export interface SessionEventWindow { entries: readonly { type: string; event: any }[] }
+export interface SessionListSnapshot {
+  // DSH 0.1.x exposes the selected conversation directly.
+  current?: string
+  // DSH 0.2.x keeps the catalog separate from selection. The main view's
+  // retention identifies its active Session without inspecting the DOM.
+  byId?: Record<string, { retainedBy?: { mainView?: number } }>
+}
 export interface Sessions {
-  list: Observable<{ current?: string }>
+  list: Observable<SessionListSnapshot>
   binding(id: string): {
     session: Observable<ConversationSnapshot>
     eventSource?: Observable<SessionEventWindow>
   } | undefined
+}
+
+/** Resolve one active conversation across the two public DSH session shapes. */
+export function currentConversationId(snapshot: SessionListSnapshot): string | undefined {
+  if (typeof snapshot.current === 'string' && snapshot.current.length > 0) return snapshot.current
+  const active = Object.entries(snapshot.byId ?? {})
+    .filter(([, row]) => typeof row?.retainedBy?.mainView === 'number' && row.retainedBy.mainView > 0)
+    .map(([id]) => id)
+  // More than one main-view holder is ambiguous: never guess an owner.
+  return active.length === 1 ? active[0] : undefined
 }
 
 // Harness 0.1.2 moved rendered nodes out of SessionSnapshot. Consume the

@@ -181,7 +181,7 @@ test('without a usable host the plugin registers nothing and disposes safely', (
 test('the body only mounts the active conversation in Tab mode and passes visibility down', () => {
   assert.match(nativeSource, /const visible = useTabInfo\(\)\.tab\.visible/)
   assert.match(nativeSource, /const mode = resolveDisplayMode\(preference, true\)/)
-  assert.match(nativeSource, /const activeConversation = useSyncExternalStore\(subscribe, \(\) => sessions\.list\.getSnapshot\(\)\.current\)/)
+  assert.match(nativeSource, /const activeConversation = useSyncExternalStore\(subscribe, \(\) => currentConversationId\(sessions\.list\.getSnapshot\(\)\)\)/)
   assert.match(nativeSource, /mode !== 'better-sidebar'/)
   assert.match(nativeSource, /activeConversation !== sessionId/)
   assert.match(nativeSource, /<KlineTabContent key=\{sessionId\} sessions=\{sessions\} conversationId=\{sessionId\} visible=\{visible\} \/>/)

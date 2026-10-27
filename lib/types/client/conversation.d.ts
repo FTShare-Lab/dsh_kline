@@ -17,15 +17,23 @@ export interface SessionEventWindow {
         event: any;
     }[];
 }
-export interface Sessions {
-    list: Observable<{
-        current?: string;
+export interface SessionListSnapshot {
+    current?: string;
+    byId?: Record<string, {
+        retainedBy?: {
+            mainView?: number;
+        };
     }>;
+}
+export interface Sessions {
+    list: Observable<SessionListSnapshot>;
     binding(id: string): {
         session: Observable<ConversationSnapshot>;
         eventSource?: Observable<SessionEventWindow>;
     } | undefined;
 }
+/** Resolve one active conversation across the two public DSH session shapes. */
+export declare function currentConversationId(snapshot: SessionListSnapshot): string | undefined;
 export declare function latestChartFromEvents(entries: SessionEventWindow['entries']): ChartReference | undefined;
 export declare function latestChart(nodes: readonly any[]): ChartReference | undefined;
 export declare function chartStorageKey(conversationId: string): string;

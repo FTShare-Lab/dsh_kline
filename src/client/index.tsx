@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 import type { ClientContext } from './client-context'
+import { currentConversationId } from './conversation'
 import { ClassicShell } from './ClassicShell'
 import { BetterSidebarBridge } from './BetterSidebarTab'
 import { NativeSidebarBridgeView, registerNativeSidebar } from './native-sidebar'
@@ -28,7 +29,7 @@ export function apply(ctx: ClientContext) {
     const nativeTab = useSyncExternalStore(subscribe, () => native.available())
     const conversation = useSyncExternalStore(
       subscribeSessions,
-      () => ctx.sessions.list.getSnapshot().current,
+      () => currentConversationId(ctx.sessions.list.getSnapshot()),
     )
     const available = nativeTab || isSidebarUsable(sidebar)
     const mode = resolveDisplayMode(preference, available)
