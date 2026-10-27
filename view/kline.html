@@ -1012,7 +1012,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionSource" hidden>
-          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">FTShare 是默认数据源；日 K 与常用指标可直接使用，分钟 K、新闻和其他内容取决于接口与套餐。</span></div>
+          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">FTShare 免费套餐也需要 API Key 才能获取个股 K 线；未配置时仅部分大盘指数可使用备用行情。</span></div>
           <div class="settings-info"><div class="settings-info-title" id="settingsCurrentChartTitle">当前图数据</div><div id="settingsSourceStatus"></div></div>
           <div class="source-autoload"><strong data-i18n="sourceAutoloadTitle">自动使用已有的 FTShare Key</strong><span data-i18n="sourceAutoload">dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。</span></div>
           <div class="settings-provider">
@@ -1031,7 +1031,7 @@
             <label class="settings-provider-persist"><input id="ftsharePersistInput" type="checkbox" checked /><span data-i18n="ftsharePersist">保存到本机（推荐）</span></label>
             <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
             <div class="settings-provider-status" id="ftshareConfigStatus" role="status" aria-live="polite"></div>
-            <div class="settings-provider-note" data-i18n="sourceFreeMode">FTShare 按套餐提供不同数据权限：免费版可用基础股票 K 线；分钟 K、新闻等能力以具体接口和套餐为准。</div>
+            <div class="settings-provider-note" data-i18n="sourceFreeMode">注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。</div>
             <div class="settings-link-row"><a href="https://ftai.chat/?tab=ft-share" target="_blank" rel="noopener noreferrer" data-i18n="ftshareWebsite">打开 FTShare 官网</a><a href="https://market.ft.tech/gateway/doc/p/pb8eizu3" target="_blank" rel="noopener noreferrer" data-i18n="ftshareDocs">查看 API 文档</a></div>
           </div>
         </section>
@@ -1357,7 +1357,7 @@
     </ul>
     <div class="welcome-ftshare">
       <div class="welcome-ftshare-title" data-i18n="welcomeFtshareTitle">想使用更多数据？</div>
-      <div data-i18n="welcomeFtshareDetail">FTShare 按套餐提供不同数据权限，具体可用能力以当前套餐和接口为准。</div>
+      <div data-i18n="welcomeFtshareDetail">查看个股 K 线需配置 FTShare Key；可免费注册。未配置时，仅部分大盘指数有备用行情。</div>
     </div>
     <div class="welcome-actions"><button class="btn" id="welcomeLaterBtn" type="button" data-i18n="welcomeLater">稍后设置</button><button class="btn primary" id="welcomeConfigureBtn" type="button" data-i18n="welcomeConfigure">配置 FTShare</button></div>
   </section>
@@ -1813,6 +1813,32 @@ Object.assign(UI_COPY.en, {
   companyProfile: "Company profile",
   financialSnapshot: "Financial snapshot",
   ownershipSnapshot: "Ownership",
+});
+// A free FTShare account is different from making anonymous requests. Keep
+// these entitlement messages together so the source and error UI agree.
+Object.assign(UI_COPY.zh, {
+  sourceIntro: "FTShare 免费套餐也需要 API Key 才能获取个股 K 线；未配置时仅部分大盘指数可使用备用行情。",
+  sourceFreeMode: "注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。",
+  ftshareStatusAnonymous: "未配置 API Key",
+  ftshareHintAnonymous: "个股 K 线请先注册并配置免费的 FTShare Key；部分大盘指数可使用备用行情。",
+  ftshareConfigInvalid: "请输入 API Key，或关闭此配置窗口。",
+  ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY",
+  ftshareMinuteKeyRequired: "分钟 K 需要有效 Key 和相应套餐权限；请检查数据源配置。",
+  welcomeFtshareDetail: "查看个股 K 线需配置 FTShare Key；可免费注册。未配置时，仅部分大盘指数有备用行情。",
+  noKeyStockData: "未配置 FTShare Key，本次 K 线请求未获数据。免费套餐也需要 Key；可在设置中配置，或先查看部分大盘指数。",
+  configureDataSource: "配置数据源",
+});
+Object.assign(UI_COPY.en, {
+  sourceIntro: "A free FTShare account still needs an API key for stock candles. Without a key, only some major indices have fallback data.",
+  sourceFreeMode: "Register a free FTShare key for stock candles allowed by your plan. Minute bars, news, and other data depend on the endpoint and plan.",
+  ftshareStatusAnonymous: "API key not configured",
+  ftshareHintAnonymous: "Register and configure a free FTShare key for stock candles. Some major indices can use fallback data.",
+  ftshareConfigInvalid: "Enter an API key, or close this configuration window.",
+  ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY",
+  ftshareMinuteKeyRequired: "Minute bars require a valid key and access under your plan. Check Data source settings.",
+  welcomeFtshareDetail: "Stock candles require an FTShare key, which you can register for free. Without one, only some major indices have fallback data.",
+  noKeyStockData: "No FTShare key is configured, and this chart could not load. Even the free plan requires a key; configure one in Settings or view a supported major index.",
+  configureDataSource: "Configure data source",
 });
 const RANGE_COPY = {
   zh: { statistics: "区间统计", startTime: "开始时间", endTime: "结束时间", volume: "成交量", detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
@@ -7418,6 +7444,11 @@ function showError(msg) {
   el.textContent = msg;
 }
 function dataFetchFailureDetail(error) {
+  const code = String(error?.code || error?.error_code || "").toLowerCase();
+  if (error?.ftshare_key_configured === false && ["rate_limited", "auth_required", "invalid_key"].includes(code)) return t("noKeyStockData");
+  if (code === "rate_limited") return t("ftshareProbeRateLimited");
+  if (code === "capability_limited" || code === "insufficient_quota") return t("ftshareProbePlanLimited");
+  if (code === "auth_required" || code === "invalid_key") return t("ftshareProbeAuthRequired");
   const raw = String(error?.message || error || "").trim();
   if (!raw) return "--";
   const http = raw.match(/HTTP\s+(\d{3})/i);
@@ -7457,7 +7488,10 @@ function showDataFetchError(error, request) {
     ? t("friendlyNotice")
     : t("dataFailed");
   el.innerHTML = `<span class="err-message">${escapeHtml(prefix)}：${escapeHtml(detail)}</span>` +
-    `<button class="btn" id="retryDataFetchBtn" type="button">${escapeHtml(t("retry"))}</button>`;
+    `<button class="btn" id="retryDataFetchBtn" type="button">${escapeHtml(t("retry"))}</button>` +
+    (error?.ftshare_key_configured === false && ["rate_limited", "auth_required", "invalid_key"].includes(String(error?.code || "").toLowerCase())
+      ? `<button class="btn" id="configureDataSourceBtn" type="button">${escapeHtml(t("configureDataSource"))}</button>`
+      : "");
 }
 function isIntradayKeyRequired(error) {
   return isIntradayRange() && /HTTP\s+401/i.test(String(error?.message || error || ""));
@@ -9066,6 +9100,9 @@ function ftshareResultMessage(data, fallbackKey = "ftshareConfigFailed") {
     if (daily === "available" && ["insufficient_quota", "capability_limited"].includes(minute)) return t("ftshareProbeDailyPlan");
     return t(daily === "available" ? "ftshareProbeDailyOnly" : "ftshareProbeNone");
   }
+  if (data?.configured === false && ["auth_required", "rate_limited", "invalid_key"].includes(data?.error)) {
+    return t("noKeyStockData");
+  }
   const errorKeys = {
     invalid_key: "ftshareProbeInvalidKey", invalid_api_key: "ftshareProbeInvalidKey",
     auth_required: "ftshareProbeAuthRequired", capability_limited: "ftshareProbePlanLimited",
@@ -9752,7 +9789,6 @@ async function searchSymbols(query) {
   const cached = cachedSymbolSearch(q);
   if (exactCache && Date.now() - exactCache.at <= SYMBOL_SEARCH_CACHE_TTL_MS && cached.length) {
     setSearchResults(cached, q);
-    scheduleSymbolPrefetch(cached, q);
     return;
   }
   // Render any locally-known match immediately.  User profiles may have a
@@ -9783,7 +9819,6 @@ async function searchSymbols(query) {
     if (!results.length && structured.message && resultsEl) {
       resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(structured.message)}</div>`;
     }
-    scheduleSymbolPrefetch(results, q);
   } catch (error) {
     if (!stillCurrent()) return;
     // Keep usable local matches, and put the failure where the user searched.
@@ -9826,7 +9861,10 @@ async function openSymbol(symbol, name, options = {}) {
       : await callMarketTool("fetch_candles", candleRequest);
     fetched = fetchedResult?.structuredContent || fetchedResult || {};
     if (fetchedResult?.isError || !fetched.ok || !Array.isArray(fetched.rows)) {
-      throw new Error(fetched.message || fetched.error || "fetch failed");
+      throw Object.assign(new Error(fetched.message || fetched.error || "fetch failed"), {
+        code: fetched.error_code || fetched.error || "",
+        ftshare_key_configured: fetched.ftshare_key_configured,
+      });
     }
     if (window.__DSH_KLINE_DISPOSED__ || requestId !== symbolOpenRequestId) return;
     const requestedSessions = Number(fetched.requested_sessions || fetched.requestedSessions || 0);
@@ -9890,16 +9928,8 @@ async function openSymbol(symbol, name, options = {}) {
       finishChartLoading(t("dataReady"));
       finishActivityNotice(t("dataReady"));
     }
-    // Warm a genuine five-session minute series as soon as a symbol is open.
-    // The request is non-blocking and cached by both the sidebar and server,
-    // so a later 5D click is instant for accounts with minute-history access.
-    // Unsupported/free accounts simply keep their normal daily experience: the
-    // prefetch failure is swallowed inside prefetchCandleData.
-    if (!intraday && !isFtshareIntradayUnsupportedSymbol(nextSymbol)) {
-      window.setTimeout(() => {
-        prefetchCandleData(candleFetchArgs(nextSymbol, { rangeKey: "5d" }));
-      }, 0);
-    }
+    // Minute history is requested only when the user opens 1D/5D. A hidden
+    // prefetch here consumed quota even for users browsing daily charts.
     // The data workspace is intentionally non-blocking: K lines should be
     // visible even when a news or fundamental endpoint is slow or unavailable.
     if (!options.skipWorkspace) loadSecurityWorkspace(currentSymbol, currentName).catch(console.warn);
@@ -10508,6 +10538,11 @@ document.getElementById("marketTickerMeta").addEventListener("click", (event) =>
   if (button) refreshMarketData().catch(console.warn);
 });
 document.getElementById("errorBox").addEventListener("click", (event) => {
+  if (event.target instanceof Element && event.target.closest("#configureDataSourceBtn")) {
+    setSettingsOpen(true);
+    showSettingsSection("ftshare");
+    return;
+  }
   const button = event.target instanceof Element ? event.target.closest("#retryDataFetchBtn") : null;
   if (button) retryLastDataFetch().catch(console.warn);
 });
@@ -10931,7 +10966,6 @@ async function init() {
     if (window.__DSH_KLINE_DISPOSED__) return;
     startWatchlistQuoteRefresh();
     scheduleSymbolDirectoryRefresh();
-    scheduleCommonIndexPrefetch();
   }, MARKET_BACKGROUND_DELAY_MS);
   window.setTimeout(showWelcomeIfFirstRun, 300);
   reportSize();

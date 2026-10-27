@@ -2,9 +2,13 @@
 
 [简体中文](README.md) | English
 
+[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#get-started) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+
 Analyze, draw, and revise a K-line chart through natural language in DeepSeek Harness—or pick anchors yourself on the chart. Chat and the drawing workbench share the current chart and its protected objects: levels, trend lines, channels, range boxes, Fibonacci retracements, ABC labels, and selected drawable indicators.
 
 > Quotes and technical analysis are for research and education only, not investment advice.
+
+[Features](#what-it-helps-you-do) · [Live drawing preview](#preview) · [Install and start](#get-started) · [Sidebar compatibility](#sidebar-compatibility) · [Drawing tools](#drawing-through-chat-and-the-workbench) · [Data sources](#quotes-and-data-sources) · [FAQ](#frequently-asked-questions)
 
 ## What it helps you do
 
@@ -20,28 +24,13 @@ Analyze, draw, and revise a K-line chart through natural language in DeepSeek Ha
 
 ## Preview
 
-ABC on BYD's daily chart: select A, B, and C, save the group, then move C to a new price. This is an editable polyline, **not automatic Elliott-wave recognition**.
+Live natural-language example: DeepSeek screened the watchlist for an ABC **candidate** in Wolong Electric, checked the four 0/A/B/C anchors against candles, and used the plugin to draw them. This unedited full-page capture shows the conversation, application result, and visible chart together. The host interprets the pattern; a rules-based candidate is not a verified Elliott-wave conclusion.
 
-![BYD daily chart with a saved ABC polyline and A/B/C price labels; the workbench shows C's revised price](docs/images/abc-drawing-v0.5.0.jpg)
+![Full DSH Web page: DeepSeek checks four ABC candidate anchors for Wolong Electric while the daily chart displays the corresponding polyline and labels](docs/images/natural-language-abc-wolong-2026-10-27.png)
 
-The same workbench supports a three-anchor parallel channel with an optional midpoint line.
+In the same chart, a follow-up natural-language request adds a descending channel. DeepSeek checks its three-anchor geometry and price deviations; the plugin applies it as a separate object while preserving the ABC labels. The lines are visible, but their trading relevance still requires independent judgment.
 
-![BYD daily chart with a saved three-anchor parallel channel and midpoint line](docs/images/channel-drawing-v0.5.0.jpg)
-
-<details>
-<summary>More screenshots</summary>
-
-![Ask AI to analyse a symbol and inspect support, resistance, and technical indicators in the K-line workspace](docs/images/dsh-kline-tab-workspace.png)
-
-![A confirmed Fibonacci retracement on a daily chart](docs/images/drawing-workbench-v0.5.0.jpg)
-
-![Market view with major indices, sector rankings, and Dragon & Tiger List](docs/images/kline-support.png)
-
-![Watchlist groups and company profile](docs/images/kline-range-stats.png)
-
-![News view with articles related to the active symbol](docs/images/kline-news.png)
-
-</details>
+![Full DSH Web page: DeepSeek explains the descending channel's anchors and deviations while the daily chart shows both the channel and ABC labels](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
 ## Get started
 
@@ -69,6 +58,7 @@ The plugin supports macOS, Linux, and native Windows. Install a working DSH Web 
 - `What recent news and fundamentals should I know about this company?`
 - `Draw a blue level at 1300 on the current chart, then change that object to green`
 - `Propose three anchors for a descending channel; explain the deviation and wait for my confirmation`
+- `Screen my watchlist for ABC candidates; verify one symbol's 0/A/B/C pivots on its daily chart before drawing, and tell me whether C is confirmed`
 
 **Open the workspace directly**: click the K button on the right, or choose **非凸 K 线助手 / dsh_kline** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
 
@@ -85,6 +75,10 @@ Both entry points can operate on the same new drawing objects in the active char
 
 Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspace Tab. Automatic uses the best interface your current Harness supports; when Tabs are unavailable, the regular K-line sidebar continues to work.
 
+### Sidebar compatibility
+
+DeepSeek Harness provides its own right sidebar, so **Better Sidebar is not required** to open the K-line sidebar. When a compatible Better Sidebar is installed, the plugin can also open the chart as a workspace Tab. This is an optional UI integration, not a requirement for quotes, indicators, or drawing. Use **UI** to choose Automatic, sidebar, or Tab; Automatic selects from the interface capabilities exposed by the current host. Installing Better Sidebar alone does not mean every version and layout has been validated.
+
 ## Quotes and data sources
 
 FTShare is the default optional source. After you configure an API key, the plugin exposes the quote, intraday, news, and company-data capabilities available to your account. Availability differs by market and plan.
@@ -100,12 +94,12 @@ For safety, the plugin never scans `.env` files, shell configuration, keychains,
 
 Theme and language follow the DSH host by default. **Settings → Theme/Language** also offers manual choices and a way back to **Follow host (default)**.
 
-Without a key, some public quote and chart capabilities remain available. When data is delayed, the market is closed, permission is missing, or an upstream source is unavailable, the UI explains the applicable reason and source.
+[FTShare's free-plan endpoints](https://market.ft.tech/gateway/doc/p/pb8eizu3) still require a registered API key. With no key at all, the plugin has an independent free-data fallback only for selected broad-market indices; fresh individual-stock and ETF charts are not guaranteed. Existing valid OHLCV data, including rows supplied by the host, can still drive local indicators and drawing. The UI reports the applicable source or error when data is rate-limited, unavailable, or outside the account's entitlement.
 
 ## Frequently asked questions
 
 **Why is an intraday chart unavailable?**
-Intraday access depends on the symbol's market, your account plan, and the source's currently supported coverage. Test the connection in Data source first; daily, weekly, and monthly views are not subject to that same intraday entitlement.
+Intraday access depends on the symbol's market, your account plan, and the source's currently supported coverage. Test the connection in Data source first. Daily, weekly, and monthly views do not require the intraday entitlement, but individual-stock candles still need a working data source; FTShare's free plan requires an API key too.
 
 **What if the first launch fails on Windows?**
 
@@ -121,7 +115,7 @@ Quotes can be delayed and may differ with adjustment policy, exchange convention
 
 ### Drawing through chat and the workbench
 
-On a source-checked current chart, the host can interpret a request and use the plugin's calculate → prepare → apply → verify flow. The workbench exposes the same protected objects for manual selection, preview, and editing. Selected families are horizontal levels, two-anchor trend segments, three-anchor finite parallel channels, rectangular ranges, two-anchor Fibonacci retracements, user-anchored ABC labels, and standalone SMA/EMA lines or BOLL three-line bands. Names, four colors, channel midlines, and rectangle fills are supported. ABC is a drawing label, **not automatic Elliott-wave recognition**.
+On a source-checked current chart, the host can interpret a request and use the plugin's calculate → prepare → apply → verify flow. The workbench exposes the same protected objects for manual selection, preview, and editing. Selected families are horizontal levels, two-anchor trend segments, three-anchor finite parallel channels, rectangular ranges, two-anchor Fibonacci retracements, manually supplied or host-proposed-and-checked ABC anchors, and standalone SMA/EMA lines or BOLL three-line bands. Names, four colors, channel midlines, and rectangle fills are supported. The plugin draws ABC labels; **it does not automatically recognize Elliott waves**, and candidates are not definitive conclusions.
 
 Try “draw a blue level at 31.2 called support”, “move support to 30.8; leave everything else”,
 or “propose a descending channel with three anchors and explain deviations; wait for approval”.

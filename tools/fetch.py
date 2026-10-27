@@ -3370,6 +3370,9 @@ def fetch_candles(
         limit=limit,
         adjust=adjust,
     )
+    # Safe, non-secret context for the UI: a missing credential needs different
+    # guidance from a configured account that has hit its plan's rate limit.
+    primary = {**primary, "ftshare_key_configured": _ftshare_credential_source() != "none"}
     if primary.get("ok"):
         actual = len(primary.get("rows") or [])
         is_intraday = str(interval or "").strip().lower() == "minute"

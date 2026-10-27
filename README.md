@@ -2,9 +2,13 @@
 
 简体中文 | [English](README.en.md)
 
+[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://github.com/FTShare-Lab/dsh_kline#开始使用) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+
 在 DeepSeek Harness 里，用自然语言分析 K 线、画图并继续修改；也可以在图上亲自选点。对话和绘图工作台共用当前图与同一批对象，支持水平线、趋势线、通道、平台框、斐波那契、ABC 标注及精选指标落图。
 
 > 行情与技术分析用于研究和学习，不构成投资建议。
+
+[功能](#它能帮你做什么) · [自然语言绘图演示](#预览) · [安装与入口](#开始使用) · [界面兼容](#界面兼容) · [绘图能力](#绘图对话与工作台共用一个对象流程) · [数据源](#行情与数据源) · [常见问题](#常见问题)
 
 ## 它能帮你做什么
 
@@ -21,28 +25,13 @@
 
 ## 预览
 
-比亚迪日线上的 ABC 标注：手动指定 A、B、C 三点，保存后再把 C 点改到新价位。这里展示的是可续改的折线对象，**不是自动识别艾略特波浪**。
+自然语言实测：DeepSeek 从自选中筛出卧龙电驱的 ABC **候选**，逐根核对 0、A、B、C 四个锚点，再通过插件落图。同一张完整网页截图展示了对话、应用回执和右侧画布；画布上的折线与标签已实际可见。形态判断由宿主完成，规则筛查不等于专业波浪结论。
 
-![比亚迪日线图：已保存的 ABC 折线与 A、B、C 价格标签；工作台显示 C 点修改后的价位](docs/images/abc-drawing-v0.5.0.jpg)
+![完整 DSH Web 页面：左侧 DeepSeek 核对卧龙电驱 ABC 候选及四个锚点，右侧日 K 图显示对应折线和标签](docs/images/natural-language-abc-wolong-2026-10-27.png)
 
-同一工作台还可以画三点平行通道，并选择是否显示中线。
+继续用自然语言在同一张图上添加下降通道：DeepSeek 核对三点几何与区间内的价格偏离，插件将通道作为独立对象落图；原有 ABC 标注仍保留。图上的线条可见，但通道是否具有交易参考价值仍需自行判断。
 
-![比亚迪日线图：三点平行通道与中线已保存到图表](docs/images/channel-drawing-v0.5.0.jpg)
-
-<details>
-<summary>查看更多界面截图</summary>
-
-![与 AI 对话分析标的，并在右侧 K 线工作台查看关键支撑位、压力位和技术指标](docs/images/dsh-kline-tab-workspace.png)
-
-![贵州茅台日线图：已确认的斐波那契回撤价位](docs/images/drawing-workbench-v0.5.0.jpg)
-
-![市场页：主要指数、板块排行与龙虎榜](docs/images/kline-support.png)
-
-![自选分组与公司画像](docs/images/kline-range-stats.png)
-
-![资讯页：与当前标的相关的新闻和公告](docs/images/kline-news.png)
-
-</details>
+![完整 DSH Web 页面：左侧 DeepSeek 说明卧龙电驱下降通道的锚点和偏离，右侧日 K 图同时显示下降通道与 ABC 标注](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
 ## 开始使用
 
@@ -70,6 +59,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 - `这只股票最近有什么新闻和基本面变化？`
 - `在当前图画1300元的蓝色支撑线，叫关键支撑；之后把它改成绿色`
 - `请先给出下降通道的三个锚点和偏离，再等我确认是否落图`
+- `从我的自选中筛选 ABC 候选；选一只核对 0、A、B、C 四个拐点后画到日 K 图上，并说明 C 点是否已经确认`
 
 **直接打开工作台**：点击右侧 K 按钮，或在支持工作台 Tab 的界面从 `+` 菜单选择 **非凸 K 线助手 / dsh_kline**。输入股票名称或代码即可开始，不需要记住交易所后缀。
 
@@ -86,6 +76,10 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 如果界面提供 **UI** 入口，可按习惯选择自动、独立侧栏或工作台 Tab。自动模式会使用当前 Harness 能提供的最佳界面；没有工作台 Tab 框架时，仍可正常使用右侧 K 线侧栏。
 
+### 界面兼容
+
+DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线侧栏**。如果安装了可用的 Better Sidebar，插件还可以把 K 线作为工作台 Tab 打开；它是可选的界面增强，不是行情、指标或绘图的前提。右上角 **UI** 可在自动、侧栏与 Tab 模式间切换；自动模式会按当前宿主提供的界面能力选择。不同 Better Sidebar 版本的适配情况可能不同，不能仅凭安装了它就保证所有布局都已验收。
+
 ## 绘图：对话与工作台共用一个对象流程
 
 在当前已核对来源的图表中，宿主可根据自然语言调用插件的计算、准备、应用和状态核对；工作台则提供可见的手动选择和预览。精选范围包括：
@@ -95,7 +89,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 - 平行通道：三点确定上升、下降或水平通道，可开关中线。
 - 平台矩形框：指定时间和上下价格边界，可开关淡色填充。
 - 斐波那契回撤：两点及比例作为一个对象管理；价位由插件按价格公式计算。
-- ABC 折线标注：连接用户指定的 A/B/C 锚点，可按点名续改；**不是自动识浪**。
+- ABC 折线标注：连接用户指定、或由宿主基于行情提议并核对的 0/A/B/C 锚点，可按点名续改；**插件不自动识浪，候选并非定论**。
 - SMA、EMA 单线与 BOLL 三轨：TA-Lib 结果可在明确要求后作为独立主图对象落图，不等于切换现有指标开关。
 
 例如：
@@ -150,12 +144,12 @@ DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布�
 
 主题和语言默认跟随 dsh 宿主，可在 **设置 → 主题/语言** 中改为手动选择；随时可切回“跟随宿主（默认）”。
 
-没有配置 Key 时，部分公开行情与图表能力仍可使用。遇到数据延迟、收盘、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
+[FTShare 的“免费版”接口](https://market.ft.tech/gateway/doc/p/pb8eizu3)仍需注册并配置 API Key。完全不配置 Key 时，插件仅为部分大盘指数提供独立的免费备用行情；个股和 ETF 的新 K 线图不能保证可用。已有的合规 K 线数据（包括宿主提供的标准 OHLCV）仍可用于本地指标计算与绘图。遇到限流、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
 
 ## 常见问题
 
 **为什么找不到分钟线？**
-分钟行情是否可用取决于标的市场、账户套餐和数据源当前支持范围。请先在“数据源”中测试连接；日、周、月等周期不受此限制。
+分钟行情是否可用取决于标的市场、账户套餐和数据源当前支持范围。请先在“数据源”中测试连接；日、周、月等周期不受分钟权限限制，但个股 K 线仍需可用的数据源，FTShare 免费套餐也需要 API Key。
 
 **Windows 首次启动失败怎么办？**
 
