@@ -16,6 +16,14 @@ const channel={type:'DRAW_AGENT_CHANNEL',id:'C',label:'完整C',color:'warning',
   upper:{from:{time:1,price:31},to:{time:4,price:33}},lower:{from:{time:1,price:30},to:{time:4,price:32}}}
 const rectangle={type:'DRAW_AGENT_RECTANGLE',id:'R',label:'完整R',color:'danger',interval:'day',start_time:1,end_time:4,
   lower_price:30,upper_price:32,show_fill:false}
+const series={type:'DRAW_AGENT_SERIES_LINE',id:'series_'+'a'.repeat(24),label:'条件线',color:'info',interval:'day',
+  bar_count:4,source:{kind:'close'},condition:null,values:[32,null,32,32],series_hash:'b'.repeat(64)}
+const band={type:'DRAW_AGENT_PRICE_BAND',id:'band_'+'a'.repeat(24),label:'价带',color:'warning',interval:'day',
+  bar_count:4,upper_source:{kind:'high'},lower_source:{kind:'low'},condition:null,
+  upper_values:[33,null,33,33],lower_values:[30,null,30,30],band_hash:'c'.repeat(64)}
+const sticks={type:'DRAW_AGENT_PRICE_STICKS',id:'sticks_'+'a'.repeat(24),label:'柱线',color:'info',interval:'day',
+  bar_count:4,start_source:{kind:'high'},end_source:{kind:'low'},condition:null,
+  start_values:[33,null,33,33],end_values:[30,null,30,30],sticks_hash:'d'.repeat(64)}
 function context(extra:any={}):any {return {state:'ready',candles:rows,interval:'day',ui_interval:'day',
   visible_range:{available:true,index_from:1,index_to_exclusive:3},...extra}}
 function payload(commands:any[]=[horizontal,trend,channel,rectangle]):any {return {interval:'day',chartCommands:commands}}
@@ -62,10 +70,14 @@ test('viewport geometry does not treat a crossing segment as hidden or assume a 
   objects.T.points[1].timestamp=2000
   const result=report(payload([before]),context({visible_range:{available:true,index_from:3,index_to_exclusive:4}}),objects)
   assert.equal(result.items[0].status,'created');assert.equal(result.items[0].visibility,'outside_time_viewport')
+  assert.equal(result.items[0].time_range_overlap,false)
+  const crossing=report(payload([trend]))
+  assert.equal(crossing.items[0].time_range_overlap,true)
   assert.equal(report(payload([trend])).items[0].visibility,'unknown')
   const high={...horizontal,price:100}, highObject=overlays();highObject.H.points[0].value=100
   const warning=report(payload([high]),context(),highObject).items[0]
   assert.equal(warning.status,'created');assert.equal(warning.visibility,'unknown');assert.equal(warning.outside_loaded_price_envelope,true)
+  assert.equal(warning.time_range_overlap,true)
 })
 
 test('unknown APIs, thrown reads, missing objects, invalid geometry and not-ready context stay distinct',()=>{
@@ -96,13 +108,57 @@ test('deletions require actual object absence; rolled-back attempts cannot claim
   }
 })
 
+test('series feedback reports registry acceptance, hidden period and deletion, never pixels',()=>{
+  const registry=new Map([[series.id,series.series_hash]])
+  const chart:any={__dshSeriesLineRegistry:registry}
+  const accepted=collectDrawingFeedback(payload([series]),context(),chart,[],'applied')
+  assert.equal(accepted.evidence_scope,'indicator_registry')
+  assert.equal(accepted.items[0].reason,'indicator_registered')
+  assert.equal(accepted.pixel_verified,false)
+  assert.equal(sanitizeDrawingFeedback(accepted,drawingInventory(payload([series]))).report_status,'reported')
+  const hidden=collectDrawingFeedback(payload([series]),context({ui_interval:'week'}),chart,[],'applied')
+  assert.equal(hidden.items[0].status,'hidden')
+  assert.equal(hidden.items[0].reason,'period_mismatch')
+  registry.clear()
+  const removed=collectDrawingFeedback(payload([]),context(),chart,[series],'applied')
+  assert.equal(removed.items[0].reason,'indicator_removed')
+})
+
+test('price band registry feedback is separate from canvas visibility',()=>{
+  const registry=new Map([[band.id,band.band_hash]])
+  const chart:any={__dshPriceBandRegistry:registry}
+  const accepted=collectDrawingFeedback(payload([band]),context(),chart,[],'applied')
+  assert.equal(accepted.items[0].reason,'indicator_registered')
+  assert.equal(accepted.evidence_scope,'indicator_registry')
+  assert.equal(accepted.pixel_verified,false)
+  assert.equal(sanitizeDrawingFeedback(accepted,drawingInventory(payload([band]))).report_status,'reported')
+  const hidden=collectDrawingFeedback(payload([band]),context({ui_interval:'week'}),chart,[],'applied')
+  assert.equal(hidden.items[0].reason,'period_mismatch')
+  registry.clear()
+  assert.equal(collectDrawingFeedback(payload([]),context(),chart,[band],'applied').items[0].reason,'indicator_removed')
+})
+
+test('price sticks feedback confirms registry only, with hidden period and deletion',()=>{
+  const registry=new Map([[sticks.id,sticks.sticks_hash]])
+  const chart:any={__dshPriceSticksRegistry:registry}
+  const accepted=collectDrawingFeedback(payload([sticks]),context(),chart,[],'applied')
+  assert.equal(accepted.items[0].reason,'indicator_registered')
+  assert.equal(accepted.evidence_scope,'indicator_registry')
+  assert.equal(accepted.pixel_verified,false)
+  assert.equal(sanitizeDrawingFeedback(accepted,drawingInventory(payload([sticks]))).report_status,'reported')
+  const hidden=collectDrawingFeedback(payload([sticks]),context({ui_interval:'week'}),chart,[],'applied')
+  assert.equal(hidden.items[0].reason,'period_mismatch')
+  registry.clear()
+  assert.equal(collectDrawingFeedback(payload([]),context(),chart,[sticks],'applied').items[0].reason,'indicator_removed')
+})
+
 test('feedback whitelist rejects foreign/duplicate/missing IDs and contradictory claims, and strips private fields',()=>{
   const allowed=drawingInventory(payload([horizontal])), raw=report(payload([horizontal]))
   raw.service_token='private';raw.items[0].secret='private';raw.pixel_verified=true
   const safe=sanitizeDrawingFeedback(raw,allowed)
   assert.equal(safe.report_status,'reported');assert.ok(!JSON.stringify(safe).includes('private'));assert.equal(safe.pixel_verified,false)
   for(const items of [[],[...raw.items,...raw.items],[{...raw.items[0],id:'manual:X'}],[{...raw.items[0],reason:'period_mismatch'}],
-    [{...raw.items[0],visibility:'outside_time_viewport'}]]) {
+    [{...raw.items[0],visibility:'outside_time_viewport'}],[{...raw.items[0],time_range_overlap:'yes'}]]) {
     assert.equal(sanitizeDrawingFeedback({...raw,items},allowed).report_status,'invalid')
   }
   assert.equal(sanitizeDrawingFeedback(null,allowed).report_status,'not_reported')

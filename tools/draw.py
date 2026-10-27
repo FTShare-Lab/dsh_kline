@@ -28,6 +28,7 @@ from core.calc import (
     series_vol_ma,
 )
 from core.rows import validate_rows
+from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION
 
 SUPPORTED_INDICATORS = ("ma", "vwap", "vol", "macd", "kdj", "boll", "rsi", "atr")
 
@@ -365,6 +366,8 @@ def draw_kline(
     # Structured payload for the view (includes SET_CANDLES rows).
     # Content text stays compact for host LLM context.
     payload = {
+        "calculation_engine": {"name": "TA-Lib", "wrapper_version": ENGINE_VERSION,
+                               "native_version": NATIVE_VERSION},
         "symbol": symbol or "",
         "name": name or symbol or "",
         "interval": (interval or "day").lower(),

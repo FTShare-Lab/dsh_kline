@@ -69,6 +69,7 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   assert.match(tab, /return isNativeTabMode && list\.current/)
   assert.match(tab, /service\.subscribeState\(listener\)/)
   assert.match(tab, /sidebar\.sessionId === scope\.sessionId/)
+  assert.match(tab, /visible && interfaceState\.mode === 'better-sidebar'/)
   assert.match(tab, /only an analysis result that arrives while this view is live may/)
 })
 test('classic mode and the host New Session launcher keep the K button while the native tab remains available without auto-opening', () => {
@@ -81,6 +82,14 @@ test('classic mode and the host New Session launcher keep the K button while the
   assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| !hostHasRightSidebar/)
   assert.match(router, /\{showClassicLauncher && <ClassicShell sessions=\{ctx\.sessions\} \/>\}/)
   assert.ok(!router.includes('cleanClassicTabs'))
+})
+test('classic K rail cannot paint over a welcome dialog in the chart panel', () => {
+  const classic = readFileSync(new URL('../src/client/ClassicShell.tsx', import.meta.url), 'utf8')
+  const panel = Number(classic.match(/\.dsh-kline-panel \{ position: fixed; z-index: (\d+);/)?.[1])
+  const rail = Number(classic.match(/\.dsh-kline-rail \{ position: fixed; z-index: (\d+);/)?.[1])
+  assert.ok(Number.isFinite(panel) && Number.isFinite(rail) && panel > rail)
+  assert.match(classic, /\.dsh-kline-rail \{[^\n]*right: calc\(var\(--dsh-sidebar-width, 0px\) \+ var\(--dsh-kline-sidebar-width\) \+ 10px\)/)
+  assert.match(html, /\.welcome-backdrop \{ position: fixed; z-index: 75;/)
 })
 test('saved legacy titles migrate only in their own active session and preserve custom names', () => {
   const updates: unknown[] = []

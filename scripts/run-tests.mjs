@@ -18,7 +18,7 @@ export function testSuites(args, python, files) {
     throw Error('Usage: node scripts/run-tests.mjs [--node|--python]')
   }
   return [
-    ...(!args.includes('--python') ? [{ name: 'JavaScript / TypeScript', command: process.execPath, args: ['--test', ...files] }] : []),
+    ...(!args.includes('--python') ? [{ name: 'JavaScript / TypeScript', command: process.execPath, args: ['--test', '--test-concurrency=2', ...files] }] : []),
     ...(!args.includes('--node') ? [{ name: 'Python', command: python, args: ['-m', 'pytest', '-q'] }] : []),
   ]
 }

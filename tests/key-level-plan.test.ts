@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm'
 
 const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
 
-test('key-level plan turns support and resistance into five saveable reference cards', () => {
+test('key-level plan shows each current price only once', () => {
   const source = html.slice(html.indexOf('function activeAutoLevels('), html.indexOf('function levelRowHtml('))
   const plan = runInNewContext(source + '; buildKeyLevelPlan', {
     currentSymbol: '600519.XSHG',
@@ -20,9 +20,58 @@ test('key-level plan turns support and resistance into five saveable reference c
   })
   const entries = plan()
   assert.deepEqual(Array.from(entries, (entry: any) => [entry.kind, entry.price]), [
-    ['support', 92], ['resistance', 108], ['breakout', 108], ['stop', 92], ['target', 116],
+    ['support', 92], ['resistance', 108], ['target', 116],
   ])
   assert.ok(entries.every((entry: any) => entry.name && entry.color))
+})
+
+test('point panel has one reference list and draws a chosen price only once', () => {
+  const panel = html.slice(html.indexOf('id="levelPopover"'), html.indexOf('id="alertMenuBtn"'))
+  assert.match(panel, /id="keyLevelPlanCards"/)
+  assert.doesNotMatch(panel, /id="analysisLevelList"|转我的/)
+  assert.match(html, /data-key-plan-save="true"/)
+  assert.match(html, /activeCustomLevels\(\)\.some\(\(item\) => item\.kind === "line"/)
+})
+
+test('outdated levels never fall back to current support or resistance', () => {
+  const source = html.slice(html.indexOf('function activeAutoLevels('), html.indexOf('function levelRowHtml('))
+  const plan = runInNewContext(source + '; buildKeyLevelPlan', {
+    currentSymbol: '600519.XSHG', currentCandles: [{ close: 100 }],
+    analysisLevels: [
+      { symbol: '600519.XSHG', side: 'support', price: 105 },
+      { symbol: '600519.XSHG', side: 'resistance', price: 95 },
+      { symbol: '600519.XSHG', side: 'resistance', price: 110 },
+      { symbol: '600519.XSHG', side: 'resistance', price: 110.2 },
+      { symbol: '600519.XSHG', side: 'resistance', price: 120 },
+    ],
+    t: (key: string) => key,
+  })
+  assert.deepEqual(Array.from(plan(), (entry: any) => [entry.kind, entry.price]), [
+    ['resistance', 110], ['target', 120],
+  ])
+})
+
+test('a support crossed by a later low is not offered as a current level', () => {
+  const source = html.slice(html.indexOf('function activeAutoLevels('), html.indexOf('function levelRowHtml('))
+  const plan = runInNewContext(source + '; buildKeyLevelPlan', {
+    currentSymbol: '002594.XSHE',
+    currentCandles: [{ time: 1, low: 81, high: 86, close: 83 }, { time: 3, low: 78.49, high: 82, close: 81.42 }],
+    analysisLevels: [{ symbol: '002594.XSHE', side: 'support', price: 80.11, time: 2 }],
+    t: (key: string) => key,
+  })
+  assert.equal(plan().length, 0)
+})
+
+test('key-level data signature changes when an older candle is corrected', () => {
+  const source = html.slice(html.indexOf('function keyLevelDataSignature('), html.indexOf('function toggleKeyLevelPlan('))
+  const signature = runInNewContext(source + '; keyLevelDataSignature', {
+    currentSymbol: '002594.XSHE', currentClearScope: () => '002594.XSHE|day|forward|ytd',
+  })
+  const rows = [{ time: 1, open: 80, high: 81, low: 79, close: 80 }, { time: 2, open: 80, high: 82, low: 80, close: 81 }]
+  const first = signature(rows)
+  rows[0].low = 78
+  assert.notEqual(signature(rows), first)
+  assert.match(html, /if \(keyLevelPlanExpanded && keyLevelPlanCurrentSignature[\s\S]*void analyzeKeyLevels\(\)/)
 })
 
 test('analysis candidates are hidden until the user saves a chosen level', () => {

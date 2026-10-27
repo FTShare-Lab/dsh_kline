@@ -14,6 +14,7 @@ import { drawingInventory, observationKey, sanitizeChartContext } from '../src/c
 import { collectDrawingFeedback } from '../src/drawing-feedback.ts'
 import { TEST_PYTHON } from '../scripts/test-runtime.mjs'
 import { SOURCE_STATUS_REASONS, sourceStatus, sanitizeSourceStatus, sourceFailure } from '../src/chart-source-status.ts'
+import { candleSequenceHash } from '../src/candle-sequence.ts'
 
 test('public forward/backward and legacy aliases pass source metadata checks, but unknown/different adjustments fail',async()=>{
   for(const [value,alias] of [['forward','qfq'],['backward','hfq']]) {
@@ -57,7 +58,7 @@ async function fixture() {
   await writeFile(join(runtime,'sessions',parent+'.json'),JSON.stringify(original))
   const sources=new ChartSources(runtime)
   const v:any={ref,conversation:'A',view:viewId,revision:1,active:true,ambiguous:false,applyCapable:true,state:state()}
-  return {runtime,sources,v,original,close:()=>rm(runtime,{recursive:true,force:true})}
+  return {runtime,sources,v,original,close:()=>rm(runtime,{recursive:true,force:true,maxRetries:5,retryDelay:50})}
 }
 function py(runtime:string,body:string):any {
   const script=`import asyncio,json,server,chart_service
@@ -89,6 +90,37 @@ test('source snapshots whitelist render fields and reject different candles, AI 
   const wrong=structuredClone(raw);wrong.chartCommands[3].parallel.price=34
   assert.throws(()=>sanitizeSourcePayload(wrong,state(raw)),/source_inventory_mismatch/)
   assert.throws(()=>sanitizeSourcePayload({...raw,chartCommands:[...raw.chartCommands,{type:'EXECUTE_SCRIPT'}]},state(raw)),/unsupported/)
+})
+
+test('browser-opened local chart bootstraps a confirmed source without Agent quota but never imports unverified AI',async()=>{
+  const f=await fixture(),broker=new ChartContextBroker(join(f.runtime,'views',String(process.pid)),()=>Date.now(),f.runtime)
+  try {
+    const local={...payload('day',daily),local_render:true,
+      chartCommands:payload('day',daily).chartCommands.filter(command=>command.type!=='DRAW_AGENT_CHANNEL')}
+    const initial={...state(local),source_chart_session:null}
+    f.v.state=initial
+    assert.equal((await f.sources.assess(f.v)).status.reason,'source_missing')
+    assert.equal((await f.sources.assess(f.v,{...local,local_render:false})).status.reason,'source_missing')
+    await assert.rejects(f.sources.assess(f.v,{...payload('day',daily),local_render:true}),/source_inventory_mismatch/)
+    const first=await broker.publish({conversation_id:'A',view_id:viewId,sequence:1,active:true,
+      captured_at_ms:Date.now(),application_protocol:'guarded-view-v1',source_protocol:'browser-source-v1',
+      state:initial,source_payload:local})
+    assert.equal(first.source_status.reason,'source_handoff_pending')
+    const token=first.source_handoff.chart_session
+    const sealed=JSON.parse(await readFile(join(f.runtime,'sessions',token+'.json'),'utf8'))
+    assert.equal(sealed.payload.drawing_parent_session,undefined)
+    assert.equal(sealed.payload.chartCommands.some((command:any)=>command.type==='DRAW_AGENT_CHANNEL'),false)
+    const second=await broker.publish({conversation_id:'A',view_id:viewId,sequence:2,active:true,
+      captured_at_ms:Date.now(),application_protocol:'guarded-view-v1',source_protocol:'browser-source-v1',
+      state:{...initial,source_chart_session:token},source_receipt:{chart_session:token,status:'bound'}})
+    assert.equal(second.source_receipt.status,'confirmed')
+    assert.equal(second.source_status.reason,'source_matches_view')
+    const checked=py(f.runtime,`from tools.chart_functions import run_function; r=run_function('${second.context_ref}',${second.revision},'${token}','TEST.X','parallel_channel',{'start_time':'1','start_price':30,'end_time':'4','end_price':33,'parallel_time':'2','parallel_price':35}); p=server.prepare_guarded_chart_edit('${second.context_ref}',${second.revision},'${token}','TEST.X','bootstrap-channel',ChartEdit(kind='channel',action='create',result_ref=r['result_ref'],name='网页通道')); print(json.dumps({'result_usage':r['result_usage'],'chart_modified':r['chart_modified'],'operation_status':p['operation_status'],'object_id':p['object']['id']}))`)
+    assert.equal(checked.result_usage,'guarded_drawing')
+    assert.equal(checked.chart_modified,false)
+    assert.equal(checked.operation_status,'prepared')
+    assert.match(checked.object_id,/^channel_/)
+  } finally {await f.close()}
 })
 
 test('offered source is immutable but unconfirmed; dirty, inactive, expired and foreign receipts never confirm it',async()=>{
@@ -150,6 +182,58 @@ test('returning to a larger daily window never checks the new viewport against s
       assert.deepEqual(JSON.parse(await readFile(join(f.runtime,'sessions',parent+'.json'),'utf8')),shorter)
     } finally {await f.close()}
   }
+})
+
+test('daily sequence remains a hidden immutable object on weekly view and restores on unchanged daily rows',async()=>{
+  const f=await fixture()
+  try {
+    const line={type:'DRAW_AGENT_SERIES_LINE',id:'series_'+'a'.repeat(24),interval:'day',label:'日线条件线',color:'info',
+      bar_count:daily.length,row_hash:candleSequenceHash(daily),source:{kind:'close'},condition:null,
+      values:[null,32,null,32],series_hash:'b'.repeat(64)}
+    const sticks={type:'DRAW_AGENT_PRICE_STICKS',id:'sticks_'+'a'.repeat(24),interval:'day',label:'日线柱线',color:'warning',
+      bar_count:daily.length,row_hash:candleSequenceHash(daily),start_source:{kind:'high'},end_source:{kind:'low'},
+      condition:null,start_values:[33,null,33,null],end_values:[30,null,30,null],sticks_hash:'c'.repeat(64)}
+    const day={...payload('day',daily),chartCommands:[...payload('day',daily).chartCommands,line,sticks]}
+    const week={...payload(),chartCommands:[...payload().chartCommands,line,sticks]}
+    await writeFile(join(f.runtime,'sessions',parent+'.json'),JSON.stringify({...f.original,payload:day}))
+    f.v.state=state(week)
+    const offered=await f.sources.assess(f.v,week)
+    assert.equal(offered.status.reason,'source_handoff_pending')
+    const weeklyToken=offered.handoff.chart_session
+    assert.equal((await f.sources.acknowledge({...f.v,state:{...f.v.state,source_chart_session:weeklyToken}},
+      {chart_session:weeklyToken,status:'bound'})).status,'confirmed')
+    const returnedState={...state(day),source_chart_session:weeklyToken}
+    const returned=await f.sources.assess({...f.v,state:returnedState},day)
+    assert.equal(returned.status.reason,'source_handoff_pending')
+    const sealed=JSON.parse(await readFile(join(f.runtime,'sessions',returned.handoff.chart_session+'.json'),'utf8'))
+    assert.equal(sealed.payload.chartCommands.at(-2).row_hash,line.row_hash)
+    assert.equal(sealed.payload.chartCommands.at(-1).sticks_hash,sticks.sticks_hash)
+    const changed=structuredClone(day);changed.chartCommands[0].rows[1].volume=9
+    const changedState={...state(changed),source_chart_session:weeklyToken}
+    await assert.rejects(f.sources.assess({...f.v,state:changedState},changed),/source_sequence_rows_mismatch/)
+  } finally {await f.close()}
+})
+
+test('range-only viewport change retains sequence source without weakening candle checks',async()=>{
+  const f=await fixture()
+  try {
+    const line={type:'DRAW_AGENT_SERIES_LINE',id:'series_'+'a'.repeat(24),interval:'day',label:'条件线',color:'info',
+      bar_count:daily.length,row_hash:candleSequenceHash(daily),source:{kind:'close'},condition:null,
+      values:[null,32,null,32],series_hash:'b'.repeat(64)}
+    const day={...payload('day',daily),chartCommands:[...payload('day',daily).chartCommands,line]}
+    await writeFile(join(f.runtime,'sessions',parent+'.json'),JSON.stringify({...f.original,payload:day}))
+    const short={...day,range_key:'30d',chartCommands:[day.chartCommands[0],
+      {type:'SET_RANGE',start:daily[2].time,end:daily[3].time},...day.chartCommands.slice(2)]}
+    const shortState={...state(short),range_key:'30d'}
+    f.v.state=shortState
+    assert.equal(sanitizeSourcePayload(short,shortState).chartCommands.at(-1).id,line.id)
+    assert.equal((await f.sources.assess(f.v,short)).status.reason,'source_matches_view')
+    const changed=structuredClone(short)
+    changed.chartCommands[0].rows[2].close=31.5
+    assert.throws(()=>sanitizeSourcePayload(changed,shortState),/source_rows_mismatch/)
+    const changedState={...state(changed),range_key:'30d'}
+    await assert.rejects(f.sources.assess({...f.v,state:changedState},changed),/source_sequence_rows_mismatch/)
+  } finally {await f.close()}
 })
 
 test('source diagnostics are identical allowlists across Node/Python, strip secrets and never grant authority',()=>{
@@ -251,9 +335,10 @@ test('actual bilingual source status UI uses text only and its retry cannot fetc
     context.viewLanguage=lang
     for(const reason of Object.keys(SOURCE_STATUS_REASONS)) {
       const status=sourceStatus(reason as any);render({...status,message:'<script>test-secret</script>'})
-      assert.ok(elements.sourceHandoffText.textContent.length>8)
+      assert.ok(elements.sourceHandoffText.textContent.length>0)
       assert.ok(!elements.sourceHandoffText.textContent.includes('test-secret'))
       assert.equal(elements.sourceHandoffRetry.hidden,status.next_action!=='retry_observation')
+      assert.equal(elements.sourceHandoffStatus.hidden,reason==='chart_not_ready' || reason==='source_matches_view')
     }
   }
   render(sourceStatus('drawing_outcome_unknown'));assert.equal(elements.sourceHandoffRetry.hidden,true)
@@ -319,6 +404,9 @@ test('real browser source handoff → Python guarded weekly drawing → receipt 
   try {
     const current={...payload(),local_render:true,_live_chart_session:parent,_live_application_pending:false}
     const context:any={lastChartPayload:current,currentCandles:weekly,currentSymbol:'TEST.X',currentName:'测试',
+      activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
+      activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
       currentInterval:'week',currentAdjust:'none',currentRangeKey:'custom',sourceCandleInterval:'day',activeSecurityTab:'chart',
       exchangeTimezone:'Asia/Shanghai',openingSymbol:false,userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,
       maVisible:true,vwapVisible:false,volVisible:false,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,

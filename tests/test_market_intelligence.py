@@ -68,6 +68,23 @@ def test_market_pulse_uses_latest_market_reading_and_industry_flows():
     assert [item["tone"] for item in pulse["breadth"]] == ["up", "down"]
 
 
+def test_market_pulse_reads_sdk_board_names_and_keeps_industries_separate():
+    market = SimpleNamespace(
+        eastmoney_sector_flow=lambda **_: [
+            {"board_code": "BK0152", "board_name": "甘肃板块", "board_type": "regional", "main_net": "99", "main_pct": "10.36"},
+            {"board_code": "BK1030", "board_name": "电机Ⅱ", "board_type": "industry", "main_net": "10.94", "main_pct": "14.52"},
+            {"board_code": "BK0868", "board_name": "GDR", "board_type": "concept", "main_net": "12", "main_pct": "2.11"},
+            {"board_code": "BK0000", "board_type": "industry", "main_net": "8"},
+        ],
+    )
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market):
+        pulse = f.fetch_market_pulse(sections=["sectors", "concepts"])["market_pulse"]
+    assert [(item["title"], item["board_code"], item["board_kind"]) for item in pulse["hot_sectors"]] == [
+        ("电机Ⅱ", "BK1030", "industry"),
+    ]
+    assert [(item["title"], item["board_kind"]) for item in pulse["hot_concepts"]] == [("GDR", "concept")]
+
+
 def test_market_pulse_keeps_concepts_and_actionable_stock_rankings_separate():
     market = SimpleNamespace(
         limit_list=lambda **_: [],
@@ -190,6 +207,18 @@ def test_market_board_detail_uses_the_exact_snapshot_code_and_marks_members_sour
     assert result["board"]["code"] == "BK0421"
     assert result["board"]["history"][0]["title"] == "09-09"
     assert result["sections"]["members"]["state"] == "source_dependent"
+
+
+def test_market_board_detail_accepts_sdk_board_fields():
+    market = SimpleNamespace(
+        eastmoney_sector_flow=lambda **_: [{"board_code": "BK1030", "board_name": "电机Ⅱ", "board_type": "industry", "main_net": "10.94"}],
+        ths_industry_daily_flow=lambda **_: [],
+    )
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market):
+        result = f.fetch_market_board_detail("电机Ⅱ", board_code="BK1030")
+    assert result["board"]["name"] == "电机Ⅱ"
+    assert result["board"]["code"] == "BK1030"
+    assert result["board"]["snapshot"]["title"] == "电机Ⅱ"
 
 
 def test_security_intelligence_isolated_sections_and_industry_linkage():

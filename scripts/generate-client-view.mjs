@@ -33,6 +33,7 @@ const generated = `// @ts-nocheck
 import { mergeHorizontalLineSnapshot } from './horizontal-lines'
 import { createChartContextPublisher } from './chart-context'
 import { collectDrawingFeedback } from '../drawing-feedback'
+import { drawingSourceKey } from '../chart-observation'
 export const PACKAGE_VERSION = ${JSON.stringify(packageJson.version)}
 
 const VIEW_STYLE = ${JSON.stringify(scopedStyle)}
@@ -78,6 +79,7 @@ export function mountKlineView(root, payload, dependencies = {}) {
   const body = root.querySelector('.dsh-kline-view-body')
   const lifecycle = createScopedWindow(host, payload, dependencies)
   const window = lifecycle.window
+  window.__DSH_KLINE_INITIAL_CHART_SESSION__ = dependencies.chartSession
   const document = createScopedDocument(root, host, body)
   const fetch = (input, init) => {
     if (typeof input === 'string' && input.startsWith('/api/tools/')) {
@@ -96,11 +98,13 @@ export function mountKlineView(root, payload, dependencies = {}) {
     bindSource: (token, previous) => bindLiveChartSource(token, previous),
     confirmSource: (token, confirmed) => confirmLiveChartSource(token, confirmed),
     onSourceStatus: status => renderLiveSourceStatus(status),
+    onPublished: publication => { window.__DSH_KLINE_OBSERVATION__ = publication; renderDrawingWorkbench?.() },
     feedback: () => collectDrawingFeedback(lastChartPayload, captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart),
   })
   window.__DSH_KLINE_DRAWING_FEEDBACK__ = (next, previous, phase) => collectDrawingFeedback(next,
     captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart, previous, phase)
   window.__DSH_KLINE_REPORT_CONTEXT__ = contextPublisher.notify
+  window.__DSH_KLINE_SOURCE_KEY__ = drawingSourceKey
   window.__DSH_KLINE_RETRY_SOURCE__ = contextPublisher.retrySource
   dependencies.onContextPublisher?.(contextPublisher)
 

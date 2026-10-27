@@ -1,6 +1,6 @@
 /** One serial browser publisher per real view; no localStorage/history context fallback. */
 import { createChartApplyController } from './chart-apply.ts'
-import { observationKey } from '../chart-observation.ts'
+import { drawingSourceKey, observationKey } from '../chart-observation.ts'
 import { sourceStatus, sanitizeSourceStatus } from '../chart-source-status.ts'
 export const CONTEXT_PUBLICATION_TIMEOUT_MS=8000
 interface Options {
@@ -11,14 +11,20 @@ interface Options {
   captureSource?:()=>any; bindSource?:(token:string,previous:string|null)=>void
   confirmSource?:(token:string,confirmed:boolean)=>void
   onSourceStatus?:(status:any)=>void
+  onPublished?:(publication:any)=>void
 }
 export function createChartContextPublisher(options: Options) {
   if (!options.conversationId) return { notify() {}, retrySource() {}, dispose() {} }
   const viewId = options.viewId ?? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replaceAll('+','-').replaceAll('/','_')
   const post = options.transport ?? (async (body,signal) => {
-    const result = await fetch('/dsh-kline/context', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal})
+    const result = await fetch('/dsh-kline/context', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,
+      keepalive:body.active===false && body.state===null && !body.receipt && !body.source_receipt})
     const response = await result.json()
-    if (!response.ok) throw Error('context_publication_failed')
+    if (!response.ok) {
+      const failure=Error('context_publication_failed') as Error & {code?:string}
+      if(response.error==='context_state_required')failure.code='context_state_required'
+      throw failure
+    }
     return response
   })
   const requestedTimeout=options.publicationTimeoutMs
@@ -83,6 +89,10 @@ export function createChartContextPublisher(options: Options) {
           ...(sourcePayload ? {source_payload:sourcePayload} : {}),...(sourceReceipt ? {source_receipt:sourceReceipt} : {}),
           ...(feedback ? {drawing_feedback:feedback} : {}),...(receipt ? {receipt} : {})})
         lastState=serialized; lastActive=active
+        // Keep the exact reported state beside the receipt. The chart may
+        // change while this request is in flight, so a receipt alone is not
+        // proof that the currently displayed chart has the same identity.
+        if(!disposed)try { options.onPublished?.({...response, observed_source_key:drawingSourceKey(state)}) } catch {} // UI diagnostics never interrupt guarded publication.
         if(!disposed && options.onSourceStatus && JSON.stringify(options.capture())!==serialized) {
           reportSourceStatus(sourceStatus('source_handoff_pending'));pending=true
         } else reportSourceStatus(response.source_status)
@@ -115,9 +125,12 @@ export function createChartContextPublisher(options: Options) {
           pending=true
         }
       } while(pending)
-    } catch {
+    } catch(error) {
       lastState=''; lastActive=undefined
       reportSourceStatus(sourceStatus('context_transport_unavailable'))
+      // A restarted host has forgotten this view. Publish its full state now
+      // instead of waiting for a throttled background-tab heartbeat.
+      if(!disposed && !receipt && !sourceReceipt && (error as {code?:string})?.code==='context_state_required')pending=true
     } // Heartbeat/receipt retry never queues a new drawing or refetches data.
     finally {
       busy=false
@@ -133,7 +146,10 @@ export function createChartContextPublisher(options: Options) {
   }
   const heartbeat=setInterval(notify,2000)
   const doc=typeof document==='undefined' ? undefined : document
+  const win=typeof window==='undefined' ? undefined : window
   doc?.addEventListener('visibilitychange',notify)
+  win?.addEventListener('focus',notify)
+  win?.addEventListener('pageshow',notify)
   notify()
   return { notify, retrySource() {
     if(disposed)return
@@ -142,6 +158,8 @@ export function createChartContextPublisher(options: Options) {
     if(disposed) return
     disposed=true; clearInterval(heartbeat)
     doc?.removeEventListener('visibilitychange',notify)
+    win?.removeEventListener('focus',notify)
+    win?.removeEventListener('pageshow',notify)
     for(const controller of inFlight)controller.abort()
     // A close queues behind the in-flight sample; sequence ordering prevents late revival.
     void flush()

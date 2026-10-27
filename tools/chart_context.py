@@ -14,6 +14,7 @@ import chart_service
 from core.rows import validate_rows, RowsValidationError
 from tools.lines import LineError
 from tools.drawing_feedback import sanitize_drawing_feedback
+from tools.drawing_interaction import drawing_capabilities
 from tools.trend_lines import CN_TZ
 from tools.chart_measurements import measure_chart_region
 from tools.channel_preview import preview_channel
@@ -85,7 +86,7 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
     if isinstance(observed, bool) or not isinstance(observed, (int, float)) or not math.isfinite(observed):
         raise LineError("invalid_chart_context", "图表观察时间无效。")
     age = time.time() * 1000 - observed
-    if age > 30_000 or age < -5000:
+    if age > 90_000 or age < -5000:
         raise LineError("chart_context_stale", "图表上下文已过期或时钟异常，请等待网页重新上报；未回退到旧行情快照。")
     if saved.get("active") is not True: raise LineError("chart_view_inactive", "该图表视图已关闭或未活动。")
     if saved.get("ambiguous") is not False: raise LineError("ambiguous_chart_views", "该对话存在多个活动视图，不能确定当前图；请保留一个活动图表视图。")
@@ -116,11 +117,28 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
         else: view_range = {"available": False, "reason": "not_reported"}
         objects = state.get("drawings", []) if state["state"] == "ready" else []
         if not isinstance(objects, list) or len(objects) > 512: raise ValueError("drawings")
-        drawing_keys = {"id", "kind", "origin", "name", "color", "interval", "price", "start_time", "end_time", "lower_price", "upper_price", "show_fill", "show_midline"}
+        drawing_keys = {"id", "kind", "origin", "name", "color", "interval", "price", "time", "text", "value", "icon", "start_time", "end_time", "lower_price", "upper_price", "show_fill", "show_midline", "series_hash", "band_hash", "sticks_hash", "bar_count"}
         drawings = []
         for obj in objects:
             item = {k: deepcopy(obj[k]) for k in drawing_keys if k in obj}
-            if "points" in obj: item["points"] = [{k: p[k] for k in ("time", "price")} for p in obj["points"][:8]]
+            if obj.get("kind") == "labeled_polyline":
+                from tools.polylines import validate_stored_points
+                item["points"] = validate_stored_points(obj["points"])
+            elif obj.get("kind") in {"text_annotation", "number_annotation", "icon_annotation"}:
+                from tools.annotations import validate_annotation
+                annotation = validate_annotation({"type": "DRAW_AGENT_ANNOTATION", "kind": obj["kind"], "id": obj.get("id"),
+                    "interval": obj.get("interval"), "label": obj.get("name", ""), "color": obj.get("color", "info"),
+                    "time": obj.get("time"), "price": obj.get("price"), "text": obj.get("text"), "value": obj.get("value"),
+                    "icon": obj.get("icon")})
+                item.update(time=annotation["time"], price=annotation["price"])
+                if obj["kind"] == "text_annotation": item["text"] = annotation["text"]
+                elif obj["kind"] == "number_annotation": item["value"] = annotation["value"]
+                else: item["icon"] = annotation["icon"]
+            elif "points" in obj: item["points"] = [{k: p[k] for k in ("time", "price")} for p in obj["points"][:8]]
+            if obj.get("kind") == "fibonacci_retracement":
+                from tools.fibonacci import validate_ratios
+                item["ratios"] = validate_ratios(obj["ratios"])
+                item["levels"] = [{"ratio": p["ratio"], "price": p["price"]} for p in obj["levels"][:16]]
             item.update(context_editable=False, edit_capability="source_snapshot_only" if obj.get("origin") == "ai" else "read_only")
             drawings.append(item)
         selection = state.get("selection")
@@ -145,6 +163,7 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
                   drawings=drawings, drawings_scope="stored_objects_for_active_instrument", selection=selection,
                   drawing_feedback=sanitize_drawing_feedback(saved.get("drawing_feedback"), [d for d in drawings if d.get("origin") == "ai"]),
                   selection_status=state.get("selection_status", "none"), selected_drawing_id=None, selected_drawing_status="not_supported",
+                  drawing_capabilities=drawing_capabilities(),
                   candles=selected[-limit:], candle_selection={"scope":candle_scope,"total":len(selected),"returned":min(limit,len(selected)),
                     "truncated":len(selected)>limit,"order":"ascending","sample":"last_limit"})
     result["source_status"] = sanitize_source_status(saved.get("source_status"))

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { runInNewContext } from 'node:vm'
 import { ChartContextBroker, sanitizeChartContext } from '../src/chart-context.ts'
+import { drawingSourceKey } from '../src/chart-observation.ts'
 import { createChartContextPublisher } from '../src/client/chart-context.ts'
 import { latestChart } from '../src/client/conversation.ts'
 import { mergeHorizontalLineSnapshot } from '../src/client/horizontal-lines.ts'
@@ -33,12 +34,19 @@ test('public host context carries a small interaction contract separate from unt
     const view=await broker.publish(raw)
     const prompt=broker.prompt(assembly('A'))
     assert.match(prompt,/The host reasons; the plugin only observes, measures and executes/)
+    assert.match(prompt,/For ALL drawings on this browser chart, including literal create\/update\/delete/)
+    assert.match(prompt,/get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status/)
+    assert.match(prompt,/Never use legacy snapshot mutation tools for the current chart/)
     assert.match(prompt,/region_start_time\/region_end_time/)
     assert.match(prompt,/read-only preview_chart_channel/)
     assert.match(prompt,/sloped channel does not require a common horizontal body intersection/)
     assert.match(prompt,/do not prepare\/apply before confirmation/)
     assert.match(prompt,/independently saved approved proposal/)
     assert.match(prompt,/do not refetch candles/)
+    assert.match(prompt,/ask a short clarification instead of guessing/)
+    assert.match(prompt,/Read drawing_capabilities/)
+    assert.match(prompt,/without substituting or searching source code/)
+    assert.match(prompt,/Pending\/unknown is not completion/)
     assert.match(prompt,/boundary_evidence for extremum dates\/fields/)
     assert.match(prompt,/never turn empty into a point/)
     assert.match(prompt,/EVERY body/)
@@ -66,6 +74,14 @@ test('sanitize separates loaded and viewport data, preserves full IDs/names and 
   assert.throws(()=>sanitizeChartContext({...raw,candles:[{...raw.candles[0],volume:true}]}))
 })
 
+test('icon annotations survive browser chart-context normalization',()=>{
+  const raw=state();raw.drawings.push({id:'icon_A',kind:'icon_annotation',origin:'ai',name:'向上提示',color:'info',interval:'day',time:2,price:31.2,icon:'arrow_up'})
+  const cleaned=sanitizeChartContext(raw)
+  assert.deepEqual(cleaned.drawings.find((drawing:any)=>drawing.id==='icon_A'),{
+    id:'icon_A',kind:'icon_annotation',origin:'ai',name:'向上提示',context_editable:false,edit_capability:'source_snapshot_only',
+    color:'info',interval:'day',time:2,price:31.2,icon:'arrow_up'})
+})
+
 test('broker scopes by trusted agent.session.id, revisions/sequence, stale views and ambiguity; no global latest',async()=>{
   const directory=await mkdtemp(join(tmpdir(),'kline-context-'))
   let now=Date.now(); const broker=new ChartContextBroker(directory,()=>now)
@@ -85,6 +101,7 @@ test('broker scopes by trusted agent.session.id, revisions/sequence, stale views
     await broker.publish({...publication('c'.repeat(32),'A',2,false),state:null})
     assert.ok(broker.prompt(assembly('A')).includes(a.context_ref))
     assert.equal(JSON.parse(await readFile(join(directory,second.context_ref+'.json'),'utf8')).active,false)
+    now+=60_000; assert.ok(broker.prompt(assembly('A')).includes(a.context_ref))
     now+=31_000; assert.match(broker.prompt(assembly('A')),/unavailable/)
     await assert.rejects(broker.publish({...publication(),captured_at_ms:now-6000}),/identity/)
   } finally { await rm(directory,{recursive:true,force:true}) }
@@ -181,6 +198,31 @@ test('publisher serializes samples, sends metadata-only heartbeat and closes wit
   } finally { unblock(); publisher.dispose() }
 })
 
+test('publisher associates its receipt with the exact chart state sent before a view change',async()=>{
+  let current=state(),release:()=>void=()=>{}
+  const inFlight=new Promise<void>(resolve=>{release=resolve})
+  const published:any[]=[]
+  const publisher=createChartContextPublisher({conversationId:'A',viewId:'a'.repeat(32),isActive:()=>true,
+    capture:()=>current,onPublished:value=>published.push(value),
+    transport:async()=>{await inFlight;return {ok:true,context_ref:'b'.repeat(32),revision:1}}})
+  try {
+    await new Promise(resolve=>setImmediate(resolve))
+    current={...current,symbol:'OTHER.X'}
+    release()
+    await new Promise(resolve=>setImmediate(resolve))
+    assert.equal(published.length,1)
+    assert.notEqual(published[0].observed_source_key,undefined)
+    assert.notEqual(published[0].observed_source_key,drawingSourceKey(current))
+  } finally {release();publisher.dispose()}
+})
+
+test('drawing source identity ignores selection, viewport and indicator toggles but not chart data',()=>{
+  const original=state(), key=drawingSourceKey(original)
+  assert.equal(drawingSourceKey({...original,selection:null,visible_range:{available:false},indicators:['macd']}),key)
+  assert.notEqual(drawingSourceKey({...original,symbol:'OTHER.X'}),key)
+  assert.notEqual(drawingSourceKey({...original,candles:[...original.candles.slice(0,-1),{...original.candles.at(-1),close:31}]}),key)
+})
+
 test('new-session launcher without a real owner publishes no guessed global context',async()=>{
   let calls=0
   const publisher=createChartContextPublisher({capture:()=>state(),isActive:()=>true,transport:async()=>{calls++}})
@@ -225,6 +267,29 @@ test('failed context publication retries full state, not a misleading success he
     assert.equal(statuses[0].reason,'context_transport_unavailable');assert.equal(statuses[0].edit_authorized,false)
     assert.equal(statuses.at(-1).reason,'not_checked');assert.ok(!JSON.stringify(statuses).includes('private-path'))
   } finally {publisher.dispose();await new Promise(resolve=>setImmediate(resolve))}
+})
+
+test('publisher immediately rehydrates a restarted host after its state-required reply',async()=>{
+  const calls:any[]=[]
+  let rehydrated:()=>void=()=>{}
+  const done=new Promise<void>(resolve=>{rehydrated=resolve})
+  const publisher=createChartContextPublisher({conversationId:'A',viewId:'a'.repeat(32),capture:state,isActive:()=>true,
+    transport:async body=>{
+      calls.push(body)
+      if(calls.length===2)throw Object.assign(Error('context_publication_failed'),{code:'context_state_required'})
+      if(calls.length===3)rehydrated()
+      return {ok:true}
+    }})
+  try {
+    await new Promise(resolve=>setImmediate(resolve))
+    publisher.notify()
+    await Promise.race([done,new Promise((_,reject)=>setTimeout(()=>reject(Error('rehydration_timeout')),1000))])
+    assert.equal(calls.length,3)
+    assert.equal(calls[0].state.state,'ready')
+    assert.equal(calls[1].state,null)
+    assert.equal(calls[2].state.state,'ready')
+    assert.deepEqual(calls.map(call=>call.sequence),[1,2,3])
+  } finally {publisher.dispose()}
 })
 
 test('closing a view after an in-flight failure still sends one inactive full report',async()=>{

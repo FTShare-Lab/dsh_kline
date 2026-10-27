@@ -124,6 +124,6 @@ export class ChartApplications {
     return {candidate_chart_session:token,context_ref:view.ref,conversation_id:view.conversation,view_id:view.view,
       expected_revision:view.revision,lease_id:app.lease_id,expires_at_ms:app.expires_at_ms,base_state:app.base_state,
       payload:{symbol:payload.symbol,interval:payload.interval,chartCommands:payload.chartCommands.filter((c:any)=>
-        ['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE'].includes(c.type))}}
+        ['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION','DRAW_AGENT_SERIES_LINE','DRAW_AGENT_PRICE_BAND','DRAW_AGENT_PRICE_STICKS'].includes(c.type))}}
   }
 }

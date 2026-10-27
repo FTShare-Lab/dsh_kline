@@ -119,14 +119,17 @@ test('browser context route registers public host runtime context and rejects cr
   try {
     assert.equal(provider.name,'dsh-kline:current-view')
     assert.equal((await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://other-origin.test'},body:JSON.stringify(body)})).status,403)
-    const result=await (await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(body)})).json()
+    const missingState=await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({...body,state:null})})
+    assert.equal(missingState.status,409)
+    assert.equal((await missingState.json()).error,'context_state_required')
+    const result=await (await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({...body,sequence:2})})).json()
     assert.equal(result.ok,true); assert.match(result.context_ref,/^[A-Za-z0-9_-]{32}$/)
     const agent={session:{id:'context-conversation'}}
     assert.ok(provider.text({agent,scope:agent}).includes(result.context_ref))
     const other={session:{id:'other'}}
     assert.ok(!provider.text({agent:other,scope:other}).includes(result.context_ref))
     assert.equal((await fetch(origin+'/dsh-kline/context')).status,405)
-    const closed={...body,sequence:2,active:false,state:null}
+    const closed={...body,sequence:3,active:false,state:null}
     assert.equal((await (await fetch(origin+'/dsh-kline/context',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(closed)})).json()).ok,true)
     assert.match(provider.text({agent,scope:agent}),/unavailable/)
   } finally {

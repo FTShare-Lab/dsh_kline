@@ -142,6 +142,12 @@ test('market workspace exposes directions and a separate dragon-tiger destinatio
   assert.match(market, /market-leaderboard/)
   assert.match(market, /data-ticker-symbol/)
 })
+test('market cards keep a compact responsive grid in the sidebar', () => {
+  assert.match(html, /\.market-index-grid \{[^}]*repeat\(auto-fill, minmax\(205px, 1fr\)\)/)
+  assert.match(html, /@container \(max-width: 760px\) \{\s*\.market-index-grid \{[^}]*repeat\(auto-fill, minmax\(150px, 1fr\)\)/)
+  assert.match(html, /#marketWorkspacePanel \.market-leaderboard \{[^}]*repeat\(auto-fill, minmax\(215px, 1fr\)\)/)
+  assert.doesNotMatch(html, /@container \(max-width: 760px\) \{[\s\S]*?\.market-index-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/)
+})
 test('market page does not duplicate a partial dragon-tiger warning above its content', () => {
   const market = html.slice(html.indexOf('function renderMarketWorkspace()'), html.indexOf('function renderDragonWorkspace()'))
   assert.doesNotMatch(market, /marketPulseFreshnessMarkup/)
@@ -195,7 +201,7 @@ test('basic company profile counts as content even without news or financials', 
 for (const retry of [false, true]) test(`shared refresh updates information only on manual refresh (retry=${retry})`, async () => {
   const calls: any[] = []
   const state = { chartDataRefreshInFlight: false, currentSymbol: 'A', currentName: 'A name',
-    renderMarketDataStatus() {}, setChartStatus() {}, t: (s: string) => s, window: { setTimeout() {} },
+    renderMarketDataStatus() {}, renderMarketTicker() {}, setChartStatus() {}, t: (s: string) => s, window: { setTimeout() {} },
     async loadMarketTicker() {},
     async openSymbol(symbol: string, name: string, options: any) { calls.push({ symbol, options }) },
     async loadSecurityWorkspace(symbol: string, name: string, refresh: boolean) { calls.push({ symbol, refresh }) },

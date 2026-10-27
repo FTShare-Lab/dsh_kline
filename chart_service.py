@@ -37,6 +37,7 @@ from tools.calc import run_calc_metrics
 from core.rows import validate_rows, RowsValidationError
 from core.adjustment import normalize_adjustment, adjustment_error
 from tools.draw import draw_kline
+from tools.chart_indicators import calculate_chart_indicators
 from tools.watchlist import get_watchlist_state, save_watchlist_state
 from tools.fetch import (
     configure_ftshare_api_key,
@@ -102,6 +103,7 @@ CHART_API_ACTIONS = frozenset(
         "analyze_kline",
         "analyze_key_levels",
         "calc_range",
+        "calculate_chart_indicators",
         "fetch_candles",
         "fetch_comparison_candles",
         "fetch_security_workspace",
@@ -309,6 +311,42 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    if name.startswith('workbench_'):
+        try:
+            from tools.lines import LineError
+            from tools.ta_functions import run_ta
+            from tools.chart_functions import run_function
+            from tools.chart_edits import ChartEdit, prepare_chart_edit
+            from tools.chart_applications import request_chart_apply, read_edit_status
+            if name == 'workbench_run_ta':
+                if args.get('name') not in {'SMA', 'EMA', 'BBANDS'}:
+                    return {'ok': False, 'error': 'workbench_function_not_selected'}
+                return run_ta(**args)
+            if name == 'workbench_run_chart_function':
+                if args.get('function') not in {'fibonacci_retracement', 'parallel_channel', 'range_box', 'labeled_polyline',
+                                                'channel_candidates', 'range_candidates'}:
+                    return {'ok': False, 'error': 'workbench_function_not_selected'}
+                return run_function(**args)
+            if name == 'workbench_prepare_edit':
+                edit = ChartEdit.model_validate(args['edit'])
+                curated = {'horizontal_line', 'trend_line', 'channel', 'rectangle', 'fibonacci_retracement', 'labeled_polyline', 'series_line', 'price_band'}
+                if edit.kind not in curated and not (edit.action == 'delete' and edit.kind in {'text_annotation', 'number_annotation', 'icon_annotation', 'price_sticks', 'all_drawings'}):
+                    return {'ok': False, 'error': 'workbench_kind_not_selected'}
+                return prepare_chart_edit(**{k: v for k, v in args.items() if k != 'edit'}, edit=edit)
+            if name == 'workbench_apply_edit':
+                return request_chart_apply(args['context_ref'], args['candidate_chart_session'])
+            if name == 'workbench_edit_status':
+                return read_edit_status(args['context_ref'], args['candidate_chart_session'])
+            return {'ok': False, 'error': 'unsupported_chart_action'}
+        except (LineError, ValueError, TypeError, KeyError) as exc:
+            return {'ok': False, 'error': getattr(exc, 'code', 'invalid_workbench_request'), 'message': str(exc)}
+        except OSError:
+            return {'ok': False, 'error': 'workbench_storage_unavailable', 'message': '绘图结果暂时无法保存，图表未修改。'}
+    if name == "calculate_chart_indicators":
+        try:
+            return calculate_chart_indicators(**args)
+        except (TypeError, ValueError) as exc:
+            return {"ok": False, "error": "invalid_indicator_request", "message": str(exc)}
     if name == "analyze_key_levels":
         return _http_key_levels(args)
     if name == "analyze_kline":

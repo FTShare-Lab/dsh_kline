@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url'
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const REQUIREMENTS_FILE = join(PROJECT_ROOT, 'requirements.txt')
-const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings'
-const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 10))'
+const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings, talib; assert talib.__version__ == "0.8.2" and len(talib.get_functions()) == 201'
+const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 11))'
 const RUNTIME_VERSION_CHECK = 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
 const BOOTSTRAP_FAILURE = '.dsh-kline-bootstrap-failed'
@@ -75,17 +75,18 @@ export function pythonCandidates(env = process.env, platform = process.platform)
   if (explicit) return [{ command: explicit, args: [] }]
   if (platform === 'win32') {
     return [
-      ...['3.13', '3.12', '3.11', '3.10'].map(version => ({ command: 'py', args: [`-${version}`] })),
+      ...['3.13', '3.12', '3.11'].map(version => ({ command: 'py', args: [`-${version}`] })),
       { command: 'python', args: [] },
       { command: 'python3', args: [] },
     ]
   }
   return [
-    'python3', 'python3.13', 'python3.12', 'python3.11', 'python3.10',
-    '/opt/homebrew/bin/python3', '/opt/homebrew/bin/python3.13', '/opt/homebrew/bin/python3.12',
-    '/opt/homebrew/bin/python3.11', '/opt/homebrew/bin/python3.10',
-    '/usr/local/bin/python3', '/usr/local/bin/python3.13', '/usr/local/bin/python3.12',
-    '/usr/local/bin/python3.11', '/usr/local/bin/python3.10',
+    'python3.13', 'python3.12', 'python3.11',
+    '/opt/homebrew/bin/python3.13', '/opt/homebrew/bin/python3.12',
+    '/opt/homebrew/bin/python3.11',
+    '/usr/local/bin/python3.13', '/usr/local/bin/python3.12',
+    '/usr/local/bin/python3.11',
+    'python3', '/opt/homebrew/bin/python3', '/usr/local/bin/python3',
     join(homedir(), 'miniforge3', 'bin', 'python'),
     join(homedir(), 'Caskroom', 'miniforge', 'base', 'bin', 'python3'),
     '/opt/homebrew/Caskroom/miniforge/base/bin/python3',
@@ -214,9 +215,9 @@ function findBootstrapPython(preferred = '') {
     if (commandPasses(candidate.command, candidate.args, VERSION_CHECK)) return candidate
   }
   const hint = process.platform === 'win32'
-    ? 'Install Python 3.10 or newer from python.org, enable the Python Launcher, or set DSH_KLINE_PYTHON.'
-    : 'Install Python 3.10 or newer, or set DSH_KLINE_PYTHON to its executable.'
-  throw new Error(`dsh_kline requires Python 3.10 or newer. ${hint}`)
+    ? 'Install Python 3.11 or newer from python.org, enable the Python Launcher, or set DSH_KLINE_PYTHON.'
+    : 'Install Python 3.11 or newer, or set DSH_KLINE_PYTHON to its executable.'
+  throw new Error(`dsh_kline requires Python 3.11 or newer. ${hint}`)
 }
 
 async function runLogged(command, args, logPath) {
@@ -424,7 +425,7 @@ export async function main(argv = process.argv.slice(2)) {
       throw new Error('External runtime requires DSH_KLINE_PYTHON')
     }
     if (!commandPasses(configuredPython, [], VERSION_CHECK)) {
-      throw new Error('External DSH_KLINE_PYTHON must be a working Python 3.10 or newer; automatic installation is disabled')
+      throw new Error('External DSH_KLINE_PYTHON must be a working Python 3.11 or newer; automatic installation is disabled')
     }
     if (!commandPasses(configuredPython, [], IMPORT_CHECK)) {
       throw new Error('External DSH_KLINE_PYTHON is missing required dependencies; the host must provision them, automatic installation is disabled')

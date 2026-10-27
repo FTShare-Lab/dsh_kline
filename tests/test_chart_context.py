@@ -44,6 +44,15 @@ class ChartContextTests(unittest.TestCase):
         self.assertFalse(result["live_view_editable"]); self.assertFalse(result["render_verified"])
         self.assertEqual(result["selected_drawing_status"], "not_supported")
 
+    def test_icon_annotation_survives_python_context_read(self):
+        self.record["state"]["drawings"].append({"id": "I", "kind": "icon_annotation", "origin": "ai",
+            "name": "向上提示", "color": "info", "interval": "day", "time": 2, "price": 31.2, "icon": "arrow_up"})
+        self.save()
+        result = read_chart_context(self.token)
+        drawing = next(item for item in result["drawings"] if item["id"] == "I")
+        self.assertEqual((drawing["kind"], drawing["icon"], drawing["time"], drawing["price"]),
+            ("icon_annotation", "arrow_up", 2, 31.2))
+
     def test_unknown_viewport_is_not_loaded_range(self):
         self.record["state"]["visible_range"] = {"available": False}; self.save()
         result = read_chart_context(self.token)
@@ -83,7 +92,10 @@ class ChartContextTests(unittest.TestCase):
 
     def test_stale_inactive_ambiguous_foreign_or_missing_never_fall_back(self):
         original = deepcopy(self.record)
-        cases = [({"observed_at_ms": 69000}, "chart_context_stale"), ({"active": False}, "chart_view_inactive"),
+        self.record = {**original, "observed_at_ms": 40000}
+        self.save()
+        self.assertEqual(read_chart_context(self.token)["revision"], 1)
+        cases = [({"observed_at_ms": 9000}, "chart_context_stale"), ({"active": False}, "chart_view_inactive"),
                  ({"ambiguous": True}, "ambiguous_chart_views"), ({"host_process_id": 4243}, "chart_context_unavailable")]
         for changes, code in cases:
             self.record = {**original, **changes}; self.save()

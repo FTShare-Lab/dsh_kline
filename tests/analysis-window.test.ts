@@ -59,17 +59,21 @@ test('legacy annual YTD correction and drawing-only cache misses retain the exac
 
 test('window summary reports actual plotted rows and clears when no chart remains', () => {
   const row: any = {hidden:true,textContent:''}
-  const state: any = {document:{getElementById:()=>row},viewLanguage:'zh',
+  const meta: any = {title:''}
+  const state: any = {document:{getElementById:(id:string)=>id==='chartMetaWindow'?row:meta},viewLanguage:'zh',
     currentCandles:[{time:100},{time:200}],fmtCandleTimestamp:(value:any)=>String(value.time)}
   const renderSource = html.slice(html.indexOf('function renderChartWindow('),html.indexOf('function renderChartMeta('))
   const render = runInNewContext(renderSource + '; renderChartWindow',state)
   render()
   assert.equal(row.textContent,'图表数据：2 根 · 100 — 200')
-  assert.equal(row.hidden,false)
+  assert.equal(row.hidden,true)
+  assert.equal(meta.title,row.textContent)
   state.viewLanguage = 'en'; render()
   assert.equal(row.textContent,'Chart data: 2 bars · 100 — 200')
+  assert.equal(meta.title,row.textContent)
   state.currentCandles = []; render()
   assert.equal(row.hidden,true)
   assert.equal(row.textContent,'')
+  assert.equal(meta.title,'')
   assert.match(html,/renderChartMeta\(candle = currentCandles.at\(-1\)\) \{\s*renderChartWindow\(\);/)
 })

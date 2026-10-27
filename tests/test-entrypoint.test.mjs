@@ -39,7 +39,7 @@ test('test discovery includes every top-level TS/MJS test in sorted explicit arg
     const files = discoverNodeTests(directory)
     assert.deepEqual(files, ['a space.test.mjs','b.test.ts'].map(name => join(directory, 'tests', name)))
     assert.deepEqual(testSuites([], 'python', files).map(s => s.name), ['JavaScript / TypeScript','Python'])
-    assert.deepEqual(testSuites(['--node'], 'python', files)[0].args, ['--test', ...files])
+    assert.deepEqual(testSuites(['--node'], 'python', files)[0].args, ['--test', '--test-concurrency=2', ...files])
     assert.deepEqual(testSuites(['--python'], 'python', files), [{ name: 'Python', command: 'python', args: ['-m','pytest','-q'] }])
     assert.throws(() => testSuites(['--bad'], 'python', files), /Usage/)
     assert.throws(() => testSuites(['--node','--python'], 'python', files), /Usage/)
@@ -52,7 +52,7 @@ test('test runner preserves failure or interruption and never silently skips a f
   for (const failure of [{ status: 7 }, { status: null, signal: 'SIGTERM' }, { status: null, error: Error('fixture') }]) {
     let count = 0
     assert.equal(runTestSuites(suites, { cwd: PROJECT_ROOT }, (command, args, options) => {
-      count++; assert.equal(command, process.execPath); assert.deepEqual(args, ['--test','one file.test.ts'])
+      count++; assert.equal(command, process.execPath); assert.deepEqual(args, ['--test','--test-concurrency=2','one file.test.ts'])
       assert.equal(options.shell, false); return failure
     }, quiet), failure.status === 7 ? 7 : 1)
     assert.equal(count, 1)

@@ -125,7 +125,7 @@ def test_launcher_contains_native_windows_runtime_support():
         "BOOTSTRAP_RUNNING",
         "DSH_KLINE_RUNTIME_DIR",
         "bootstrap.log",
-        "Python 3.10 or newer",
+        "Python 3.11 or newer",
         "--isolated",
     ):
         assert marker in launcher
@@ -229,10 +229,12 @@ def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
     assert "MCP connection will retry automatically" in result.stderr
     deadline = time.monotonic() + 5
     stamp = venv / ".dsh-kline-requirements"
-    while time.monotonic() < deadline and not stamp.exists():
+    marker = venv / ".dsh-kline-bootstrap-running"
+    while time.monotonic() < deadline and (not stamp.exists() or marker.exists()):
         time.sleep(0.05)
+    assert stamp.exists(), "background bootstrap did not finish writing the requirements stamp"
     assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
-    assert not (venv / ".dsh-kline-bootstrap-running").exists()
+    assert not marker.exists(), f"background bootstrap left a running marker: {marker.read_text()}"
     assert not (project / ".server-launched").exists()
 
 
@@ -352,8 +354,8 @@ def test_external_runtime_starts_without_managing_dependencies(tmp_path):
 @pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration test")
 @pytest.mark.parametrize("failure, message", [
     ("missing_python", "requires DSH_KLINE_PYTHON"),
-    ("broken_python", "working Python 3.10 or newer"),
-    ("old_python", "working Python 3.10 or newer"),
+    ("broken_python", "working Python 3.11 or newer"),
+    ("old_python", "working Python 3.11 or newer"),
     ("dependencies", "missing required dependencies"),
     ("venv", "cannot be combined"),
     ("prepare", "cannot be combined"),
