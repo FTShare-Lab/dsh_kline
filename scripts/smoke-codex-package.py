@@ -21,6 +21,7 @@ def main() -> int:
             package.extractall(destination)
         for required in ("plugin.json", ".codex-plugin/plugin.json", "mcp.json", ".mcp.json", "codex_server.py", "codex_runtime/state.py"):
             if not (destination / required).is_file(): raise SystemExit(f"missing packaged file: {required}")
+            if not os.access(destination / required, os.R_OK): raise SystemExit(f"packaged file is not readable: {required}")
         for forbidden in ("chart_service.py", "server.py", "cordis.patch.yml"):
             if (destination / forbidden).exists(): raise SystemExit(f"DSH-only file leaked into Codex package: {forbidden}")
         text = (destination / "mcp.json").read_text(encoding="utf-8")

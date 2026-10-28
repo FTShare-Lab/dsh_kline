@@ -14,7 +14,12 @@ for (let index = 0; index < count; index += 1) {
   const length = data.readUInt16LE(cursor + 28), extra = data.readUInt16LE(cursor + 30), comment = data.readUInt16LE(cursor + 32)
   const name = data.subarray(cursor + 46, cursor + 46 + length).toString('utf8')
   names.add(name)
-  entries.set(name, { method: data.readUInt16LE(cursor + 10), size: data.readUInt32LE(cursor + 20), offset: data.readUInt32LE(cursor + 42) })
+  entries.set(name, {
+    method: data.readUInt16LE(cursor + 10),
+    size: data.readUInt32LE(cursor + 20),
+    mode: data.readUInt32LE(cursor + 38) >>> 16,
+    offset: data.readUInt32LE(cursor + 42),
+  })
   cursor += 46 + length + extra + comment
 }
 function readStoredEntry(name) {
@@ -27,6 +32,7 @@ function readStoredEntry(name) {
 for (const required of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'codex_server.py', 'codex_runtime/state.py', 'scripts/run-ft-kline.mjs', 'tools/draw.py', 'tools/chart_indicators.py', 'view/kline.html', 'assets/ft-kline.svg', 'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md']) {
   if (!names.has(required)) throw new Error(`Codex package missing ${required}`)
 }
+if ([...entries.values()].some(entry => entry.mode !== 0o100644)) throw new Error('Codex package entries must extract as readable regular files')
 for (const forbidden of ['chart_service.py', 'server.py', 'cordis.patch.yml', 'config/dsh-kline.patch.yml', 'scripts/run-dsh-kline.sh']) {
   if (names.has(forbidden)) throw new Error(`Codex package is not isolated: ${forbidden}`)
 }

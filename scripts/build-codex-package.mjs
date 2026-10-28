@@ -69,7 +69,10 @@ function centralHeader(name, data, crc, stamp, offset) {
   buffer.writeUInt16LE(0x800, 8); buffer.writeUInt16LE(0, 10); buffer.writeUInt16LE(stamp.time, 12); buffer.writeUInt16LE(stamp.date, 14)
   buffer.writeUInt32LE(crc, 16); buffer.writeUInt32LE(data.length, 20); buffer.writeUInt32LE(data.length, 24)
   buffer.writeUInt16LE(name.length, 28); buffer.writeUInt16LE(0, 30); buffer.writeUInt16LE(0, 32); buffer.writeUInt16LE(0, 34)
-  buffer.writeUInt16LE(0, 36); buffer.writeUInt32LE(0, 38); buffer.writeUInt32LE(offset, 42); name.copy(buffer, 46)
+  // Mark all archive entries as regular, owner-readable source files. Without
+  // this POSIX external attribute macOS `unzip` restores files as mode 000,
+  // which prevents Codex from reading plugin.json after a fresh install.
+  buffer.writeUInt16LE(0, 36); buffer.writeUInt32LE(0o100644 * 0x10000, 38); buffer.writeUInt32LE(offset, 42); name.copy(buffer, 46)
   return buffer
 }
 function endOfDirectory(count, size, offset) {
