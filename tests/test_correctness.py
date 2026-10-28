@@ -280,7 +280,8 @@ def test_us_directory_keeps_all_provider_buckets_in_one_market():
 
 
 def test_history_depth_is_disclosed():
-    with patch.object(f, '_fetch_candles_ftshare', return_value={'ok': True, 'rows': bars(2), 'count': 2}):
+    with patch.object(f, '_ftshare_credential_source', return_value='plugin_store'), \
+         patch.object(f, '_fetch_candles_ftshare', return_value={'ok': True, 'rows': bars(2), 'count': 2}):
         result = f.fetch_candles('600519.XSHG', limit=4000)
     assert result['requested_count'] == 4000
     assert not result['history_complete']

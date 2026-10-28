@@ -19,7 +19,7 @@ const allowlist = [
   // DSH context, HTTP application, and snapshot modules are intentionally not
   // present in this archive.
   'tools/annotations.py', 'tools/calc.py', 'tools/chart_indicators.py', 'tools/channels.py', 'tools/channel_candidates.py',
-  'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/lines.py',
+  'tools/baostock_source.py', 'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/lines.py',
   'tools/pivots.py', 'tools/polylines.py', 'tools/price_bands.py', 'tools/price_series.py',
   'tools/price_sticks.py', 'tools/range_candidates.py', 'tools/rectangles.py', 'tools/trend_lines.py',
   'scripts/run-dsh-kline.mjs', 'scripts/run-ft-kline.mjs', 'scripts/run-ft-kline-cli.mjs',

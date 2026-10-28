@@ -17,7 +17,8 @@ def _clear_intelligence_caches():
     f._security_intelligence_cache.clear()
     f._candle_cache.clear()
     f._symbol_search_cache.clear()
-    yield
+    with patch.object(f, "_ftshare_credential_source", return_value="plugin_store"):
+        yield
     f._market_pulse_cache = None
     f._market_pulse_section_cache.clear()
     f._security_intelligence_cache.clear()
@@ -179,11 +180,46 @@ def test_market_ticker_can_return_a_requested_registry_batch():
             "close": 100.0, "change": 1.0, "change_pct": 1.0, "time": 1,
         }
 
-    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_market_api", return_value=market), patch.object(f, "_ftshare_ticker_item", side_effect=ticker_item) as item:
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_credential_source", return_value="plugin_store"), patch.object(f, "_ftshare_market_api", return_value=market), patch.object(f, "_ftshare_ticker_item", side_effect=ticker_item) as item:
         result = f.fetch_market_ticker(symbols=requested)
     assert [row["symbol"] for row in result["items"]] == requested
     assert result["missing"] == []
     assert [call.args[1]["symbol"] for call in item.call_args_list] == requested
+
+
+def test_market_ticker_without_key_uses_existing_free_feed_immediately():
+    free_item = {
+        "market": "CN", "symbol": "000001.XSHG", "name": "上证指数",
+        "close": 3800.0, "change": 10.0, "change_pct": 0.26, "time": 1,
+    }
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_credential_source", return_value="none"), patch.object(f, "_ftshare_market_api") as official, patch.object(f, "fetch_tencent_ticker_items", return_value=[free_item]) as free:
+        result = f.fetch_market_ticker(symbols=["000001.XSHG"])
+    official.assert_not_called()
+    free.assert_called_once()
+    assert result["source"] == "tencent_free"
+    assert result["items"][0]["close"] == 3800.0
+
+
+def test_market_ticker_with_limited_key_falls_back_for_failed_official_index():
+    free_item = {
+        "market": "CN", "symbol": "000001.XSHG", "name": "上证指数",
+        "close": 3800.0, "change": 10.0, "change_pct": 0.26, "time": 1,
+    }
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_credential_source", return_value="plugin_store"), patch.object(f, "_ftshare_market_api", return_value=object()) as official, patch.object(f, "_ftshare_ticker_item", return_value=None) as ticker, patch.object(f, "fetch_tencent_ticker_items", return_value=[free_item]) as free:
+        result = f.fetch_market_ticker(symbols=["000001.XSHG"])
+    official.assert_called_once()
+    ticker.assert_called_once()
+    free.assert_called_once()
+    assert result["source"] == "tencent_free"
+    assert result["items"][0]["close"] == 3800.0
+
+
+def test_market_pulse_without_key_does_not_probe_paid_sections():
+    with patch.object(f, "ftshare_available", return_value=True), patch.object(f, "_ftshare_credential_source", return_value="none"), patch.object(f, "_ftshare_market_api") as official:
+        result = f.fetch_market_pulse(sections=["sectors", "concepts"])
+    official.assert_not_called()
+    assert result["source"]["status"] == "unavailable"
+    assert result["sections"]["sectors"]["state"] == "unsupported"
 
 
 def test_data_source_capability_contract_keeps_external_rows_intentionally_narrow():

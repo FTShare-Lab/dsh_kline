@@ -89,7 +89,8 @@ class AdjustmentTests(unittest.TestCase):
         self.assertEqual(result["adjust_requested"], "forward"); self.assertEqual(get.call_args.kwargs["adjust"], "forward")
 
     def test_provider_adapter_alias_and_free_index_truthful_metadata(self):
-        with patch("tools.fetch._fetch_candles_ftshare", return_value={"ok": False, "error": "unavailable"}) as primary, \
+        with patch("tools.fetch._ftshare_credential_source", return_value="plugin_store"), \
+             patch("tools.fetch._fetch_candles_ftshare", return_value={"ok": False, "error": "unavailable"}) as primary, \
              patch("tools.fetch.fetch_em_index_daily", return_value=sample_rows(4)), patch("tools.fetch.fetch_tencent_index_daily", return_value=None):
             result = fetch.fetch_candles("000300.XSHG", adjust="qfq", limit=4)
         self.assertTrue(result["ok"]); self.assertEqual(primary.call_args.kwargs["adjust"], "forward")

@@ -29,7 +29,7 @@ function readStoredEntry(name) {
   const length = data.readUInt16LE(entry.offset + 26), extra = data.readUInt16LE(entry.offset + 28)
   return data.subarray(entry.offset + 30 + length + extra, entry.offset + 30 + length + extra + entry.size)
 }
-for (const required of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'codex_server.py', 'codex_runtime/state.py', 'scripts/run-ft-kline.mjs', 'tools/draw.py', 'tools/chart_indicators.py', 'view/kline.html', 'assets/ft-kline.svg', 'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md']) {
+for (const required of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'codex_server.py', 'codex_runtime/state.py', 'scripts/run-ft-kline.mjs', 'tools/baostock_source.py', 'tools/draw.py', 'tools/chart_indicators.py', 'view/kline.html', 'assets/ft-kline.svg', 'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md']) {
   if (!names.has(required)) throw new Error(`Codex package missing ${required}`)
 }
 if ([...entries.values()].some(entry => entry.mode !== 0o100644)) throw new Error('Codex package entries must extract as readable regular files')

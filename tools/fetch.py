@@ -32,6 +32,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 from core.adjustment import normalize_adjustment, adjustment_error
+from tools.baostock_source import SOURCE as BAOSTOCK_SOURCE, SOURCE_URL as BAOSTOCK_SOURCE_URL, eligible_stock_code, fetch_stock_daily
 
 try:  # Built-in free fallback source; never required for the FTShare path.
     from tools.free_sources import (
@@ -2624,16 +2625,12 @@ def _ftshare_ticker_rows(market: Any, source_info: Mapping[str, Any]) -> list[di
 
 
 def _ftshare_ticker_item(market: Any, source_info: Mapping[str, Any], now: datetime) -> dict[str, Any] | None:
-    """Read one official index with one bounded retry for transient gaps."""
-    for attempt in range(2):
-        rows = _ftshare_ticker_rows(market, source_info)
-        item = _ticker_item(source_info, rows) if rows is not None else None
-        if item is not None:
-            item["status"] = _market_status(source_info, now)
-            return item
-        if attempt == 0:
-            time.sleep(0.2)
-    return None
+    """Try the official index once; the landing page has a separate fallback."""
+    rows = _ftshare_ticker_rows(market, source_info)
+    item = _ticker_item(source_info, rows) if rows is not None else None
+    if item is not None:
+        item["status"] = _market_status(source_info, now)
+    return item
 
 
 def _remember_market_ticker(item: Mapping[str, Any], fetched_at: float) -> None:
@@ -2659,13 +2656,11 @@ def _last_market_ticker(symbol: str, now: float) -> dict[str, Any] | None:
 def fetch_market_ticker(symbols: list[str] | tuple[str, ...] | None = None) -> dict[str, Any]:
     """Fetch a compact A/HK/US index ticker, degrading silently per source.
 
-    FTShare official feeds are tried first for every strip entry: A-share
+    With a configured Key, FTShare official feeds are tried first: A-share
     indices via ``index_candlesticks`` and global indices via
-    ``global_index_daily_kline`` (both are in the FTShare free tier, so any
-    configured Key keeps the strip fully official). When the official feeds
-    fail (anonymous / no Key / transient error), the built-in Tencent free
-    quote feed fills the strip so it is never empty. The returned ``source``
-    tells the view which feed produced the points.
+    ``global_index_daily_kline``. The existing Tencent feed may fill supported
+    gaps when those endpoints fail or no Key is configured. Neither source is
+    guaranteed to return every index; ``missing`` reports the remainder.
 
     ``symbols`` is intentionally limited to the fixed registry above. The
     browser uses small, ordered batches on a cold market page so the first
@@ -2682,9 +2677,11 @@ def fetch_market_ticker(symbols: list[str] | tuple[str, ...] | None = None) -> d
         if not requested_symbols or str(source_info["symbol"]).upper() in requested_symbols
     )
 
-    if ftshare_available():
+    # An installed SDK is not an authenticated account.  Anonymous FTShare
+    # attempts can stall the first index card before the usable free feed runs.
+    if ftshare_available() and _ftshare_credential_source() != "none":
         try:
-            market = _ftshare_market_api(timeout=8)
+            market = _ftshare_market_api(timeout=4)
             for source_info in source_infos:
                 item = _ftshare_ticker_item(market, source_info, now)
                 if item is not None:
@@ -3361,6 +3358,59 @@ def _free_index_candles_result(
     }
 
 
+def _free_stock_candles_result(
+    symbol: str, *, interval: str, interval_value: int, limit: int, adjust: str,
+    after_ftshare_failure: bool = False,
+) -> dict[str, Any] | None:
+    """BaoStock fallback for explicitly qualified沪深 A-share stock history only."""
+    sym = _canonical_market_symbol(symbol)
+    normalized_interval = str(interval or "day").strip().lower()
+    if (
+        not eligible_stock_code(sym) or _broad_index_for_symbol(sym) is not None
+        or _is_etf_symbol(sym) or normalized_interval not in {"day", "week", "month", "quarter", "year"}
+        or int(interval_value or 1) != 1
+    ):
+        return None
+    requested = max(2, min(int(limit or 220), 4000))
+    # Aggregate complete daily bars locally.  Never combine the two vendors'
+    # rows into one result or mislabel an unsupported adjustment as none.
+    daily_factor = {"day": 1, "week": 6, "month": 26, "quarter": 80, "year": 260}[normalized_interval]
+    raw = fetch_stock_daily(sym, limit=min(4000, requested * daily_factor + daily_factor), adjust=adjust)
+    if not raw:
+        return None
+    rows = _aggregate_interval(raw, normalized_interval, timezone_name="Asia/Shanghai")[-requested:]
+    if len(rows) < 2:
+        return None
+    freshness = _candle_freshness(sym, rows)
+    latest_date = datetime.fromtimestamp(rows[-1]["time"], tz=ZoneInfo("Asia/Shanghai")).date()
+    if (datetime.now(ZoneInfo("Asia/Shanghai")).date() - latest_date).days > 5:
+        freshness["status"] = "stale"
+        freshness["freshness"] = "historical_daily_stale"
+    return {
+        "ok": True,
+        "symbol": sym,
+        "name": next((str(item["name"]) for item in _SYMBOL_DIRECTORY_SEED if item["symbol"] == sym), sym),
+        "instrument_type": "stock",
+        "interval": normalized_interval,
+        "interval_value": 1,
+        "session_count": None,
+        "adjust": adjust,
+        "count": len(rows),
+        "rows": rows,
+        "source": BAOSTOCK_SOURCE,
+        "source_url": BAOSTOCK_SOURCE_URL,
+        "updated_at": int(time.time()),
+        "status": freshness["status"],
+        "market_status": _symbol_market_status(sym),
+        "exchange_timezone": freshness["exchange_timezone"],
+        "as_of": freshness["as_of"],
+        "freshness": freshness["freshness"],
+        "requested_count": requested,
+        "history_complete": len(rows) >= requested,
+        **({"fallback_from": "ftshare"} if after_ftshare_failure else {}),
+    }
+
+
 def fetch_candles(
     symbol: str,
     *,
@@ -3370,18 +3420,43 @@ def fetch_candles(
     limit: int = 220,
     adjust: str = "none",
 ) -> dict[str, Any]:
-    """Public candle entry: FTShare first, built-in free fallback for indices.
+    """Public candle entry with bounded, explicitly scoped free fallbacks.
 
-    FTShare remains the promoted provider and is always tried first. When it
-    cannot return a broad-market index (anonymous/free tier), and the requested
-    symbol is covered by the built-in free source, this transparently serves
-    the daily index series with ``source="eastmoney_free"`` so charts and
-    comparison features stay usable for free users.
+    Configured FTShare remains first. Without a key, eligible沪深 A-share
+    stock daily history goes directly to BaoStock to avoid a redundant
+    anonymous FTShare round trip. Indexes use their separate free feeds.
     """
     normalized_adjust = normalize_adjustment(adjust)
     if normalized_adjust is None:
         return adjustment_error()
     adjust = normalized_adjust
+    key_configured = _ftshare_credential_source() != "none"
+    stock_options = {"interval": interval, "interval_value": interval_value, "limit": limit, "adjust": adjust}
+    free_stock_eligible = (
+        eligible_stock_code(_canonical_market_symbol(symbol)) is not None
+        and str(interval or "day").strip().lower() in {"day", "week", "month", "quarter", "year"}
+        and int(interval_value or 1) == 1
+    )
+    if not key_configured:
+        free_stock = _free_stock_candles_result(symbol, **stock_options)
+        if free_stock is not None:
+            return free_stock
+        if free_stock_eligible:
+            return {
+                "ok": False,
+                "error": "free_stock_unavailable",
+                "error_code": "free_stock_unavailable",
+                "message": "BaoStock 暂未返回该标的历史 K 线，请稍后重试。",
+                "source": BAOSTOCK_SOURCE,
+                "source_url": BAOSTOCK_SOURCE_URL,
+                "ftshare_key_configured": False,
+            }
+        # Use the public index providers before constructing an anonymous
+        # FTShare client.  This keeps a key-less request from consuming the
+        # keyed/anonymous SDK path when a supported index is available free.
+        free_index = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
+        if free_index is not None:
+            return free_index
     primary = _fetch_candles_ftshare(
         symbol,
         interval=interval,
@@ -3392,7 +3467,7 @@ def fetch_candles(
     )
     # Safe, non-secret context for the UI: a missing credential needs different
     # guidance from a configured account that has hit its plan's rate limit.
-    primary = {**primary, "ftshare_key_configured": _ftshare_credential_source() != "none"}
+    primary = {**primary, "ftshare_key_configured": key_configured}
     if primary.get("ok"):
         actual = len(primary.get("rows") or [])
         is_intraday = str(interval or "").strip().lower() == "minute"
@@ -3425,6 +3500,10 @@ def fetch_candles(
     fallback = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
     if fallback is not None:
         return fallback
+    if key_configured:
+        free_stock = _free_stock_candles_result(symbol, **stock_options, after_ftshare_failure=True)
+        if free_stock is not None:
+            return free_stock
     return primary
 
 
@@ -3793,10 +3872,12 @@ def fetch_market_pulse(*, refresh: bool = False, sections: Sequence[str] | None 
     requested = {str(section).strip().lower() for section in selected_sections} & _MARKET_PULSE_SECTIONS
     full_request = requested == _MARKET_PULSE_SECTIONS
     now = time.time()
+    # Market-intelligence endpoints have no anonymous fallback.  Avoid a burst
+    # of doomed requests when the SDK is installed but no key is configured.
+    if not ftshare_available() or _ftshare_credential_source() == "none":
+        return _provider_unavailable_intelligence("market_pulse")
     if full_request and not refresh and _market_pulse_cache and now - _market_pulse_cache[0] < _MARKET_PULSE_CACHE_TTL_SECONDS:
         return {**_market_pulse_cache[1], "cached": True}
-    if not ftshare_available():
-        return _provider_unavailable_intelligence("market_pulse")
     market = _ftshare_market_api(timeout=12)
     errors: dict[str, list[dict[str, str]]] = {}
     trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")

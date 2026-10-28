@@ -1012,7 +1012,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionSource" hidden>
-          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">FTShare 免费套餐也需要 API Key 才能获取个股 K 线；未配置时仅部分大盘指数可使用备用行情。</span></div>
+          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。</span></div>
           <div class="settings-info"><div class="settings-info-title" id="settingsCurrentChartTitle">当前图数据</div><div id="settingsSourceStatus"></div></div>
           <div class="source-autoload"><strong data-i18n="sourceAutoloadTitle">自动使用已有的 FTShare Key</strong><span data-i18n="sourceAutoload">dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。</span></div>
           <div class="settings-provider">
@@ -1357,7 +1357,7 @@
     </ul>
     <div class="welcome-ftshare">
       <div class="welcome-ftshare-title" data-i18n="welcomeFtshareTitle">想使用更多数据？</div>
-      <div data-i18n="welcomeFtshareDetail">查看个股 K 线需配置 FTShare Key；可免费注册。未配置时，仅部分大盘指数有备用行情。</div>
+      <div data-i18n="welcomeFtshareDetail">沪深 A 股历史日 K 可使用免 Key 备用源；分钟 K 和更多数据按 FTShare 套餐提供。</div>
     </div>
     <div class="welcome-actions"><button class="btn" id="welcomeLaterBtn" type="button" data-i18n="welcomeLater">稍后设置</button><button class="btn primary" id="welcomeConfigureBtn" type="button" data-i18n="welcomeConfigure">配置 FTShare</button></div>
   </section>
@@ -1409,7 +1409,10 @@ async function callMarketTool(name, args, attempts = 2) {
       const result = await callTool(name, args);
       const structured = result?.structuredContent || result || {};
       if (result?.isError || structured.ok === false) {
-        throw new Error(structured.message || structured.error || `${name} failed`);
+        throw Object.assign(new Error(structured.message || structured.error || `${name} failed`), {
+          code: structured.error_code || structured.error || "",
+          ftshare_key_configured: structured.ftshare_key_configured,
+        });
       }
       return result;
     } catch (error) {
@@ -1817,28 +1820,34 @@ Object.assign(UI_COPY.en, {
 // A free FTShare account is different from making anonymous requests. Keep
 // these entitlement messages together so the source and error UI agree.
 Object.assign(UI_COPY.zh, {
-  sourceIntro: "FTShare 免费套餐也需要 API Key 才能获取个股 K 线；未配置时仅部分大盘指数可使用备用行情。",
+  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。",
   sourceFreeMode: "注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。",
   ftshareStatusAnonymous: "未配置 API Key",
-  ftshareHintAnonymous: "个股 K 线请先注册并配置免费的 FTShare Key；部分大盘指数可使用备用行情。",
+  ftshareHintAnonymous: "沪深 A 股历史日 K 可尝试 BaoStock 备用源；更多行情请配置 FTShare Key。",
   ftshareConfigInvalid: "请输入 API Key，或关闭此配置窗口。",
   ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "分钟 K 需要有效 Key 和相应套餐权限；请检查数据源配置。",
-  welcomeFtshareDetail: "查看个股 K 线需配置 FTShare Key；可免费注册。未配置时，仅部分大盘指数有备用行情。",
-  noKeyStockData: "未配置 FTShare Key，本次 K 线请求未获数据。免费套餐也需要 Key；可在设置中配置，或先查看部分大盘指数。",
+  welcomeFtshareDetail: "沪深 A 股历史日 K 可使用免 Key 备用源；分钟 K 和更多数据按 FTShare 套餐提供。",
+  noKeyStockData: "本次免费历史行情暂不可用。可重试，或在设置中配置 FTShare Key。",
+  freeStockUnavailable: "BaoStock 暂未返回这只股票的历史 K 线，请稍后重试。",
+  ftshareNoKeyConnection: "FTShare 未配置 Key；沪深 A 股历史日 K 可尝试 BaoStock。",
   configureDataSource: "配置数据源",
+  marketBoardsUnavailable: "板块数据暂不可用，指数行情仍可正常使用。",
 });
 Object.assign(UI_COPY.en, {
-  sourceIntro: "A free FTShare account still needs an API key for stock candles. Without a key, only some major indices have fallback data.",
+  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can use BaoStock. Minute bars still depend on source access.",
   sourceFreeMode: "Register a free FTShare key for stock candles allowed by your plan. Minute bars, news, and other data depend on the endpoint and plan.",
   ftshareStatusAnonymous: "API key not configured",
-  ftshareHintAnonymous: "Register and configure a free FTShare key for stock candles. Some major indices can use fallback data.",
+  ftshareHintAnonymous: "Historical daily A-share bars can use BaoStock; configure an FTShare key for broader coverage.",
   ftshareConfigInvalid: "Enter an API key, or close this configuration window.",
   ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "Minute bars require a valid key and access under your plan. Check Data source settings.",
-  welcomeFtshareDetail: "Stock candles require an FTShare key, which you can register for free. Without one, only some major indices have fallback data.",
-  noKeyStockData: "No FTShare key is configured, and this chart could not load. Even the free plan requires a key; configure one in Settings or view a supported major index.",
+  welcomeFtshareDetail: "Historical daily A-share bars can use the key-less fallback. Minute bars and more data depend on the FTShare plan.",
+  noKeyStockData: "Free historical data is temporarily unavailable. Retry or configure an FTShare key in Settings.",
+  freeStockUnavailable: "BaoStock did not return historical candles for this stock. Please retry later.",
+  ftshareNoKeyConnection: "No FTShare key is configured; historical daily A-share bars can use BaoStock.",
   configureDataSource: "Configure data source",
+  marketBoardsUnavailable: "Board rankings are unavailable; major indices remain available.",
 });
 const RANGE_COPY = {
   zh: { statistics: "区间统计", startTime: "开始时间", endTime: "结束时间", volume: "成交量", detail: "区间明细", return: "区间涨跌", amplitude: "振幅", drawdown: "最大回撤", bars: "K线数", days: "日历天", upDown: "阳/阴", start: "起点", end: "终点", openClose: "开/收", highLow: "高/低", streak: "连涨/连跌", averageVolume: "均量", pickNext: "（再点终点）", calculating: "区间统计中…", failed: "区间统计失败", updating: "更新指标…", redrawFailed: "重绘失败" },
@@ -7445,7 +7454,10 @@ function showError(msg) {
 }
 function dataFetchFailureDetail(error) {
   const code = String(error?.code || error?.error_code || "").toLowerCase();
-  if (error?.ftshare_key_configured === false && ["rate_limited", "auth_required", "invalid_key"].includes(code)) return t("noKeyStockData");
+  if (code === "free_stock_unavailable") return t("freeStockUnavailable");
+  if (error?.ftshare_key_configured === false && ["rate_limited", "auth_required", "invalid_key"].includes(code)) {
+    return t(isIntradayRange() ? "ftshareMinuteKeyRequired" : "noKeyStockData");
+  }
   if (code === "rate_limited") return t("ftshareProbeRateLimited");
   if (code === "capability_limited" || code === "insufficient_quota") return t("ftshareProbePlanLimited");
   if (code === "auth_required" || code === "invalid_key") return t("ftshareProbeAuthRequired");
@@ -9054,6 +9066,7 @@ function marketDataSourcePresentation(source, sourceUrl = "") {
   if (["ftshare-mcp", "ftsharemcp"].includes(value)) return { label: "FTShare-MCP", url: FTSHARE_MCP_URL };
   if (["eastmoney-free", "eastmoneyfree", "eastmoney_free"].includes(value)) return { label: t("sourceEastmoneyFree"), url: "https://quote.eastmoney.com/" };
   if (["tencent-free", "tencentfree", "tencent_free"].includes(value)) return { label: t("sourceTencentFree"), url: "https://gu.qq.com/" };
+  if (["baostock-free", "baostockfree", "baostock_free"].includes(value)) return { label: viewLanguage === "zh" ? "BaoStock 免费历史行情" : "BaoStock free history", url: "https://www.baostock.com/" };
   if (value === "mock") return { label: "Mock", url: "" };
   if (value === "mcp") return { label: "MCP", url: safeSourceUrl(sourceUrl) };
   return { label: raw.slice(0, 120), url: safeSourceUrl(sourceUrl) };
@@ -9101,7 +9114,7 @@ function ftshareResultMessage(data, fallbackKey = "ftshareConfigFailed") {
     return t(daily === "available" ? "ftshareProbeDailyOnly" : "ftshareProbeNone");
   }
   if (data?.configured === false && ["auth_required", "rate_limited", "invalid_key"].includes(data?.error)) {
-    return t("noKeyStockData");
+    return t("ftshareNoKeyConnection");
   }
   const errorKeys = {
     invalid_key: "ftshareProbeInvalidKey", invalid_api_key: "ftshareProbeInvalidKey",
@@ -10920,7 +10933,6 @@ async function init() {
   try { kchart?.setLocale?.(viewLanguage === "en" ? "en-US" : "zh-CN"); } catch {}
   syncLanguageControls();
   setWatchlistRail(watchlistRailOpen, { persist: false });
-  await syncWatchlistFromService();
   initViewScrollbar();
   initCanvasResizer();
   refreshIndexCompareCapability();
@@ -10964,6 +10976,7 @@ async function init() {
   // watchlist, while the already-rendered list remains immediately usable.
   window.setTimeout(() => {
     if (window.__DSH_KLINE_DISPOSED__) return;
+    syncWatchlistFromService().catch(console.warn);
     startWatchlistQuoteRefresh();
     scheduleSymbolDirectoryRefresh();
   }, MARKET_BACKGROUND_DELAY_MS);
