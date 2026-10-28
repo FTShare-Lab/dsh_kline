@@ -31,7 +31,12 @@ def main() -> int:
         probe = "import codex_server; assert codex_server.IS_CLI; assert not any(name.startswith('get_chart_context') for name in codex_server.mcp._tool_manager._tools)"
         completed = subprocess.run([sys.executable, "-c", probe], cwd=destination, env=env, text=True, capture_output=True, timeout=20)
         if completed.returncode: raise SystemExit(completed.stderr or completed.stdout)
-        print(f"Codex package smoke passed: {destination}")
+        # Windows GitHub runners can retain a cp1252 console.  The destination
+        # deliberately contains Chinese characters to test installation paths,
+        # so render it as ASCII escapes instead of failing after a successful
+        # smoke test merely while writing the diagnostic.
+        displayed_destination = str(destination).encode("ascii", "backslashreplace").decode("ascii")
+        print(f"Codex package smoke passed: {displayed_destination}")
         return 0
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
