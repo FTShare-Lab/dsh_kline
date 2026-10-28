@@ -75,7 +75,10 @@ if chart_service._service:
   assert.equal(child.status,0,child.stderr);return JSON.parse(child.stdout)
 }
 async function until(predicate:()=>boolean) {
-  const end=Date.now()+5000
+  // The source handoff starts a separate Python process.  Five seconds is
+  // insufficient on a contended CI worker when Node test files run in
+  // parallel, and turns an otherwise successful handshake into a flake.
+  const end=Date.now()+15000
   while(!predicate() && Date.now()<end)await new Promise(resolve=>setTimeout(resolve,10))
   assert.equal(predicate(),true,'publisher handshake did not complete')
 }
