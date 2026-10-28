@@ -59,7 +59,17 @@ def _bridge() -> str:
     if (!payload || !Array.isArray(payload.chartCommands)) return;
     payload._live_chart_session = payload.chart_session || payload.source_chart_session;
     window.__DSH_CHART_SESSION__ = payload;
-    if (first) { first = false; resolvePayload(payload); return; }
+    // The first chart result is consumed before the shared chart view starts.
+    // Preserve it as the active App-owned session before resolving readiness:
+    // `init()` and the App-only bridge both read this exact object.  Resolving
+    // first left the view visually populated but unable to claim its context,
+    // so manual workbench actions failed with “no available chart session”.
+    if (first) {
+      first = false;
+      window.__DSH_CHART_SESSION__ = payload;
+      resolvePayload(payload);
+      return;
+    }
     if (!mounted) { buffered = { payload, candidate }; return; }
     await window.handleToolResult({ structuredContent: payload });
     await refreshObservation().catch(console.warn);

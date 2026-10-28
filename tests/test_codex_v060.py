@@ -128,6 +128,7 @@ def test_codex_desktop_mcp_resource_app_visibility_and_cli_degradation():
                 resource = await session.read_resource(APP_RESOURCE_URI)
                 assert "ui/initialize" in resource.contents[0].text and "tools/call" in resource.contents[0].text
                 assert "configure_session_key" in resource.contents[0].text and "sessionOnlyPresentation" in resource.contents[0].text
+                assert "window.__DSH_CHART_SESSION__ = payload;\n      resolvePayload(payload);" in resource.contents[0].text
                 analysis = await session.call_tool("analyze_kline_rows", {"rows": rows(), "symbol": "TEST.X", "limit": 30})
                 assert not analysis.isError and analysis.structuredContent["chart_ready"] is True
                 assert analysis.meta["ui"]["resourceUri"] == APP_RESOURCE_URI
