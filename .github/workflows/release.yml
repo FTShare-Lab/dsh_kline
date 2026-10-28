@@ -1,12 +1,12 @@
-name: Release package
+name: Private preview release candidates
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v0.6.0-rc.*']
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing GitHub Release tag to build and attach the package to
+        description: Existing v0.6.0-rc.N tag to validate and draft
         required: true
         type: string
 
@@ -14,15 +14,15 @@ permissions:
   contents: write
 
 jobs:
-  package:
+  package-and-draft:
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      RELEASE_TAG: ${{ github.ref_name || inputs.tag }}
     steps:
-      - name: Check out the released source
+      - name: Check out the candidate source
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ github.ref_name || inputs.tag }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -39,43 +39,42 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
 
-      - name: Verify tag and package version
+      - name: Verify release-candidate tag and package version
         run: |
-          node -e 'const version=require("./package.json").version; const expected=`v${version}`; if(process.env.RELEASE_TAG!==expected){console.error(`Release tag ${process.env.RELEASE_TAG} does not match package ${expected}`); process.exit(1)}'
+          node -e 'const version=require("./package.json").version; const tag=process.env.RELEASE_TAG; if(!new RegExp(`^v${version}-rc\\.[1-9]\\d*$`).test(tag)){console.error(`Release tag ${tag} does not match package ${version} RC pattern`); process.exit(1)}'
 
       - name: Install and build
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            pnpm install --frozen-lockfile
-          else
-            pnpm install --no-frozen-lockfile
-          fi
-          pnpm build:sidebar
+        run: pnpm install --frozen-lockfile && pnpm build:sidebar
 
       - name: Install test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt pytest
 
       - name: Verify all Node and Python behavior
         env:
           DSH_KLINE_TEST_PYTHON: python
         run: pnpm test
 
-      - name: Create stable release asset
+      - name: Build both release assets and checksums
         run: |
           pnpm pack:release
-          (cd release && sha256sum dsh-kline.tgz > dsh-kline.tgz.sha256)
-          tar -tzf release/dsh-kline.tgz | grep -q '^package/scripts/run-dsh-kline.mjs$'
-          tar -tzf release/dsh-kline.tgz | grep -q '^package/requirements.txt$'
-          tar -tzf release/dsh-kline.tgz | grep -q '^package/lib/index.js$'
+          pnpm pack:codex
+          (cd release && sha256sum dsh-kline-v0.6.0.tgz > dsh-kline-v0.6.0.tgz.sha256)
+          (cd release && sha256sum ft-kline-v0.6.0.zip > ft-kline-v0.6.0.zip.sha256)
 
-      - name: Smoke-test the packaged first launch
+      - name: Smoke-test both clean packages
         run: |
-          node scripts/smoke-packed-install.mjs release/dsh-kline.tgz
-          node scripts/smoke-dsh-profile.mjs release/dsh-kline.tgz
+          node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.0.tgz
+          node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.0.tgz
+          python scripts/smoke-codex-package.py release/ft-kline-v0.6.0.zip
 
-      - name: Attach assets to the GitHub Release
+      - name: Create draft release for manual verification
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" release/dsh-kline.tgz release/dsh-kline.tgz.sha256 --clobber
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release/dsh-kline-v0.6.0.tgz release/dsh-kline-v0.6.0.tgz.sha256 \
+            release/ft-kline-v0.6.0.zip release/ft-kline-v0.6.0.zip.sha256 \
+            --draft --title "$RELEASE_TAG · private preview"
+
+# Deliberately no published-release trigger: a maintainer verifies hashes and
+# private Desktop gray-scale evidence before publishing the final v0.6.0 tag.

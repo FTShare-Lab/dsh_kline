@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ft-kline",
+  "version": "0.6.0",
+  "description": "FT K-Line private Codex Desktop preview with guarded interactive chart drawing.",
+  "extensions": {
+    "com.openai": {
+      "mcpApps": {
+        "resourceUri": "ui://ft-kline/chart-v1",
+        "mimeType": "text/html;profile=mcp-app",
+        "displayModes": ["inline", "fullscreen"]
+      }
+    }
+  }
+}

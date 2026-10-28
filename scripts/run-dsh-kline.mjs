@@ -31,18 +31,24 @@ export function pythonPathForVenv(venvDirectory, platform = process.platform) {
 
 export function defaultStateDirectory(env = process.env, platform = process.platform, userHome = homedir()) {
   const paths = platform === 'win32' ? win32 : posix
+  const codexServer = String(env.FT_KLINE_SERVER_ENTRY || '').trim() === 'codex_server.py'
+  const codexExplicit = String(env.FT_KLINE_CACHE_DIR || '').trim()
+  if (codexServer && codexExplicit) return paths.resolve(codexExplicit)
   const explicit = String(env.DSH_KLINE_CACHE_DIR || '').trim()
   if (explicit) return paths.resolve(explicit)
   if (platform === 'win32') {
     const local = String(env.LOCALAPPDATA || env.APPDATA || '').trim()
-    return paths.join(local || paths.join(userHome, 'AppData', 'Local'), 'dsh_kline')
+    return paths.join(local || paths.join(userHome, 'AppData', 'Local'), codexServer ? 'ft-kline' : 'dsh_kline')
   }
   const cache = String(env.XDG_CACHE_HOME || '').trim()
-  return paths.join(cache || paths.join(userHome, '.cache'), 'dsh_kline')
+  return paths.join(cache || paths.join(userHome, '.cache'), codexServer ? 'ft-kline' : 'dsh_kline')
 }
 
 export function defaultRuntimeDirectory(env = process.env, platform = process.platform, userHome = homedir()) {
   const paths = platform === 'win32' ? win32 : posix
+  const codexServer = String(env.FT_KLINE_SERVER_ENTRY || '').trim() === 'codex_server.py'
+  const codexExplicit = String(env.FT_KLINE_RUNTIME_DIR || '').trim()
+  if (codexServer && codexExplicit) return paths.resolve(codexExplicit)
   const explicit = String(env.DSH_KLINE_RUNTIME_DIR || '').trim()
   return explicit ? paths.resolve(explicit) : paths.join(defaultStateDirectory(env, platform, userHome), 'runtime')
 }
@@ -381,12 +387,14 @@ async function startBackgroundBootstrap(venvDirectory) {
 
 async function launchServer(runtimePython, runtimeDirectory) {
   await mkdir(runtimeDirectory, { recursive: true })
-  const child = spawn(runtimePython, [join(PROJECT_ROOT, 'server.py')], {
+  const serverEntry = String(process.env.FT_KLINE_SERVER_ENTRY || '').trim() || 'server.py'
+  if (!['server.py', 'codex_server.py'].includes(serverEntry)) throw new Error('FT_KLINE_SERVER_ENTRY must be server.py or codex_server.py')
+  const child = spawn(runtimePython, [join(PROJECT_ROOT, serverEntry)], {
     cwd: PROJECT_ROOT,
     env: pythonEnvironment({
       ...process.env,
       DSH_KLINE_RUNTIME_DIR: runtimeDirectory,
-      ...settingsCredentialEnvironment(runtimeDirectory),
+      ...(serverEntry === 'server.py' ? settingsCredentialEnvironment(runtimeDirectory) : {}),
     }),
     stdio: 'inherit',
     windowsHide: true,

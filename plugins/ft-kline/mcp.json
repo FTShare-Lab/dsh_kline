@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "ft-kline": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/scripts/run-ft-kline.mjs"],
+      "env": {
+        "FT_KLINE_CLIENT": "desktop",
+        "FT_KLINE_CODEX_MEMORY_ONLY": "1"
+      }
+    }
+  }
+}

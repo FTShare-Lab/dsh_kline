@@ -33,6 +33,14 @@
 
 ![完整 DSH Web 页面：左侧 DeepSeek 说明卧龙电驱下降通道的锚点和偏离，右侧日 K 图同时显示下降通道与 ABC 标注](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
+## Codex 私有灰度（v0.6.0）
+
+`ft-kline` 是与 DSH 包隔离的 Codex 插件：ChatGPT Desktop 使用完整图表、手动工作台和受控的自然语言绘图；Codex CLI 仅提供行情、分析、TA-Lib 与结构化结果，并会明确提示“CLI 不支持交互图表”。
+
+Codex 图表状态、函数结果和 App 输入的临时 FTShare Key 仅存在当前连接内存中，关闭资源、连接结束或 30 分钟空闲后清除。环境变量 `FTSHARE_API_KEY` 优先；App 中输入的 Key 不回显、不写盘。所有当前图写操作必须使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`，其中服务端提交、UI 回执与像素核验是不同状态。
+
+该版本仅在私有 marketplace 灰度，未提交公共目录；发布资产与人工桌面验收要求见 [v0.6.0 发布说明](docs/release-notes-v0.6.0.md) 和 [验收说明](docs/release-acceptance-v0.6.0.md)。DSH 用户继续按下文原有方式安装。
+
 ## 开始使用
 
 ### 1. 安装并启用

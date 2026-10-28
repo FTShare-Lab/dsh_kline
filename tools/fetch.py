@@ -293,6 +293,18 @@ _FTSHARE_RUNTIME_CREDENTIAL_SOURCE: str | None = None
 _FTSHARE_RUNTIME_FILE_KEY: str | None = None
 
 
+def _memory_only_credentials() -> bool:
+    """Whether the embedding host has forbidden every credential-file path.
+
+    The Codex App adapter sets this before importing the provider.  It is an
+    opt-in restriction so the established DSH credential precedence remains
+    byte-for-byte compatible.  In this mode only a process environment value
+    (or an adapter-owned in-memory override) can be used; neither the DSH
+    bridge nor the plugin credential store is inspected.
+    """
+    return (os.environ.get("FT_KLINE_CODEX_MEMORY_ONLY") or "").strip() == "1"
+
+
 def _uses_posix_permissions() -> bool:
     return os.name == "posix"
 
@@ -326,6 +338,8 @@ def _ftshare_credential_files() -> tuple[tuple[Path, str], ...]:
     tests that set one; otherwise a Key saved in the DSH FTShare settings
     outranks the one this plugin stored for itself.
     """
+    if _memory_only_credentials():
+        return ()
     explicit = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
     if explicit:
         return ((Path(explicit).expanduser(), "external_file"),)
@@ -373,7 +387,7 @@ def _read_persisted_ftshare_key() -> str:
 
 def _load_persisted_ftshare_key() -> bool:
     global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
-    if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
+    if _memory_only_credentials() or _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
         return False
     value, source = _resolve_persisted_ftshare_key()
     if not value:
@@ -397,6 +411,12 @@ def _refresh_persisted_ftshare_key() -> None:
     here. The plugin's saved credential remains the lower-priority fallback.
     """
     global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
+    if _memory_only_credentials():
+        # An environment key is deliberately authoritative in the Codex host.
+        # Never replace it with a file-backed DSH/profile credential.
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = "environment" if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")) else None
+        _FTSHARE_RUNTIME_FILE_KEY = None
+        return
     source = _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
     current = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
     if source in {"environment", "session"}:

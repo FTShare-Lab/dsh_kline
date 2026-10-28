@@ -2,6 +2,27 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 0.6.0 - Codex 私有灰度（未发布）
+
+### Added
+
+- 新增独立插件 ID `ft-kline`。ChatGPT Desktop 的 Codex 通过 `ui://ft-kline/chart-v1` 提供完整图表、手动工作台及与自然语言共享的受控绘图链路。
+- Codex 当前图使用仅当前 stdio 连接与 App 实例有效的内存会话；30 分钟空闲、资源关闭或连接结束即销毁。状态明确区分服务端提交、UI 渲染回执和像素验证。
+- Codex 复用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status` 名称与版本/对象 ID/候选确认/一次性请求校验；旧快照式绘图接口不在 Codex 注册。
+- 新增 `ft_kline_app_action` 的 App-only 白名单入口，覆盖行情加载、工作台计算/保存/删除、状态回执与本次会话 FTShare Key 配置；模型不可调用该入口。
+- 新增 `pack:codex`，产物为 `ft-kline-v0.6.0.zip`；DSH 继续从原路径打包为 `dsh-kline-v0.6.0.tgz`，并各自产生 SHA-256。
+
+### Compatibility and security
+
+- DSH 现有工具、侧栏、图表服务和凭据优先级保持不变。Codex 服务不导入或启动 DSH 图表服务，也不读取 DSH 会话或凭据文件。
+- Codex Desktop 优先使用环境变量中的 FTShare Key；App 输入的 Key 只驻留本进程内存且绝不回显或落盘。没有 Key 时保留匿名和免费指数能力，并显示限制。
+- Codex CLI 使用独立入口，只提供行情、分析、TA-Lib 与结构化结果；它明确不支持交互图表，也不注册图表资源、当前图上下文或绘图写操作。
+
+### Release status
+
+- 本版仅供私有 marketplace 灰度，未提交公共插件目录。发布流程为 `v0.6.0-rc.N` 双包验证和哈希 → Draft Release → 人工核对 → 最终 `v0.6.0` 发布。
+- 数据和图形不跨 Codex 对话持久化。私有灰度的人工 macOS/Windows 桌面验收清单见 [v0.6.0 验收说明](docs/release-acceptance-v0.6.0.md)。
+
 ## 0.5.0 - 发布候选（尚未发布）
 
 ### Added

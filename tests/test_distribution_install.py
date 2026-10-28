@@ -143,9 +143,20 @@ def test_release_package_is_bounded_and_attached_with_a_stable_name():
     assert "npm.cmd" in packer
     assert "RELEASE_TAG" in workflow
     assert "does not match package" in workflow
-    assert "release/dsh-kline.tgz" in workflow
-    assert "gh release upload" in workflow
-    assert "--clobber" in workflow
+    assert "release/dsh-kline-v0.6.0.tgz" in workflow
+    assert "release/ft-kline-v0.6.0.zip" in workflow
+    assert "--draft" in workflow
+    assert "types: [published]" not in workflow
+
+
+def test_codex_package_has_an_explicit_isolated_allowlist_and_plugin_manifest():
+    packer = (ROOT / "scripts" / "build-codex-package.mjs").read_text(encoding="utf-8")
+    verifier = (ROOT / "scripts" / "verify-codex-package.mjs").read_text(encoding="utf-8")
+    manifest = (ROOT / "plugins" / "ft-kline" / "mcp.json").read_text(encoding="utf-8")
+    assert "chart_service.py" not in packer
+    assert "${PLUGIN_ROOT}/scripts/run-ft-kline.mjs" in manifest
+    assert '"name": "ft-kline"' in (ROOT / "plugins" / "ft-kline" / "plugin.json").read_text(encoding="utf-8")
+    assert "chart_service.py" in verifier
 
 
 def test_release_packer_ignores_files_outside_the_allowlist(tmp_path):

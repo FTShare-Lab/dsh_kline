@@ -32,6 +32,14 @@ In the same chart, a follow-up natural-language request adds a descending channe
 
 ![Full DSH Web page: DeepSeek explains the descending channel's anchors and deviations while the daily chart shows both the channel and ABC labels](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
+## Codex private preview (v0.6.0)
+
+`ft-kline` is an isolated Codex plugin. ChatGPT Desktop provides the complete chart, manual workbench, and guarded natural-language drawing; Codex CLI provides market data, analysis, TA-Lib, and structured output only, and explicitly does not support interactive charts.
+
+Codex chart state, function results, and an App-entered FTShare key remain in current-connection memory only. They are cleared when the resource or connection closes or after 30 minutes idle. `FTSHARE_API_KEY` from the environment has priority; an App key is neither echoed nor written to disk. Current-chart writes must use `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`; server commit, UI receipt, and pixel verification are deliberately separate states.
+
+This version is private-marketplace preview only and is not a public-directory submission. See the [v0.6.0 release notes](docs/release-notes-v0.6.0.md) and [acceptance checklist](docs/release-acceptance-v0.6.0.md). DSH installation remains unchanged below.
+
 ## Get started
 
 ### 1. Install and enable

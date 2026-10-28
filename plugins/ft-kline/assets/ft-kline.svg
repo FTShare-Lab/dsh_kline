@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="FT K-Line">
+  <rect width="128" height="128" rx="26" fill="#101827"/>
+  <path d="M27 94V34m18 46V45m18 27V28m18 49V42m18 16V23" stroke="#8BE9C1" stroke-width="7" stroke-linecap="round"/>
+  <path d="M18 84h92" stroke="#F7C86B" stroke-width="6" stroke-linecap="round"/>
+</svg>
