@@ -6,7 +6,7 @@
 
 - DSH 的完整 Node/Python 回归、首次启动、独立 DSH profile 烟测和原有包清单均通过。
 - Codex 测试覆盖：不导入 DSH 图表服务、不读取 DSH 凭据文件、30 分钟会话清理、版本冲突、候选显式确认、同 request ID 重放冲突、UI 渲染失败/回执与像素验证分离。
-- Codex MCP 集成覆盖 `ui://ft-kline/chart-v1`、App-only `ft_kline_app_action` 可见性与输出 schema、完整受控绘图链、CLI 降级、无 Key 和 Key 不回显。
+- Codex MCP 集成覆盖 `ui://ft-kline/chart-v2`、App-only `ft_kline_app_action` 可见性与输出 schema、完整受控绘图链、CLI 降级、无 Key 和 Key 不回显。
 - DSH 与 Codex 包都需在全新目录、中文及空格路径、无缓存凭据环境下解压验证；两个清单、版本、资源 URI 和 `${PLUGIN_ROOT}` 启动路径由包检查验证。
 
 ## 人工桌面灰度（macOS 与 Windows）

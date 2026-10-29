@@ -43,7 +43,7 @@ for (const manifest of pluginManifests) {
   if (manifest.name !== 'ft-kline' || manifest.version !== packageManifest.version) throw new Error('Codex plugin ID/version is not synchronized')
 }
 const resourceUri = pluginManifests[0]?.extensions?.['com.openai']?.mcpApps?.resourceUri
-if (resourceUri !== 'ui://ft-kline/chart-v1' || !readStoredEntry('codex_runtime/state.py').toString('utf8').includes(`APP_RESOURCE_URI = "${resourceUri}"`)) {
+if (resourceUri !== 'ui://ft-kline/chart-v2' || !readStoredEntry('codex_runtime/state.py').toString('utf8').includes(`APP_RESOURCE_URI = "${resourceUri}"`)) {
   throw new Error('Codex chart resource URI is not synchronized')
 }
 for (const name of ['mcp.json', '.mcp.json']) {

@@ -32,15 +32,38 @@ def _bridge() -> str:
     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} timed out`)); }, timeout);
     pending.set(id, { resolve, reject, timer }); post({ id, method, params });
   });
+  // Desktop hosts can attach the first tool result to ui/initialize, while
+  // subsequent results arrive through ui/notifications/tool-result.  Consume
+  // both shapes so the chart never waits forever for a notification that was
+  // already delivered with initialization.
+  const extractDelivery = value => {
+    const pendingValues = [value]; const seen = new Set();
+    while (pendingValues.length) {
+      const current = pendingValues.shift();
+      if (!current || (typeof current !== 'object' && !Array.isArray(current)) || seen.has(current)) continue;
+      seen.add(current);
+      const payload = current.chart_payload || current;
+      if (Array.isArray(payload?.chartCommands)) {
+        return { payload, candidate: current.candidate_chart_session || payload.candidate_chart_session };
+      }
+      for (const field of ['structuredContent', 'result', 'toolResult', 'toolOutput', 'params']) {
+        if (current[field]) pendingValues.push(current[field]);
+      }
+    }
+    return null;
+  };
+  const consumeDelivery = value => {
+    const delivery = extractDelivery(value);
+    return delivery ? deliver(delivery.payload, delivery.candidate) : Promise.resolve();
+  };
   const action = (actionName, arguments_ = {}) => hostReady.then(() => request('tools/call', {
     name: 'ft_kline_app_action', arguments: { action: actionName, arguments: (() => {
       const contextRef = arguments_.context_ref || window.__DSH_CHART_SESSION__?.context_ref;
       return contextRef && actionName !== 'activate' ? { ...arguments_, context_ref: contextRef } : arguments_;
     })(), app_instance: appInstance },
-  })).then(result => {
+  })).then(async result => {
     const value = result?.structuredContent || result?.result?.structuredContent || result;
-    if (value?.chart_payload?.chartCommands) deliver(value.chart_payload, value.candidate_chart_session);
-    else if (value?.chartCommands) deliver(value, value.candidate_chart_session);
+    await consumeDelivery(result);
     return value;
   });
   const refreshObservation = async () => {
@@ -114,7 +137,7 @@ def _bridge() -> str:
       const item = pending.get(message.id); pending.delete(message.id); clearTimeout(item.timer);
       return message.error ? item.reject(new Error(message.error.message || 'Host request failed')) : item.resolve(message.result);
     }
-    if (message.method === 'ui/notifications/tool-result') deliver(message.params?.structuredContent || message.params).catch(console.warn);
+    if (message.method === 'ui/notifications/tool-result') consumeDelivery(message.params).catch(console.warn);
     if (message.method === 'ui/notifications/host-context-changed') { hostContext = { ...hostContext, ...message.params }; hostElement.lang = hostContext.locale || navigator.language || 'en'; hostElement.dataset.theme = hostContext.theme || ''; }
     if (message.method === 'ui/resource-teardown' && message.id != null) {
       const ref = window.__DSH_CHART_SESSION__?.context_ref; if (ref) void action('close', { context_ref: ref }).catch(() => {});
@@ -124,7 +147,13 @@ def _bridge() -> str:
   });
   const initialize = () => request('ui/initialize', { protocolVersion: '2026-01-26',
     appInfo: { name: 'ft-kline', version: '__FT_KLINE_VERSION__' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
-  }, 15000).then(result => { hostContext = { ...hostContext, ...(result?.hostContext || {}) }; hostElement.lang = hostContext.locale || navigator.language || 'en'; post({ method: 'ui/notifications/initialized' }); resolveHost(result); }).catch(rejectHost);
+  }, 15000).then(async result => {
+    hostContext = { ...hostContext, ...(result?.hostContext || {}) };
+    hostElement.lang = hostContext.locale || navigator.language || 'en';
+    await consumeDelivery(result);
+    post({ method: 'ui/notifications/initialized' });
+    resolveHost(result);
+  }).catch(rejectHost);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();
 </script>'''
@@ -146,7 +175,7 @@ def mcp_app_html() -> str:
 
 
 def register_resource(mcp) -> None:
-    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v1", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
+    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v2", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
     def chart_resource() -> str:
         return mcp_app_html()
 

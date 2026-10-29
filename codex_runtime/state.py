@@ -28,7 +28,7 @@ from tools.price_sticks import STICKS_COMMAND, edit_price_sticks
 from tools.rectangles import RECTANGLE_COMMAND, edit_rectangle
 from tools.trend_lines import TREND_COMMAND, edit_trend_line
 
-APP_RESOURCE_URI = "ui://ft-kline/chart-v1"
+APP_RESOURCE_URI = "ui://ft-kline/chart-v2"
 MCP_APP_MIME = "text/html;profile=mcp-app"
 IDLE_SECONDS = 30 * 60
 MAX_STATES = 16
