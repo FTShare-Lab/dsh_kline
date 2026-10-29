@@ -3,7 +3,7 @@ name: Cross-platform install
 on:
   pull_request:
   push:
-    branches: [main, test]
+    branches: [main, test, 'codex/**']
   workflow_dispatch:
 
 permissions:
