@@ -18,9 +18,10 @@ def _bridge() -> str:
     return r'''<script>
 (() => {
   const parent = window.parent === window ? null : window.parent;
-  const pending = new Map(); let serial = 0, mounted = false, first = true, buffered = null;
-  let resolvePayload, resolveHost, rejectHost;
-  const payloadReady = new Promise(resolve => { resolvePayload = resolve; });
+  const pending = new Map(); let serial = 0, mounted = false, first = true, buffered = null, lastDeliveryKey = '';
+  let resolvePayload, rejectPayload, resolveHost, rejectHost;
+  const payloadReady = new Promise((resolve, reject) => { resolvePayload = resolve; rejectPayload = reject; }); payloadReady.catch(() => {});
+  const payloadTimer = setTimeout(() => { if (first) rejectPayload(new Error('Chart result was not delivered to the App')); }, 20000);
   const hostReady = new Promise((resolve, reject) => { resolveHost = resolve; rejectHost = reject; }); hostReady.catch(() => {});
   const appInstance = `ft-kline-${crypto.randomUUID()}`;
   let hostContext = { displayMode: 'inline', availableDisplayModes: ['inline'] };
@@ -46,7 +47,7 @@ def _bridge() -> str:
       if (Array.isArray(payload?.chartCommands)) {
         return { payload, candidate: current.candidate_chart_session || payload.candidate_chart_session };
       }
-      for (const field of ['structuredContent', 'result', 'toolResult', 'toolOutput', 'params']) {
+      for (const field of ['structuredContent', 'result', 'toolResult', 'toolOutput', 'params', 'mcp_tool_result', 'mcpToolResult', 'call_tool_result', 'callToolResult', 'toolResponseMetadata']) {
         if (current[field]) pendingValues.push(current[field]);
       }
     }
@@ -55,6 +56,15 @@ def _bridge() -> str:
   const consumeDelivery = value => {
     const delivery = extractDelivery(value);
     return delivery ? deliver(delivery.payload, delivery.candidate) : Promise.resolve();
+  };
+  // ChatGPT's compatibility bridge preserves the first result here on hosts
+  // that do not attach it to ui/initialize or replay it as a notification.
+  // Read it only as a fallback; MCP ui/* remains the primary protocol.
+  const consumeCompatibilityResult = async () => {
+    const openai = window.openai;
+    if (!openai) return;
+    await consumeDelivery(openai.toolResponseMetadata);
+    await consumeDelivery(openai.toolOutput);
   };
   const action = (actionName, arguments_ = {}) => hostReady.then(() => request('tools/call', {
     name: 'ft_kline_app_action', arguments: { action: actionName, arguments: (() => {
@@ -80,6 +90,9 @@ def _bridge() -> str:
   };
   const deliver = async (payload, candidate) => {
     if (!payload || !Array.isArray(payload.chartCommands)) return;
+    const deliveryKey = [payload.context_ref || '', payload.chart_session || payload.source_chart_session || '', payload.revision || '', candidate || ''].join('|');
+    if (deliveryKey && deliveryKey === lastDeliveryKey) return;
+    lastDeliveryKey = deliveryKey;
     payload._live_chart_session = payload.chart_session || payload.source_chart_session;
     window.__DSH_CHART_SESSION__ = payload;
     // The first chart result is consumed before the shared chart view starts.
@@ -89,6 +102,7 @@ def _bridge() -> str:
     // so manual workbench actions failed with “no available chart session”.
     if (first) {
       first = false;
+      clearTimeout(payloadTimer);
       window.__DSH_CHART_SESSION__ = payload;
       resolvePayload(payload);
       return;
@@ -151,6 +165,7 @@ def _bridge() -> str:
     hostContext = { ...hostContext, ...(result?.hostContext || {}) };
     hostElement.lang = hostContext.locale || navigator.language || 'en';
     await consumeDelivery(result);
+    await consumeCompatibilityResult();
     post({ method: 'ui/notifications/initialized' });
     resolveHost(result);
   }).catch(rejectHost);
@@ -175,7 +190,7 @@ def mcp_app_html() -> str:
 
 
 def register_resource(mcp) -> None:
-    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v2", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
+    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v3", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
     def chart_resource() -> str:
         return mcp_app_html()
 

@@ -70,3 +70,56 @@ test('MCP App uses the chart result included in ui/initialize before waiting for
   assert.equal(readiness[1], firstPayload)
   assert.ok(sent.some(message => message.method === 'ui/notifications/initialized'))
 })
+
+test('MCP App consumes the ChatGPT compatibility result when ui/initialize has no attached chart', async () => {
+  const listeners = new Map()
+  const sent = []
+  const firstPayload = {
+    context_ref: 'compatibility-context',
+    chart_session: 'compatibility-session',
+    chartCommands: [{ type: 'SET_CANDLES', rows: [] }],
+  }
+  let window
+  const emit = data => listeners.get('message')({ source: parent, data })
+  const parent = {
+    postMessage(message) {
+      sent.push(message)
+      if (message.method === 'ui/initialize') {
+        queueMicrotask(() => emit({
+          jsonrpc: '2.0', id: message.id,
+          result: { hostContext: { locale: 'zh-CN' } },
+        }))
+      }
+    },
+  }
+  const document = {
+    readyState: 'complete',
+    createElement: () => ({ dataset: {} }),
+    getElementById: () => null,
+    querySelector: () => null,
+    addEventListener: () => assert.fail('ready document must initialize immediately'),
+  }
+  window = {
+    parent,
+    fetch: async () => ({ ok: true }),
+    openai: { toolOutput: {}, toolResponseMetadata: { mcp_tool_result: { structuredContent: firstPayload } } },
+    addEventListener(type, listener) { listeners.set(type, listener) },
+  }
+  const context = {
+    window,
+    document,
+    navigator: { language: 'en-US' },
+    crypto: { randomUUID: () => 'compatibility-app-instance' },
+    Response: class {},
+    console,
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    queueMicrotask,
+  }
+  await import('node:vm').then(({ runInNewContext }) => runInNewContext(bridgeSource(), context))
+  const readiness = await window.__FT_KLINE_APP__.ready
+
+  assert.equal(window.__DSH_CHART_SESSION__, firstPayload)
+  assert.equal(readiness[1], firstPayload)
+  assert.ok(sent.some(message => message.method === 'ui/notifications/initialized'))
+})

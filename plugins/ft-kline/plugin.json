@@ -6,7 +6,7 @@
   "extensions": {
     "com.openai": {
       "mcpApps": {
-        "resourceUri": "ui://ft-kline/chart-v2",
+        "resourceUri": "ui://ft-kline/chart-v3",
         "mimeType": "text/html;profile=mcp-app",
         "displayModes": ["inline", "fullscreen"]
       }
