@@ -7,8 +7,8 @@ serve it (anonymous/free tier without HK/US/index entitlements).
 Design rules (mirror docs/provider-adaptation.md):
 - Small, explicit registries only. No runtime discovery; no remote data ever
   adds a URL or executes code.
-- Public, key-less HTTP endpoints only (Eastmoney push2his daily K-lines and
-  Tencent qt.gtimg quote snapshots). No scraping of HTML.
+- Public, key-less HTTP endpoints only (Eastmoney daily K-lines and Tencent
+  JSON K-line/quote feeds). No scraping of HTML.
 - Every row keeps the canonical OHLCV shape (close-time, unix seconds) and the
   response carries ``source`` + ``source_url`` so callers can label the data as
   free fallback instead of silently pretending it came from FTShare.
@@ -22,6 +22,7 @@ tools.fetch (which imports this module for fallback wiring).
 from __future__ import annotations
 
 import json
+import math
 import re
 import threading
 import time
@@ -239,10 +240,10 @@ def em_symbol_supported(symbol: str) -> bool:
     return str(symbol or "").strip().upper() in EM_INDEX_SECIDS
 
 
-# Tencent historical K-line fallback for the same broad indices. The Tencent
-# daily bar array is [date, open, close, high, low, volume] (open before close),
-# which differs from Eastmoney's [date, open, close, high, low, volume, ...] in
-# name only after parsing — both place close at index 2 of the bar row.
+# Tencent historical K-lines. The explicit index registry stays narrow, while
+# A-share stocks are accepted only when the caller supplied a fully qualified
+# Shanghai/Shenzhen equity identity (see ``_tencent_stock_code`` below).
+# Tencent's bar array is [date, open, close, high, low, volume].
 _TENCENT_KLINE_CODES: dict[str, str] = {
     "100.HSI": "hkHSI",
     "100.NDX": "usNDX",
@@ -257,16 +258,17 @@ _TENCENT_KLINE_CODES: dict[str, str] = {
 }
 
 
-def _parse_tencent_kline_payload(payload: Any, timezone_name: str) -> list[dict[str, Any]]:
-    """Parse Tencent fqkline response into canonical OHLCV rows."""
+def _parse_tencent_kline_payload(payload: Any, timezone_name: str, series: str | tuple[str, ...]) -> list[dict[str, Any]]:
+    """Parse one of the explicitly requested Tencent K-line series names."""
     rows: list[dict[str, Any]] = []
     try:
         data = payload.get("data") or {}
     except AttributeError:
         return rows
+    names = (series,) if isinstance(series, str) else series
     for _code, node in data.items():
-        # node: {"day": [[date, open, close, high, low, volume], ...], "qfqday": …}
-        bars = node.get("day") if isinstance(node, Mapping) else None
+        # node: {"day"|"qfqday"|"hfqday": [[date, open, close, high, low, volume], ...]}
+        bars = next((node.get(name) for name in names if isinstance(node, Mapping) and isinstance(node.get(name), list)), None)
         if not isinstance(bars, list):
             continue
         for bar in bars:
@@ -277,18 +279,18 @@ def _parse_tencent_kline_payload(payload: Any, timezone_name: str) -> list[dict[
             if not timestamp:
                 continue
             try:
-                rows.append(
-                    {
-                        "time": timestamp,
-                        "open": float(open_px),
-                        "high": float(high_px),
-                        "low": float(low_px),
-                        "close": float(close_px),
-                        "volume": float(volume) if str(volume).replace(".", "", 1).isdigit() else 0.0,
-                    }
-                )
+                opened, high, low, closed = map(float, (open_px, high_px, low_px, close_px))
+                traded = float(volume)
             except (TypeError, ValueError):
                 continue
+            if (
+                not all(math.isfinite(value) for value in (opened, high, low, closed, traded))
+                or min(opened, high, low, closed) <= 0 or traded < 0
+                or high < max(opened, low, closed) or low > min(opened, high, closed)
+            ):
+                continue
+            rows.append({"time": timestamp, "open": opened, "high": high, "low": low,
+                         "close": closed, "volume": traded})
     rows.sort(key=lambda item: int(item["time"]))
     return rows
 
@@ -312,7 +314,62 @@ def fetch_tencent_index_daily(symbol: str, *, limit: int = 120) -> list[dict[str
     url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{wanted},qfq"
     payload = _http_get_json(url, referer=None)
     timezone_name = "Asia/Hong_Kong" if canonical == "100.HSI" else "America/New_York" if canonical == "100.NDX" else "Asia/Shanghai"
-    rows = _parse_tencent_kline_payload(payload, timezone_name)
+    # Tencent returns qfqday for some indices and unadjusted day for others;
+    # index corporate-action adjustment is not applicable, so either verified
+    # series is acceptable here. Stock calls below remain exact by adjustment.
+    rows = _parse_tencent_kline_payload(payload, timezone_name, ("qfqday", "day"))
+    if len(rows) < 2:
+        return None
+    result = rows[-wanted:]
+    _cache_set(cache_key, result)
+    return result
+
+
+_TENCENT_STOCK_SYMBOL = re.compile(r"(\d{6})\.(XSHG|XSHE)$")
+_TENCENT_STOCK_PREFIXES = {
+    "XSHG": ("600", "601", "603", "605", "688", "689"),
+    "XSHE": ("000", "001", "002", "003", "300", "301", "302"),
+}
+_TENCENT_ADJUSTMENT_SERIES = {
+    "none": ("", "day"),
+    "forward": ("qfq", "qfqday"),
+    "backward": ("hfq", "hfqday"),
+}
+
+
+def _tencent_stock_code(symbol: str) -> str | None:
+    """Map only explicit, supported A-share equities to Tencent's code form."""
+    match = _TENCENT_STOCK_SYMBOL.fullmatch(str(symbol or "").strip().upper())
+    if not match:
+        return None
+    code, market = match.groups()
+    if not code.startswith(_TENCENT_STOCK_PREFIXES[market]):
+        return None
+    return ("sh" if market == "XSHG" else "sz") + code
+
+
+def fetch_tencent_stock_daily(symbol: str, *, limit: int = 120, adjust: str = "none") -> list[dict[str, Any]] | None:
+    """Fetch qualified沪深 A-share daily K-lines from Tencent's public JSON feed.
+
+    This is a bounded second fallback after BaoStock. It supports only daily
+    source bars and preserves the caller's explicit adjustment selection; the
+    higher-level provider aggregates week/month/quarter/year intervals locally.
+    """
+    code = _tencent_stock_code(symbol)
+    adjustment = _TENCENT_ADJUSTMENT_SERIES.get(str(adjust or "").strip().lower())
+    if not code or adjustment is None:
+        return None
+    mode, series = adjustment
+    wanted = max(2, min(int(limit), 4000))
+    cache_key = ("tencent_stock_daily", f"{code}:{wanted}:{mode or 'none'}")
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    # An empty mode deliberately leaves the final comma: Tencent then returns
+    # the unadjusted ``day`` series instead of a default qfq series.
+    url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{wanted},{mode}"
+    payload = _http_get_json(url, referer=None)
+    rows = _parse_tencent_kline_payload(payload, "Asia/Shanghai", series)
     if len(rows) < 2:
         return None
     result = rows[-wanted:]

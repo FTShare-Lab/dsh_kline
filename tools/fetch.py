@@ -43,6 +43,7 @@ try:  # Built-in free fallback source; never required for the FTShare path.
         TENCENT_SOURCE_URL,
         fetch_em_index_daily,
         fetch_tencent_index_daily,
+        fetch_tencent_stock_daily,
         fetch_tencent_ticker_items,
     )
 except Exception:  # noqa: BLE001 - degrade to FTShare-only when the module is missing
@@ -53,6 +54,7 @@ except Exception:  # noqa: BLE001 - degrade to FTShare-only when the module is m
     TENCENT_SOURCE_URL = ""
     fetch_em_index_daily = None
     fetch_tencent_index_daily = None
+    fetch_tencent_stock_daily = None
     fetch_tencent_ticker_items = None
 
 
@@ -3362,7 +3364,7 @@ def _free_stock_candles_result(
     symbol: str, *, interval: str, interval_value: int, limit: int, adjust: str,
     after_ftshare_failure: bool = False,
 ) -> dict[str, Any] | None:
-    """BaoStock fallback for explicitly qualified沪深 A-share stock history only."""
+    """Bounded BaoStock → Tencent fallback for qualified沪深 A-share history."""
     sym = _canonical_market_symbol(symbol)
     normalized_interval = str(interval or "day").strip().lower()
     if (
@@ -3375,7 +3377,17 @@ def _free_stock_candles_result(
     # Aggregate complete daily bars locally.  Never combine the two vendors'
     # rows into one result or mislabel an unsupported adjustment as none.
     daily_factor = {"day": 1, "week": 6, "month": 26, "quarter": 80, "year": 260}[normalized_interval]
+    source_name, source_url = BAOSTOCK_SOURCE, BAOSTOCK_SOURCE_URL
     raw = fetch_stock_daily(sym, limit=min(4000, requested * daily_factor + daily_factor), adjust=adjust)
+    if not raw and fetch_tencent_stock_daily is not None:
+        try:
+            raw = fetch_tencent_stock_daily(
+                sym, limit=min(4000, requested * daily_factor + daily_factor), adjust=adjust,
+            )
+        except Exception:  # noqa: BLE001 - a public fallback must remain bounded and optional
+            raw = None
+        if raw:
+            source_name, source_url = "tencent_free", TENCENT_SOURCE_URL
     if not raw:
         return None
     rows = _aggregate_interval(raw, normalized_interval, timezone_name="Asia/Shanghai")[-requested:]
@@ -3397,8 +3409,8 @@ def _free_stock_candles_result(
         "adjust": adjust,
         "count": len(rows),
         "rows": rows,
-        "source": BAOSTOCK_SOURCE,
-        "source_url": BAOSTOCK_SOURCE_URL,
+        "source": source_name,
+        "source_url": source_url,
         "updated_at": int(time.time()),
         "status": freshness["status"],
         "market_status": _symbol_market_status(sym),
@@ -3423,8 +3435,8 @@ def fetch_candles(
     """Public candle entry with bounded, explicitly scoped free fallbacks.
 
     Configured FTShare remains first. Without a key, eligible沪深 A-share
-    stock daily history goes directly to BaoStock to avoid a redundant
-    anonymous FTShare round trip. Indexes use their separate free feeds.
+    stock daily history goes directly to BaoStock and then Tencent's public
+    JSON K-line feed. Indexes use their separate free feeds.
     """
     normalized_adjust = normalize_adjustment(adjust)
     if normalized_adjust is None:
@@ -3446,9 +3458,9 @@ def fetch_candles(
                 "ok": False,
                 "error": "free_stock_unavailable",
                 "error_code": "free_stock_unavailable",
-                "message": "BaoStock 暂未返回该标的历史 K 线，请稍后重试。",
-                "source": BAOSTOCK_SOURCE,
-                "source_url": BAOSTOCK_SOURCE_URL,
+                "message": "BaoStock 与腾讯公开源暂未返回该标的历史 K 线，请稍后重试。",
+                "attempted_sources": [BAOSTOCK_SOURCE, "tencent_free"],
+                "source_urls": [BAOSTOCK_SOURCE_URL, TENCENT_SOURCE_URL],
                 "ftshare_key_configured": False,
             }
         # Use the public index providers before constructing an anonymous

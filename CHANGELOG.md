@@ -8,6 +8,7 @@
 
 - 新增独立插件 ID `ft-kline`。ChatGPT Desktop 的 Codex 通过 `ui://ft-kline/chart-v2` 提供完整图表、手动工作台及与自然语言共享的受控绘图链路。
 - 同一图表对话中的自然语言换标的可携带不透明 `context_ref`，安全复用 App 当次内存凭据与自选状态；凭据不进入模型输出或磁盘。
+- 无 Key 的沪深 A 股日/周/月等历史 K 线在 BaoStock 无响应时，会回退腾讯公开 JSON 日 K；两种来源均在图表中明确标注，分钟 K、ETF 与未限定代码不走该回退。
 - Codex 当前图使用仅当前 stdio 连接与 App 实例有效的内存会话；30 分钟空闲、资源关闭或连接结束即销毁。状态明确区分服务端提交、UI 渲染回执和像素验证。
 - Codex 复用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status` 名称与版本/对象 ID/候选确认/一次性请求校验；旧快照式绘图接口不在 Codex 注册。
 - 新增 `ft_kline_app_action` 的 App-only 白名单入口，覆盖行情加载、工作台计算/保存/删除、状态回执与本次会话 FTShare Key 配置；模型不可调用该入口。

@@ -7,7 +7,7 @@ const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8'
 const source = html.slice(html.indexOf('function dataFetchFailureDetail('), html.indexOf('function clearDataFetchError('))
 const copy: Record<string, string> = {
   noKeyStockData: 'Configure a free FTShare key for stock candles',
-  freeStockUnavailable: 'BaoStock did not return candles. Retry later.',
+  freeStockUnavailable: 'BaoStock and Tencent did not return candles. Retry later.',
   ftshareMinuteKeyRequired: 'Minute bars require a key.',
   ftshareProbeRateLimited: 'Too many requests. Try again later.',
   ftshareProbePlanLimited: 'Not included in this plan.',

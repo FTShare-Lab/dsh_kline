@@ -71,15 +71,35 @@ class BaoStockFallbackTests(unittest.TestCase):
     def test_no_key_free_stock_failure_reports_actual_source(self):
         with patch("tools.fetch._ftshare_credential_source", return_value="none"), patch(
             "tools.fetch.fetch_stock_daily", return_value=None
+        ), patch(
+            "tools.fetch.fetch_tencent_stock_daily", return_value=None
         ), patch("tools.fetch._fetch_candles_ftshare") as primary, patch(
             "tools.fetch._free_index_candles_result", return_value=None
         ):
             result = fetch_candles("600519.XSHG", limit=120)
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "free_stock_unavailable")
-        self.assertEqual(result["source"], "baostock_free")
+        self.assertEqual(result["attempted_sources"], ["baostock_free", "tencent_free"])
         self.assertFalse(result["ftshare_key_configured"])
         self.assertNotIn("rows", result)
+        primary.assert_not_called()
+
+    def test_tencent_follows_baostock_for_anonymous_stock_history(self):
+        rows = [
+            {"time": 1, "open": 10.0, "high": 12.0, "low": 9.0, "close": 11.0, "volume": 100.0},
+            {"time": 2, "open": 11.0, "high": 13.0, "low": 10.0, "close": 12.0, "volume": 120.0},
+        ]
+        with patch("tools.fetch._ftshare_credential_source", return_value="none"), patch(
+            "tools.fetch.fetch_stock_daily", return_value=None
+        ), patch("tools.fetch.fetch_tencent_stock_daily", return_value=rows) as tencent, patch(
+            "tools.fetch._fetch_candles_ftshare"
+        ) as primary:
+            result = fetch_candles("600519.XSHG", limit=2, adjust="forward")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "tencent_free")
+        self.assertEqual(result["adjust"], "forward")
+        self.assertEqual(result["source_url"], "https://qt.gtimg.cn")
+        tencent.assert_called_once()
         primary.assert_not_called()
 
     def test_no_fallback_for_minutes_indices_etfs_or_unsupported_markets(self):

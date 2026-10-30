@@ -1012,7 +1012,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionSource" hidden>
-          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。</span></div>
+          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；分钟 K 等仍需相应权限。</span></div>
           <div class="settings-info"><div class="settings-info-title" id="settingsCurrentChartTitle">当前图数据</div><div id="settingsSourceStatus"></div></div>
           <div class="source-autoload"><strong data-i18n="sourceAutoloadTitle">自动使用已有的 FTShare Key</strong><span data-i18n="sourceAutoload">dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。</span></div>
           <div class="settings-provider">
@@ -1820,32 +1820,32 @@ Object.assign(UI_COPY.en, {
 // A free FTShare account is different from making anonymous requests. Keep
 // these entitlement messages together so the source and error UI agree.
 Object.assign(UI_COPY.zh, {
-  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。",
+  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；分钟 K 等仍需相应权限。",
   sourceFreeMode: "注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。",
   ftshareStatusAnonymous: "未配置 API Key",
-  ftshareHintAnonymous: "沪深 A 股历史日 K 可尝试 BaoStock 备用源；更多行情请配置 FTShare Key。",
+  ftshareHintAnonymous: "沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；更多行情请配置 FTShare Key。",
   ftshareConfigInvalid: "请输入 API Key，或关闭此配置窗口。",
   ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "分钟 K 需要有效 Key 和相应套餐权限；请检查数据源配置。",
   welcomeFtshareDetail: "沪深 A 股历史日 K 可使用免 Key 备用源；分钟 K 和更多数据按 FTShare 套餐提供。",
   noKeyStockData: "本次免费历史行情暂不可用。可重试，或在设置中配置 FTShare Key。",
-  freeStockUnavailable: "BaoStock 暂未返回这只股票的历史 K 线，请稍后重试。",
-  ftshareNoKeyConnection: "FTShare 未配置 Key；沪深 A 股历史日 K 可尝试 BaoStock。",
+  freeStockUnavailable: "BaoStock 与腾讯公开源暂未返回这只股票的历史 K 线，请稍后重试。",
+  ftshareNoKeyConnection: "FTShare 未配置 Key；沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源。",
   configureDataSource: "配置数据源",
   marketBoardsUnavailable: "板块数据暂不可用，指数行情仍可正常使用。",
 });
 Object.assign(UI_COPY.en, {
-  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can use BaoStock. Minute bars still depend on source access.",
+  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can try BaoStock, then Tencent's public feed. Minute bars still depend on source access.",
   sourceFreeMode: "Register a free FTShare key for stock candles allowed by your plan. Minute bars, news, and other data depend on the endpoint and plan.",
   ftshareStatusAnonymous: "API key not configured",
-  ftshareHintAnonymous: "Historical daily A-share bars can use BaoStock; configure an FTShare key for broader coverage.",
+  ftshareHintAnonymous: "Historical daily A-share bars can try BaoStock, then Tencent's public feed; configure an FTShare key for broader coverage.",
   ftshareConfigInvalid: "Enter an API key, or close this configuration window.",
   ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "Minute bars require a valid key and access under your plan. Check Data source settings.",
   welcomeFtshareDetail: "Historical daily A-share bars can use the key-less fallback. Minute bars and more data depend on the FTShare plan.",
   noKeyStockData: "Free historical data is temporarily unavailable. Retry or configure an FTShare key in Settings.",
-  freeStockUnavailable: "BaoStock did not return historical candles for this stock. Please retry later.",
-  ftshareNoKeyConnection: "No FTShare key is configured; historical daily A-share bars can use BaoStock.",
+  freeStockUnavailable: "BaoStock and Tencent's public feed did not return historical candles for this stock. Please retry later.",
+  ftshareNoKeyConnection: "No FTShare key is configured; historical daily A-share bars can try BaoStock, then Tencent's public feed.",
   configureDataSource: "Configure data source",
   marketBoardsUnavailable: "Board rankings are unavailable; major indices remain available.",
 });

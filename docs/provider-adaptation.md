@@ -4,7 +4,7 @@
 
 FTShare is an optional adapter. `analyze_kline_rows` is provider-neutral and must not call FTShare, configure credentials, or perform symbol lookup. Keep that path usable for broker feeds, backtests, crypto data, and custom labels.
 
-A built-in free feed (`tools/free_sources.py`) is a separate fallback for the free/anonymous tier: it keeps **broad-market index data visible** (bottom market ticker, index daily candles, index comparison) when the current FTShare plan cannot serve it. It is deliberately limited to indices in a small explicit registry and never replaces FTShare as the promoted provider. Rows returned by the fallback are labeled `source=eastmoney_free` / `source=tencent_free` with a `source_url`, so the UI always shows where the data came from; nothing is ever presented as FTShare data. Individual stock minute/news depth remains an FTShare upsell, not a free feature.
+A built-in free feed (`tools/free_sources.py`) is a separate fallback for the free/anonymous tier: it keeps **broad-market index data visible** (bottom market ticker, index daily candles, index comparison) when the current FTShare plan cannot serve it. It also provides a bounded second daily-history fallback for explicitly qualified沪深 A-share stocks: BaoStock first, then Tencent's public JSON K-line endpoint. It never replaces FTShare as the promoted provider. Rows returned by the fallback are labeled `source=baostock_free` / `eastmoney_free` / `tencent_free` with a `source_url`, so the UI always shows where the data came from; nothing is ever presented as FTShare data. Individual-stock minute/news depth remains an FTShare capability.
 
 ## Contract source of truth
 
@@ -51,16 +51,16 @@ data on the official feeds:
   listed indices and only downgrade to the built-in free quote feed when the
   official feeds return nothing (anonymous, no Key, or an upstream failure).
 
-## Built-in free index fallback rules
+## Built-in free fallback rules
 
-`tools/free_sources.py` only runs after FTShare failed to return data for a **broad-market index** (its own registry: A-share/HK/US headline indices). Rules:
+`tools/free_sources.py` supplies two deliberately bounded fallback paths. Rules:
 
-- FTShare is always tried first and its successful result is returned untouched.
-- The fallback serves daily index K-lines from Eastmoney, then Tencent when Eastmoney is throttled or unreachable; both are public, key-less JSON feeds (no HTML scraping, no credentials).
-- Responses are explicitly labeled (`eastmoney_free` / `tencent_free`) with a public `source_url`; the chart header and settings page render that source so users can tell free fallback from FTShare.
+- FTShare is always tried first when a Key is configured; its successful result is returned untouched. With no Key, eligible沪深 A-share daily/larger periods use BaoStock first and then Tencent's public JSON daily feed. The Tencent *stock* route receives only explicit `.XSHG` / `.XSHE` stock identities and is never used for minute bars, ETFs, indices, or unqualified symbols.
+- Broad-market index daily K-lines use Eastmoney, then Tencent when Eastmoney is throttled or unreachable; both are public, key-less JSON feeds (no HTML scraping, no credentials).
+- Responses are explicitly labeled (`baostock_free` / `eastmoney_free` / `tencent_free`) with a public `source_url`; the chart header and settings page render that source so users can tell free fallback from FTShare.
 - Requests are bounded and cached in-process (short TTL); a free-source failure degrades silently back to the FTShare error — it must never break the primary chart.
 - The bottom market ticker falls back to the Tencent quote feed only when FTShare returns no usable ticker items (official endpoints failed for most of the strip).
-- Keep the registry small and explicit. Do not extend it to equities, minute bars, or unverified symbols: individual-stock depth is intentionally an FTShare capability.
+- Keep the index registry small and explicit. The stock fallback is limited to a local, explicit exchange/prefix allowlist; do not extend it to minute bars, ETFs, B shares, unqualified codes, or runtime-discovered symbols.
 
 ## Upgrade checklist
 
