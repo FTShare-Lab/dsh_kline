@@ -53,6 +53,10 @@ INSTRUCTIONS = (
     "For a follow-up symbol request in the same App conversation, pass its current context_ref to analyze_kline; "
     "this may use that App session's in-memory provider capability without exposing any key. "
     "For current chart drawing, always use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status. "
+    "Candidate analysis is read-only: after presenting a numbered channel/range candidate, only an explicit user choice may draw it. "
+    "When the user explicitly accepts the immediately preceding unambiguous candidate (for example, confirms candidate 1 or replies yes to a single proposed candidate), "
+    "preserve its original candidate_result_ref and candidate_number in prepare_chart_edit.edit and set user_confirmed_candidate=true. "
+    "Do not recompute or substitute a candidate after confirmation. Prepare each drawing separately; a labeled polyline and a candidate channel are separate guarded edits. "
     "A prepared candidate is not a commit. An applied result confirms server chart state; a UI receipt and pixel verification are separate. "
     "Never use a context_ref from another conversation. FTShare keys are never accepted by model tools."
     if not IS_CLI else

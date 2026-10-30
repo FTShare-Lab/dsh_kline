@@ -143,6 +143,15 @@ def test_candidate_requires_explicit_confirmation_and_current_version():
         })
 
 
+def test_desktop_instructions_preserve_explicit_candidate_confirmation_binding():
+    import codex_server
+
+    assert "candidate_result_ref" in codex_server.INSTRUCTIONS
+    assert "candidate_number" in codex_server.INSTRUCTIONS
+    assert "user_confirmed_candidate=true" in codex_server.INSTRUCTIONS
+    assert "separate guarded edits" in codex_server.INSTRUCTIONS
+
+
 def test_codex_desktop_mcp_resource_app_visibility_and_cli_degradation():
     async def desktop() -> None:
         env = {"FT_KLINE_CLIENT": "desktop", "FT_KLINE_CODEX_MEMORY_ONLY": "1", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}

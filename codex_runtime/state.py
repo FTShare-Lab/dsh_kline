@@ -147,7 +147,11 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
     if fields.keys() & candidate_fields and (edit.action != "create" or edit.kind not in {"channel", "rectangle"}
             or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
             or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
-        raise LineError("candidate_confirmation_required", "候选必须由用户明确选定后才可创建图形。")
+        raise LineError(
+            "candidate_confirmation_required",
+            "候选必须由用户明确选定后才可创建图形。若用户已明确确认，必须保留原候选引用和序号，并同时填写 "
+            "candidate_result_ref、candidate_number 与 user_confirmed_candidate=true；否则先展示候选并请求确认。",
+        )
     return fields
 
 
