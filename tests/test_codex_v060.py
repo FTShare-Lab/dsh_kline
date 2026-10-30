@@ -53,6 +53,36 @@ def test_memory_state_expires_and_never_uses_disk_journal():
     assert state.session_key is None
 
 
+def test_follow_up_symbol_uses_only_its_own_app_session_key_and_never_returns_it(monkeypatch):
+    """A model may carry an opaque context ref, never an App-entered secret."""
+    import codex_server
+
+    secret = "private-session-key-not-for-output"
+    store = CodexChartStore()
+    original = store.create(payload())
+    original.session_key = secret
+    original.watchlist["items"] = [{"symbol": "600519.XSHG", "name": "贵州茅台", "groupId": "default"}]
+    observed: dict[str, str | None] = {}
+
+    def analyzed(*_args, **_kwargs):
+        observed["key"] = os.environ.get("FTSHARE_API_KEY")
+        return {"ok": True, "source": "ftshare", "chart_payload": payload()}
+
+    monkeypatch.setattr(codex_server, "STORE", store)
+    monkeypatch.setattr(codex_server, "analyze_symbol", analyzed)
+    async def call():
+        return await codex_server.analyze_kline_tool("NEXT.X", context_ref=original.context_ref)
+    response = anyio.run(call)
+    data = response.structuredContent
+
+    assert observed["key"] == secret
+    assert secret not in json.dumps(data)
+    successor = store._state(data["context_ref"])
+    assert successor.session_key == secret
+    assert successor.watchlist == original.watchlist
+    assert os.environ.get("FTSHARE_API_KEY") != secret
+
+
 def test_app_source_switch_discards_the_former_current_chart_context():
     store = CodexChartStore()
     first, second = store.create(payload()), store.create(payload())
@@ -124,6 +154,7 @@ def test_codex_desktop_mcp_resource_app_visibility_and_cli_degradation():
                 assert tools["ft_kline_app_action"].meta["ui"]["visibility"] == ["app"]
                 assert tools["ft_kline_app_action"].outputSchema is not None
                 assert tools["analyze_kline"].outputSchema is not None
+                assert "context_ref" in tools["analyze_kline"].inputSchema["properties"]
                 assert APP_RESOURCE_URI in {str(item.uri) for item in (await session.list_resources()).resources}
                 resource = await session.read_resource(APP_RESOURCE_URI)
                 assert "ui/initialize" in resource.contents[0].text and "tools/call" in resource.contents[0].text

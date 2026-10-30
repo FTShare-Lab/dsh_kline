@@ -198,14 +198,21 @@ class CodexChartStore:
                 state.session_key = None
                 del self._items[ref]
 
-    def create(self, payload: dict[str, Any]) -> ChartState:
+    def create(self, payload: dict[str, Any], *, inherit_context_ref: str | None = None) -> ChartState:
+        """Create a chart state and retain volatile App data only on an explicit symbol switch."""
         self.prune()
         while len(self._items) >= MAX_STATES:
             oldest = min(self._items.values(), key=lambda value: value.last_access)
             oldest.session_key = None
             del self._items[oldest.context_ref]
+        predecessor = self._items.get(inherit_context_ref or "")
         ref, session = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         state = ChartState(context_ref=ref, chart_session=session, payload=deepcopy(payload), last_access=self._now())
+        if predecessor:
+            # This is process-memory state from the context explicitly named by
+            # the caller. No credential is exposed in chart data or tool output.
+            state.session_key = predecessor.session_key
+            state.watchlist = deepcopy(predecessor.watchlist)
         state.payload.update({"context_ref": ref, "chart_session": session, "source_chart_session": session,
                               "chart_ready": True, "chart_ui": {"ready": True, "mode": "mcp_apps",
                               "resource_uri": APP_RESOURCE_URI}})

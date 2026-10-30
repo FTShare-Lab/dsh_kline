@@ -50,6 +50,8 @@ class ToolOutput(BaseModel):
 
 INSTRUCTIONS = (
     "For ordinary K-line requests call analyze_kline once. It fetches, calculates and opens the FT K-Line App. "
+    "For a follow-up symbol request in the same App conversation, pass its current context_ref to analyze_kline; "
+    "this may use that App session's in-memory provider capability without exposing any key. "
     "For current chart drawing, always use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status. "
     "A prepared candidate is not a commit. An applied result confirms server chart state; a UI receipt and pixel verification are separate. "
     "Never use a context_ref from another conversation. FTShare keys are never accepted by model tools."
@@ -90,10 +92,10 @@ def _session_credential(context_ref: str | None):
         if state is not None: clear_provider_caches()
 
 
-def _attach_chart(analysis: dict[str, Any]) -> dict[str, Any]:
+def _attach_chart(analysis: dict[str, Any], *, inherit_context_ref: str | None = None) -> dict[str, Any]:
     payload = analysis.pop("chart_payload", None)
     if not analysis.get("ok") or not isinstance(payload, dict): return analysis
-    state = STORE.create(payload)
+    state = STORE.create(payload, inherit_context_ref=inherit_context_ref)
     analysis.update(STORE.chart_payload(state.context_ref))
     analysis["chart_ready"] = True
     analysis["chart_host"] = {"ok": True, "mode": "mcp_apps_memory"}
@@ -247,17 +249,22 @@ async def analyze_kline_tool(symbol: str, interval: str = "day", interval_value:
                              boll_period: Annotated[int, Field(ge=2, le=200)] = DEFAULT_BOLL_PERIOD,
                              boll_std: Annotated[float, Field(ge=0.5, le=5)] = DEFAULT_BOLL_STD,
                              volume_ma: Annotated[int, Field(ge=2, le=200)] = DEFAULT_VOLUME_MA,
-                             atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD) -> Annotated[types.CallToolResult, ToolOutput]:
-    try: data = analyze_symbol(symbol, interval=interval, interval_value=interval_value, session_count=session_count, limit=limit,
-                               adjust=adjust, indicators=indicators, metrics=metrics, mark_support_resistance=mark_support_resistance,
-                               ma_periods=ma_periods, rsi_period=rsi_period, boll_period=boll_period, boll_std=boll_std,
-                               volume_ma=volume_ma, atr_period=atr_period)
+                             atr_period: Annotated[int, Field(ge=2, le=100)] = DEFAULT_ATR_PERIOD,
+                             context_ref: str | None = None) -> Annotated[types.CallToolResult, ToolOutput]:
+    try:
+        # context_ref is an opaque per-connection capability, never a secret.
+        # The temporary environment value is restored before this tool returns.
+        with _session_credential(context_ref):
+            data = analyze_symbol(symbol, interval=interval, interval_value=interval_value, session_count=session_count, limit=limit,
+                                  adjust=adjust, indicators=indicators, metrics=metrics, mark_support_resistance=mark_support_resistance,
+                                  ma_periods=ma_periods, rsi_period=rsi_period, boll_period=boll_period, boll_std=boll_std,
+                                  volume_ma=volume_ma, atr_period=atr_period)
     except Exception as exc: return result({"ok": False, "error": "analysis_failed", "message": str(exc)}, str(exc), error=True)
     if not data.get("ok"): return result(data, str(data.get("message") or data.get("error")), error=True)
     if IS_CLI:
         data.pop("chart_payload", None); data.update({"chart_ready": False, "chart_host": {"ok": False, "error": "cli_interactive_chart_unsupported"}, "cli_notice": "CLI 不支持交互图表。"})
         return result(data, "analyze_kline ok · CLI 不支持交互图表")
-    return result(_attach_chart(data), "analyze_kline ok", chart=True)
+    return result(_attach_chart(data, inherit_context_ref=context_ref), "analyze_kline ok", chart=True)
 
 
 if not IS_CLI:
@@ -360,7 +367,7 @@ if not IS_CLI:
             elif action == "analyze_kline":
                 context_ref = _app_context(arguments, app_instance, consume=True)
                 with _session_credential(context_ref): analyzed = analyze_symbol(**arguments)
-                data = _attach_chart(analyzed) if analyzed.get("ok") else analyzed
+                data = _attach_chart(analyzed, inherit_context_ref=context_ref) if analyzed.get("ok") else analyzed
             elif action == "search_symbols":
                 _app_context(arguments, app_instance, consume=True); data = search_symbols(**arguments)
             elif action == "fetch_candles":
