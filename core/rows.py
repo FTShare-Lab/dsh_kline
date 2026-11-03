@@ -57,7 +57,7 @@ def _to_time_sec(v: Any) -> int | None:
     a field named ``time``.
     """
     n = _to_float(v)
-    if n is None or n <= 0:
+    if n is None or not math.isfinite(n) or n <= 0:
         return None
     if n > _MS_THRESHOLD:
         n = n / 1000.0
@@ -171,7 +171,7 @@ def normalize_rows(rows: Any) -> list[dict[str, Any]]:
     return [dedup[k] for k in sorted(dedup)]
 
 
-def validate_rows(rows: Any, *, min_len: int = 2) -> list[dict[str, Any]]:
+def validate_rows(rows: Any, *, min_len: int = 2, strict_prices: bool = False) -> list[dict[str, Any]]:
     """Contract gate for calc_* / draw_*.
 
     P0 basics (hard fail):
@@ -180,7 +180,8 @@ def validate_rows(rows: Any, *, min_len: int = 2) -> list[dict[str, Any]]:
          if input is non-empty list but all bars lack OHLC → explicit message)
       3. timestamps sorted ascending (normalize always sorts)
 
-    P1 (not here): high < low reject/repair, gap handling, etc.
+    Set strict_prices for public OHLCV input. Pivot/shape algorithms also use
+    synthetic high/low sequences, so their existing contract stays unchanged.
     """
     if rows is None:
         raise RowsValidationError("rows is required (got None)")
@@ -188,6 +189,13 @@ def validate_rows(rows: Any, *, min_len: int = 2) -> list[dict[str, Any]]:
         raise RowsValidationError(f"rows must be a list, got {type(rows).__name__}")
     if len(rows) == 0:
         raise RowsValidationError("rows is empty")
+
+    for index, raw in enumerate(rows):
+        if not isinstance(raw, dict):
+            continue
+        raw_time = _to_float(_pick_raw_time(raw))
+        if raw_time is not None and not math.isfinite(raw_time):
+            raise RowsValidationError(f"bar {index}: timestamp must be finite")
 
     raw_count = len(rows)
     norm = normalize_rows(rows)
@@ -207,6 +215,10 @@ def validate_rows(rows: Any, *, min_len: int = 2) -> list[dict[str, Any]]:
     prev = None
     for r in norm:
         t = int(r["time"])
+        if strict_prices and r["high"] < r["low"]:
+            raise RowsValidationError(f"bar at {t}: high must be at least low")
+        if strict_prices and r["volume"] < 0:
+            raise RowsValidationError(f"bar at {t}: volume must be non-negative")
         if prev is not None and t < prev:
             raise RowsValidationError(
                 f"timestamps not sorted after normalize (saw {t} after {prev})"

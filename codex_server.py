@@ -137,7 +137,7 @@ def _key_levels_from_rows(symbol: Any, supplied_rows: Any) -> dict[str, Any]:
     """Calculate the App's key-level cards from its displayed rows only."""
     if not isinstance(supplied_rows, list) or len(supplied_rows) > 4_000:
         return {"ok": False, "error": "invalid_rows", "message": "请提供不超过 4000 根已加载 K 线。"}
-    rows = validate_rows(supplied_rows, min_len=1)
+    rows = validate_rows(supplied_rows, min_len=1, strict_prices=True)
     if len(rows) < 5:
         return {"ok": False, "error": "insufficient_candles", "message": "关键点位分析至少需要 5 根有效 K 线。"}
     metrics = run_calc_metrics(rows, metrics=["support_resistance"])
@@ -324,10 +324,16 @@ if not IS_CLI:
     async def get_chart_edit_status(context_ref: str, candidate_chart_session: str,
                                     wait_ms: Annotated[int, Field(ge=0, le=5000)] = 0) -> Annotated[types.CallToolResult, ToolOutput]:
         if wait_ms: await asyncio.sleep(wait_ms / 1000)
-        try: return result(STORE.status(context_ref, candidate_chart_session), "get_chart_edit_status ok", chart=True)
+        try:
+            status = STORE.status(context_ref, candidate_chart_session)
+            # A status result can become the App's initial delivery. Include the
+            # current committed chart so that a fresh view can restore it; never
+            # render an uncommitted candidate or imply a UI acknowledgment.
+            status["chart_payload"] = STORE.chart_payload(context_ref)
+            return result(status, "get_chart_edit_status ok", chart=True)
         except Exception as exc: return failure(exc)
 
-    APP_ACTIONS = frozenset({"activate", "observe", "close", "analyze_kline", "search_symbols", "fetch_candles", "data_source_status",
+    APP_ACTIONS = frozenset({"activate", "observe", "close", "sync_chart_view", "analyze_kline", "search_symbols", "fetch_candles", "data_source_status",
                              "symbol_directory", "watchlist_get", "watchlist_save", "fetch_market_ticker",
                              "fetch_market_pulse", "fetch_market_board_detail", "fetch_security_intelligence",
                              "fetch_security_workspace", "fetch_comparison_candles", "market_ticker",
@@ -345,6 +351,9 @@ if not IS_CLI:
                 state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True)
                 data = {"ok": True, "context_ref": state.context_ref, "revision": state.revision, "chart_session": state.chart_session}
             elif action == "close": STORE.close(str(arguments.get("context_ref") or ""), app_instance=app_instance); data = {"ok": True}
+            elif action == "sync_chart_view":
+                context_ref = _app_context(arguments, app_instance)
+                data = STORE.sync_view(context_ref, arguments.get("payload"), app_instance=app_instance)
             elif action == "configure_session_key":
                 state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True)
                 key = str(arguments.get("api_key") or "").strip()

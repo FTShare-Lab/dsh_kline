@@ -13,6 +13,7 @@ from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from codex_runtime.state import APP_RESOURCE_URI, CodexChartStore
+from core.rows import RowsValidationError
 from tools.lines import LineError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +93,34 @@ def test_app_source_switch_discards_the_former_current_chart_context():
     with pytest.raises(LineError, match="已结束"):
         store.context(first.context_ref)
     assert store.context(second.context_ref)["context_ref"] == second.context_ref
+
+
+def test_inline_and_expanded_views_share_a_chart_until_both_close():
+    store = CodexChartStore()
+    state = store.create(payload())
+    store.claim(state.context_ref, "inline-chart-view-1")
+    store.claim(state.context_ref, "expanded-chart-view-2")
+    store.close(state.context_ref, app_instance="inline-chart-view-1")
+    assert store.context(state.context_ref)["context_ref"] == state.context_ref
+    store.close(state.context_ref, app_instance="expanded-chart-view-2")
+    with pytest.raises(LineError, match="已结束"):
+        store.context(state.context_ref)
+
+
+def test_rendered_symbol_switch_updates_chart_context_and_rejects_bad_rows():
+    store = CodexChartStore()
+    state = store.create(payload())
+    original_session = state.chart_session
+    rendered = {**payload(), "symbol": "600519.XSHG", "name": "贵州茅台", "local_render": True}
+    result = store.sync_view(state.context_ref, rendered, app_instance="expanded-chart-view-2")
+    assert result["symbol"] == "600519.XSHG" and result["revision"] == 2
+    assert result["chart_session"] != original_session
+    assert store.context(state.context_ref)["symbol"] == "600519.XSHG"
+    assert "local_render" not in store.chart_payload(state.context_ref)
+    malformed = {**rendered, "chartCommands": [{"type": "SET_CANDLES", "rows": [{**rows(2)[0], "high": 1}, rows(2)[1]]}]}
+    with pytest.raises(RowsValidationError, match="high must be at least low"):
+        store.sync_view(state.context_ref, malformed, app_instance="expanded-chart-view-2")
+    assert store.context(state.context_ref)["revision"] == 2
 
 
 def test_guarded_edit_replay_conflict_and_ui_receipt_are_distinct():

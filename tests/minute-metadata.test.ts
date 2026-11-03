@@ -22,7 +22,7 @@ function fixture() {
     workspaceTabs:[],activeWorkspaceTabId:'',workspaceTabId:(p:any)=>p.symbol,renderWorkspaceTabs(){},saveWorkspacePreferences(){},
     securityWorkspaceData:{},securityWorkspaceLoading:false,securityIntelligenceData:{},securityIntelligenceLoading:false,
     activeCompanyTab:'overview',clearRangePick(){},securityWorkspaceRequestId:0,securityIntelligenceRequestId:0,
-    syncTimeControls(){},rememberAnalysisCommands(){},handleToolResult(){}}
+    syncTimeControls(){},rememberAnalysisCommands(){},handleToolResult(){},syncRenderedChartView(){}}
   const api=runInNewContext(sequenceHash+build+collect+workspaces+';({build:buildLocalChartPayload,hash:candleSequenceHash,capture:()=>captureChartContext("a".repeat(32)),remember:rememberWorkspaceTab,select:selectWorkspaceTab})',c)
   const receive=(value:any,symbol='TEST.X')=>{
     c.structured={symbol,interval:'minute',interval_value:value,adjust:'forward',data_meta:{source:'ftshare'},chartCommands:[{type:'SET_CANDLES',rows}]}

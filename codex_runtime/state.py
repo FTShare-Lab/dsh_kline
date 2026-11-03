@@ -3,7 +3,8 @@
 There is no filesystem journal, HTTP service, DSH browser observation, or
 credential store in this module.  A stdio process represents one MCP
 connection; App instances must additionally claim a chart before using the
-private UI action.  Idle state is discarded after thirty minutes.
+private UI action. Multiple views of the same chart may hold that claim.
+Idle state is discarded after thirty minutes.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import time
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from core.rows import validate_rows
 
 from tools.annotations import ANNOTATION_COMMAND, ANNOTATION_KINDS, edit_annotation
 from tools.channels import CHANNEL_COMMAND, edit_channel
@@ -175,7 +177,7 @@ class ChartState:
     chart_session: str
     payload: dict[str, Any]
     revision: int = 1
-    app_instance: str | None = None
+    app_instances: set[str] = field(default_factory=set)
     last_access: float = field(default_factory=time.monotonic)
     candidates: dict[str, Candidate] = field(default_factory=dict)
     request_ids: dict[str, Candidate] = field(default_factory=dict)
@@ -225,9 +227,16 @@ class CodexChartStore:
 
     def close(self, context_ref: str, *, app_instance: str | None = None) -> None:
         state = self._items.get(context_ref)
-        if state and (not app_instance or state.app_instance == app_instance):
-            state.session_key = None
-            del self._items[context_ref]
+        if not state:
+            return
+        if app_instance:
+            if app_instance not in state.app_instances:
+                return
+            state.app_instances.remove(app_instance)
+            if state.app_instances:
+                return
+        state.session_key = None
+        del self._items[context_ref]
 
     def _state(self, context_ref: str, *, app_instance: str | None = None, claim: bool = False) -> ChartState:
         self.prune()
@@ -235,16 +244,19 @@ class CodexChartStore:
         if state is None:
             raise LineError("chart_context_unavailable", "当前对话图表会话已结束或已空闲超时，请重新生成图表。")
         if app_instance:
-            if claim and state.app_instance is None:
-                # One visible App iframe has one active chart.  When it moves
-                # to a different symbol/source, discard its former context so
-                # a stale context cannot write into a chart it no longer owns.
+            if claim and app_instance not in state.app_instances:
+                # An inline result and its expanded panel are separate App
+                # instances with the same opaque chart capability. Both may
+                # use it. An instance switching charts releases only its own
+                # old claim; another visible view keeps its chart alive.
                 for ref, other in list(self._items.items()):
-                    if ref != context_ref and other.app_instance == app_instance:
-                        other.session_key = None
-                        del self._items[ref]
-                state.app_instance = app_instance
-            if state.app_instance != app_instance:
+                    if ref != context_ref and app_instance in other.app_instances:
+                        other.app_instances.remove(app_instance)
+                        if not other.app_instances:
+                            other.session_key = None
+                            del self._items[ref]
+                state.app_instances.add(app_instance)
+            if app_instance not in state.app_instances:
                 raise LineError("chart_app_instance_mismatch", "该图表属于另一活动 App 实例，不能跨窗口使用。")
         state.last_access = self._now()
         return state
@@ -275,6 +287,31 @@ class CodexChartStore:
                         "source_chart_session": state.chart_session, "revision": state.revision,
                         "chart_ready": True, "chart_ui": {"ready": True, "mode": "mcp_apps", "resource_uri": APP_RESOURCE_URI}})
         return payload
+
+    def sync_view(self, context_ref: str, payload: dict[str, Any], *, app_instance: str) -> dict[str, Any]:
+        """Commit the chart actually rendered by this App instance."""
+        state = self._state(context_ref, app_instance=app_instance, claim=True)
+        if not isinstance(payload, dict) or payload.get("local_render") is not True:
+            raise LineError("invalid_chart_view", "当前图表数据无效。")
+        symbol, interval = payload.get("symbol"), payload.get("interval")
+        commands = payload.get("chartCommands")
+        if not isinstance(symbol, str) or not symbol.strip() or not isinstance(interval, str) or not interval.strip():
+            raise LineError("invalid_chart_view", "当前图表标的或周期无效。")
+        if not isinstance(commands, list) or not 1 <= len(commands) <= 200 or any(not isinstance(cmd, dict) for cmd in commands):
+            raise LineError("invalid_chart_view", "当前图表绘图命令无效。")
+        candle_commands = [cmd for cmd in commands if cmd.get("type") == "SET_CANDLES"]
+        if len(candle_commands) != 1 or not isinstance(candle_commands[0].get("rows"), list) or len(candle_commands[0]["rows"]) > 4000:
+            raise LineError("invalid_chart_view", "当前图表 K 线无效。")
+        normalized = validate_rows(candle_commands[0]["rows"], min_len=2, strict_prices=True)
+        updated = deepcopy(payload)
+        next(cmd for cmd in updated["chartCommands"] if cmd.get("type") == "SET_CANDLES")["rows"] = normalized
+        for key in ("context_ref", "chart_session", "source_chart_session", "revision", "session_key", "local_render"):
+            updated.pop(key, None)
+        state.payload = updated
+        state.revision += 1
+        state.chart_session = secrets.token_urlsafe(24)
+        return {"ok": True, "context_ref": context_ref, "revision": state.revision,
+                "chart_session": state.chart_session, "symbol": symbol, "interval": interval}
 
     def get_watchlist(self, context_ref: str, *, app_instance: str) -> dict[str, Any]:
         """Return the volatile App watchlist; it never reaches disk or DSH."""

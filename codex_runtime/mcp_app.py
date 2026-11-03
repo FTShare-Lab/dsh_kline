@@ -18,7 +18,7 @@ def _bridge() -> str:
     return r'''<script>
 (() => {
   const parent = window.parent === window ? null : window.parent;
-  const pending = new Map(); let serial = 0, mounted = false, first = true, buffered = null, lastDeliveryKey = '';
+  const pending = new Map(); let serial = 0, mounted = false, first = true, buffered = null, lastDeliveryKey = '', activeContextRef = '';
   let resolvePayload, rejectPayload, resolveHost, rejectHost;
   const payloadReady = new Promise((resolve, reject) => { resolvePayload = resolve; rejectPayload = reject; }); payloadReady.catch(() => {});
   const payloadTimer = setTimeout(() => { if (first) rejectPayload(new Error('Chart result was not delivered to the App')); }, 20000);
@@ -44,7 +44,10 @@ def _bridge() -> str:
       if (!current || (typeof current !== 'object' && !Array.isArray(current)) || seen.has(current)) continue;
       seen.add(current);
       const payload = current.chart_payload || current;
-      if (Array.isArray(payload?.chartCommands)) {
+      // Indicator calculations also contain chartCommands, but are not full
+      // chart sessions. Delivering them here would replace the active session
+      // with a payload that has no context_ref, breaking the next App action.
+      if (Array.isArray(payload?.chartCommands) && payload?.context_ref) {
         return { payload, candidate: current.candidate_chart_session || payload.candidate_chart_session };
       }
       for (const field of ['structuredContent', 'result', 'toolResult', 'toolOutput', 'params', 'mcp_tool_result', 'mcpToolResult', 'call_tool_result', 'callToolResult', 'toolResponseMetadata']) {
@@ -68,7 +71,7 @@ def _bridge() -> str:
   };
   const action = (actionName, arguments_ = {}) => hostReady.then(() => request('tools/call', {
     name: 'ft_kline_app_action', arguments: { action: actionName, arguments: (() => {
-      const contextRef = arguments_.context_ref || window.__DSH_CHART_SESSION__?.context_ref;
+      const contextRef = arguments_.context_ref || window.__DSH_CHART_SESSION__?.context_ref || activeContextRef;
       return contextRef && actionName !== 'activate' ? { ...arguments_, context_ref: contextRef } : arguments_;
     })(), app_instance: appInstance },
   })).then(async result => {
@@ -93,6 +96,7 @@ def _bridge() -> str:
     const deliveryKey = [payload.context_ref || '', payload.chart_session || payload.source_chart_session || '', payload.revision || '', candidate || ''].join('|');
     if (deliveryKey && deliveryKey === lastDeliveryKey) return;
     lastDeliveryKey = deliveryKey;
+    if (payload.context_ref) activeContextRef = String(payload.context_ref);
     payload._live_chart_session = payload.chart_session || payload.source_chart_session;
     window.__DSH_CHART_SESSION__ = payload;
     // The first chart result is consumed before the shared chart view starts.

@@ -117,7 +117,8 @@ test('workspace restoration preserves input provider metadata together with sour
     securityWorkspaceData: {}, securityWorkspaceLoading: false, securityIntelligenceData: {}, securityIntelligenceLoading: false,
     activeSecurityTab: 'chart', activeCompanyTab: 'overview', clearRangePick() {}, securityWorkspaceRequestId: 0,
     securityIntelligenceRequestId: 0, syncTimeControls() {}, rememberAnalysisCommands() {},
-    handleToolResult() { assert.equal(context.localChartDataMeta.source, 'external') } }
+    handleToolResult() { assert.equal(context.localChartDataMeta.source, 'external') },
+    syncRenderedChartView(payload: any) { assert.equal(payload.symbol, 'TEST.X'); context.synced = true } }
   const functions = runInNewContext(remember + select + '; ({rememberWorkspaceTab,selectWorkspaceTab})', context)
   functions.rememberWorkspaceTab({ symbol: 'TEST.X', interval: 'week', adjust: 'forward', local_render: true })
   context.currentAdjust = 'backward'
@@ -126,4 +127,5 @@ test('workspace restoration preserves input provider metadata together with sour
   assert.equal(context.sourceCandleInterval, 'day'); assert.deepEqual(context.sourceCandles, rows)
   assert.equal(context.localChartDataMeta.source, 'external')
   assert.equal(context.currentAdjust, 'forward')
+  assert.equal(context.synced, true)
 })

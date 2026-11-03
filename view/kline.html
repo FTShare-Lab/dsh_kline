@@ -136,8 +136,10 @@
      later quote/navigation rows, not just its nested results list. */
   .symbol-search { position: absolute; z-index: 60; top: 6px; left: 50%; flex: 0 0 195px; width: min(195px, calc(100% - 360px)); min-width: 160px; max-width: 195px; margin: 0; transform: translateX(-50%); }
   .symbol-search-form { position: relative; display: block; }
-  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 30px 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
+  .symbol-search input { width: 100%; min-width: 0; height: 28px; padding: 4px 50px 4px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
   .symbol-search input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 0; border-color: var(--accent); }
+  .search-clear { position: absolute; top: 50%; right: 29px; transform: translateY(-50%); width: 20px; height: 20px; padding: 0; border: 0; background: transparent; color: var(--text-soft); cursor: pointer; font: inherit; }
+  .symbol-search input:placeholder-shown + .search-clear { display: none; }
   .search-enter-hint { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); color: var(--text-soft); font-size: 16px; line-height: 1; pointer-events: none; user-select: none; }
   .search-results { position: absolute; z-index: 40; top: calc(100% + 5px); left: 0; right: 0; display: none; max-height: 252px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); box-shadow: var(--shadow); }
   .search-results.open { display: block; }
@@ -954,7 +956,8 @@
   <div class="brand" id="productBrand" aria-label="FtAI K-Line"><img class="brand-logo" src="__FTV_LOGO_DATA__" alt="" /><span class="brand-product" id="brandProduct">FtAI K-Line</span></div>
   <div class="symbol-search" id="symbolSearch">
     <form class="symbol-search-form" id="symbolSearchForm" role="search">
-      <input id="symbolSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" aria-describedby="symbolSearchEnterHint" />
+      <input id="symbolSearchInput" type="text" inputmode="text" lang="zh-CN" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="搜索代码或名称" aria-label="搜索股票" aria-describedby="symbolSearchEnterHint" />
+      <button class="search-clear" id="symbolSearchClear" type="button" aria-label="清空搜索">×</button>
       <span class="search-enter-hint" id="symbolSearchEnterHint" aria-hidden="true">↵</span>
     </form>
     <div class="search-results" id="searchResults" role="listbox"></div>
@@ -1012,7 +1015,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionSource" hidden>
-          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；分钟 K 等仍需相应权限。</span></div>
+          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。</span></div>
           <div class="settings-info"><div class="settings-info-title" id="settingsCurrentChartTitle">当前图数据</div><div id="settingsSourceStatus"></div></div>
           <div class="source-autoload"><strong data-i18n="sourceAutoloadTitle">自动使用已有的 FTShare Key</strong><span data-i18n="sourceAutoload">dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。</span></div>
           <div class="settings-provider">
@@ -1529,6 +1532,8 @@ let symbolSearchResults = [];
 let symbolSearchActiveIndex = -1;
 let symbolSearchDebounceTimer = null;
 let symbolSearchRequestId = 0;
+let symbolSearchComposing = false;
+let symbolSearchCompositionEndedAt = 0;
 const SYMBOL_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 const SYMBOL_SEARCH_CACHE_MAX_ENTRIES = 48;
 const symbolSearchCache = new Map();
@@ -1820,32 +1825,32 @@ Object.assign(UI_COPY.en, {
 // A free FTShare account is different from making anonymous requests. Keep
 // these entitlement messages together so the source and error UI agree.
 Object.assign(UI_COPY.zh, {
-  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；分钟 K 等仍需相应权限。",
+  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。",
   sourceFreeMode: "注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。",
   ftshareStatusAnonymous: "未配置 API Key",
-  ftshareHintAnonymous: "沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源；更多行情请配置 FTShare Key。",
+  ftshareHintAnonymous: "沪深 A 股历史日 K 可尝试 BaoStock 备用源；更多行情请配置 FTShare Key。",
   ftshareConfigInvalid: "请输入 API Key，或关闭此配置窗口。",
   ftshareApiKeyPlaceholder: "粘贴 FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "分钟 K 需要有效 Key 和相应套餐权限；请检查数据源配置。",
   welcomeFtshareDetail: "沪深 A 股历史日 K 可使用免 Key 备用源；分钟 K 和更多数据按 FTShare 套餐提供。",
   noKeyStockData: "本次免费历史行情暂不可用。可重试，或在设置中配置 FTShare Key。",
-  freeStockUnavailable: "BaoStock 与腾讯公开源暂未返回这只股票的历史 K 线，请稍后重试。",
-  ftshareNoKeyConnection: "FTShare 未配置 Key；沪深 A 股历史日 K 可依次尝试 BaoStock 与腾讯公开源。",
+  freeStockUnavailable: "BaoStock 暂未返回这只股票的历史 K 线，请稍后重试。",
+  ftshareNoKeyConnection: "FTShare 未配置 Key；沪深 A 股历史日 K 可尝试 BaoStock。",
   configureDataSource: "配置数据源",
   marketBoardsUnavailable: "板块数据暂不可用，指数行情仍可正常使用。",
 });
 Object.assign(UI_COPY.en, {
-  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can try BaoStock, then Tencent's public feed. Minute bars still depend on source access.",
+  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can use BaoStock. Minute bars still depend on source access.",
   sourceFreeMode: "Register a free FTShare key for stock candles allowed by your plan. Minute bars, news, and other data depend on the endpoint and plan.",
   ftshareStatusAnonymous: "API key not configured",
-  ftshareHintAnonymous: "Historical daily A-share bars can try BaoStock, then Tencent's public feed; configure an FTShare key for broader coverage.",
+  ftshareHintAnonymous: "Historical daily A-share bars can use BaoStock; configure an FTShare key for broader coverage.",
   ftshareConfigInvalid: "Enter an API key, or close this configuration window.",
   ftshareApiKeyPlaceholder: "Paste FTSHARE_API_KEY",
   ftshareMinuteKeyRequired: "Minute bars require a valid key and access under your plan. Check Data source settings.",
   welcomeFtshareDetail: "Historical daily A-share bars can use the key-less fallback. Minute bars and more data depend on the FTShare plan.",
   noKeyStockData: "Free historical data is temporarily unavailable. Retry or configure an FTShare key in Settings.",
-  freeStockUnavailable: "BaoStock and Tencent's public feed did not return historical candles for this stock. Please retry later.",
-  ftshareNoKeyConnection: "No FTShare key is configured; historical daily A-share bars can try BaoStock, then Tencent's public feed.",
+  freeStockUnavailable: "BaoStock did not return historical candles for this stock. Please retry later.",
+  ftshareNoKeyConnection: "No FTShare key is configured; historical daily A-share bars can use BaoStock.",
   configureDataSource: "Configure data source",
   marketBoardsUnavailable: "Board rankings are unavailable; major indices remain available.",
 });
@@ -3253,10 +3258,9 @@ function intelligenceMetricsMarkup(items, className = "") {
     return `<div class="intelligence-metric"><span class="intelligence-metric-label">${escapeHtml(item?.title || "--")}</span><span class="intelligence-metric-value ${tone}">${escapeHtml(value)}</span>${item?.detail ? `<span class="intelligence-item-detail">${escapeHtml(item.detail)}</span>` : ""}</div>`;
   }).join("")}</div>`;
 }
-function marketIndexGroupsMarkup(items, missing = []) {
+function marketIndexGroupsMarkup(items) {
   const valid = Array.isArray(items) ? items.filter((item) => Number.isFinite(Number(item?.close)) && Number.isFinite(Number(item?.change_pct))) : [];
   const readyBySymbol = new Map(valid.map((item) => [String(item.symbol || "").toUpperCase(), item]));
-  const missingBySymbol = new Map((Array.isArray(missing) ? missing : []).filter((item) => item?.symbol).map((item) => [String(item.symbol).toUpperCase(), item]));
   const markup = MARKET_INDEX_SLOTS.map((slot) => {
     const symbol = slot.symbol.toUpperCase();
     const item = readyBySymbol.get(symbol);
@@ -3264,8 +3268,9 @@ function marketIndexGroupsMarkup(items, missing = []) {
       if (marketTickerPendingSymbols.has(symbol)) {
         return `<div class="market-index-card loading" aria-label="${escapeHtml(`${slot.name} ${t("marketLoading")}`)}"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`;
       }
-      const unavailable = missingBySymbol.get(symbol) || slot;
-      return `<div class="market-index-card unavailable"><span class="market-index-name">${escapeHtml(String(unavailable.name || slot.name))}</span><span class="market-index-unavailable">暂不可用</span><span class="market-index-symbol">${escapeHtml(slot.symbol)}</span><span></span></div>`;
+      // Do not fill the landing page with failed cards. Show available indices
+      // and keep the unavailable state as one concise section-level message.
+      return "";
     }
     const change = Number(item.change_pct);
     const tone = change < 0 ? "down" : "up";
@@ -3274,12 +3279,20 @@ function marketIndexGroupsMarkup(items, missing = []) {
     const openTitle = `${t("openIndexChart").replace("{name}", name)} · ${itemSymbol}`;
     return `<button type="button" class="market-index-card ${tone}" data-ticker-symbol="${escapeHtml(itemSymbol)}" data-ticker-name="${escapeHtml(name)}" title="${escapeHtml(openTitle)}"><span class="market-index-name">${escapeHtml(name)}</span><span class="market-index-price ${tone}">${escapeHtml(formatTickerNumber(item.close))}</span><span class="market-index-symbol">${escapeHtml(itemSymbol)}</span><span class="market-index-change ${tone}">${change >= 0 ? "+" : ""}${escapeHtml(change.toFixed(2))}%</span></button>`;
   }).join("");
-  return `<div class="market-index-grid">${markup}</div>`;
+  return markup ? `<div class="market-index-grid">${markup}</div>` : "";
 }
 function marketIndexLoadingMarkup() {
   return `<div class="market-index-grid" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 8 }, () =>
     `<div class="market-index-card loading" aria-hidden="true"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`
   ).join("")}</div>`;
+}
+function marketIndexSourceFooter() {
+  if (!marketTickerItems.length || !marketTickerSource) return "";
+  const sources = marketTickerSource.split("+").map((source) => {
+    if (source === "cache") return viewLanguage === "zh" ? "缓存" : "Cached";
+    return marketDataSourcePresentation(source).label;
+  }).join(" + ");
+  return `<footer class="insight-source-footer"><span class="insight-source">${escapeHtml(t("marketIndices"))} · ${escapeHtml(t("source"))} ${escapeHtml(sources)}</span></footer>`;
 }
 function marketSegmentMarkup(kind, selected, availableValues = []) {
   const options = kind === "direction"
@@ -3376,7 +3389,7 @@ function renderMarketWorkspace() {
   if (!panel) return;
   const pulseResult = marketPulseData || {};
   const pulse = pulseResult.market_pulse || {};
-  const indexGroups = marketIndexGroupsMarkup(marketTickerItems, marketTickerMissing);
+  const indexGroups = marketIndexGroupsMarkup(marketTickerItems);
   const hotSectors = Array.isArray(pulse.hot_sectors) ? pulse.hot_sectors : [];
   const hotConcepts = Array.isArray(pulse.hot_concepts) ? pulse.hot_concepts : [];
   const abnormalTrading = Array.isArray(pulse.abnormal_trading) ? pulse.abnormal_trading : [];
@@ -3385,7 +3398,7 @@ function renderMarketWorkspace() {
   const directionItems = marketDirectionMode === "concept" ? hotConcepts : hotSectors;
   const directions = marketDirectionMarkup(directionItems);
   const abnormal = marketLeaderboardMarkup(abnormalTrading);
-  const noData = `<p class="intelligence-note market-section-empty">板块数据暂不可用，指数行情仍可正常使用。</p>`;
+  const noData = `<p class="intelligence-note market-section-empty">${escapeHtml(t("marketBoardsUnavailable"))}</p>`;
   const indices = indexGroups || (marketTickerRefreshInFlight || !marketTickerInitialized
     ? marketIndexLoadingMarkup()
     : `<p class="intelligence-note">${escapeHtml(t("marketIndicesUnavailable"))}</p>`);
@@ -3394,7 +3407,7 @@ function renderMarketWorkspace() {
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
     (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : marketPulseLoading ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><div class="market-leaderboard loading" aria-label="正在加载龙虎榜">${Array.from({ length: 4 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div></section>` : "") +
-    `</div>${workspaceSourceFooter(pulseResult)}`;
+    `</div>${marketIndexSourceFooter()}${directions || abnormal ? workspaceSourceFooter(pulseResult) : ""}`;
 }
 function renderDragonWorkspace() {
   const panel = document.getElementById("dragonWorkspacePanel");
@@ -3598,9 +3611,12 @@ async function loadMarketPulse(refresh = false) {
   const loadSection = async (sections) => {
     try {
       const result = await callMarketTool("fetch_market_pulse", { refresh, sections });
-      if (requestId !== marketPulseRequestId) return;
+      if (requestId !== marketPulseRequestId) return null;
       const structured = result?.structuredContent || result || null;
-      if (!result?.isError && structured?.ok) marketPulseData = mergePulse(marketPulseData, structured);
+      if (!result?.isError && structured?.ok) {
+        marketPulseData = mergePulse(marketPulseData, structured);
+        return structured;
+      }
     } catch (error) {
       console.warn("market pulse", error);
     } finally {
@@ -3610,21 +3626,19 @@ async function loadMarketPulse(refresh = false) {
         reportSize();
       }
     }
+    return null;
   };
   try {
-    // Index quotes render before this request. The first data batch gives the
-    // landing view its useful market context; ranks and events then follow
-    // independently and can never block the board view.
-    await loadSection(["breadth", "flows", "sectors", "concepts"]);
+    // The index strip is independent. Probe one optional board group first;
+    // free accounts must not trigger a burst of inaccessible premium routes.
+    const boardResult = await loadSection(["sectors", "concepts"]);
     if (requestId !== marketPulseRequestId) return;
-    // Some host/proxy combinations can drop a multi-section response while
-    // returning a successful envelope. Fall back once to the established full
-    // request only when the board payload is actually missing.
-    const firstPulse = marketPulseData?.market_pulse || {};
-    if (!firstPulse.hot_sectors?.length && !firstPulse.hot_concepts?.length) {
-      await loadSection();
-      if (requestId !== marketPulseRequestId) return;
-    }
+    const boardErrors = ["sectors", "concepts"].flatMap((name) => boardResult?.sections?.[name]?.errors || []);
+    const unavailableAccount = boardResult?.source?.status === "unavailable" || boardErrors.some((entry) =>
+      ["auth_required", "invalid_key", "capability_limited", "insufficient_quota", "rate_limited"].includes(entry?.code));
+    if (!boardResult || unavailableAccount) return;
+    await loadSection(["breadth", "flows"]);
+    if (requestId !== marketPulseRequestId) return;
     // The host proxy serializes chart actions on some DSH versions, so the
     // remaining groups are deliberately sent one at a time.
     await loadSection(["rankings"]);
@@ -7812,7 +7826,7 @@ async function requestTaIndicatorCommands(rows) {
   const result = await callTool("calculate_chart_indicators", {
     rows, expected_hash: sourceHash, indicators: names, ...settings,
   });
-  const data = result?.structuredContent || {};
+  const data = result?.structuredContent || result || {};
   if (result?.isError || data.ok !== true) {
     throw new Error(data.message || data.error || "TA-Lib 指标计算失败");
   }
@@ -7933,8 +7947,19 @@ async function renderCurrentViewLocally(options = {}) {
   if (requestId !== localIndicatorRequestId
     || identity !== [currentSymbol, currentInterval, currentRangeKey, currentAdjust, indicatorStateVersion].join("|")
     || candleSequenceHash(sourceRowsForCurrentInterval()) !== indicatorResult.source_hash) return false;
-  await handleToolResult({ structuredContent: buildLocalChartPayload(rows, options, indicatorResult) });
+  const payload = buildLocalChartPayload(rows, options, indicatorResult);
+  await handleToolResult({ structuredContent: payload });
+  if (requestId === localIndicatorRequestId) await syncRenderedChartView(payload);
   return true;
+}
+async function syncRenderedChartView(payload) {
+  if (!window.__FT_KLINE_APP__) return;
+  const result = await callTool("sync_chart_view", { payload: { ...payload, local_render: true } });
+  const synced = result?.structuredContent || result || {};
+  if (result?.isError || synced.ok !== true || synced.symbol !== currentSymbol) {
+    throw new Error(synced.message || synced.error || "图表会话同步失败");
+  }
+  await window.__FT_KLINE_APP__.refreshObservation();
 }
 async function renderLocalChartWithFeedback() {
   showChartLoading(t("renderingChart"));
@@ -9553,6 +9578,7 @@ async function selectWorkspaceTab(id) {
   renderWorkspaceTabs();
   rememberAnalysisCommands(tab.payload);
   await handleToolResult({ structuredContent: tab.payload });
+  await syncRenderedChartView(tab.payload);
   if (!tab.workspace && !tab.workspaceLoading) loadSecurityWorkspace(tab.symbol, tab.name).catch(console.warn);
   if (activeSecurityTab === "market" && !marketPulseData && !marketPulseLoading) loadMarketPulse().catch(console.warn);
   if (activeSecurityTab === "sector" && !tab.intelligence && !tab.intelligenceLoading) loadSecurityIntelligence(tab.symbol, tab.name).catch(console.warn);
@@ -9785,10 +9811,13 @@ function scheduleSymbolSearch() {
   symbolSearchRequestId += 1;
   const value = document.getElementById("symbolSearchInput")?.value || "";
   if (!String(value).trim()) { closeSearchResults(); return; }
-  setSearchResults([], "");
   const resultsEl = document.getElementById("searchResults");
-  if (resultsEl) resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(t("searching"))}</div>`;
-  symbolSearchDebounceTimer = window.setTimeout(() => searchSymbols(value).catch(console.warn), 260);
+  // Do not repaint the dropdown while the input method is still editing text.
+  if (resultsEl) resultsEl.classList.remove("open");
+  symbolSearchResults = [];
+  symbolSearchActiveIndex = -1;
+  const delay = /^[a-z]+$/i.test(String(value).trim()) ? 700 : 260;
+  symbolSearchDebounceTimer = window.setTimeout(() => searchSymbols(value).catch(console.warn), delay);
 }
 async function searchSymbols(query) {
   const q = String(query || "").trim();
@@ -10434,10 +10463,36 @@ document.getElementById("importLocalDataInput")?.addEventListener("change", (eve
 });
 document.getElementById("symbolSearchForm").addEventListener("submit", (event) => {
   event.preventDefault();
+  if (symbolSearchComposing || Date.now() - symbolSearchCompositionEndedAt < 150) return;
   submitSearchSelection().catch(console.warn);
 });
-document.getElementById("symbolSearchInput").addEventListener("input", scheduleSymbolSearch);
-document.getElementById("symbolSearchInput").addEventListener("keydown", (event) => {
+const symbolSearchInput = document.getElementById("symbolSearchInput");
+document.getElementById("symbolSearchClear").addEventListener("click", () => {
+  symbolSearchInput.value = "";
+  closeSearchResults();
+  symbolSearchInput.focus();
+});
+symbolSearchInput.addEventListener("compositionstart", () => {
+  symbolSearchComposing = true;
+  if (symbolSearchDebounceTimer) window.clearTimeout(symbolSearchDebounceTimer);
+  symbolSearchDebounceTimer = null;
+  symbolSearchRequestId += 1;
+  document.getElementById("searchResults")?.classList.remove("open");
+});
+symbolSearchInput.addEventListener("compositionend", () => {
+  symbolSearchComposing = false;
+  symbolSearchCompositionEndedAt = Date.now();
+  scheduleSymbolSearch();
+});
+symbolSearchInput.addEventListener("input", (event) => {
+  if (!symbolSearchComposing && !event.isComposing && event.inputType !== "insertCompositionText") scheduleSymbolSearch();
+});
+symbolSearchInput.addEventListener("keydown", (event) => {
+  if (symbolSearchComposing || event.isComposing || event.keyCode === 229) return;
+  if (event.key === "Enter" && Date.now() - symbolSearchCompositionEndedAt < 150) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === "ArrowDown") { event.preventDefault(); moveSearchSelection(1); }
   else if (event.key === "ArrowUp") { event.preventDefault(); moveSearchSelection(-1); }
   else if (event.key === "Enter") { event.preventDefault(); submitSearchSelection().catch(console.warn); }
@@ -10767,6 +10822,7 @@ document.getElementById("sectorWorkspacePanel").addEventListener("click", (event
   if (symbol) openTickerSymbolChart(symbol, name).catch(console.warn);
 });
 document.addEventListener("keydown", (event) => {
+  if (event.isComposing || event.keyCode === 229) return;
   const target = event.target instanceof HTMLElement ? event.target : null;
   const editable = target?.matches("input, textarea, select, [contenteditable='true']");
   if (event.key === "/" && !editable) {
