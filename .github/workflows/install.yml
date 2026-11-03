@@ -64,10 +64,10 @@ jobs:
           pnpm pack:codex
 
       - name: Exercise the packed ordinary-user install
-        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.0.tgz
+        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.1.tgz
 
       - name: Exercise the plugin inside an isolated DSH Web profile
-        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.0.tgz
+        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.1.tgz
 
       - name: Exercise isolated Codex package paths
-        run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.0.zip
+        run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.1.zip

@@ -14,6 +14,7 @@ const destination = resolve(process.argv[2] ?? resolve(root, 'release', `ft-klin
 const allowlist = [
   'CHANGELOG.md', 'LICENSE', 'README.md', 'README.en.md', 'package.json', 'requirements.txt',
   'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md',
+  'docs/release-notes-v0.6.1.md', 'docs/release-acceptance-v0.6.1.md',
   'codex_server.py', 'codex_runtime', 'core', 'config/basic-symbols.json', 'view',
   // Only provider/indicator/geometry modules shared by the Codex adapter.
   // DSH context, HTTP application, and snapshot modules are intentionally not
@@ -22,12 +23,14 @@ const allowlist = [
   'tools/baostock_source.py', 'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/lines.py',
   'tools/pivots.py', 'tools/polylines.py', 'tools/price_bands.py', 'tools/price_series.py',
   'tools/price_sticks.py', 'tools/range_candidates.py', 'tools/rectangles.py', 'tools/trend_lines.py',
-  'scripts/run-dsh-kline.mjs', 'scripts/run-ft-kline.mjs', 'scripts/run-ft-kline-cli.mjs',
+  'scripts/run-dsh-kline.mjs', 'scripts/codex-bootstrap.mjs', 'scripts/run-ft-kline.mjs', 'scripts/run-ft-kline-cli.mjs',
   'plugins/ft-kline/plugin.json', 'plugins/ft-kline/.codex-plugin/plugin.json',
   'plugins/ft-kline/mcp.json', 'plugins/ft-kline/.mcp.json', 'plugins/ft-kline/assets',
+  'plugins/ft-kline/.agents/plugins/marketplace.json',
 ]
 const remap = new Map([
   ['plugins/ft-kline/plugin.json', 'plugin.json'],
+  ['plugins/ft-kline/.agents/plugins/marketplace.json', '.agents/plugins/marketplace.json'],
   ['plugins/ft-kline/.codex-plugin/plugin.json', '.codex-plugin/plugin.json'],
   ['plugins/ft-kline/mcp.json', 'mcp.json'],
   ['plugins/ft-kline/.mcp.json', '.mcp.json'],

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.0.zip`)
+const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.1.zip`)
 const data = await readFile(archive)
 const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
 if (end < 0) throw new Error('not a ZIP archive')
@@ -29,7 +29,7 @@ function readStoredEntry(name) {
   const length = data.readUInt16LE(entry.offset + 26), extra = data.readUInt16LE(entry.offset + 28)
   return data.subarray(entry.offset + 30 + length + extra, entry.offset + 30 + length + extra + entry.size)
 }
-for (const required of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'codex_server.py', 'codex_runtime/state.py', 'scripts/run-ft-kline.mjs', 'tools/baostock_source.py', 'tools/draw.py', 'tools/chart_indicators.py', 'view/kline.html', 'assets/ft-kline.svg', 'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md']) {
+for (const required of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'codex_server.py', 'codex_runtime/state.py', 'scripts/run-ft-kline.mjs', 'scripts/codex-bootstrap.mjs', '.agents/plugins/marketplace.json', 'tools/baostock_source.py', 'tools/draw.py', 'tools/chart_indicators.py', 'view/kline.html', 'assets/ft-kline.svg', 'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md']) {
   if (!names.has(required)) throw new Error(`Codex package missing ${required}`)
 }
 if ([...entries.values()].some(entry => entry.mode !== 0o100644)) throw new Error('Codex package entries must extract as readable regular files')
@@ -38,6 +38,10 @@ for (const forbidden of ['chart_service.py', 'server.py', 'cordis.patch.yml', 'c
 }
 if ([...names].some(name => name.endsWith('.app.json') || name.startsWith('hooks/'))) throw new Error('Codex package contains forbidden host hooks')
 const packageManifest = JSON.parse(readStoredEntry('package.json'))
+const marketplace = JSON.parse(readStoredEntry('.agents/plugins/marketplace.json'))
+if (marketplace.name !== 'ftshare-local' || marketplace.plugins?.[0]?.name !== 'ft-kline' || marketplace.plugins[0].source?.path !== './') {
+  throw new Error('Codex archive must include a usable local marketplace at its root')
+}
 const pluginManifests = ['plugin.json', '.codex-plugin/plugin.json'].map(name => JSON.parse(readStoredEntry(name)))
 for (const manifest of pluginManifests) {
   if (manifest.name !== 'ft-kline' || manifest.version !== packageManifest.version) throw new Error('Codex plugin ID/version is not synchronized')
@@ -51,6 +55,6 @@ for (const name of ['mcp.json', '.mcp.json']) {
   if (server?.type !== 'stdio' || server?.command !== 'node' || JSON.stringify(server?.args) !== JSON.stringify(['${PLUGIN_ROOT}/scripts/run-ft-kline.mjs'])) {
     throw new Error(`${name} does not use the isolated PLUGIN_ROOT launcher`)
   }
-  if (server?.env?.FT_KLINE_CLIENT !== 'desktop' || server?.env?.FT_KLINE_CODEX_MEMORY_ONLY !== '1') throw new Error(`${name} is missing Codex isolation flags`)
+  if (server?.env?.FT_KLINE_CLIENT !== 'auto' || server?.env?.FT_KLINE_CODEX_MEMORY_ONLY !== '1') throw new Error(`${name} is missing Codex isolation flags`)
 }
 console.log(`Codex package verified: ${archive} (${names.size} files)`)

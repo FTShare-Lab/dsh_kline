@@ -3,16 +3,81 @@
 from __future__ import annotations
 
 import os
+import json
+import queue
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import zipfile
 from pathlib import Path
 
 
+def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> None:
+    """Exercise the installed Node front door, not a direct Python import."""
+    node = shutil.which("node")
+    if not node: raise RuntimeError("Node is required for the installed Codex launcher")
+    prepared_env = {key: value for key, value in env.items() if not key.startswith(("DSH_", "FT_KLINE_", "FTSHARE_"))}
+    prepared_env.update({"DSH_KLINE_RUNTIME_MODE": "external", "DSH_KLINE_PYTHON": sys.executable})
+    process = subprocess.Popen([node, str(destination / "scripts/run-ft-kline.mjs")], cwd=destination,
+                               env=prepared_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
+    responses: queue.Queue = queue.Queue()
+    def read():
+        for line in process.stdout:
+            try: responses.put(json.loads(line))
+            except ValueError: continue
+    threading.Thread(target=read, daemon=True).start()
+    sequence = 0
+    def request(method, params=None, timeout=10):
+        nonlocal sequence
+        sequence += 1
+        process.stdin.write(json.dumps({"jsonrpc": "2.0", "id": sequence, "method": method, "params": params or {}}) + "\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + timeout
+        while True:
+            response = responses.get(timeout=max(0.01, deadline - time.monotonic()))
+            if response.get("id") != sequence: continue
+            if "error" in response: raise RuntimeError(str(response["error"]))
+            return response["result"]
+    try:
+        capability = {"extensions": {"io.modelcontextprotocol/ui": {"mimeTypes": ["text/html;profile=mcp-app"]}}} if desktop else {}
+        request("initialize", {"protocolVersion": "2025-11-25", "capabilities": capability,
+                               "clientInfo": {"name": "packed-smoke", "version": "1"}}, timeout=5)
+        process.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
+        process.stdin.flush()
+        deadline = time.monotonic() + 30
+        while True:
+            names = {tool["name"] for tool in request("tools/list")["tools"]}
+            if "analyze_kline" in names: break
+            status = request("tools/call", {"name": "ft_kline_runtime_status", "arguments": {}})
+            if status.get("isError") or time.monotonic() > deadline: raise RuntimeError("Installed launcher did not become ready")
+            time.sleep(0.1)
+        assert ("prepare_chart_edit" in names) is desktop
+        health = request("tools/call", {"name": "health", "arguments": {}})["structuredContent"]
+        assert health["interactive_chart"] is desktop
+        assert health["client"] == ("desktop" if desktop else "cli")
+        resources = request("resources/list")["resources"]
+        assert bool(resources) is desktop
+        rows = [{"time": 1700000000 + i * 86400, "open": 100 + i, "high": 102 + i,
+                 "low": 99 + i, "close": 101 + i, "volume": 1000 + i} for i in range(40)]
+        chart = request("tools/call", {"name": "analyze_kline_rows", "arguments": {"symbol": "TEST.X", "rows": rows, "limit": 30}})
+        assert not chart.get("isError") and chart["structuredContent"]["chart_ready"] is desktop
+        if desktop:
+            request("resources/read", {"uri": "ui://ft-kline/chart-v3"})
+    finally:
+        process.stdin.close()
+        try: process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        process.stdout.close()
+
+
 def main() -> int:
-    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.0.zip").resolve()
+    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.1.zip").resolve()
     if not archive.is_file(): raise SystemExit(f"archive not found: {archive}")
     temporary = Path(tempfile.mkdtemp(prefix="ft-kline-codex-smoke-"))
     try:
@@ -31,6 +96,8 @@ def main() -> int:
         probe = "import codex_server; assert codex_server.IS_CLI; assert not any(name.startswith('get_chart_context') for name in codex_server.mcp._tool_manager._tools)"
         completed = subprocess.run([sys.executable, "-c", probe], cwd=destination, env=env, text=True, capture_output=True, timeout=20)
         if completed.returncode: raise SystemExit(completed.stderr or completed.stdout)
+        probe_launcher(destination, env, desktop=False)
+        probe_launcher(destination, env, desktop=True)
         # Windows GitHub runners can retain a cp1252 console.  The destination
         # deliberately contains Chinese characters to test installation paths,
         # so render it as ASCII escapes instead of failing after a successful

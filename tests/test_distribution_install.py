@@ -143,8 +143,8 @@ def test_release_package_is_bounded_and_attached_with_a_stable_name():
     assert "npm.cmd" in packer
     assert "RELEASE_TAG" in workflow
     assert "does not match package" in workflow
-    assert "release/dsh-kline-v0.6.0.tgz" in workflow
-    assert "release/ft-kline-v0.6.0.zip" in workflow
+    assert "release/dsh-kline-v${VERSION}.tgz" in workflow
+    assert "release/ft-kline-v${VERSION}.zip" in workflow
     assert "--draft" in workflow
     assert "types: [published]" not in workflow
 

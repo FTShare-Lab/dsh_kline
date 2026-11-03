@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently a **private v0.6.0 preview**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The Codex plugin is currently a **v0.6.1 local/private distribution**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -42,13 +42,36 @@ In the same chart, a follow-up natural-language request adds a descending channe
 
 ## Use with Codex
 
-The `ft-kline` Codex plugin is a separate package; installing the DSH plugin `dsh_kline` does not install it. Version 0.6.0 is available only to private-preview testers and **cannot yet be found in the public Plugins Directory**. Invited testers can select the provided private source in the Codex desktop plugin browser, install `ft-kline`, and start a new chat. Developers can run `pnpm install --frozen-lockfile && pnpm pack:codex` to build `release/ft-kline-v0.6.0.zip`. Make that package available through a [local or private marketplace](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually); it is not a DSH plugin install. Codex CLI can also enable the plugin's non-visual tools.
+DSH and Codex use separate packages: `dsh-kline-v0.6.1.tgz` for DeepSeek Harness and `ft-kline-v0.6.1.zip` for Codex. A universal installer does not guess the host. Codex uses local/private marketplaces and is not in the public plugin directory.
 
-In Codex desktop, try “Open China Merchants Bank daily K-line and show the data source.” Expand the returned chart card, search by Chinese name or ticker, switch symbols, or ask for a horizontal level, channel, range box, Fibonacci retracement, or ABC polyline. Current-chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`. A server commit, an app UI receipt, and visual pixel observation are checked separately. CLI returns market data, analysis, and TA-Lib results and explicitly reports that interactive charts are unavailable.
+### Install and verify
 
-Codex chart state, function results, watchlists, and a temporary FTShare key entered in the app stay in memory for the current connection. They are cleared when the last chart view closes, the connection ends, or 30 minutes pass idle. An environment `FTSHARE_API_KEY` has priority; the app key is never echoed or written to disk. Codex neither reads DSH's private key files nor inherits its persistent watchlists. Coverage depends on the actual data source and permissions, and the chart identifies its source.
+1. Install Node.js **22.19+**, Python **3.11+**, and a Codex client supporting local plugins. Enable Python Launcher on Windows; Git Bash and WSL are unnecessary.
+2. Download the Codex ZIP and SHA-256 from the [v0.6.1 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.1), verify the hash, and extract to a permanent folder. The ZIP includes its local marketplace manifest; no source build is needed.
+3. Replace the quoted path below with the absolute extracted-folder path:
 
-See the [v0.6.0 release notes](docs/release-notes-v0.6.0.md) and [acceptance checklist](docs/release-acceptance-v0.6.0.md) for the planned release assets and desktop checks.
+```bash
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.1"
+codex plugin add ft-kline@ftshare-local
+```
+
+4. Reopen the desktop app and start a new chat, or restart CLI. Ask to check FT K-Line runtime status, then request a daily chart and its data source.
+
+First use finds Python and installs dependencies automatically, which can take several minutes. The Node entry completes the MCP handshake first and offers `ft_kline_runtime_status` while preparing. Once ready, it announces a tool-catalog change on the **same connection**. Check status and refresh tools; clients without catalog-change support may need a new chat after preparation. Failures are recorded in `~/.cache/ft-kline/bootstrap.log` or `%LOCALAPPDATA%\ft-kline\bootstrap.log` on Windows.
+
+Default `auto` mode checks the host's declared MCP Apps HTML capability. Supporting hosts get interactive charts and guarded edits; other hosts, including CLI, get structured data and analysis without chart resources or drawing writes. Advanced integrations can explicitly set `FT_KLINE_CLIENT=desktop` or `cli`.
+
+Chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`. Server commits, UI receipts and visual verification remain separate.
+
+### Reuse an FTShare key
+
+Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly configured `FTSHARE_API_KEY_FILE` → temporary App-session key**. An export in an unrelated terminal is not automatically visible to the desktop app.
+
+The selected file is reread before provider requests and is never modified or deleted by the plugin. Use JSON `{"version":1,"api_key":"your key"}`. macOS/Linux require owner-only permissions (`chmod 600`); symbolic links are rejected. Status reports only `environment`, `external_file`, `session` or `none`, never the key or path. Codex does not discover DSH credentials or scan `.env`, shell profiles, keychains or other apps; sharing a file requires explicitly configuring its path.
+
+Without a key, supported A-share daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
+
+See the [v0.6.1 release notes](docs/release-notes-v0.6.1.md) and [acceptance checklist](docs/release-acceptance-v0.6.1.md) for verification and remaining manual desktop checks.
 
 ## Get started with DSH
 

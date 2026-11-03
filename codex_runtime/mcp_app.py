@@ -95,7 +95,6 @@ def _bridge() -> str:
     if (!payload || !Array.isArray(payload.chartCommands)) return;
     const deliveryKey = [payload.context_ref || '', payload.chart_session || payload.source_chart_session || '', payload.revision || '', candidate || ''].join('|');
     if (deliveryKey && deliveryKey === lastDeliveryKey) return;
-    lastDeliveryKey = deliveryKey;
     if (payload.context_ref) activeContextRef = String(payload.context_ref);
     payload._live_chart_session = payload.chart_session || payload.source_chart_session;
     window.__DSH_CHART_SESSION__ = payload;
@@ -105,6 +104,7 @@ def _bridge() -> str:
     // first left the view visually populated but unable to claim its context,
     // so manual workbench actions failed with “no available chart session”.
     if (first) {
+      lastDeliveryKey = deliveryKey;
       first = false;
       clearTimeout(payloadTimer);
       window.__DSH_CHART_SESSION__ = payload;
@@ -113,6 +113,7 @@ def _bridge() -> str:
     }
     if (!mounted) { buffered = { payload, candidate }; return; }
     await window.handleToolResult({ structuredContent: payload });
+    lastDeliveryKey = deliveryKey;
     await refreshObservation().catch(console.warn);
     if (candidate) await action('ack_render', { context_ref: payload.context_ref, candidate_chart_session: candidate, rendered: true }).catch(console.warn);
   };
@@ -126,8 +127,8 @@ def _bridge() -> str:
       : 'Codex 仅在当前 App 会话使用此 Key，不显示也不写入磁盘。';
     const auto = document.querySelector('#settingsSectionSource .source-autoload span');
     if (auto) auto.textContent = document.documentElement.lang.startsWith('en')
-      ? 'An environment FTSHARE_API_KEY takes priority. An App key lasts only for this open chart session.'
-      : '环境变量 FTSHARE_API_KEY 优先；App 输入的 Key 仅在当前打开图表会话有效。';
+      ? 'Credential priority: FTSHARE_API_KEY, explicitly selected FTSHARE_API_KEY_FILE, then this App session. No automatic DSH credential search.'
+      : '依次使用环境变量 FTSHARE_API_KEY、明确指定的 FTSHARE_API_KEY_FILE、当前 App 临时 Key；不自动搜索 DSH 凭据。';
   };
   window.__FT_KLINE_APP__ = { appInstance, ready: Promise.all([hostReady, payloadReady]), action, refreshObservation,
     async mounted() { mounted = true; sessionOnlyPresentation(); if (buffered) { const next = buffered; buffered = null; await deliver(next.payload, next.candidate); } await refreshObservation().catch(console.warn); } };

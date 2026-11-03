@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前是 **v0.6.0 私有灰度**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+Codex 版目前是 **v0.6.1 本地/私有分发**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -43,13 +43,40 @@ Codex 版目前是 **v0.6.0 私有灰度**，尚未进入公共插件目录；DS
 
 ## 在 Codex 中使用
 
-Codex 插件 `ft-kline` 是独立安装包，不会因安装 DSH 插件 `dsh_kline` 而自动出现。当前 v0.6.0 仅供私有灰度测试者使用，**尚不能从公共插件目录搜索安装**。获邀测试者可在 Codex 桌面版的插件目录中选择已提供的私有来源，安装 `ft-kline`，然后开始新对话。开发者可运行 `pnpm install --frozen-lockfile && pnpm pack:codex` 生成 `release/ft-kline-v0.6.0.zip`；该包需要通过[本地或私有 marketplace](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually) 提供给 Codex，而不是作为 DSH 插件安装。Codex CLI 也可启用同一插件的无界面工具。
+DSH 与 Codex 使用不同安装包，**不会由一个通用安装包猜测宿主**。DSH 安装 `dsh-kline-v0.6.1.tgz`；Codex 安装 `ft-kline-v0.6.1.zip`。Codex 版尚未进入公共插件目录，可通过随包提供的本地插件源安装，无需构建源码。
 
-在 Codex 桌面版中，可以说“打开招商银行日 K，显示数据来源”，展开返回的图表卡片，再用中文名称或代码搜索、切换标的，或请求画水平线、通道、平台框、斐波那契及 ABC 折线。自然语言修改当前图时，Codex 使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`；服务端提交、应用界面回执与实际像素观察分别核对。CLI 会返回行情、分析和 TA-Lib 结果，并明确提示不支持交互图表。
+### 安装、启动与验证
 
-Codex 的图表、函数结果、自选和在应用内输入的临时 FTShare Key 只保存在当前连接的内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。环境变量 `FTSHARE_API_KEY` 优先，应用内 Key 不回显、不写盘；Codex 不读取 DSH 的私有 Key 文件，也不沿用 DSH 的持久化自选。行情可用范围取决于实际数据源与权限，图上会显示来源。
+1. 先安装 Node.js **22.19+**、Python **3.11+** 和支持本地插件的 Codex。Windows 推荐启用 Python Launcher；不要求 Git Bash 或 WSL。
+2. 从 [v0.6.1 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.1) 下载 Codex ZIP 和同名 SHA-256 文件，核对后解压到长期保留的目录，例如 `ft-kline-v0.6.1`。ZIP 已包含本地 marketplace 清单。
+3. 执行下面两条命令，将第一条路径替换为解压目录的绝对路径；含空格时保留引号：
 
-发布资产和人工桌面验收要求见 [v0.6.0 发布说明](docs/release-notes-v0.6.0.md) 与 [验收说明](docs/release-acceptance-v0.6.0.md)。
+```bash
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.1"
+codex plugin add ft-kline@ftshare-local
+```
+
+4. 重新打开桌面应用并开始新对话，或重新启动 CLI。先请求“检查 FT K-Line 运行状态”；准备完成后说“打开招商银行日 K，显示数据来源”。桌面端可展开图表卡片，搜索、切换标的并使用绘图工作台。
+
+首次连接会自动寻找可用 Python 并准备依赖，可能需要数分钟。Node 入口先完成握手；准备期间提供 `ft_kline_runtime_status`，完成后通知宿主在**同一连接**刷新工具目录，无需重新安装。仅状态工具仍可见时，重新检查状态并刷新工具；客户端不支持目录变更通知时，准备完成后重开对话。失败详情见 `~/.cache/ft-kline/bootstrap.log`，Windows 为 `%LOCALAPPDATA%\ft-kline\bootstrap.log`。
+
+Codex 入口默认按宿主声明的 MCP Apps HTML 能力选择模式：具备图表能力时提供交互图表和受控绘图；其他宿主（包括 CLI）只提供行情、指标与结构化分析。未声明图表能力的宿主不会收到无法使用的绘图工具。高级接入可显式设置 `FT_KLINE_CLIENT=desktop` 或 `cli`；普通安装保持默认 `auto` 即可。
+
+自然语言修改当前图使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`；服务端提交、应用界面回执和实际画布观察分别核对。CLI 不提供交互图表。
+
+### 已有 FTShare Key 如何复用
+
+Codex 依次使用：
+
+1. **启动插件的进程环境**中的 `FTSHARE_API_KEY`；仅在另一个终端执行过 `export`，不代表桌面应用也能继承。
+2. 用户明确指定的 `FTSHARE_API_KEY_FILE`，每次取数前重新读取；文件由用户管理，插件不修改、不清除。JSON 格式为 `{"version":1,"api_key":"你的 Key"}`；macOS/Linux 必须限制为仅当前用户可读写（`chmod 600`），不接受符号链接。
+3. 图表“设置 → 数据源”输入的临时 Key，仅当前 App 会话使用。
+
+没有 Key 仍可尝试部分 A 股历史日线及免费指数备用源。Codex **不自动扫描** DSH、`.env`、shell、钥匙串或其他应用的配置；如需共享已有文件，必须明确设置上述文件路径。状态只显示 `environment`、`external_file`、`session` 或 `none`，不回显 Key 或路径。
+
+图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
+
+发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.1 发布说明](docs/release-notes-v0.6.1.md) 与 [验收说明](docs/release-acceptance-v0.6.1.md)。
 
 ## 开始使用 DSH 版
 
@@ -144,7 +171,7 @@ DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线
 二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
 
 运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-本版范围、证据和待完成发布门槛见[v0.5.0 候选验收说明](docs/release-acceptance-v0.5.0.md)。
+DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.1 验收说明](docs/release-acceptance-v0.6.1.md)。
 首次自动准备依赖需要网络，耗时取决于网络和本机环境。
 
 ## 行情与数据源
@@ -154,11 +181,11 @@ DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线
 普通 A 股当日1分钟、none不复权请求优先使用 FTShare 的实时一分钟数据；前 / 后复权请求（含qfq / hfq）使用携带匹配adjust_kind的历史接口，失败时不混入原始实时数据。指数、ETF 与多日分钟历史继续使用各自适用的历史接口；完整交易时段与缓存复权隔离规则不变。此分流不等于对供应商复权价格正确性的独立验证。
 分钟粒度随明确来源、重绘及工作区状态保留；元数据缺失或非法时仍为未知，不按K线时间间隔 / 界面标签猜测，也不继承上一标的粒度。来源未确认时继续禁止受保护绘图。
 
-插件会按以下顺序复用 FTShare 凭据：当前 DSH 服务已注入的 `FTSHARE_API_KEY`、用户显式指定的 `FTSHARE_API_KEY_FILE`、DSH 的 FTShare 设置所保存的 Key，以及此前由本插件保存的本机凭据。也就是说，若你已把 Key 配给启动 DSH 的环境，插件会直接使用；仅安装 FTShare SDK、或把 Key 留在其他应用的私有配置中，并不会被自动读取。
+DSH 版会按以下顺序复用 FTShare 凭据：当前 DSH 服务已注入的 `FTSHARE_API_KEY`、用户显式指定的 `FTSHARE_API_KEY_FILE`、DSH 的 FTShare 设置所保存的 Key，以及此前由本插件保存的本机凭据。也就是说，若你已把 Key 配给启动 DSH 的环境，插件会直接使用；仅安装 FTShare SDK、或把 Key 留在其他应用的私有配置中，并不会被自动读取。
 
 DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布给 MCP 服务，插件在每次取数前重新读取，因此在设置页新增、更换或清除 Key 后无需重启 dsh；该 Key 由设置页管理，插件不会显示或清除它。
 
-出于安全考虑，插件不会扫描 `.env`、shell 配置、钥匙串或其他应用的配置文件，也不会显示 Key 或文件路径。**设置 → 数据源** 会清楚标出当前来源；需要更换时，在“管理 FTShare 配置”中粘贴 Key 并测试连接，可选择仅本次使用，或保存到本机供下次启动加载。
+出于安全考虑，插件不会扫描 `.env`、shell 配置、钥匙串或其他应用的配置文件，也不会显示 Key 或文件路径。**设置 → 数据源** 会清楚标出当前来源；需要更换时，在“管理 FTShare 配置”中粘贴 Key 并测试连接，DSH 版可选择仅本次使用，或保存到本机供下次启动加载；Codex 版仅提供会话临时输入，或读取用户明确指定的外部文件。
 
 主题和语言默认跟随 dsh 宿主，可在 **设置 → 主题/语言** 中改为手动选择；随时可切回“跟随宿主（默认）”。
 

@@ -11,10 +11,11 @@ import asyncio
 from contextlib import contextmanager
 import math
 import os
+from pathlib import Path
 from typing import Annotated, Any
 
 # Must precede the provider import: Codex may use an environment key or an
-# in-memory App key, but never searches DSH/profile credential files.
+# explicit file or in-memory App key, but never searches DSH/profile files.
 os.environ.setdefault("FT_KLINE_CODEX_MEMORY_ONLY", "1")
 
 from mcp import types
@@ -36,6 +37,7 @@ from tools.fetch import (clear_provider_caches, data_source_capability_contract,
                          fetch_comparison_candles, fetch_market_board_detail, fetch_market_pulse,
                          fetch_market_ticker, fetch_security_intelligence, fetch_security_workspace,
                          ftshare_index_kline_available, ftshare_status, symbol_directory, test_ftshare_connection)
+from tools.fetch import _read_ftshare_key_file, _valid_ftshare_key
 from tools.lines import LineError
 
 CLIENT = (os.environ.get("FT_KLINE_CLIENT") or "desktop").strip().lower()
@@ -79,21 +81,35 @@ def failure(exc: Exception) -> types.CallToolResult:
 def _session_credential(context_ref: str | None):
     """Temporarily expose an App-entered key only to the provider call.
 
-    The process environment always wins. The App key stays in the chart state,
+    The process environment wins, then an explicitly selected external file.
+    The App key stays in the chart state,
     is never written to a file, and is removed from the provider environment
     immediately after the call.
     """
     original = os.environ.get("FTSHARE_API_KEY")
-    state = None
+    key, source = _credential_choice(context_ref)
     try:
-        if not original and context_ref:
-            state = STORE._state(context_ref)  # Internal state lookup; no DSH state involved.
-            if state.session_key: os.environ["FTSHARE_API_KEY"] = state.session_key
-        yield
+        if key: os.environ["FTSHARE_API_KEY"] = key
+        else: os.environ.pop("FTSHARE_API_KEY", None)
+        yield source
     finally:
         if original is None: os.environ.pop("FTSHARE_API_KEY", None)
         else: os.environ["FTSHARE_API_KEY"] = original
-        if state is not None: clear_provider_caches()
+        if source in {"external_file", "session"}: clear_provider_caches()
+
+
+def _credential_choice(context_ref: str | None = None) -> tuple[str, str]:
+    """Only read an explicitly selected file; never discover DSH credentials."""
+    key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if key: return key, "environment"
+    filename = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if filename:
+        key = _read_ftshare_key_file(Path(filename).expanduser())
+        if key: return key, "external_file"
+    if context_ref:
+        key = STORE._state(context_ref).session_key
+        if key: return key, "session"
+    return "", "none"
 
 
 def _attach_chart(analysis: dict[str, Any], *, inherit_context_ref: str | None = None) -> dict[str, Any]:
@@ -106,16 +122,16 @@ def _attach_chart(analysis: dict[str, Any], *, inherit_context_ref: str | None =
     return analysis
 
 
-def _data_source_payload() -> dict[str, Any]:
+def _data_source_payload(credential_source: str = "none") -> dict[str, Any]:
     """Describe the active process credential state without ever returning it."""
     ftshare = ftshare_status()
     return {"ok": True, "providers": {"ftshare": {"available": bool(ftshare.get("available")),
-            "configured": bool(ftshare.get("configured")), "credential_source": "environment" if ftshare.get("configured") else "none",
-            "persistent": False, "can_clear": False, "capabilities": ftshare_capabilities(),
+            "configured": bool(ftshare.get("configured")), "credential_source": credential_source,
+            "persistent": False, "can_clear": credential_source == "session", "capabilities": ftshare_capabilities(),
             "index_kline": ftshare_index_kline_available(), "contracts": ftshare.get("contracts", {})}},
             "capability_contract": data_source_capability_contract(),
             "anonymous_mode": not bool(ftshare.get("configured")),
-            "credential_notice": "Environment key is used when set; otherwise anonymous/free capabilities remain available."}
+            "credential_notice": "Credential priority: environment, explicitly selected FTSHARE_API_KEY_FILE, current App session. No DSH/profile search or file writes."}
 
 
 def _app_context(arguments: dict[str, Any], app_instance: str, *, consume: bool = False) -> str:
@@ -167,15 +183,16 @@ async def health() -> Annotated[types.CallToolResult, ToolOutput]:
 
 @mcp.tool(name="data_source_status", annotations=types.ToolAnnotations(readOnlyHint=True), structured_output=True)
 async def data_source_status() -> Annotated[types.CallToolResult, ToolOutput]:
-    # FT_KLINE_CODEX_MEMORY_ONLY makes these functions report environment state
-    # only; no DSH/plugin key file is considered.
-    return result(_data_source_payload(), "data_source_status ok")
+    # The selected file is made available only within this provider call;
+    # FT_KLINE_CODEX_MEMORY_ONLY still disables DSH/plugin discovery.
+    with _session_credential(None) as source:
+        return result(_data_source_payload(source), "data_source_status ok")
 
 
 @mcp.tool(name="search_symbols", annotations=types.ToolAnnotations(readOnlyHint=True), structured_output=True)
 async def search_symbols_tool(query: Annotated[str, Field(min_length=1, max_length=120)],
                               limit: Annotated[int, Field(ge=1, le=20)] = 8) -> Annotated[types.CallToolResult, ToolOutput]:
-    data = search_symbols(query, limit=limit)
+    with _session_credential(None): data = search_symbols(query, limit=limit)
     return result(data, "search_symbols ok" if data.get("ok") else str(data.get("message") or data.get("error")), error=not data.get("ok", False))
 
 
@@ -190,8 +207,9 @@ async def fetch_candles_tool(symbol: str, interval: str = "day", interval_value:
     if canonical is None: return result(adjustment_error(), "invalid adjustment", error=True)
     if interval_error: return result({"ok": False, **interval_error}, interval_error["message"], error=True)
     if symbol_error: return result({"ok": False, **symbol_error}, symbol_error["message"], error=True)
-    data = fetch_candles(resolved or symbol, interval=valid_interval or "day", interval_value=interval_value,
-                         session_count=session_count, limit=limit, adjust=canonical)
+    with _session_credential(None):
+        data = fetch_candles(resolved or symbol, interval=valid_interval or "day", interval_value=interval_value,
+                             session_count=session_count, limit=limit, adjust=canonical)
     return result(data, "fetch_candles ok" if data.get("ok") else str(data.get("message") or data.get("error")), error=not data.get("ok", False))
 
 
@@ -358,11 +376,14 @@ if not IS_CLI:
                 state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True)
                 key = str(arguments.get("api_key") or "").strip()
                 if len(key) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in key): raise LineError("invalid_api_key", "FTShare API Key 格式无效。")
-                if os.environ.get("FTSHARE_API_KEY"): state.session_key = None; source = "environment"
+                _, source = _credential_choice()
+                if source != "none": state.session_key = None
                 else: state.session_key = key or None; source = "session" if key else "none"
-                clear_provider_caches(); data = {"ok": True, "configured": bool(os.environ.get("FTSHARE_API_KEY") or state.session_key), "credential_source": source, "persistent": False, "key_echoed": False}
+                clear_provider_caches(); data = {"ok": True, "configured": source != "none", "credential_source": source, "persistent": False, "key_echoed": False}
             elif action == "clear_session_key":
-                state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True); state.session_key = None; clear_provider_caches(); data = {"ok": True, "configured": bool(os.environ.get("FTSHARE_API_KEY")), "credential_source": "environment" if os.environ.get("FTSHARE_API_KEY") else "none", "persistent": False}
+                state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True); state.session_key = None; clear_provider_caches()
+                _, source = _credential_choice()
+                data = {"ok": True, "configured": source != "none", "credential_source": source, "persistent": False}
             elif action == "workbench_run_ta":
                 _app_context(arguments, app_instance); data = run_ta(STORE, **arguments)
             elif action == "workbench_run_chart_function":
@@ -388,11 +409,7 @@ if not IS_CLI:
                 with _session_credential(context_ref): data = fetch_candles(**arguments)
             elif action == "data_source_status":
                 context_ref = _app_context(arguments, app_instance)
-                with _session_credential(context_ref): data = _data_source_payload()
-                if not os.environ.get("FTSHARE_API_KEY"):
-                    data["providers"]["ftshare"]["credential_source"] = "session" if STORE._state(context_ref).session_key else "none"
-                    data["anonymous_mode"] = not bool(STORE._state(context_ref).session_key)
-                    data["providers"]["ftshare"]["can_clear"] = bool(STORE._state(context_ref).session_key)
+                with _session_credential(context_ref) as source: data = _data_source_payload(source)
             elif action == "symbol_directory":
                 context_ref = _app_context(arguments, app_instance)
                 with _session_credential(context_ref): data = symbol_directory(force_refresh=bool(arguments.get("refresh", False)))
@@ -408,9 +425,9 @@ if not IS_CLI:
                 _app_context(arguments, app_instance, consume=True); data = _key_levels_from_rows(arguments.get("symbol"), arguments.get("rows"))
             elif action == "test_ftshare_connection":
                 context_ref = _app_context(arguments, app_instance, consume=True)
-                with _session_credential(context_ref): data = test_ftshare_connection()
+                with _session_credential(context_ref) as source: data = test_ftshare_connection()
                 data["persistent"] = False
-                data["credential_source"] = "environment" if os.environ.get("FTSHARE_API_KEY") else ("session" if STORE._state(context_ref).session_key else "none")
+                data["credential_source"] = source
             else:
                 context_ref = _app_context(arguments, app_instance, consume=True)
                 market_action = {

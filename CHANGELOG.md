@@ -2,7 +2,25 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## 0.6.0 - Codex 私有灰度（未发布）
+## 0.6.1 - 2026-11-03
+
+### Fixed
+
+- Codex 的 Node 入口立即完成 MCP 握手，Python 依赖准备期间提供状态工具；就绪后在同一连接通知更新工具目录，避免长时间安装阻塞连接。
+- 默认入口按 MCP Apps HTML 能力选择桌面/CLI 模式；CLI 不再意外注册图表与绘图写工具，可通过显式模式覆盖。
+- 修复首次渲染期间缓存的新图表结果被去重逻辑丢弃；挂载后渲染并回执，后续重复结果仍去重。
+
+### Added
+
+- Codex 可只读复用明确设置的 `FTSHARE_API_KEY_FILE`，支持文件换 Key 后重新读取。优先级为环境 Key、显式文件、App 临时 Key；不搜索 DSH 配置、不写回文件、不回显凭据或路径。
+- Codex ZIP 自带本地 marketplace 清单；中英文 README 补齐安装命令、运行环境、首次准备、Key 来源及模式差异。
+- 双包安装烟测覆盖实际 Node 入口、快速握手、同连接工具升级与自动桌面/CLI 选择。
+
+### Validation and limits
+
+- DSH/Codex 仍使用独立安装包。GitHub 发布不等于公共目录上架；完整 macOS/Windows 桌面人工画布验收仍待补齐，不能以协议和自动化测试代替。
+
+## 0.6.0 - 2026-11-03
 
 ### Added
 
@@ -26,7 +44,7 @@
 - 本版仅供私有 marketplace 灰度，未提交公共插件目录。发布流程为 `v0.6.0-rc.N` 双包验证和哈希 → Draft Release → 人工核对 → 最终 `v0.6.0` 发布。
 - 数据和图形不跨 Codex 对话持久化。私有灰度的人工 macOS/Windows 桌面验收清单见 [v0.6.0 验收说明](docs/release-acceptance-v0.6.0.md)。
 
-## 0.5.0 - 发布候选（尚未发布）
+## 0.5.0 - 2026-10-27
 
 ### Added
 

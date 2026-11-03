@@ -123,3 +123,33 @@ test('MCP App consumes the ChatGPT compatibility result when ui/initialize has n
   assert.equal(readiness[1], firstPayload)
   assert.ok(sent.some(message => message.method === 'ui/notifications/initialized'))
 })
+
+test('updates received during the initial render are replayed on mount before acknowledging them', async () => {
+  const listeners = new Map(), rendered = [], sent = []
+  const initial = { context_ref: 'ctx', chart_session: 's1', revision: 1, chartCommands: [] }
+  const parent = { postMessage(message) {
+    sent.push(message)
+    if (message.id) queueMicrotask(() => listeners.get('message')({ source: parent, data: {
+      jsonrpc: '2.0', id: message.id, result: message.method === 'ui/initialize'
+        ? { toolResult: { structuredContent: initial } }
+        : { structuredContent: { ok: true, context_ref: 'ctx', chart_session: 's2', revision: 2 } },
+    } }))
+  } }
+  const window = { parent, fetch: async () => ({}), addEventListener(type, handler) { listeners.set(type, handler) },
+    handleToolResult: async result => rendered.push(result.structuredContent.revision) }
+  const document = { readyState: 'complete', createElement: () => ({ dataset: {} }), getElementById: () => null,
+    querySelector: () => null, documentElement: { lang: 'en' } }
+  const { runInNewContext } = await import('node:vm')
+  runInNewContext(bridgeSource(), { window, document, navigator: { language: 'en' }, crypto: { randomUUID: () => 'buffered-view' },
+    Response, console, setTimeout: () => 1, clearTimeout() {}, queueMicrotask })
+  await window.__FT_KLINE_APP__.ready
+  const update = { structuredContent: { ...initial, chart_session: 's2', revision: 2, candidate_chart_session: 'candidate' } }
+  const delivery = { source: parent, data: { jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: update } }
+  listeners.get('message')(delivery)
+  assert.deepEqual(rendered, [])
+  await window.__FT_KLINE_APP__.mounted()
+  assert.deepEqual(rendered, [2])
+  assert.equal(sent.filter(item => item.params?.arguments?.action === 'ack_render').length, 1)
+  listeners.get('message')(delivery)
+  assert.deepEqual(rendered, [2])
+})

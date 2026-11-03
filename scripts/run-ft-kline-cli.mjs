@@ -10,6 +10,4 @@ delete process.env.DSH_KLINE_HOST_PID
 delete process.env.DSH_KLINE_ADAPTER
 delete process.env.DSH_KLINE_DEFER_BOOTSTRAP
 
-const { main } = await import('./run-dsh-kline.mjs')
-try { process.exitCode = await main(process.argv.slice(2)) }
-catch (error) { process.stderr.write(`[ft-kline-cli] ${error instanceof Error ? error.message : String(error)}\n`); process.exitCode = 1 }
+await import('./run-ft-kline.mjs')
