@@ -28,6 +28,8 @@ test('a slow Python install cannot delay initialization; the same connection upg
   try {
     send({ id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', ...desktop } })
     assert.equal(replies[0].id, 1)
+    assert.match(replies[0].result.instructions, /pass its current context_ref to analyze_kline/)
+    assert.match(replies[0].result.instructions, /user_confirmed_candidate=true/)
     assert.equal(selected, 'desktop')
     send({ id: 2, method: 'tools/list' })
     assert.equal(replies.at(-1).result.tools[0].name, 'ft_kline_runtime_status')

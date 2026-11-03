@@ -38,6 +38,7 @@ for (const forbidden of ['chart_service.py', 'server.py', 'cordis.patch.yml', 'c
 }
 if ([...names].some(name => name.endsWith('.app.json') || name.startsWith('hooks/'))) throw new Error('Codex package contains forbidden host hooks')
 const packageManifest = JSON.parse(readStoredEntry('package.json'))
+readStoredEntry('codex_runtime/desktop-instructions.txt')
 const marketplace = JSON.parse(readStoredEntry('.agents/plugins/marketplace.json'))
 if (marketplace.name !== 'ftshare-local' || marketplace.plugins?.[0]?.name !== 'ft-kline' || marketplace.plugins[0].source?.path !== './') {
   throw new Error('Codex archive must include a usable local marketplace at its root')

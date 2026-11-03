@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { readFileSync } from 'node:fs'
+
+const desktopInstructions = readFileSync(new URL('../codex_runtime/desktop-instructions.txt', import.meta.url), 'utf8').trim()
 
 export function clientMode(params = {}, configured = 'auto') {
   if (configured === 'desktop' || configured === 'cli') return configured
@@ -15,7 +18,7 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
   command = process.execPath, args, env = process.env, spawnServer = spawn } = {}) {
   const send = value => output.write(`${JSON.stringify(value)}\n`)
   const reply = (id, result) => send({ jsonrpc: '2.0', id, result })
-  const instructions = 'FT K-Line prepares its Python runtime automatically. While preparing, call ft_kline_runtime_status; do not report chart success. When ready, refresh tools/list on this same connection. Hosts advertising the MCP Apps HTML capability get interactive charts; other hosts get analysis only. For chart edits use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status. Candidates are read-only until the user explicitly selects one: preserve candidate_result_ref and candidate_number and set user_confirmed_candidate=true. Prepare separate drawings separately. Server commit, UI receipt and pixel verification are distinct. Never expose credentials or use a context_ref from another conversation.'
+  const instructions = 'FT K-Line prepares its Python runtime automatically. While preparing, call ft_kline_runtime_status; do not report chart success. When ready, refresh tools/list on this same connection. Hosts advertising the MCP Apps HTML capability get interactive charts; other hosts get analysis only.'
   let child, initialized = false, ready = false, failed = false, closed = false, mode = 'cli'
   const shutdown = () => {
     if (closed) return
@@ -42,7 +45,8 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
       initialized = true
       reply(message.id, { protocolVersion: message.params?.protocolVersion || '2025-11-25',
         capabilities: { tools: { listChanged: true }, resources: { listChanged: true } },
-        serverInfo: { name: 'ft-kline', version: env.FT_KLINE_VERSION || '0.6.1' }, instructions })
+        serverInfo: { name: 'ft-kline', version: env.FT_KLINE_VERSION || '0.6.1' },
+        instructions: `${instructions} ${mode === 'desktop' ? desktopInstructions : 'CLI does not support interactive charts. Use analyze_kline for structured analysis.'}` })
       try {
         child = spawnServer(command, args, { env: { ...env, FT_KLINE_CLIENT: mode }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
       } catch { failed = true; return }
