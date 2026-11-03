@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前是 **v0.6.1 本地/私有分发**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+Codex 版目前是 **v0.6.2 本地/私有分发**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -43,22 +43,24 @@ Codex 版目前是 **v0.6.1 本地/私有分发**，尚未进入公共插件目�
 
 ## 在 Codex 中使用
 
-DSH 与 Codex 使用不同安装包，**不会由一个通用安装包猜测宿主**。DSH 安装 `dsh-kline-v0.6.1.tgz`；Codex 安装 `ft-kline-v0.6.1.zip`。Codex 版尚未进入公共插件目录，可通过随包提供的本地插件源安装，无需构建源码。
+DSH 与 Codex 使用不同安装包，**不会由一个通用安装包猜测宿主**。DSH 安装 `dsh-kline-v0.6.2.tgz`；Codex 安装 `ft-kline-v0.6.2.zip`。Codex 版尚未进入公共插件目录，可通过随包提供的本地插件源安装，无需构建源码。
 
 ### 安装、启动与验证
 
 1. 先安装 Node.js **22.19+**、Python **3.11+** 和支持本地插件的 Codex。Windows 推荐启用 Python Launcher；不要求 Git Bash 或 WSL。
-2. 从 [v0.6.1 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.1) 下载 Codex ZIP 和同名 SHA-256 文件，核对后解压到长期保留的目录，例如 `ft-kline-v0.6.1`。ZIP 已包含本地 marketplace 清单。
+2. 从 [v0.6.2 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2) 下载 Codex ZIP 和同名 SHA-256 文件，核对后解压到长期保留的目录，例如 `ft-kline-v0.6.2`。ZIP 已包含本地 marketplace 清单。
 3. 执行下面两条命令，将第一条路径替换为解压目录的绝对路径；含空格时保留引号：
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.1"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.2"
 codex plugin add ft-kline@ftshare-local
 ```
 
 4. 重新打开桌面应用并开始新对话，或重新启动 CLI。先请求“检查 FT K-Line 运行状态”；准备完成后说“打开招商银行日 K，显示数据来源”。桌面端可展开图表卡片，搜索、切换标的并使用绘图工作台。
 
-首次连接会自动寻找可用 Python 并准备依赖，可能需要数分钟。Node 入口先完成握手；准备期间提供 `ft_kline_runtime_status`，完成后通知宿主在**同一连接**刷新工具目录，无需重新安装。仅状态工具仍可见时，重新检查状态并刷新工具；客户端不支持目录变更通知时，准备完成后重开对话。失败详情见 `~/.cache/ft-kline/bootstrap.log`，Windows 为 `%LOCALAPPDATA%\ft-kline\bootstrap.log`。
+首次连接会自动寻找可用 Python 并准备依赖，可能需要数分钟。Node 入口先完成握手，并从**第一次工具查询**就提供该宿主模式的完整工具目录和图表资源，不依赖工具列表变更通知。准备期间可查询 `ft_kline_runtime_status`；普通调用会短暂等待，仍未就绪则明确返回 `runtime_preparing`，不会延迟执行已退回的绘图操作。准备完成后直接重试原请求，无需刷新目录或重开对话。失败详情见 `~/.cache/ft-kline/bootstrap.log`，Windows 为 `%LOCALAPPDATA%\ft-kline\bootstrap.log`。
+
+从 v0.6.1 升级后重启一次 Codex，以替换此前只包含状态工具的启动快照；然后直接请求“打开招商银行日 K”。已就绪、数据返回和原生画布实际可见分别验证，备用绘图不计为插件原生验收。
 
 Codex 入口默认按宿主声明的 MCP Apps HTML 能力选择模式：具备图表能力时提供交互图表和受控绘图；其他宿主（包括 CLI）只提供行情、指标与结构化分析。未声明图表能力的宿主不会收到无法使用的绘图工具。高级接入可显式设置 `FT_KLINE_CLIENT=desktop` 或 `cli`；普通安装保持默认 `auto` 即可。
 
@@ -76,7 +78,7 @@ Codex 依次使用：
 
 图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
 
-发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.1 发布说明](docs/release-notes-v0.6.1.md) 与 [验收说明](docs/release-acceptance-v0.6.1.md)。
+发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.2 发布说明](docs/release-notes-v0.6.2.md) 与 [验收说明](docs/release-acceptance-v0.6.2.md)。
 
 ## 开始使用 DSH 版
 
@@ -171,7 +173,7 @@ DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线
 二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
 
 运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.1 验收说明](docs/release-acceptance-v0.6.1.md)。
+DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.2 验收说明](docs/release-acceptance-v0.6.2.md)。
 首次自动准备依赖需要网络，耗时取决于网络和本机环境。
 
 ## 行情与数据源
@@ -229,3 +231,5 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 ## 更新与许可
 
 更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。本项目采用 [MIT License](LICENSE)，前端来源说明见 [PROVENANCE.md](PROVENANCE.md)。
+
+维护者修改工具参数、注解、资源或 App 桥接代码后，运行 `python scripts/generate-codex-catalog.py` 更新随包目录；`--check` 与回归测试会阻止过期目录进入发布包。

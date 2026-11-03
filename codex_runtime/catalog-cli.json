@@ -1,0 +1,650 @@
+{
+  "bridge": null,
+  "instructions": "Codex CLI provides FT K-Line market data, analysis and TA-Lib results only. CLI does not support interactive charts, current-chart context, or drawing writes.",
+  "mode": "cli",
+  "resources": [],
+  "tools": [
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "",
+      "inputSchema": {
+        "properties": {},
+        "title": "healthArguments",
+        "type": "object"
+      },
+      "name": "health",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "",
+      "inputSchema": {
+        "properties": {},
+        "title": "data_source_statusArguments",
+        "type": "object"
+      },
+      "name": "data_source_status",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 8,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_symbols_toolArguments",
+        "type": "object"
+      },
+      "name": "search_symbols",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "title": "Adjust",
+            "type": "string"
+          },
+          "interval": {
+            "default": "day",
+            "title": "Interval",
+            "type": "string"
+          },
+          "interval_value": {
+            "default": 1,
+            "maximum": 240,
+            "minimum": 1,
+            "title": "Interval Value",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 220,
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "session_count": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Count"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "fetch_candles_toolArguments",
+        "type": "object"
+      },
+      "name": "fetch_candles",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "",
+      "inputSchema": {
+        "properties": {
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metrics"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "calc_metricsArguments",
+        "type": "object"
+      },
+      "name": "calc_metrics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "title": "Adjust",
+            "type": "string"
+          },
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "data_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data Source"
+          },
+          "data_source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data Source Url"
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Indicators"
+          },
+          "interval": {
+            "default": "day",
+            "title": "Interval",
+            "type": "string"
+          },
+          "limit": {
+            "default": 60,
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "ma_periods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ma Periods"
+          },
+          "mark_support_resistance": {
+            "default": false,
+            "title": "Mark Support Resistance",
+            "type": "boolean"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metrics"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows",
+          "symbol"
+        ],
+        "title": "analyze_kline_rows_toolArguments",
+        "type": "object"
+      },
+      "name": "analyze_kline_rows",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    {
+      "description": "",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "title": "Adjust",
+            "type": "string"
+          },
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "context_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Ref"
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Indicators"
+          },
+          "interval": {
+            "default": "day",
+            "title": "Interval",
+            "type": "string"
+          },
+          "interval_value": {
+            "default": 1,
+            "maximum": 240,
+            "minimum": 1,
+            "title": "Interval Value",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 220,
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "ma_periods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ma Periods"
+          },
+          "mark_support_resistance": {
+            "default": false,
+            "title": "Mark Support Resistance",
+            "type": "boolean"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metrics"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "session_count": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Count"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "analyze_kline_toolArguments",
+        "type": "object"
+      },
+      "name": "analyze_kline",
+      "outputSchema": {
+        "additionalProperties": true,
+        "description": "Declared schema for every Codex/App result, with extensible domain fields.",
+        "properties": {
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ok"
+          }
+        },
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    }
+  ],
+  "version": "0.6.2"
+}

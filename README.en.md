@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently a **v0.6.1 local/private distribution**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The Codex plugin is currently a **v0.6.2 local/private distribution**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -42,22 +42,24 @@ In the same chart, a follow-up natural-language request adds a descending channe
 
 ## Use with Codex
 
-DSH and Codex use separate packages: `dsh-kline-v0.6.1.tgz` for DeepSeek Harness and `ft-kline-v0.6.1.zip` for Codex. A universal installer does not guess the host. Codex uses local/private marketplaces and is not in the public plugin directory.
+DSH and Codex use separate packages: `dsh-kline-v0.6.2.tgz` for DeepSeek Harness and `ft-kline-v0.6.2.zip` for Codex. A universal installer does not guess the host. Codex uses local/private marketplaces and is not in the public plugin directory.
 
 ### Install and verify
 
 1. Install Node.js **22.19+**, Python **3.11+**, and a Codex client supporting local plugins. Enable Python Launcher on Windows; Git Bash and WSL are unnecessary.
-2. Download the Codex ZIP and SHA-256 from the [v0.6.1 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.1), verify the hash, and extract to a permanent folder. The ZIP includes its local marketplace manifest; no source build is needed.
+2. Download the Codex ZIP and SHA-256 from the [v0.6.2 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2), verify the hash, and extract to a permanent folder. The ZIP includes its local marketplace manifest; no source build is needed.
 3. Replace the quoted path below with the absolute extracted-folder path:
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.1"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.2"
 codex plugin add ft-kline@ftshare-local
 ```
 
 4. Reopen the desktop app and start a new chat, or restart CLI. Ask to check FT K-Line runtime status, then request a daily chart and its data source.
 
-First use finds Python and installs dependencies automatically, which can take several minutes. The Node entry completes the MCP handshake first and offers `ft_kline_runtime_status` while preparing. Once ready, it announces a tool-catalog change on the **same connection**. Check status and refresh tools; clients without catalog-change support may need a new chat after preparation. Failures are recorded in `~/.cache/ft-kline/bootstrap.log` or `%LOCALAPPDATA%\ft-kline\bootstrap.log` on Windows.
+First use finds Python and installs dependencies automatically, which can take several minutes. The Node entry completes the handshake and exposes the **complete catalog on the first tools/list**, plus preloadable chart resources. It does not depend on catalog-change notifications. Check `ft_kline_runtime_status` while preparing. Ordinary calls wait briefly, then return `runtime_preparing` if necessary; rejected edits never execute later. Once ready, retry the original request without refreshing tools or reopening the chat. Logs are in `~/.cache/ft-kline/bootstrap.log` or `%LOCALAPPDATA%\ft-kline\bootstrap.log` on Windows.
+
+Restart Codex once after upgrading from v0.6.1 to replace its previous status-only startup snapshot. Then request a daily chart directly. Runtime readiness, data delivery and a visibly rendered native chart are separate acceptance checks; a fallback visualization does not satisfy native-plugin acceptance.
 
 Default `auto` mode checks the host's declared MCP Apps HTML capability. Supporting hosts get interactive charts and guarded edits; other hosts, including CLI, get structured data and analysis without chart resources or drawing writes. Advanced integrations can explicitly set `FT_KLINE_CLIENT=desktop` or `cli`.
 
@@ -71,7 +73,7 @@ The selected file is reread before provider requests and is never modified or de
 
 Without a key, supported A-share daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
 
-See the [v0.6.1 release notes](docs/release-notes-v0.6.1.md) and [acceptance checklist](docs/release-acceptance-v0.6.1.md) for verification and remaining manual desktop checks.
+See the [v0.6.2 release notes](docs/release-notes-v0.6.2.md) and [acceptance checklist](docs/release-acceptance-v0.6.2.md) for verification and remaining manual desktop checks.
 
 ## Get started with DSH
 
@@ -213,3 +215,5 @@ The host owns the interpreter, dependency search paths, and isolation settings (
 ## Updates and license
 
 See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for version history. This project is released under the [MIT License](LICENSE); frontend provenance is in [PROVENANCE.md](PROVENANCE.md).
+
+Maintainers changing tools, annotations, resources or the App bridge must regenerate the packaged catalog with `python scripts/generate-codex-catalog.py`; `--check` and regression tests detect stale catalogs.

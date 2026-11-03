@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.1.zip`)
+const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.2.zip`)
 const data = await readFile(archive)
 const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
 if (end < 0) throw new Error('not a ZIP archive')
@@ -39,6 +39,13 @@ for (const forbidden of ['chart_service.py', 'server.py', 'cordis.patch.yml', 'c
 if ([...names].some(name => name.endsWith('.app.json') || name.startsWith('hooks/'))) throw new Error('Codex package contains forbidden host hooks')
 const packageManifest = JSON.parse(readStoredEntry('package.json'))
 readStoredEntry('codex_runtime/desktop-instructions.txt')
+for (const mode of ['desktop', 'cli']) {
+  const catalog = JSON.parse(readStoredEntry(`codex_runtime/catalog-${mode}.json`))
+  if (catalog.version !== packageManifest.version || catalog.mode !== mode || !catalog.tools.some(tool => tool.name === 'analyze_kline')) {
+    throw new Error(`Invalid ${mode} startup catalog`)
+  }
+  if (catalog.tools.some(tool => tool.name === 'prepare_chart_edit') !== (mode === 'desktop')) throw new Error('Startup mode catalogs are not isolated')
+}
 const marketplace = JSON.parse(readStoredEntry('.agents/plugins/marketplace.json'))
 if (marketplace.name !== 'ftshare-local' || marketplace.plugins?.[0]?.name !== 'ft-kline' || marketplace.plugins[0].source?.path !== './') {
   throw new Error('Codex archive must include a usable local marketplace at its root')

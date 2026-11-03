@@ -237,7 +237,7 @@ async def _analyze_rows(rows: list[dict[str, Any]], symbol: str, name: str | Non
     return result(_attach_chart(data), "analyze_kline_rows ok", chart=True)
 
 
-@mcp.tool(name="analyze_kline_rows", structured_output=True)
+@mcp.tool(name="analyze_kline_rows", meta={"ui": {"resourceUri": APP_RESOURCE_URI}} if not IS_CLI else None, structured_output=True)
 async def analyze_kline_rows_tool(rows: list[dict[str, Any]], symbol: str, name: str | None = None, interval: str = "day",
                                   limit: Annotated[int, Field(ge=2, le=4000)] = 60, adjust: str = "none",
                                   indicators: list[str] | None = None, metrics: list[str] | None = None,
@@ -252,7 +252,7 @@ async def analyze_kline_rows_tool(rows: list[dict[str, Any]], symbol: str, name:
                                ma_periods, rsi_period, boll_period, boll_std, volume_ma, atr_period, data_source, data_source_url)
 
 
-@mcp.tool(name="analyze_kline", structured_output=True)
+@mcp.tool(name="analyze_kline", meta={"ui": {"resourceUri": APP_RESOURCE_URI}} if not IS_CLI else None, structured_output=True)
 async def analyze_kline_tool(symbol: str, interval: str = "day", interval_value: Annotated[int, Field(ge=1, le=240)] = 1,
                              session_count: Annotated[int | None, Field(ge=1, le=10)] = None,
                              limit: Annotated[int, Field(ge=2, le=4000)] = 220, adjust: str = "none",

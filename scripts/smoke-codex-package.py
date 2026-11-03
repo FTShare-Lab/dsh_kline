@@ -48,25 +48,33 @@ def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> 
                                "clientInfo": {"name": "packed-smoke", "version": "1"}}, timeout=5)
         process.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
         process.stdin.flush()
+        # Cache exactly the first catalog, as desktop hosts may do. Never
+        # refresh it in response to readiness or list_changed notifications.
+        tools = request("tools/list")["tools"]
+        names = {tool["name"] for tool in tools}
+        assert "analyze_kline" in names, "the first catalog must contain the real tools"
+        analyze = next(tool for tool in tools if tool["name"] == "analyze_kline")
+        assert bool(analyze.get("_meta", {}).get("ui", {}).get("resourceUri")) is desktop
+        resources = request("resources/list")["resources"]
+        assert bool(resources) is desktop
+        if desktop:
+            request("resources/read", {"uri": "ui://ft-kline/chart-v3"})
+            app = next(tool for tool in tools if tool["name"] == "ft_kline_app_action")
+            assert app["_meta"]["ui"]["visibility"] == ["app"]
         deadline = time.monotonic() + 30
         while True:
-            names = {tool["name"] for tool in request("tools/list")["tools"]}
-            if "analyze_kline" in names: break
             status = request("tools/call", {"name": "ft_kline_runtime_status", "arguments": {}})
             if status.get("isError") or time.monotonic() > deadline: raise RuntimeError("Installed launcher did not become ready")
+            if status["structuredContent"]["phase"] == "ready": break
             time.sleep(0.1)
         assert ("prepare_chart_edit" in names) is desktop
         health = request("tools/call", {"name": "health", "arguments": {}})["structuredContent"]
         assert health["interactive_chart"] is desktop
         assert health["client"] == ("desktop" if desktop else "cli")
-        resources = request("resources/list")["resources"]
-        assert bool(resources) is desktop
         rows = [{"time": 1700000000 + i * 86400, "open": 100 + i, "high": 102 + i,
                  "low": 99 + i, "close": 101 + i, "volume": 1000 + i} for i in range(40)]
         chart = request("tools/call", {"name": "analyze_kline_rows", "arguments": {"symbol": "TEST.X", "rows": rows, "limit": 30}})
         assert not chart.get("isError") and chart["structuredContent"]["chart_ready"] is desktop
-        if desktop:
-            request("resources/read", {"uri": "ui://ft-kline/chart-v3"})
     finally:
         process.stdin.close()
         try: process.wait(timeout=10)
@@ -77,7 +85,7 @@ def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> 
 
 
 def main() -> int:
-    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.1.zip").resolve()
+    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.2.zip").resolve()
     if not archive.is_file(): raise SystemExit(f"archive not found: {archive}")
     temporary = Path(tempfile.mkdtemp(prefix="ft-kline-codex-smoke-"))
     try:

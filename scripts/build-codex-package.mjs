@@ -15,6 +15,7 @@ const allowlist = [
   'CHANGELOG.md', 'LICENSE', 'README.md', 'README.en.md', 'package.json', 'requirements.txt',
   'docs/release-notes-v0.6.0.md', 'docs/release-acceptance-v0.6.0.md',
   'docs/release-notes-v0.6.1.md', 'docs/release-acceptance-v0.6.1.md',
+  'docs/release-notes-v0.6.2.md', 'docs/release-acceptance-v0.6.2.md',
   'codex_server.py', 'codex_runtime', 'core', 'config/basic-symbols.json', 'view',
   // Only provider/indicator/geometry modules shared by the Codex adapter.
   // DSH context, HTTP application, and snapshot modules are intentionally not
