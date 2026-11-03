@@ -20,8 +20,11 @@ export function clientMode(params = {}, configured = 'auto') {
 // Match the Python resource using packaged assets only. Host preloading must
 // not depend on Python readiness or on a later catalog refresh.
 export function chartResource() {
-  let html = readFileSync(new URL('view/kline.html', root), 'utf8')
-  const vendor = readFileSync(new URL('view/vendor/klinecharts.min.js', root), 'utf8').replaceAll('</script>', '<\\/script>')
+  // Python read_text() uses universal newlines, including Windows checkouts.
+  // Apply the same conversion so preloaded and backend resources stay identical.
+  const readText = path => readFileSync(new URL(path, root), 'utf8').replace(/\r\n?/g, '\n')
+  let html = readText('view/kline.html')
+  const vendor = readText('view/vendor/klinecharts.min.js').replaceAll('</script>', '<\\/script>')
   html = html.replace('<script id="klinecharts-vendor" src="./vendor/klinecharts.min.js"></script>', `<script id="klinecharts-vendor">${vendor}</script>`)
   const logo = new URL('view/ft-logo.jpg', root)
   if (existsSync(logo)) html = html.replaceAll('__FTV_LOGO_DATA__', `data:image/jpeg;base64,${readFileSync(logo).toString('base64')}`)
