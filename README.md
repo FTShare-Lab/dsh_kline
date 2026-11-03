@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前是 **v0.6.2 本地/私有分发**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+Codex 版目前为 **v0.6.2**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -43,20 +43,50 @@ Codex 版目前是 **v0.6.2 本地/私有分发**，尚未进入公共插件目�
 
 ## 在 Codex 中使用
 
-DSH 与 Codex 使用不同安装包，**不会由一个通用安装包猜测宿主**。DSH 安装 `dsh-kline-v0.6.2.tgz`；Codex 安装 `ft-kline-v0.6.2.zip`。Codex 版尚未进入公共插件目录，可通过随包提供的本地插件源安装，无需构建源码。
+Codex 插件名为 `ft-kline`，公开源名称为 **FTShare**（标识 `ftshare`）。添加一次 GitHub 源后即可安装，后续从同一个源更新，无需下载 ZIP 或构建源码。该源由本项目维护，尚未上架 OpenAI 官方公共插件目录。
 
 ### 安装、启动与验证
 
-1. 先安装 Node.js **22.19+**、Python **3.11+** 和支持本地插件的 Codex。Windows 推荐启用 Python Launcher；不要求 Git Bash 或 WSL。
-2. 从 [v0.6.2 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2) 下载 Codex ZIP 和同名 SHA-256 文件，核对后解压到长期保留的目录，例如 `ft-kline-v0.6.2`。ZIP 已包含本地 marketplace 清单。
-3. 执行下面两条命令，将第一条路径替换为解压目录的绝对路径；含空格时保留引号：
+1. 先安装 Git、Node.js **22.19+**、Python **3.11+** 和支持插件的 Codex。Windows 推荐启用 Python Launcher；不要求 Git Bash 或 WSL。
+2. 在终端执行下面两条命令。第一条添加公开源并跟随经过 CI 验证的 `main`；第二条安装并启用插件：
+
+```bash
+codex plugin marketplace add FTShare-Lab/dsh_kline --ref main
+codex plugin add ft-kline@ftshare
+```
+
+3. 重新打开 Codex，然后说“打开招商银行日 K，显示数据来源”。首次准备期间可先查询“检查 FT K-Line 运行状态”。桌面端可展开图表卡片，搜索、切换标的并使用绘图工作台；CLI 只返回数据和分析。
+
+添加源后，也可以重新打开桌面应用，在插件页面选择 **FTShare → FT K-Line** 安装。可用下面的命令检查源和插件列表：
+
+```bash
+codex plugin marketplace list
+codex plugin list --marketplace ftshare --available --json
+```
+
+### 更新与旧安装迁移
+
+以后更新时刷新已添加的源，再安装该源的当前版本，最后重新打开 Codex：
+
+```bash
+codex plugin marketplace upgrade ftshare
+codex plugin add ft-kline@ftshare
+```
+
+如果此前从 ZIP 安装了 `ft-kline@ftshare-local`，请在插件页面停用旧安装，再启用 `ft-kline@ftshare`，避免同时加载两个来源的同名工具。GitHub 源需要访问 GitHub；首次启动还需要联网下载 Python 依赖。
+
+### 固定版本 ZIP 安装
+
+如需固定在发布版本，也可从 [v0.6.2 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2) 下载 `ft-kline-v0.6.2.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
 
 ```bash
 codex plugin marketplace add "/absolute/path/ft-kline-v0.6.2"
 codex plugin add ft-kline@ftshare-local
 ```
 
-4. 重新打开桌面应用并开始新对话，或重新启动 CLI。先请求“检查 FT K-Line 运行状态”；准备完成后说“打开招商银行日 K，显示数据来源”。桌面端可展开图表卡片，搜索、切换标的并使用绘图工作台。
+重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.2.tgz` 安装包及下文的 DSH 安装方式。
+
+### 首次准备与运行模式
 
 首次连接会自动寻找可用 Python 并准备依赖，可能需要数分钟。Node 入口先完成握手，并从**第一次工具查询**就提供该宿主模式的完整工具目录和图表资源，不依赖工具列表变更通知。准备期间可查询 `ft_kline_runtime_status`；普通调用会短暂等待，仍未就绪则明确返回 `runtime_preparing`，不会延迟执行已退回的绘图操作。准备完成后直接重试原请求，无需刷新目录或重开对话。失败详情见 `~/.cache/ft-kline/bootstrap.log`，Windows 为 `%LOCALAPPDATA%\ft-kline\bootstrap.log`。
 
@@ -233,3 +263,5 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。本项目采用 [MIT License](LICENSE)，前端来源说明见 [PROVENANCE.md](PROVENANCE.md)。
 
 维护者修改工具参数、注解、资源或 App 桥接代码后，运行 `python scripts/generate-codex-catalog.py` 更新随包目录；`--check` 与回归测试会阻止过期目录进入发布包。
+
+公开 GitHub 源中的 `marketplace/ft-kline/` 由同一 Codex 打包清单生成。修改源码、插件声明或 README 后，运行 `pnpm sync:codex-marketplace` 并提交生成结果；CI 通过 `pnpm verify:codex-marketplace` 检查文件一致性，并独立验证该目录的桌面及 CLI 启动。不要直接修改生成目录，维护说明见 [marketplace/README.md](marketplace/README.md)。

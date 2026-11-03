@@ -1,0 +1,4622 @@
+"""Optional ftshare-backed candle fetch.
+
+ftshare is an *optional* dependency:
+- installed → fetch_candles works
+- missing  → returns structured error `ftshare_not_installed`
+
+Discovery order:
+1. already importable ``ftshare`` from the active Python environment
+2. optional ``FTSHARE_SDK_SRC`` env pointing to a package checkout
+
+This module never searches for or imports another MCP repository.
+"""
+
+from __future__ import annotations
+
+import os
+import json
+import io
+import re
+import sys
+import stat
+import tempfile
+import threading
+import time
+import zipfile
+from copy import deepcopy
+from datetime import datetime, time as clock_time, timedelta, timezone
+from importlib.metadata import PackageNotFoundError, version as distribution_version
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+from urllib.request import Request, urlopen
+from xml.etree import ElementTree
+from zoneinfo import ZoneInfo
+from core.adjustment import normalize_adjustment, adjustment_error
+from tools.baostock_source import SOURCE as BAOSTOCK_SOURCE, SOURCE_URL as BAOSTOCK_SOURCE_URL, eligible_stock_code, fetch_stock_daily
+
+try:  # Built-in free fallback source; never required for the FTShare path.
+    from tools.free_sources import (
+        EM_INDEX_NAMES,
+        SOURCE_LABEL,
+        SOURCE_URL,
+        TENCENT_LABEL,
+        TENCENT_SOURCE_URL,
+        fetch_em_index_daily,
+        fetch_tencent_index_daily,
+        fetch_tencent_stock_daily,
+        fetch_tencent_ticker_items,
+    )
+except Exception:  # noqa: BLE001 - degrade to FTShare-only when the module is missing
+    EM_INDEX_NAMES = {}
+    SOURCE_LABEL = ""
+    SOURCE_URL = ""
+    TENCENT_LABEL = ""
+    TENCENT_SOURCE_URL = ""
+    fetch_em_index_daily = None
+    fetch_tencent_index_daily = None
+    fetch_tencent_stock_daily = None
+    fetch_tencent_ticker_items = None
+
+
+_SYMBOL_SEARCH_CACHE_TTL_SECONDS = 300.0
+_SYMBOL_SEARCH_CACHE_MAX_ENTRIES = 96
+_symbol_search_cache: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
+_SECURITY_WORKSPACE_CACHE_TTL_SECONDS = 300.0
+_security_workspace_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_MARKET_PULSE_CACHE_TTL_SECONDS = 90.0
+_MARKET_PULSE_SECTION_TTL_SECONDS = 90.0
+_market_pulse_cache: tuple[float, dict[str, Any]] | None = None
+# The market workspace deliberately loads sections in several independent
+# requests so one slow endpoint cannot block the others.  A single whole-pulse
+# cache entry cannot serve those partial requests, so without a per-section
+# cache every panel switch, tab revisit and manual refresh re-ran the same
+# upstream calls.  Keeping one short-lived entry per section makes the split
+# requests cheap while preserving the per-section response shape.
+_market_pulse_section_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_MARKET_PULSE_SECTIONS = frozenset({"breadth", "flows", "sectors", "concepts", "rankings", "events"})
+# Coalesce concurrent identical requests.  The client issues an initial batch,
+# a conditional full fallback and then per-group follow-ups; without this a
+# refresh can run the same upstream call several times at once, which is what
+# produced both the stalls and the intermittent rate-limit failures.
+_market_pulse_section_inflight: dict[str, threading.Lock] = {}
+_market_pulse_inflight_guard = threading.Lock()
+# Index feeds are independently flaky.  Keep the last valid snapshot for each
+# named index so one failed endpoint cannot make a stable market grid lose a
+# card on the next refresh.  A cached value is explicitly marked stale below.
+_MARKET_TICKER_STALE_TTL_SECONDS = 6 * 60 * 60
+_market_ticker_last_good: dict[str, tuple[float, dict[str, Any]]] = {}
+_market_ticker_cache_lock = threading.Lock()
+# Symbol-name resolution is a presentation-only lookup, but every cache miss is
+# a live provider round trip and market lists repeat symbols heavily across
+# renders; memoize both hits and misses for the life of the process.
+_SYMBOL_NAME_CACHE_MAX_ENTRIES = 512
+_symbol_name_cache: dict[str, str] = {}
+_SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS = 180.0
+_security_intelligence_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+# A short hot cache serves a search-result prefetch immediately when the user
+# opens the same symbol.  It is deliberately much shorter than the stale
+# fallback cache below: this is a latency optimization, not an availability
+# substitute for live provider data.
+_CANDLE_CACHE_FRESH_SECONDS = 45.0
+_CANDLE_CACHE_TTL_SECONDS = 15 * 60.0
+_candle_cache: dict[tuple[str, str, int, int, int, str, str], tuple[float, dict[str, Any]]] = {}
+_LAST_FTSHARE_CAPABILITIES: dict[str, str] = {}
+_FTSHARE_TRANSPORT_STATE: dict[str, dict[str, Any]] = {}
+
+# This is deliberately a small, explicit registry rather than a runtime
+# discovery mechanism.  Only paths verified against the FTShare gateway docs
+# are candidates for automatic fallback; an upstream response can never add a
+# new URL or execute code in this process.
+FT_CONTRACTS: dict[str, dict[str, Any]] = {
+    "daily_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/owq0364i",
+        "tier": "free",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["http_get", "sdk"],
+        "candidate_verification": {"http_get": True, "sdk": True},
+    },
+    "history_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/z9lsvrvu",
+        "tier": "base+",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["http_get", "sdk"],
+        "candidate_verification": {"http_get": False, "sdk": False},
+    },
+    # v4 is a realtime *stock* minute feed.  It is intentionally a separate
+    # contract from v2 history: v4 has no verified index/ETF equivalent and
+    # does not accept a historical date window.  The chart uses it for the
+    # latest complete A-share session, then pages v2 for older sessions.
+    "realtime_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/api/v4/market/data/stock-realtime-minute-kline",
+        "tier": "api-key",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    "index_daily_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/gr2q0bjx",
+        "tier": "free",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    "index_history_minute_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/ls85mq5n",
+        "tier": "base+",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": False},
+    },
+    # 全球指数日K线（FTShare 免费版套餐内含，覆盖 100.HSI/100.NDX 等）。
+    # 该端点只回日K，周/月/季/年在 fetch.py 本地聚合。
+    "global_index_daily": {
+        "doc": "https://market.ft.tech/gateway/doc/p/pb8eizu3",
+        "tier": "free",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    # ETF uses its own documented endpoints.  It is intentionally kept
+    # separate from stock history: an ETF is a tradable instrument, but not a
+    # company and must never be routed through company-information APIs.
+    "etf_candles": {
+        "doc": "https://market.ft.tech/gateway/doc/p/etf-candlesticks",
+        "tier": "free",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+    "etf_minutes": {
+        "doc": "https://market.ft.tech/gateway/doc/p/etf-minutes",
+        "tier": "base+",
+        "verified_sdk_version": "1.0.7",
+        "candidates": ["sdk"],
+        "candidate_verification": {"sdk": True},
+    },
+}
+SYMBOL_DIRECTORY_VERSION = 5
+SYMBOL_DIRECTORY_TTL_SECONDS = 24 * 60 * 60
+SYMBOL_DIRECTORY_RETRY_SECONDS = 60 * 60
+# A complete A / HK / US / ETF directory is about 18,500 instruments today.
+# Leave headroom for new listings and a small number of provider duplicates.
+SYMBOL_DIRECTORY_MAX_ITEMS = 50_000
+# HKEX publishes its complete securities master as a small XLSX each trading
+# day.  It is a more stable directory source than a quote-page endpoint.
+_HK_DIRECTORY_URL = "https://www.hkex.com.hk/eng/services/trading/securities/securitieslists/ListOfSecurities.xlsx"
+_HK_DIRECTORY_CATEGORIES = frozenset({"Equity", "Exchange Traded Products", "Real Estate Investment Trusts"})
+CN_BROAD_INDEXES = (
+    {"symbol": "000001.XSHG", "name": "上证指数", "market": "CN_INDEX", "aliases": "沪指 上证综指 上证综合指数 shanghai composite"},
+    {"symbol": "000016.XSHG", "name": "上证50", "market": "CN_INDEX", "aliases": "上证五十 sse 50"},
+    {"symbol": "000010.XSHG", "name": "上证180", "market": "CN_INDEX", "aliases": "上证一百八 sse 180"},
+    {"symbol": "000009.XSHG", "name": "上证380", "market": "CN_INDEX", "aliases": "上证三百八 sse 380"},
+    {"symbol": "000047.XSHG", "name": "上证全指", "market": "CN_INDEX", "aliases": "上证全指数"},
+    {"symbol": "000300.XSHG", "name": "沪深300", "market": "CN_INDEX", "aliases": "沪深三百 csi300 csi 300"},
+    {"symbol": "000688.XSHG", "name": "科创50", "market": "CN_INDEX", "aliases": "科创五十 star 50"},
+    {"symbol": "000903.XSHG", "name": "中证A100", "market": "CN_INDEX", "aliases": "中证a100 csi a100"},
+    {"symbol": "000905.XSHG", "name": "中证500", "market": "CN_INDEX", "aliases": "中证五百 csi500 csi 500"},
+    {"symbol": "000906.XSHG", "name": "中证800", "market": "CN_INDEX", "aliases": "中证八百 csi800 csi 800"},
+    {"symbol": "000852.XSHG", "name": "中证1000", "market": "CN_INDEX", "aliases": "中证一千 csi1000 csi 1000"},
+    {"symbol": "000985.XSHG", "name": "中证全指", "market": "CN_INDEX", "aliases": "中证全指数 csi all share"},
+    {"symbol": "399001.XSHE", "name": "深证成指", "market": "CN_INDEX", "aliases": "深指 深成指 shenzhen component"},
+    {"symbol": "399005.XSHE", "name": "中小100", "market": "CN_INDEX", "aliases": "中小板100"},
+    {"symbol": "399006.XSHE", "name": "创业板指", "market": "CN_INDEX", "aliases": "创业板指数 chinext"},
+    {"symbol": "399303.XSHE", "name": "国证2000", "market": "CN_INDEX", "aliases": "国证两千 cn2000"},
+    {"symbol": "399310.XSHE", "name": "国证A50", "market": "CN_INDEX", "aliases": "国证a50 cn a50"},
+    {"symbol": "899050.BJSE", "name": "北证50", "market": "CN_INDEX", "aliases": "北证五十 beijing 50"},
+)
+CN_BROAD_INDEX_BY_SYMBOL = {item["symbol"]: item for item in CN_BROAD_INDEXES}
+
+_SYMBOL_DIRECTORY_SEED = (
+    *({key: value for key, value in item.items() if key != "aliases"} for item in CN_BROAD_INDEXES),
+    {"symbol": "100.HSI", "name": "恒生指数", "market": "HK_INDEX"},
+    {"symbol": "00700.HK", "name": "腾讯控股", "market": "HK"},
+    {"symbol": "09988.HK", "name": "阿里巴巴-W", "market": "HK"},
+    {"symbol": "AAPL.US", "name": "Apple", "market": "US"},
+    {"symbol": "MSFT.US", "name": "Microsoft", "market": "US"},
+    {"symbol": "NVDA.US", "name": "NVIDIA", "market": "US"},
+    {"symbol": "AMD.US", "name": "超威半导体", "market": "US"},
+    {"symbol": "601899.XSHG", "name": "紫金矿业", "market": "CN"},
+    {"symbol": "600519.XSHG", "name": "贵州茅台", "market": "CN"},
+    {"symbol": "601318.XSHG", "name": "中国平安", "market": "CN"},
+    {"symbol": "600036.XSHG", "name": "招商银行", "market": "CN"},
+)
+_BASIC_DIRECTORY = json.loads((Path(__file__).resolve().parent.parent / "config" / "basic-symbols.json").read_text(encoding="utf-8"))
+_SYMBOL_DIRECTORY_SEED = (*_SYMBOL_DIRECTORY_SEED, *_BASIC_DIRECTORY["items"])
+_BUILTIN_SEARCH_ALIASES = {
+    **{item["symbol"]: item["aliases"] for item in CN_BROAD_INDEXES},
+    "100.HSI": "恒指 hang seng hsi",
+    "00700.HK": "腾讯 tencent",
+    "09988.HK": "阿里 阿里巴巴 alibaba baba",
+    "AAPL.US": "苹果 apple",
+    "MSFT.US": "微软 microsoft",
+    "NVDA.US": "英伟达 英伟达公司 nvidia",
+    "AMD.US": "超威半导体 超微半导体 amd advanced micro devices",
+    "601899.XSHG": "紫金 紫金矿业 zijin mining",
+    "600519.XSHG": "茅台 贵州茅台 moutai",
+    "601318.XSHG": "平安 中国平安 ping an",
+    "600036.XSHG": "招行 招商银行 cmb",
+}
+
+
+def _ftshare_src_candidates() -> list[Path]:
+    custom = (os.environ.get("FTSHARE_SDK_SRC") or "").strip()
+    if not custom:
+        return []
+    source = Path(custom).expanduser()
+    return [source, source / "src"]
+
+
+def _path_makes_ftshare_importable(path: Path) -> bool:
+    """True if putting ``path`` on sys.path would expose package ftshare."""
+    return (path / "ftshare" / "__init__.py").is_file() or (path / "ftshare").is_dir()
+
+
+def _maybe_inject_local_ftshare() -> str | None:
+    """Try to make ``import ftshare`` work. Returns injected path or None."""
+    try:
+        import ftshare  # noqa: F401
+
+        return None
+    except Exception:
+        pass
+
+    for src in _ftshare_src_candidates():
+        if not src.exists():
+            continue
+        # Prefer …/src that contains ftshare/; also accept path that *is* the package parent.
+        inject: Path | None = None
+        if _path_makes_ftshare_importable(src):
+            inject = src
+        elif src.name == "ftshare" and _path_makes_ftshare_importable(src.parent):
+            inject = src.parent
+        if inject is None:
+            continue
+        s = str(inject.resolve())
+        if s not in sys.path:
+            sys.path.insert(0, s)
+        try:
+            import ftshare  # noqa: F401
+
+            return s
+        except Exception:
+            try:
+                sys.path.remove(s)
+            except ValueError:
+                pass
+            continue
+    return None
+
+
+_INJECTED_FTSHARE_PATH = _maybe_inject_local_ftshare()
+
+# Credential provenance is intentionally process-local and never returned with
+# a path or a value.  It lets the UI explain why FTShare is already connected
+# without guessing at, or scanning, a user's shell, .env files, or keychain.
+_FTSHARE_RUNTIME_CREDENTIAL_SOURCE: str | None = None
+_FTSHARE_RUNTIME_FILE_KEY: str | None = None
+
+
+def _memory_only_credentials() -> bool:
+    """Whether the embedding host has forbidden every credential-file path.
+
+    The Codex App adapter sets this before importing the provider.  It is an
+    opt-in restriction so the established DSH credential precedence remains
+    byte-for-byte compatible.  In this mode only a process environment value
+    (or an adapter-owned in-memory override) can be used; neither the DSH
+    bridge nor the plugin credential store is inspected.
+    """
+    return (os.environ.get("FT_KLINE_CODEX_MEMORY_ONLY") or "").strip() == "1"
+
+
+def _uses_posix_permissions() -> bool:
+    return os.name == "posix"
+
+
+def _ftshare_key_path() -> Path:
+    configured = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    if os.name == "nt":
+        local = (os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or "").strip()
+        base = Path(local) if local else Path.home() / "AppData" / "Local"
+        return base / "dsh_kline" / "ftshare-credentials.json"
+    return Path.home() / ".config" / "dsh_kline" / "ftshare-credentials.json"
+
+
+def _ftshare_settings_key_path() -> Path | None:
+    """Credential file published by the DSH FTShare settings bridge.
+
+    The DSH host writes it when the FTShare settings plugin is installed and
+    the launcher points this process at it.  Without that file this process
+    resolves credentials exactly as it did before the bridge existed.
+    """
+    configured = (os.environ.get("DSH_KLINE_SETTINGS_KEY_FILE") or "").strip()
+    return Path(configured).expanduser() if configured else None
+
+
+def _ftshare_credential_files() -> tuple[tuple[Path, str], ...]:
+    """Credential files in precedence order, each with its provenance label.
+
+    An explicit ``FTSHARE_API_KEY_FILE`` stays authoritative for hosts and
+    tests that set one; otherwise a Key saved in the DSH FTShare settings
+    outranks the one this plugin stored for itself.
+    """
+    if _memory_only_credentials():
+        return ()
+    explicit = (os.environ.get("FTSHARE_API_KEY_FILE") or "").strip()
+    if explicit:
+        return ((Path(explicit).expanduser(), "external_file"),)
+    files: list[tuple[Path, str]] = []
+    bridge = _ftshare_settings_key_path()
+    if bridge is not None:
+        files.append((bridge, "settings_bridge"))
+    files.append((_ftshare_key_path(), "plugin_store"))
+    return tuple(files)
+
+
+def _valid_ftshare_key(value: Any) -> str:
+    key = value.strip() if isinstance(value, str) else ""
+    if not key or len(key) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in key):
+        return ""
+    return key
+
+
+def _read_ftshare_key_file(path: Path) -> str:
+    try:
+        if not path.is_file() or path.is_symlink():
+            return ""
+        if _uses_posix_permissions() and stat.S_IMODE(path.stat().st_mode) & 0o077:
+            return ""
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, Mapping) or type(payload.get("version")) is not int or payload["version"] != 1:
+            return ""
+        return _valid_ftshare_key(payload.get("api_key"))
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def _resolve_persisted_ftshare_key() -> tuple[str, str]:
+    """Return the first usable file credential, with where it came from."""
+    for path, source in _ftshare_credential_files():
+        value = _read_ftshare_key_file(path)
+        if value:
+            return value, source
+    return "", ""
+
+
+def _read_persisted_ftshare_key() -> str:
+    return _resolve_persisted_ftshare_key()[0]
+
+
+def _load_persisted_ftshare_key() -> bool:
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
+    if _memory_only_credentials() or _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
+        return False
+    value, source = _resolve_persisted_ftshare_key()
+    if not value:
+        return False
+    os.environ["FTSHARE_API_KEY"] = value
+    _FTSHARE_RUNTIME_FILE_KEY = value
+    # Preserve the fact that this process itself wrote the saved credential,
+    # even when a test/developer chose a custom file path.  A fresh process
+    # correctly reports that same explicit path as externally managed.
+    if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store":
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = source
+    return True
+
+
+def _refresh_persisted_ftshare_key() -> None:
+    """Follow file-backed credentials before each FTShare client is created.
+
+    The DSH bridge can replace or clear its file while this process runs, so a
+    Key change applies without restarting the MCP server.  A Key the host
+    environment supplied or a temporary in-process override is never replaced
+    here. The plugin's saved credential remains the lower-priority fallback.
+    """
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
+    if _memory_only_credentials():
+        # An environment key is deliberately authoritative in the Codex host.
+        # Never replace it with a file-backed DSH/profile credential.
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = "environment" if _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")) else None
+        _FTSHARE_RUNTIME_FILE_KEY = None
+        return
+    source = _FTSHARE_RUNTIME_CREDENTIAL_SOURCE
+    current = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if source in {"environment", "session"}:
+        return
+    if source is None and current:
+        return
+    if current and current != _FTSHARE_RUNTIME_FILE_KEY:
+        # Someone explicitly replaced the environment since our last file
+        # load. Never overwrite that new credential with a stale file source.
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+        _FTSHARE_RUNTIME_FILE_KEY = None
+        return
+    value, resolved = _resolve_persisted_ftshare_key()
+    if value:
+        os.environ["FTSHARE_API_KEY"] = value
+        # A credential this process saved for itself keeps reporting as the
+        # plugin's own, even when it lives at an explicitly configured path; a
+        # Key published by the DSH settings always reports its own source.
+        if _FTSHARE_RUNTIME_CREDENTIAL_SOURCE != "plugin_store" or resolved == "settings_bridge":
+            _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = resolved
+    else:
+        os.environ.pop("FTSHARE_API_KEY", None)
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+    _FTSHARE_RUNTIME_FILE_KEY = value or None
+    if value != current:
+        clear_provider_caches()
+
+
+def _ftshare_credential_source() -> str:
+    """Return safe credential provenance, never a key or filesystem path."""
+    if not _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY")):
+        return "none"
+    return _FTSHARE_RUNTIME_CREDENTIAL_SOURCE or "environment"
+
+
+def _write_persisted_ftshare_key(value: str) -> None:
+    path = _ftshare_key_path()
+    if path.is_symlink():
+        raise OSError("FTShare credential path must not be a symbolic link")
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if _uses_posix_permissions():
+        os.chmod(path.parent, 0o700)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        if _uses_posix_permissions():
+            os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            json.dump({"version": 1, "api_key": value}, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        _replace_credential_file(temp_name, path)
+        if _uses_posix_permissions():
+            os.chmod(path, 0o600)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+
+
+def _replace_credential_file(source: str | Path, destination: str | Path) -> None:
+    attempts = 6 if os.name == "nt" else 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(0.04 * (attempt + 1))
+
+
+def _remove_persisted_ftshare_key() -> None:
+    path = _ftshare_key_path()
+    if path.is_symlink():
+        raise OSError("FTShare credential path must not be a symbolic link")
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def ftshare_available() -> bool:
+    """Check SDK availability without permanently latching a cold-start miss."""
+    _load_persisted_ftshare_key()
+    for attempt in range(3):
+        try:
+            import ftshare  # noqa: F401
+
+            return True
+        except Exception:
+            _maybe_inject_local_ftshare()
+            if attempt < 2:
+                time.sleep(0.05 * (attempt + 1))
+    return False
+
+
+def _ftshare_market_api(timeout: float) -> Any:
+    """Create an SDK client with the process key attached to every request."""
+    import ftshare as ft
+
+    _refresh_persisted_ftshare_key()
+    key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    if not key:
+        # The SDK also reads the environment: an explicit empty string would
+        # otherwise be sent as a malformed key instead of anonymous access.
+        os.environ.pop("FTSHARE_API_KEY", None)
+    headers = {"FTSHARE_API_KEY": key} if key else None
+    return ft.market_api(timeout=timeout, headers=headers)
+
+
+def _ftshare_contract_status() -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "doc": spec["doc"],
+            "tier": spec["tier"],
+            "transport": _FTSHARE_TRANSPORT_STATE.get(name, {}).get("transport"),
+            "last_ok": bool(_FTSHARE_TRANSPORT_STATE.get(name, {}).get("last_ok")),
+            "verified_sdk_version": spec["verified_sdk_version"],
+            "candidate_verification": dict(spec.get("candidate_verification") or {}),
+        }
+        for name, spec in FT_CONTRACTS.items()
+    }
+
+
+def ftshare_contract_status() -> dict[str, dict[str, Any]]:
+    """Expose safe transport/contract diagnostics without credentials."""
+    return deepcopy(_ftshare_contract_status())
+
+
+def _preferred_ftshare_transport(contract: str) -> str:
+    state = _FTSHARE_TRANSPORT_STATE.get(contract) or {}
+    transport = state.get("transport")
+    return transport if transport in FT_CONTRACTS.get(contract, {}).get("candidates", []) else "auto"
+
+
+def _is_retryable_ftshare_status(exc: Exception) -> bool:
+    raw = str(exc or "")
+    return bool(re.search(r"HTTP(?:\s+Error)?\s+(?:404|405|429|5\d\d)", raw, re.IGNORECASE))
+
+
+def _is_ftshare_contract_mismatch(exc: Exception) -> bool:
+    if isinstance(exc, (AttributeError, TypeError)):
+        return True
+    raw = str(exc or "").lower()
+    return any(marker in raw for marker in ("unexpected keyword", "no such endpoint", "method not allowed"))
+
+
+def _adaptive_ftshare_call(contract: str, market: Any, params: dict[str, Any]) -> Any:
+    """Try only registered transports with bounded, auditable fallback.
+
+    Authentication/plan failures stay on the current transport.  A 429 is
+    retried on that same transport; contract/path failures may advance to the
+    next registered candidate.  This is intentionally not self-modifying.
+    """
+    spec = FT_CONTRACTS[contract]
+    candidates = list(spec["candidates"])
+    preferred = _preferred_ftshare_transport(contract)
+    if preferred != "auto":
+        candidates.remove(preferred)
+        candidates.insert(0, preferred)
+    last_error: Exception | None = None
+    for transport in candidates:
+        if transport == "http_get":
+            get_method = getattr(market, "get", None)
+            if not callable(get_method):
+                last_error = AttributeError("FTShare GET transport is unavailable")
+                continue
+        for retry in range(3):
+            try:
+                request_params = dict(params)
+                as_dataframe = request_params.pop("as_dataframe", False)
+                if contract == "daily_candles":
+                    path = "api/v1/market/data/stock-candlesticks"
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.stock_candlesticks(**params)
+                elif contract == "index_daily_candles":
+                    path = "api/v1/market/data/index-candlesticks"
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.index_candlesticks(**params)
+                elif contract == "index_history_minute_candles":
+                    path = "api/v2/market/data/index_minutes"
+                    request_params.pop("adjust_kind", None)
+                    request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
+                    if transport == "http_get":
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    else:
+                        result = market.index_minutes(as_dataframe=as_dataframe, **request_params)
+                elif contract == "realtime_minute_candles":
+                    # The v4 contract is deliberately narrow: its SDK method
+                    # accepts ``symbols``, not the v2 history parameters.
+                    # Do not leak a date window or adjustment flag into v4.
+                    symbols = request_params.get("symbols")
+                    method = getattr(market, "stock_realtime_minute_kline", None)
+                    if not callable(method):
+                        raise AttributeError("FTShare v4 realtime-minute SDK method is unavailable")
+                    result = method(symbols=symbols, as_dataframe=as_dataframe)
+                else:
+                    if transport == "http_get":
+                        path = "api/v2/market/data/stock_minutes"
+                        request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
+                        result = get_method(path, as_dataframe=as_dataframe, **request_params)
+                    elif callable(getattr(market, "stock_minutes", None)):
+                        request_params["symbol"] = _short_mainland_symbol(str(request_params["symbol"]))
+                        result = market.stock_minutes(as_dataframe=as_dataframe, **request_params)
+                    else:
+                        legacy_params = dict(params)
+                        legacy_params.setdefault("interval_unit", "Minute")
+                        result = market.stock_candlesticks(**legacy_params)
+                _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": True}
+                return result
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                status, _message = _classify_ftshare_error(exc)
+                if status in {"auth_required", "invalid_key", "capability_limited"}:
+                    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": False}
+                    raise
+                if status == "rate_limited":
+                    if retry < 2:
+                        time.sleep(0.25 * (2**retry))
+                        continue
+                    # A rate limit belongs to this transport/account; changing
+                    # method would only multiply the upstream load.
+                    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": transport, "last_ok": False}
+                    raise
+                if _is_ftshare_contract_mismatch(exc) or _is_retryable_ftshare_status(exc):
+                    break
+                break
+    if last_error is None:
+        last_error = RuntimeError(f"FTShare {contract} has no available transport")
+    _FTSHARE_TRANSPORT_STATE[contract] = {"transport": None, "last_ok": False}
+    raise last_error
+
+
+def _ftshare_stock_candlesticks(market: Any, **params: Any) -> Any:
+    """Call verified daily-K candidates with bounded fallback."""
+    return _adaptive_ftshare_call("daily_candles", market, params)
+
+
+def _short_mainland_symbol(symbol: str) -> str:
+    suffixes = {
+        ".XSHG": ".SH",
+        ".XSHE": ".SZ",
+        ".BJSE": ".BJ",
+    }
+    for long_suffix, short_suffix in suffixes.items():
+        if symbol.endswith(long_suffix):
+            return symbol[: -len(long_suffix)] + short_suffix
+    return symbol
+
+
+def _ftshare_stock_minutes(market: Any, **params: Any) -> Any:
+    """Call verified historical minute-K candidates with bounded fallback."""
+    return _adaptive_ftshare_call("history_minute_candles", market, params)
+
+
+def _ftshare_stock_realtime_minutes(market: Any, *, symbol: str) -> Any:
+    """Fetch the current A-share minute session through FTShare v4.
+
+    V4 is intentionally not a generic replacement for v2: the endpoint is
+    realtime-stock-only and exposes ``symbols`` rather than history windows.
+    Callers must validate the returned session and use v2 for older bars.
+    """
+    return _adaptive_ftshare_call(
+        "realtime_minute_candles",
+        market,
+        # The v4 gateway validates this as a JSON array in one query value;
+        # handing the SDK a Python list serializes differently and returns 400.
+        {"symbols": json.dumps([_short_mainland_symbol(symbol)]), "as_dataframe": False},
+    )
+
+
+def _ftshare_index_candlesticks(market: Any, **params: Any) -> Any:
+    """Call the verified A-share index K-line endpoint (SDK 1.0.7)."""
+    return _adaptive_ftshare_call("index_daily_candles", market, params)
+
+
+def _ftshare_index_minutes(market: Any, **params: Any) -> Any:
+    """Call the A-share index minute endpoint (SDK 1.0.7, plan dependent)."""
+    return _adaptive_ftshare_call("index_history_minute_candles", market, params)
+
+
+def _ftshare_etf_candlesticks(market: Any, **params: Any) -> Any:
+    """Call FTShare's ETF-native daily-history endpoint.
+
+    Keep this small adapter separate from the stock transport fallback: the
+    endpoint has the same candle envelope but a distinct provider contract.
+    """
+    method = getattr(market, "etf_candlesticks", None)
+    if not callable(method):
+        raise AttributeError("FTShare etf_candlesticks is unavailable")
+    result = method(**params)
+    _FTSHARE_TRANSPORT_STATE["etf_candles"] = {"transport": "sdk", "last_ok": True}
+    return result
+
+
+def _ftshare_etf_minutes(market: Any, **params: Any) -> Any:
+    """Call ETF minutes without falling back to the stock-minute contract."""
+    method = getattr(market, "etf_minutes", None)
+    if not callable(method):
+        raise AttributeError("FTShare etf_minutes is unavailable")
+    result = method(**params)
+    _FTSHARE_TRANSPORT_STATE["etf_minutes"] = {"transport": "sdk", "last_ok": True}
+    return result
+
+
+def ftshare_status() -> dict[str, Any]:
+    """Return safe provider status without host paths or module locations."""
+    _refresh_persisted_ftshare_key()
+    _load_persisted_ftshare_key()
+    ok = ftshare_available()
+    credential_source = _ftshare_credential_source()
+    info: dict[str, Any] = {
+        "available": ok,
+        "configured": credential_source != "none",
+        "persistent": credential_source in {"plugin_store", "external_file", "settings_bridge"},
+        "credential_source": credential_source,
+        # Only a key explicitly saved by this running plugin can be safely
+        # removed from this UI.  Environment, externally supplied files, and a
+        # Key owned by the DSH FTShare settings remain owned by the host/user.
+        "can_clear": credential_source == "plugin_store",
+        "contracts": _ftshare_contract_status(),
+    }
+    try:
+        import ftshare  # noqa: F401
+
+        try:
+            info["distribution_version"] = distribution_version("ftshare")
+        except PackageNotFoundError:
+            info["distribution_version"] = None
+    except Exception:
+        info["distribution_version"] = None
+    info["sdk_version"] = info.get("distribution_version")
+    return info
+
+
+def clear_provider_caches() -> None:
+    """Drop provider-backed caches after a runtime configuration change."""
+    global _market_pulse_cache
+    _symbol_search_cache.clear()
+    _security_workspace_cache.clear()
+    _security_intelligence_cache.clear()
+    _market_pulse_cache = None
+    _market_pulse_section_cache.clear()
+    _symbol_name_cache.clear()
+    _candle_cache.clear()
+
+
+def _market_pulse_section_lock(scope: str) -> threading.Lock:
+    """Return a stable lock so identical concurrent section loads coalesce."""
+    with _market_pulse_inflight_guard:
+        lock = _market_pulse_section_inflight.get(scope)
+        if lock is None:
+            lock = threading.Lock()
+            _market_pulse_section_inflight[scope] = lock
+        return lock
+
+
+def _cached_market_pulse_section(scope: str, *, refresh: bool) -> dict[str, Any] | None:
+    """Return a still-fresh section payload, or None when it must be refetched."""
+    if refresh:
+        return None
+    entry = _market_pulse_section_cache.get(scope)
+    if not entry:
+        return None
+    cached_at, payload = entry
+    if time.time() - cached_at >= _MARKET_PULSE_SECTION_TTL_SECONDS:
+        return None
+    return deepcopy(payload)
+
+
+def _set_ftshare_capabilities(capabilities: dict[str, str]) -> None:
+    _LAST_FTSHARE_CAPABILITIES.clear()
+    _LAST_FTSHARE_CAPABILITIES.update({str(k): str(v) for k, v in capabilities.items()})
+
+
+def ftshare_capabilities() -> dict[str, str]:
+    """Return the last safe capability result without exposing credentials."""
+    if _LAST_FTSHARE_CAPABILITIES:
+        return dict(_LAST_FTSHARE_CAPABILITIES)
+    return {"daily": "not_tested" if ftshare_available() else "unavailable", "minute": "not_tested"}
+
+
+def data_source_capability_contract() -> dict[str, Any]:
+    """Describe UI/MCP domain capabilities without exposing a vendor's internals.
+
+    The workbench must not infer that a configured source can provide every
+    page just because it can return candles.  This small contract gives every
+    client the same vocabulary, and lets future providers opt into only the
+    domains they genuinely implement.
+    """
+    available = ftshare_available()
+    status = "available" if available else "unavailable"
+    ftshare = {
+        "instrument_directory": status,
+        "daily_candles": ftshare_capabilities().get("daily", "not_tested" if available else "unavailable"),
+        "minute_candles": ftshare_capabilities().get("minute", "not_tested" if available else "unavailable"),
+        "market_indices": status,
+        "market_breadth": status,
+        "market_rankings": status,
+        "market_boards": status,
+        "board_members": "source_dependent" if available else "unavailable",
+        "company_profile": status,
+        "news": status,
+        "financials": status,
+        "holders": status,
+        "stock_flows": status,
+        "trading_events": status,
+    }
+    return {
+        "version": 1,
+        "providers": {
+            "ftshare": ftshare,
+            # Caller-supplied OHLCV is deliberately narrow: it can feed
+            # analysis and a chart, but must never fabricate a market page.
+            "external_rows": {
+                "daily_candles": "available",
+                "minute_candles": "available",
+                "instrument_directory": "unsupported",
+                "market_indices": "unsupported",
+                "market_breadth": "unsupported",
+                "market_rankings": "unsupported",
+                "market_boards": "unsupported",
+                "board_members": "unsupported",
+                "company_profile": "unsupported",
+                "news": "unsupported",
+                "financials": "unsupported",
+                "holders": "unsupported",
+                "stock_flows": "unsupported",
+                "trading_events": "unsupported",
+            },
+        },
+    }
+
+
+def ftshare_index_kline_available() -> bool:
+    """Whether A-share index K-line history is available from the FTShare adapter.
+
+    The adapter only calls verified provider contracts (see
+    docs/provider-adaptation.md). FTShare SDK 1.0.7 exposes the
+    documented A-share index endpoint ``index_candlesticks``
+    (api/v1/market/data/index-candlesticks) which was verified with live
+    daily data (free tier) and registered in FT_CONTRACTS, so daily-or-larger
+    index K-lines are reported available. Index minutes (``index_minutes``)
+    stay plan-dependent and are not part of this capability flag.
+    """
+    return True
+
+
+def configure_ftshare_api_key(
+    api_key: str | None,
+    *,
+    test_connection: bool = True,
+    persist: bool = True,
+) -> dict[str, Any]:
+    """Configure FTShare for this process and optionally persist it locally."""
+    global _FTSHARE_RUNTIME_CREDENTIAL_SOURCE, _FTSHARE_RUNTIME_FILE_KEY
+    value = (api_key or "").strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 包含不可用字符"}
+    if len(value) > 512:
+        return {"ok": False, "error": "invalid_api_key", "message": "FTShare API Key 长度不受支持"}
+    try:
+        # A temporary key only changes this process.  It must not erase the
+        # user's saved credential: that would make a one-off connection test
+        # silently break the next DSH restart.
+        if persist:
+            if value:
+                _write_persisted_ftshare_key(value)
+            else:
+                if _ftshare_credential_source() != "plugin_store":
+                    return {
+                        "ok": False,
+                        "error": "external_credential_managed",
+                        "message": "当前 FTShare 凭据由宿主环境或外部文件管理，插件不会清除它。",
+                    }
+                _remove_persisted_ftshare_key()
+    except OSError:
+        return {"ok": False, "error": "credential_persist_failed", "message": "无法保存 FTShare 本机配置"}
+    if value:
+        os.environ["FTSHARE_API_KEY"] = value
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = "plugin_store" if persist else "session"
+    else:
+        os.environ.pop("FTSHARE_API_KEY", None)
+        _FTSHARE_RUNTIME_CREDENTIAL_SOURCE = None
+    _FTSHARE_RUNTIME_FILE_KEY = value if persist and value else None
+    clear_provider_caches()
+
+    result: dict[str, Any] = {
+        "ok": True,
+        "configured": bool(value),
+        "source": "ftshare",
+        "persistent": bool(value and persist),
+        "credential_source": _ftshare_credential_source(),
+        "can_clear": bool(value and persist),
+    }
+    if not test_connection:
+        result["message"] = "FTShare 配置已更新（已保存到本机）" if value and persist else "FTShare 配置已更新（仅当前 dsh 进程有效）"
+        return result
+    connection = test_ftshare_connection()
+    result.update({key: value for key, value in connection.items() if key != "ok"})
+    result["connection_ok"] = bool(connection.get("ok"))
+    result["key_saved"] = bool(value and persist)
+    result["ok"] = bool(connection.get("ok"))
+    if result["ok"]:
+        result["message"] = _ftshare_capability_message(
+            connection.get("capabilities") or {},
+            persistent=bool(result["persistent"]),
+        )
+    if not result["ok"]:
+        result["message"] = (
+            f"FTShare API Key 已{'保存' if result['key_saved'] else '配置'}，但校验失败："
+            f"{connection.get('message') or '请检查 Key 和数据权限。'}"
+        )
+    return result
+
+
+def _ftshare_capability_message(capabilities: dict[str, str], *, persistent: bool) -> str:
+    saved = "已保存" if persistent else "已配置"
+    daily = capabilities.get("daily")
+    minute = capabilities.get("minute")
+    if daily == "available" and minute == "auth_required":
+        return "FTShare 日 K 已验证可用；分钟 K 需要配置有效 API Key 及相应数据权限。"
+    if daily == "available" and minute in {"insufficient_quota", "capability_limited"}:
+        return f"FTShare API Key {saved}并验证通过。当前套餐可使用日 K；分钟 K 暂未开通，请按需升级对应套餐。"
+    if daily == "available" and minute == "available":
+        return f"FTShare API Key {saved}并验证通过，当前日 K 与分钟 K 均可用。"
+    if daily == "available":
+        return "FTShare 日 K 已验证可用；分钟 K 暂未验证成功，请稍后重试。"
+    return "FTShare 尚未验证到可用行情，请检查连接状态。"
+
+
+def test_ftshare_connection() -> dict[str, Any]:
+    """Probe basic daily access first, then separately probe minute access."""
+    if not ftshare_available():
+        return {"ok": False, "error": "ftshare_not_installed", "message": "FTShare SDK 未安装"}
+    capabilities: dict[str, str] = {"daily": "unavailable", "minute": "not_tested"}
+    try:
+        market = _ftshare_market_api(timeout=8)
+        now = int(time.time() * 1000)
+        daily_rows = _ftshare_stock_candlesticks(
+            market,
+            symbol="600519.XSHG", interval_unit="Day", interval_value=1,
+            adjust_kind="none", since_ts_millis=now - 14 * 86_400_000,
+            until_ts_millis=now, limit=2, as_dataframe=False,
+        )
+        if not _normalize_raw(daily_rows):
+            _set_ftshare_capabilities(capabilities)
+            return {"ok": False, "error": "empty_daily_data", "message": "连接成功，但未返回有效日 K 数据，尚不能确认行情可用。", "capabilities": capabilities}
+        capabilities["daily"] = "available"
+        try:
+            _ftshare_stock_minutes(
+                market, symbol="600519.XSHG", interval_value=1,
+                adjust_kind="none", since_ts_millis=now - 2 * 86_400_000,
+                until_ts_millis=now, limit=1, as_dataframe=False,
+            )
+            capabilities["minute"] = "available"
+        except Exception as exc:  # noqa: BLE001
+            minute_error, _minute_message = _classify_ftshare_error(exc)
+            if minute_error == "invalid_key":
+                raise
+            capabilities["minute"] = "insufficient_quota" if minute_error == "capability_limited" else minute_error
+        _set_ftshare_capabilities(capabilities)
+        return {
+            "ok": True,
+            "message": _ftshare_capability_message(
+                capabilities, persistent=bool(_read_persisted_ftshare_key())
+            ),
+            "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
+            "capabilities": capabilities,
+            "status": "available" if capabilities["minute"] == "available" else "partial",
+        }
+    except Exception as exc:  # noqa: BLE001
+        error, message = _classify_ftshare_error(exc)
+        _set_ftshare_capabilities(capabilities)
+        return {
+            "ok": False,
+            "error": error,
+            "message": message,
+            "configured": bool((os.environ.get("FTSHARE_API_KEY") or "").strip()),
+            "capabilities": capabilities,
+        }
+
+
+def _classify_ftshare_error(exc: Exception) -> tuple[str, str]:
+    """Turn provider auth failures into stable machine codes and Chinese text."""
+    raw = str(exc or "").strip()
+    configured_key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
+    safe_raw = raw.replace(configured_key, "<redacted>") if configured_key else raw
+    status_match = re.search(r"HTTP(?:\s+Error)?\s+(\d{3})", safe_raw, re.IGNORECASE)
+    status = status_match.group(1) if status_match else ""
+    if status in {"401", "403"}:
+        if re.search(r"未携带|缺少|missing|required|not provided", raw, re.IGNORECASE):
+            return "auth_required", "FTShare 未收到 API Key，请检查配置后重试。"
+        if re.search(r"格式|非法|invalid|malformed", raw, re.IGNORECASE):
+            return "invalid_key", "FTShare API Key 校验失败，请检查 Key 是否完整后重试。"
+        if re.search(r"额度|配额|quota|permission|权限|订阅|套餐|upgrade|plan", safe_raw, re.IGNORECASE):
+            return "capability_limited", "FTShare API Key 有效，但当前套餐未开通此项数据能力。"
+        return "auth_required", "FTShare API Key 未通过校验，请检查配置或数据权限。"
+    if status == "429":
+        return "rate_limited", "FTShare 请求过于频繁，请稍后重试。"
+    if status.startswith("5"):
+        return "upstream_error", "FTShare 服务暂时不可用，请稍后重试。"
+    if isinstance(exc, (TimeoutError, ConnectionError)) or re.search(
+        r"timed out|timeout|connection reset|connection refused|name or service not known",
+        safe_raw,
+        re.IGNORECASE,
+    ):
+        return "upstream_unavailable", "FTShare 暂时无法连接，请检查网络后重试。"
+    if isinstance(exc, (AttributeError, TypeError)) or re.search(
+        r"unexpected keyword|no attribute|contract mismatch", safe_raw, re.IGNORECASE
+    ):
+        return "sdk_contract_mismatch", "FTShare SDK 与当前接口契约不一致，请升级插件后重试。"
+    if status == "405":
+        return "ftshare_endpoint_unavailable", "FTShare 分钟线校验接口暂不可用，请稍后重试。"
+    return "ftshare_connection_failed", f"FTShare 连接失败：{safe_raw}"
+
+
+def _interval_to_sdk(unit: str) -> str:
+    u = (unit or "day").strip().lower()
+    return {
+        "minute": "Minute",
+        "day": "Day",
+        "week": "Week",
+        "month": "Month",
+        # FTShare exposes Month and Year, but not a native quarter enum.
+        # Quarter bars are aggregated from monthly candles below.
+        "quarter": "Month",
+        "year": "Year",
+    }.get(u, "Day")
+
+
+def _adjust_to_sdk(adjust: str) -> str:
+    value = normalize_adjustment(adjust)
+    if value is None:
+        raise ValueError("unsupported_adjustment")
+    return value
+
+
+def _normalize_raw(raw: Any) -> list[dict[str, Any]]:
+    """Single ingest path shared with calc/draw (close-time bar, seconds)."""
+    from core.rows import normalize_rows
+
+    # Some FTShare POST endpoints return the decoded service envelope even
+    # with ``as_dataframe=False``; GET endpoints commonly return the extracted
+    # list. Keep the SDK-specific envelope handling at this adapter boundary.
+    payload: Any = raw
+    if isinstance(raw, Mapping):
+        data = raw.get("data")
+        if isinstance(data, list):
+            payload = data
+        elif isinstance(data, Mapping):
+            for key in ("items", "records", "results", "data"):
+                if isinstance(data.get(key), list):
+                    payload = data[key]
+                    break
+    return normalize_rows(payload)
+
+
+def _normalize_realtime_minute_raw(raw: Any) -> list[dict[str, Any]]:
+    """Unwrap v4's per-symbol ``items`` envelope into canonical minute rows."""
+    payload: Any = raw
+    if isinstance(raw, Mapping):
+        payload = raw.get("data", raw)
+    if isinstance(payload, list):
+        flattened: list[Any] = []
+        for item in payload:
+            if isinstance(item, Mapping) and isinstance(item.get("items"), list):
+                flattened.extend(item["items"])
+            else:
+                flattened.append(item)
+        return _normalize_raw(flattened)
+    return _normalize_raw(payload)
+
+
+_CN_SYMBOL_SUFFIXES = {
+    "SH": "XSHG",
+    "XSHG": "XSHG",
+    "SZ": "XSHE",
+    "XSHE": "XSHE",
+    "BJ": "BJSE",
+    "BJSE": "BJSE",
+}
+
+
+def _canonical_market_symbol(symbol: str) -> str:
+    """Normalize explicit exchange suffixes without guessing a market.
+
+    A bare six-digit code is intentionally left bare: for example ``000688``
+    can mean the 科创50 index or 国城矿业. Only an explicit exchange-qualified
+    identifier is safe to route to an index endpoint or an equity endpoint.
+    """
+    raw = str(symbol or "").strip().upper()
+    code, separator, suffix = raw.rpartition(".")
+    if separator and code and suffix in _CN_SYMBOL_SUFFIXES:
+        return f"{code}.{_CN_SYMBOL_SUFFIXES[suffix]}"
+    if separator and suffix in {"HK", "HKG"} and code.isdigit() and 1 <= len(code) <= 5:
+        return f"{code.zfill(5)}.HK"
+    if separator and suffix in {"US", "NASDAQ", "NYSE"} and re.fullmatch(r"[A-Z][A-Z0-9._-]{0,15}", code):
+        return f"{code}.US"
+    return raw
+
+
+def _broad_index_for_symbol(symbol: str) -> Mapping[str, str] | None:
+    return CN_BROAD_INDEX_BY_SYMBOL.get(_canonical_market_symbol(symbol))
+
+
+def _ambiguous_broad_index_result(symbol: str) -> dict[str, Any] | None:
+    """Require an exchange suffix where a bare code can select a broad index."""
+    raw = str(symbol or "").strip().upper()
+    if "." in raw or len(raw) != 6 or not raw.isdigit():
+        return None
+    matches = [item for item in CN_BROAD_INDEXES if item["symbol"].split(".", 1)[0] == raw]
+    if not matches:
+        return None
+    index = matches[0]
+    return {
+        "ok": False,
+        "error": "ambiguous_symbol",
+        "error_code": "ambiguous_symbol",
+        "message": (
+            f"{raw} is ambiguous: it can identify the {index['name']} broad index "
+            "or an exchange-listed stock. Use a full exchange-qualified symbol."
+        ),
+        "symbol": raw,
+        "index_candidate": {"symbol": index["symbol"], "name": index["name"], "market": "CN_INDEX"},
+        "next_action": "Use the canonical index symbol, or provide the stock's explicit .SH/.SZ/.BJ suffix.",
+        "retryable": False,
+    }
+
+
+def _index_candles_provider_unavailable_result(symbol: str) -> dict[str, Any]:
+    """Fail closed rather than silently returning a same-code A-share stock."""
+    index = _broad_index_for_symbol(symbol)
+    assert index is not None
+    canonical_symbol = str(index["symbol"])
+    return {
+        "ok": False,
+        "error": "index_candles_provider_unavailable",
+        "error_code": "index_candles_provider_unavailable",
+        "message": (
+            "The installed FTShare SDK exposes this A-share index identity but not a verified "
+            "A-share index K-line history endpoint. No stock fallback was used, so a same-code "
+            "equity cannot be mislabeled as the index."
+        ),
+        "symbol": canonical_symbol,
+        "name": str(index["name"]),
+        "asset_type": "CN_INDEX",
+        "source": "ftshare",
+        "next_action": "Pass verified index OHLCV rows from a provider that supports this index into draw_kline.",
+        "retryable": False,
+    }
+
+
+def _exchange_timezone(symbol: str) -> str:
+    """Return the IANA trading timezone used for calendar aggregation."""
+    normalized = str(symbol or "").strip().upper()
+    if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
+        return "Asia/Hong_Kong"
+    if _is_us_symbol(normalized) or normalized in {"100.NDX", "100.SPX", "100.DJIA"}:
+        return "America/New_York"
+    return "Asia/Shanghai"
+
+
+def _aggregate_quarters(rows: list[dict[str, Any]], *, timezone_name: str = "Asia/Shanghai") -> list[dict[str, Any]]:
+    """Aggregate normalized month candles into chronological calendar quarters."""
+    grouped: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for row in rows:
+        timestamp = int(row["time"])
+        date = datetime.fromtimestamp(timestamp, tz=ZoneInfo(timezone_name))
+        key = (date.year, (date.month - 1) // 3 + 1)
+        grouped.setdefault(key, []).append(row)
+
+    quarters: list[dict[str, Any]] = []
+    for key in sorted(grouped):
+        bucket = sorted(grouped[key], key=lambda item: int(item["time"]))
+        quarters.append(
+            {
+                "time": int(bucket[-1]["time"]),
+                "open": float(bucket[0]["open"]),
+                "high": max(float(item["high"]) for item in bucket),
+                "low": min(float(item["low"]) for item in bucket),
+                "close": float(bucket[-1]["close"]),
+                "volume": sum(float(item.get("volume") or 0) for item in bucket),
+            }
+        )
+    return quarters
+
+
+def _is_us_symbol(symbol: str) -> bool:
+    normalized = str(symbol or "").strip().upper()
+    return normalized.endswith((".US", ".NASDAQ", ".NYSE"))
+
+
+def _is_hk_symbol(symbol: str) -> bool:
+    normalized = str(symbol or "").strip().upper()
+    return normalized.endswith((".HK", ".HKG"))
+
+
+def _is_etf_symbol(symbol: str) -> bool:
+    """Return whether an explicitly-qualified mainland symbol is an ETF.
+
+    The FTShare ETF endpoint documents Shanghai 5xxxxx and Shenzhen 15/16xxxx
+    identifiers.  We deliberately require the exchange suffix: a bare
+    six-digit code can be a mutual fund, an equity, or an ETF and must not be
+    guessed into the wrong data product.
+    """
+    normalized = _canonical_market_symbol(symbol)
+    code, separator, suffix = normalized.rpartition(".")
+    if not separator or not re.fullmatch(r"\d{6}", code):
+        return False
+    return (suffix == "XSHG" and code.startswith("5")) or (
+        suffix == "XSHE" and code.startswith(("15", "16"))
+    )
+
+
+def _etf_minute_symbol(symbol: str) -> str:
+    """Use the short exchange suffix required by FTShare's ETF minute API."""
+    normalized = _canonical_market_symbol(symbol)
+    if normalized.endswith(".XSHG"):
+        return f"{normalized[:-5]}.SH"
+    if normalized.endswith(".XSHE"):
+        return f"{normalized[:-5]}.SZ"
+    return normalized
+
+
+def _bare_us_symbol(symbol: str) -> str:
+    return str(symbol or "").strip().upper().split(".")[0]
+
+
+def _aggregate_interval(
+    rows: list[dict[str, Any]], interval: str, *, timezone_name: str = "America/New_York"
+) -> list[dict[str, Any]]:
+    """Aggregate normalized daily rows for a source with daily-only history."""
+    normalized = str(interval or "day").strip().lower()
+    if normalized == "day":
+        return list(rows)
+    grouped: dict[tuple[int, ...], list[dict[str, Any]]] = {}
+    for row in rows:
+        date = datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(timezone_name))
+        if normalized == "week":
+            iso = date.isocalendar()
+            key = (iso.year, iso.week)
+        elif normalized == "month":
+            key = (date.year, date.month)
+        elif normalized == "quarter":
+            key = (date.year, (date.month - 1) // 3 + 1)
+        else:
+            key = (date.year,)
+        grouped.setdefault(key, []).append(row)
+    aggregated: list[dict[str, Any]] = []
+    for key in sorted(grouped):
+        bucket = sorted(grouped[key], key=lambda item: int(item["time"]))
+        aggregated.append(
+            {
+                "time": int(bucket[-1]["time"]),
+                "open": float(bucket[0]["open"]),
+                "high": max(float(item["high"]) for item in bucket),
+                "low": min(float(item["low"]) for item in bucket),
+                "close": float(bucket[-1]["close"]),
+                "volume": sum(float(item.get("volume") or 0.0) for item in bucket),
+            }
+        )
+    return aggregated
+
+
+def _fetch_us_daily_candles(market: Any, symbol: str, limit: int) -> Any:
+    """Use FTShare's dedicated US history endpoint instead of stock_candlesticks.
+
+    The generic endpoint is optimized for mainland symbols and can return an
+    incomplete US slice. With neither date supplied the live endpoint returns
+    only its latest snapshot, despite the documented full-history default.
+    Supply only the upper bound: the three-day limit applies when BOTH dates
+    are set. Page through that history and trim after interval aggregation.
+    """
+    raw = market.eastmoney_us_stock_daily_ohlc(
+        stock_code=_bare_us_symbol(symbol),
+        end_date=datetime.now(ZoneInfo("America/New_York")).date().isoformat(),
+        all_pages=True,
+        page_size=200,
+        as_dataframe=False,
+    )
+    # This endpoint emits exchange calendar dates, not timestamps. The shared
+    # date-only ingest defaults to China and would shift US bars back a day.
+    if isinstance(raw, list):
+        raw = [dict(row) if isinstance(row, dict) else row for row in raw]
+        for row in raw:
+            if not isinstance(row, dict) or not row.get("date"):
+                continue
+            try:
+                trading_day = datetime.strptime(str(row["date"])[:10], "%Y-%m-%d")
+                row["time"] = int(trading_day.replace(hour=16, tzinfo=ZoneInfo("America/New_York")).timestamp())
+            except (TypeError, ValueError):
+                continue
+    return raw
+
+
+def _fetch_hk_candles(market: Any, symbol: str, interval: str, limit: int, adjust: str) -> Any:
+    """Use FTShare's dedicated HK history endpoint when it supports the period."""
+    method = getattr(market, "hk_candlesticks", None)
+    if not callable(method):
+        raise AttributeError("FTShare hk_candlesticks is unavailable")
+    normalized = str(interval or "day").strip().lower()
+    if normalized not in {"day", "week", "month", "quarter", "year"}:
+        raise ValueError(f"HK endpoint does not support {normalized}")
+    today = datetime.now(ZoneInfo("Asia/Hong_Kong")).date()
+    # Fetch HK daily bars and aggregate locally. Native long-period responses
+    # have been observed stale; daily history is current and also gives one
+    # consistent source for week/month/quarter/year indicators.
+    days_per_bar = {"day": 1.5, "week": 8, "month": 32, "quarter": 92, "year": 370}[normalized]
+    lookback_days = max(30, int(int(limit) * days_per_bar))
+    adjustment = _adjust_to_sdk(adjust) or "none"
+    # FTShare's HK endpoint accepts compact exchange dates (YYYYMMDD), unlike
+    # its US endpoint. ISO dates yield a 400 even when the account has access.
+    raw = method(
+        trade_code=symbol,
+        interval_unit="day",
+        since_date=(today - timedelta(days=lookback_days)).strftime("%Y%m%d"),
+        until_date=today.strftime("%Y%m%d"),
+        interval_value=1,
+        # ``limit`` applies to the daily source rows, not the requested
+        # aggregate bars. Preserve sufficient complete periods before local
+        # aggregation (for example 20 weeks need far more than 20 daily rows).
+        limit=max(2, min(4000, lookback_days)),
+        adjust_kind=adjustment,
+        as_dataframe=False,
+    )
+    # The current FTShare HK endpoint can return a successful but stale archive
+    # response (for example, 2010 bars for a live request). Treat that as an
+    # upstream failure so the view never labels unrelated stale data as current.
+    rows = _normalize_raw(raw)
+    if len(rows) < 2:
+        raise RuntimeError("FTShare HK history returned fewer than two valid candles")
+    latest = datetime.fromtimestamp(int(rows[-1]["time"]), tz=ZoneInfo("Asia/Hong_Kong")).date()
+    if latest < datetime.now(ZoneInfo("Asia/Hong_Kong")).date() - timedelta(days=45):
+        raise RuntimeError(f"FTShare HK history is stale (latest bar: {latest.isoformat()})")
+    return raw
+
+
+def _until_ms() -> int:
+    # Stable-ish now; callers can still pass their own window via limit.
+    return int(time.time() * 1000)
+
+
+def _history_since_ms(limit: int, interval: str) -> int:
+    """Return a conservative single-page start within FTShare's 12-month cap."""
+    normalized = str(interval or "day").strip().lower()
+    days_per_bar = {
+        "day": 3,
+        "week": 10,
+        "month": 32,
+        "quarter": 92,
+        "year": 370,
+    }.get(normalized, 3)
+    lookback_days = min(360, max(2, int(limit or 220) * days_per_bar))
+    return max(_until_ms() - lookback_days * 86_400_000, 0)
+
+
+def _fetch_calendar_history(
+    fetch_page: Any, market: Any, *, symbol: str, interval: str,
+    adjust_kind: str, limit: int,
+) -> list[dict[str, Any]]:
+    """Page disjoint daily history, then aggregate once in exchange time.
+
+    Provider weekly/monthly bars can represent overlapping partial periods at
+    page boundaries. They cannot safely be summed or timestamp-deduplicated.
+    One extra output bucket ensures the oldest requested period is complete.
+    Empty history, no progress, and bounded work are the only stop conditions;
+    a short page is not evidence that older history does not exist.
+    """
+    requested = max(2, int(limit or 220))
+    until_ms = _until_ms()
+    by_time: dict[int, dict[str, Any]] = {}
+    aggregated: list[dict[str, Any]] = []
+    for _page in range(64):
+        raw = fetch_page(
+            market, symbol=symbol, interval_unit="Day", interval_value=1,
+            adjust_kind=adjust_kind, since_ts_millis=max(0, until_ms - 360 * 86_400_000),
+            # FTShare stock/index candlesticks accepts at most 1,000 rows per
+            # request. Keep long ranges paged rather than sending the former
+            # 4,000-row local display limit to the provider (HTTP 400).
+            until_ts_millis=until_ms, limit=1000, as_dataframe=False,
+        )
+        chunk = _normalize_raw(raw)
+        if not chunk:
+            break
+        previous_count = len(by_time)
+        by_time.update((int(row["time"]), row) for row in chunk)
+        daily = [by_time[key] for key in sorted(by_time)]
+        aggregated = _aggregate_interval(daily, interval, timezone_name=_exchange_timezone(symbol))
+        target = requested if interval == "day" else requested + 1
+        if len(aggregated) >= target:
+            break
+        next_until = min(int(row["time"]) for row in chunk) * 1000 - 1
+        if len(by_time) == previous_count or next_until <= 0 or next_until >= until_ms:
+            break
+        until_ms = next_until
+    return aggregated[-requested:]
+
+
+def _fetch_generic_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    interval_unit: str,
+    interval_value: int,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch authoritative daily rows before any calendar aggregation."""
+    return _fetch_calendar_history(
+        _ftshare_stock_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
+
+
+def _fetch_etf_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch ETF daily bars before calendar aggregation, just like equities."""
+    return _fetch_calendar_history(
+        _ftshare_etf_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
+
+
+def _fetch_global_index_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch FTShare global-index history (endpoint global_index_daily_kline).
+
+    The endpoint only serves daily bars for secids like ``100.HSI`` /
+    ``100.NDX``. Larger periods are aggregated by the caller from this daily
+    series, so we fetch a generous daily window and let the shared
+    ``_aggregate_interval`` trim to the requested bar count.
+
+    Returns SDK rows (pre-normalization), newest-first as delivered.
+    """
+    requested = max(2, int(limit or 220))
+    # Daily lookback factor per requested period: ~1 day bar per calendar day
+    # is not enough for weekly/monthly aggregation, so overfetch generously.
+    days_per_bar = {
+        "day": 2,
+        "week": 12,
+        "month": 50,
+        "quarter": 150,
+        "year": 560,
+    }.get(str(interval or "day").strip().lower(), 2)
+    daily_limit = min(5000, max(requested * days_per_bar, requested + 10))
+    return market.global_index_daily_kline(
+        secid=symbol,
+        limit=daily_limit,
+        as_dataframe=False,
+    )
+
+
+def _fetch_index_history(
+    market: Any,
+    *,
+    symbol: str,
+    interval: str,
+    interval_unit: str,
+    interval_value: int,
+    adjust_kind: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Page A-share index daily-or-larger history (SDK endpoint index_candlesticks).
+
+    Same daily pagination and exchange-calendar aggregation as the stock path.
+    """
+    return _fetch_calendar_history(
+        _ftshare_index_candlesticks, market, symbol=symbol, interval=interval,
+        adjust_kind=adjust_kind, limit=limit,
+    )
+
+
+def _fetch_index_history_minutes(
+    market: Any,
+    *,
+    symbol: str,
+    interval_value: int,
+    adjust_kind: str,
+    sessions: int,
+    limit: int,
+    exchange_timezone: str,
+) -> list[dict[str, Any]]:
+    """Page A-share index minute history session-by-session (SDK index_minutes).
+
+    Mirrors the stock minute walker; availability depends on the plan (the free
+    tier returns 401 auth_required and is surfaced as a capability message).
+    """
+    cutoff = _latest_session_close_millis(exchange_timezone)
+    unique: dict[int, dict[str, Any]] = {}
+    page_window_days = 2
+    max_pages = max(8, sessions * 3 + 2)
+    for _page in range(max_pages):
+        page = _ftshare_index_minutes(
+            market,
+            symbol=symbol,
+            interval_value=interval_value,
+            since_ts_millis=max(0, cutoff - page_window_days * 86_400_000),
+            until_ts_millis=cutoff,
+            limit=min(500, max(limit, sessions * 250)),
+            as_dataframe=False,
+        )
+        chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=interval_value)
+        complete_dates = _complete_intraday_session_dates(
+            chunk, timezone_name=exchange_timezone, interval_value=interval_value,
+        )
+        chunk = [
+            row for row in chunk
+            if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in complete_dates
+        ]
+        if not chunk:
+            # Empty pages also occur on exchange holidays.  Advance by whole
+            # sessions rather than retrying a boundary timestamp indefinitely.
+            cutoff = _previous_weekday_session_close_millis(
+                datetime.fromtimestamp(cutoff / 1000, tz=ZoneInfo(exchange_timezone)).date(),
+                exchange_timezone,
+            )
+            continue
+        chunk_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in chunk
+        }
+        known_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in unique.values()
+        }
+        if known_dates and not (chunk_dates - known_dates):
+            break
+        for row in chunk:
+            unique[int(row["time"])] = row
+        local_dates = {
+            datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+            for row in unique.values()
+        }
+        if len(local_dates) >= sessions:
+            break
+        # Do not page from the first 5-minute bar (09:35).  FTShare then
+        # returns only an overlapping 09:30--09:35 boundary bar.  Page from
+        # the preceding trading-day close so every request starts on a clean
+        # session boundary and can contribute complete historical days.
+        cutoff = _previous_weekday_session_close_millis(min(chunk_dates), exchange_timezone)
+    return list(unique.values())
+
+
+def _symbol_name(market: Any, symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    # Resolving a bare code costs a live HTTP round trip.  Market sections such
+    # as the 龙虎榜 list repeat the same symbols on every refresh, so memoize
+    # the answer for the life of the process instead of paying that cost once
+    # per row per render.  Negative results are cached too: a code the provider
+    # does not know would otherwise be retried on every single refresh.
+    if normalized in _symbol_name_cache:
+        return _symbol_name_cache[normalized]
+    resolved = _resolve_symbol_name(market, symbol)
+    # The local directory seed is authoritative and tiny; never let a provider
+    # answer evict those entries from the bounded cache.
+    if len(_symbol_name_cache) >= _SYMBOL_NAME_CACHE_MAX_ENTRIES:
+        _symbol_name_cache.clear()
+    _symbol_name_cache[normalized] = resolved
+    return resolved
+
+
+def _resolve_symbol_name(market: Any, symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    # Codes such as 000001 are ambiguous in vendor search (it can resolve to
+    # 平安银行). The candle request has already selected the index endpoint, so
+    # retain the canonical index identity instead of relabeling its chart.
+    if normalized in COMPARISON_INDEX_NAMES:
+        return COMPARISON_INDEX_NAMES[normalized]
+    for item in _SYMBOL_DIRECTORY_SEED:
+        if normalized == str(item["symbol"]).upper():
+            return str(item["name"])
+    try:
+        cached = _read_symbol_directory_cache()
+        code = str(symbol or "").split(".")[0]
+        for item in list(cached.get("items") or []) if isinstance(cached, Mapping) else []:
+            if not isinstance(item, Mapping):
+                continue
+            candidate_symbol = _canonical_market_symbol(
+                _canonical_directory_symbol(
+                    item.get("symbol") or item.get("code") or item.get("stock_code"),
+                    market=item.get("market") or item.get("board"),
+                )
+            )
+            candidate_name = str(item.get("name") or item.get("stock_name") or "").strip()
+            if candidate_symbol == normalized and candidate_name and candidate_name.upper() not in {normalized, code.upper()}:
+                return candidate_name
+    except Exception:
+        pass
+    # The directory refresh runs in the background. Resolve a just-opened
+    # mainland symbol immediately when it is not in the previous snapshot,
+    # instead of making the chart wait for a full directory rebuild.
+    if market is not None and re.fullmatch(r"\d{6}\.(XSHG|XSHE|BJSE)", normalized):
+        try:
+            lookup = getattr(market, "company_list", None)
+            rows = lookup(stock_code=normalized.split(".", 1)[0], as_dataframe=False) if callable(lookup) else []
+            for item in _rows_from_directory_response(rows):
+                candidate_name = str(item.get("stock_name") or item.get("name") or "").strip()
+                if candidate_name and candidate_name.upper() not in {normalized, normalized.split(".", 1)[0]}:
+                    return candidate_name
+        except Exception:
+            pass
+        # Some newly listed or renamed securities are not yet in the company
+        # directory endpoint. The documented security search is a narrow,
+        # exact-code fallback for presentation labels only.
+        try:
+            search = getattr(market, "search", None)
+            rows = search(query=normalized.split(".", 1)[0], limit=1, as_dataframe=False) if callable(search) else []
+            for item in _workspace_rows(rows):
+                candidate_name = str(_workspace_value(item, "name", "stock_name", "symbol_name") or "").strip()
+                if candidate_name and candidate_name.upper() not in {normalized, normalized.split(".", 1)[0]}:
+                    return candidate_name
+        except Exception:
+            pass
+    return symbol
+
+
+def _ftshare_unavailable_result() -> dict[str, Any]:
+    """Return one consistent optional-dependency error for data tools.
+
+    The message intentionally exposes no interpreter path or candidate
+    directory list; host-specific diagnostics are intentionally not returned.
+    """
+    return {
+        "ok": False,
+        "error": "ftshare_not_installed",
+        "message": (
+            "ftshare is not importable in this MCP process. "
+            "Install the FTShare SDK with the interpreter that starts this MCP "
+            "(see scripts/bootstrap.sh), or supply your own OHLCV rows through "
+            "analyze_kline_rows."
+        ),
+    }
+
+
+def _candle_cache_key(
+    symbol: str, interval: str, interval_value: int, session_count: int, limit: int, adjust: str,
+    transport: str = "auto",
+) -> tuple[str, str, int, int, int, str, str]:
+    return (
+        str(symbol).strip().upper(),
+        str(interval).strip().lower(),
+        int(interval_value),
+        int(session_count),
+        int(limit),
+        str(adjust).strip().lower(),
+        str(transport or "auto").strip().lower(),
+    )
+
+
+def _cache_candles(key: tuple[str, str, int, int, int, str, str], payload: dict[str, Any]) -> None:
+    if payload.get("ok") and isinstance(payload.get("rows"), list) and len(payload["rows"]) >= 2:
+        _candle_cache[key] = (time.time(), deepcopy(payload))
+
+
+def _compatible_candle_cache_entry(
+    key: tuple[str, str, int, int, int, str, str],
+) -> tuple[tuple[str, str, int, int, int, str, str], tuple[float, dict[str, Any]]] | None:
+    """Return the exact or smallest compatible larger candle response."""
+    cached = _candle_cache.get(key)
+    if cached:
+        return key, cached
+
+    # A larger daily response contains all history needed by a smaller view.
+    # Limit is intentionally the only relaxed part of the cache key: mixing
+    # different intervals, sessions, or adjustments would change the series.
+    compatible = [
+        (candidate_key, candidate)
+        for candidate_key, candidate in _candle_cache.items()
+        if candidate_key[:5] == key[:5]
+        and candidate_key[5] == key[5]
+        and candidate_key[6] == key[6]
+        and candidate_key[4] >= key[4]
+    ]
+    if not compatible:
+        return None
+    return min(compatible, key=lambda item: (item[0][4] - key[4], -item[1][0]))
+
+
+def _recent_candle_cache(key: tuple[str, str, int, int, int, str, str]) -> dict[str, Any] | None:
+    """Return a compatible provider result only while it is still hot."""
+    match = _compatible_candle_cache_entry(key)
+    if match is None:
+        return None
+    source_key, (cached_at, payload) = match
+    age = max(0, int(time.time() - cached_at))
+    if age > _CANDLE_CACHE_FRESH_SECONDS:
+        return None
+    fresh = deepcopy(payload)
+    fresh.update(
+        {
+            "ok": True,
+            "cached": True,
+            "cache_age_seconds": age,
+            "freshness": "recent_memory_cache",
+            "message": "Using candles fetched moments ago from the in-memory cache.",
+        }
+    )
+    if source_key != key:
+        fresh["cache_source_limit"] = source_key[4]
+    return fresh
+
+
+def _cached_candle_fallback(
+    key: tuple[str, str, int, int, int, str, str], error: Exception | str
+) -> dict[str, Any] | None:
+    match = _compatible_candle_cache_entry(key)
+    if match is None:
+        return None
+    source_key, (cached_at, payload) = match
+    age = max(0, int(time.time() - cached_at))
+    if age > _CANDLE_CACHE_TTL_SECONDS:
+        _candle_cache.pop(source_key, None)
+        return None
+    fallback = deepcopy(payload)
+    fallback.update(
+        {
+            "ok": True,
+            "status": "stale",
+            "cached": True,
+            "cache_age_seconds": age,
+            "freshness": "recent_cached_fallback",
+            "message": "FTShare is temporarily unavailable; showing the most recent cached candles.",
+            "upstream_error": str(error)[:500],
+        }
+    )
+    if source_key != key:
+        fallback["cache_source_limit"] = source_key[4]
+    return fallback
+
+
+def _symbol_directory_cache_path() -> Path:
+    configured = (os.environ.get("DSH_KLINE_CACHE_DIR") or "").strip()
+    root = Path(configured).expanduser() if configured else Path.home() / ".cache" / "dsh_kline"
+    return root / f"symbol-directory-v{SYMBOL_DIRECTORY_VERSION}.json"
+
+
+def _read_symbol_directory_cache() -> dict[str, Any] | None:
+    path = _symbol_directory_cache_path()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("version") != SYMBOL_DIRECTORY_VERSION:
+        return None
+    if not isinstance(payload.get("items"), list):
+        return None
+    return payload
+
+
+def _write_symbol_directory_cache(payload: dict[str, Any]) -> bool:
+    """Persist the directory snapshot; return True only when it reached disk.
+
+    Previously this swallowed every OSError.  A sandbox or read-only runtime
+    then produced a *successful-looking* refresh that never persisted, so the
+    process kept serving a stale snapshot while reporting fresh data.  Callers
+    now surface the failure instead of hiding it.
+    """
+    path = _symbol_directory_cache_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temporary.replace(path)
+        return True
+    except OSError as exc:
+        # A read-only runtime can still serve the fetched directory to this
+        # session, but the caller must know it will not survive a restart.
+        payload["persisted"] = False
+        payload["persist_error"] = f"{type(exc).__name__}: {exc}"
+        return False
+
+
+def _rows_from_directory_response(raw: Any, *, _depth: int = 0) -> list[Mapping[str, Any]]:
+    """Extract provider rows from the bounded envelope shapes seen in SDK 1.0.7."""
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, Mapping)]
+    if isinstance(raw, Mapping) and _depth < 4:
+        for key in ("records", "items", "data", "results", "rows", "list"):
+            if key not in raw:
+                continue
+            rows = _rows_from_directory_response(raw.get(key), _depth=_depth + 1)
+            if rows:
+                return rows
+    return []
+
+
+def _canonical_directory_symbol(symbol: Any, *, market: Any = None, default_market: str = "") -> str:
+    """Normalize vendor directory identifiers to the symbols accepted by candles."""
+    value = str(symbol or "").strip()
+    if not value:
+        return ""
+    market_text = str(market or "").strip().upper()
+    default_text = str(default_market or "").strip().upper()
+    # Eastmoney's U.S. directory uses secid=105.AAPL and market=105. The
+    # candle endpoint expects AAPL.US (or another documented U.S. suffix).
+    if default_text == "US" or market_text == "105" or value.upper().startswith("105."):
+        code = value.split(".", 1)[1] if "." in value else value
+        return f"{code.upper()}.US"
+    # FTShare's directory commonly uses .SH/.SZ/.BJ while candle requests and
+    # the browser workspace use .XSHG/.XSHE/.BJSE. Normalize once at the
+    # directory boundary so names resolve consistently everywhere.
+    canonical = _canonical_market_symbol(value)
+    # `company_list` returns bare mainland codes. Here the source is an equity
+    # directory (not an ambiguous user request), so conventional exchange
+    # routing is safe and lets its names match candle symbols.
+    if (default_text == "CN" or market_text == "CN") and re.fullmatch(r"\d{6}", canonical):
+        suffix = "XSHG" if canonical.startswith(("6", "9")) else "BJSE" if canonical.startswith(("4", "8")) else "XSHE"
+        return f"{canonical}.{suffix}"
+    return canonical
+
+
+def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
+    """Reduce a provider directory to the fields needed for local search."""
+    items: list[dict[str, str]] = []
+    for row in _rows_from_directory_response(rows):
+        symbol = next(
+            (
+                row.get(key)
+                for key in (
+                    "symbol", "symbol_id", "stock_code", "code", "secid", "index_code",
+                    "ticker", "trade_code", "fund_code",
+                )
+                if row.get(key) not in (None, "")
+            ),
+            None,
+        )
+        name = next(
+            (
+                row.get(key)
+                for key in ("name", "stock_name", "security_name", "index_name", "symbol_name", "fund_name")
+                if row.get(key) not in (None, "")
+            ),
+            None,
+        )
+        if symbol is None or name is None:
+            continue
+        market = row.get("market") or row.get("board") or default_market
+        # Eastmoney splits U.S. listings into several numeric market buckets
+        # (105/106/107).  They are all one searchable U.S. universe here.
+        normalized_market = "US" if default_market == "US" or str(market).strip().upper() == "105" else str(market).strip()
+        normalized_symbol = _canonical_directory_symbol(symbol, market=market, default_market=default_market)
+        item = {"symbol": normalized_symbol, "name": str(name).strip(), "market": normalized_market}
+        aliases = row.get("aliases") or row.get("alias")
+        if aliases:
+            item["aliases"] = str(aliases).strip()
+        items.append(item)
+    return [item for item in items if item["symbol"] and item["name"]]
+
+
+def _merge_symbol_directory(*groups: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[str] = set()
+    merged: list[dict[str, str]] = []
+    for group in groups:
+        for item in group:
+            symbol = str(item.get("symbol") or "").strip()
+            if not symbol or symbol in seen:
+                continue
+            seen.add(symbol)
+            normalized = {
+                "symbol": symbol,
+                "name": str(item.get("name") or symbol).strip(),
+                "market": str(item.get("market") or "OTHER").strip(),
+            }
+            aliases = str(item.get("aliases") or "").strip()
+            if aliases:
+                normalized["aliases"] = aliases
+            merged.append(normalized)
+    return sorted(merged, key=lambda item: (item["market"], item["symbol"]))
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    """Read XLSX shared strings using only the standard library."""
+    try:
+        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    except KeyError:
+        return []
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    return ["".join(node.text or "" for node in entry.iter(f"{namespace}t")) for entry in root.iter(f"{namespace}si")]
+
+
+def _xlsx_cell_value(cell: ElementTree.Element, shared_strings: list[str], namespace: str) -> str:
+    value = cell.findtext(f"{namespace}v")
+    if cell.get("t") == "s" and value is not None:
+        try:
+            return shared_strings[int(value)]
+        except (IndexError, ValueError):
+            return ""
+    if cell.get("t") == "inlineStr":
+        return "".join(node.text or "" for node in cell.iter(f"{namespace}t"))
+    return str(value or "")
+
+
+def _fetch_hk_symbol_directory() -> list[dict[str, str]]:
+    """Read HKEX's official full-security list into a compact HK directory.
+
+    The spreadsheet includes derivatives and debt instruments.  Search keeps
+    equities, exchange-traded products and REITs, which are the securities the
+    HK candle route can meaningfully open from this plugin.
+    """
+    last_error: Exception | None = None
+    payload: bytes | None = None
+    for attempt in range(3):
+        try:
+            request = Request(_HK_DIRECTORY_URL, headers={"User-Agent": "dsh-kline/0.2"})
+            with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed official HTTPS URL above
+                payload = response.read()
+            break
+        except OSError as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+    if not payload:
+        raise OSError(f"HKEX securities list download failed: {last_error}")
+
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        shared_strings = _xlsx_shared_strings(archive)
+        worksheet = ElementTree.fromstring(archive.read("xl/worksheets/sheet1.xml"))
+
+    header: dict[str, int] | None = None
+    items: list[dict[str, str]] = []
+    for row in worksheet.iter(f"{namespace}row"):
+        values: dict[int, str] = {}
+        for cell in row.iter(f"{namespace}c"):
+            reference = str(cell.get("r") or "")
+            column_letters = "".join(char for char in reference if char.isalpha())
+            if not column_letters:
+                continue
+            column = 0
+            for char in column_letters:
+                column = column * 26 + ord(char.upper()) - ord("A") + 1
+            values[column - 1] = _xlsx_cell_value(cell, shared_strings, namespace).strip()
+        if not values:
+            continue
+        if header is None:
+            reverse = {value: index for index, value in values.items()}
+            if {"Stock Code", "Name of Securities", "Category"} <= set(reverse):
+                header = reverse
+            continue
+        code = values.get(header["Stock Code"], "").strip()
+        name = values.get(header["Name of Securities"], "").strip()
+        category = values.get(header["Category"], "").strip()
+        if code.isdigit() and name and category in _HK_DIRECTORY_CATEGORIES:
+            items.append({"symbol": f"{code.zfill(5)}.HK", "name": name, "market": "HK"})
+    if not items:
+        raise ValueError("HKEX securities list contained no searchable Hong Kong instruments")
+    return items
+
+
+def _fetch_us_symbol_directory(market: Any) -> list[dict[str, str]]:
+    """Page the US directory with pacing instead of triggering a gateway burst."""
+    method = getattr(market, "eastmoney_us_stock_list", None)
+    if not callable(method):
+        raise AttributeError("eastmoney_us_stock_list is unavailable in the installed FTShare client")
+    items: list[dict[str, str]] = []
+    for page in range(1, 200):
+        last_error: Exception | None = None
+        rows: list[Mapping[str, Any]] | None = None
+        for attempt in range(4):
+            try:
+                raw = method(as_dataframe=False, page=page, page_size=200)
+                rows = _rows_from_directory_response(raw)
+                break
+            except Exception as exc:  # noqa: BLE001 - normalize FTShare's typed HTTP errors
+                last_error = exc
+                if not _is_retryable_ftshare_status(exc) or attempt == 3:
+                    break
+                time.sleep(0.8 * (attempt + 1))
+        if rows is None:
+            raise OSError(f"US directory page {page} failed: {last_error}")
+        items.extend(_directory_items(rows, "US"))
+        if len(rows) < 200:
+            return items
+        # The endpoint permits full pagination but rejects rapid bursts.  This
+        # only runs in the deferred directory refresh, never per keystroke.
+        time.sleep(0.8)
+    raise OSError("US directory exceeded the pagination safety limit")
+
+
+def _directory_coverage(
+    items: list[dict[str, str]],
+    *,
+    complete_markets: set[str] | None = None,
+    partial_markets: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Expose coverage claims separately from cached search candidates."""
+    complete = complete_markets or set()
+    partial = partial_markets or set()
+    counts: dict[str, int] = {}
+    for item in items:
+        market = str(item.get("market") or "OTHER")
+        counts[market] = counts.get(market, 0) + 1
+    markets = set(counts) | complete | partial
+    return {
+        market: {
+            "count": counts.get(market, 0),
+            "complete": market in complete,
+            "status": "complete" if market in complete else "partial",
+        }
+        for market in sorted(markets)
+    }
+
+
+def register_symbol_directory(
+    items: Any,
+    *,
+    source: str,
+    source_version: str | None = None,
+    complete_markets: list[str] | None = None,
+    ttl_seconds: int = SYMBOL_DIRECTORY_TTL_SECONDS,
+) -> dict[str, Any]:
+    """Persist a directory supplied by a host or another MCP data provider.
+
+    This server intentionally does not invoke peer MCP servers itself. The host
+    fetches its preferred directory and registers it here; the MCP App then
+    searches the local snapshot without another vendor round trip.
+    """
+    provider = str(source or "").strip()
+    if not provider:
+        return {"ok": False, "error": "invalid_source", "message": "source is required"}
+    normalized = _merge_symbol_directory(_directory_items(items, "OTHER"))
+    if not normalized:
+        return {
+            "ok": False,
+            "error": "invalid_directory",
+            "message": "items must include at least one symbol/code and name entry",
+        }
+    if len(normalized) > SYMBOL_DIRECTORY_MAX_ITEMS:
+        return {
+            "ok": False,
+            "error": "directory_too_large",
+            "message": f"directory exceeds {SYMBOL_DIRECTORY_MAX_ITEMS} items",
+            "count": len(normalized),
+        }
+
+    now = int(time.time())
+    ttl = max(300, min(int(ttl_seconds or SYMBOL_DIRECTORY_TTL_SECONDS), 7 * 24 * 60 * 60))
+    claimed_complete = {str(value).strip() for value in (complete_markets or []) if str(value).strip()}
+    payload = {
+        "ok": True,
+        "version": SYMBOL_DIRECTORY_VERSION,
+        "generated_at": now,
+        "expires_at": now + ttl,
+        "items": normalized,
+        "count": len(normalized),
+        "source": "external",
+        "provider_mode": "external",
+        "provider_id": provider[:120],
+        "source_version": str(source_version or "")[:120],
+        "coverage": _directory_coverage(normalized, complete_markets=claimed_complete),
+        "stale": False,
+        "refreshed": True,
+        "needs_external_refresh": False,
+    }
+    _write_symbol_directory_cache(payload)
+    return payload
+
+
+def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
+    """Load a versioned local symbol directory and refresh it from FTShare when stale.
+
+    The chart app stores this compact name/code directory in localStorage. It is
+    deliberately separate from quotes: price and status still come from FTShare.
+    """
+    now = int(time.time())
+    cached = _read_symbol_directory_cache()
+    cached_expires = int(cached.get("expires_at") or 0) if cached else 0
+    if cached and not force_refresh and cached_expires > now:
+        # Always merge the built-in seed into a cache hit.  The seed carries
+        # curated entries (broad indexes, common ETFs) that provider routes may
+        # not cover at all, and returning the cached snapshot verbatim meant a
+        # seed update could not reach clients until the next full refresh.
+        cached_items = list(cached.get("items") or [])
+        merged = _merge_symbol_directory(cached_items, [dict(item) for item in _SYMBOL_DIRECTORY_SEED])
+        if len(merged) != len(cached_items):
+            return {
+                **cached,
+                "items": merged,
+                "count": len(merged),
+                "coverage": _directory_coverage(
+                    merged,
+                    complete_markets={
+                        market
+                        for market, state in (cached.get("coverage") or {}).items()
+                        if isinstance(state, Mapping) and state.get("complete")
+                    },
+                ),
+                "ok": True,
+                "stale": False,
+                "refreshed": False,
+            }
+        return {**cached, "ok": True, "stale": False, "refreshed": False}
+
+    # An external directory is host-owned. Keep it searchable when it expires;
+    # only the provider that created it can authoritatively refresh it.
+    if cached and cached.get("provider_mode") == "external":
+        return {
+            **cached,
+            "ok": True,
+            "stale": True,
+            "refreshed": False,
+            "needs_external_refresh": True,
+            "message": "External directory has expired; ask the host to refresh and register a new snapshot.",
+        }
+
+    seed = [dict(item) for item in _SYMBOL_DIRECTORY_SEED]
+    if not ftshare_available():
+        items = _merge_symbol_directory(list(cached.get("items") or []) if cached else [], seed)
+        return {
+            "ok": True,
+            "version": SYMBOL_DIRECTORY_VERSION,
+            "generated_at": int(cached.get("generated_at") or now) if cached else now,
+            "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
+            "items": items,
+            "count": len(items),
+            "source": "cache" if cached else "seed",
+            "provider_mode": "builtin" if cached else "seed",
+            "provider_id": "FTShare SDK" if cached else "seed",
+            "coverage": _directory_coverage(items, partial_markets={item["market"] for item in seed}),
+            "stale": True,
+            "refreshed": False,
+            "needs_external_refresh": False,
+            "message": "FTShare unavailable; using the last local symbol directory.",
+        }
+
+    market = _ftshare_market_api(timeout=20)
+    source_specs = (
+        # The default endpoint page is intentionally small. Request all pages
+        # so a code-only chart can still be labelled from the local directory
+        # without making a second lookup during rendering.
+        ("company_list", "CN", {"all_pages": True, "page_size": 200}, True),
+        ("index_description_all", "CN_INDEX", {}, True),
+        # Exchange-traded funds live on the fund routes, not company_list, so a
+        # watchlist full of ETFs previously could not resolve any of its names.
+        # `fund_list` is the whole public-fund universe, not the exchange ETF
+        # directory.  The dedicated endpoint is compact and has the canonical
+        # exchange symbols used by the ETF candle API.
+        ("etf_description_all", "ETF", {}, True),
+    )
+    fetched_groups: list[list[dict[str, str]]] = []
+    errors: list[str] = []
+    completed_markets: set[str] = set()
+    for method_name, default_market, kwargs, is_complete in source_specs:
+        method = getattr(market, method_name, None)
+        if not callable(method):
+            errors.append(f"{method_name}: unavailable in installed FTShare client")
+            continue
+        # The gateway rate-limits aggressively; a single 429 previously cost the
+        # whole mainland directory until the next scheduled refresh.  Retry with
+        # a short backoff so one transient rejection cannot blank the directory.
+        for attempt in range(3):
+            try:
+                group = _directory_items(method(as_dataframe=False, **kwargs), default_market)
+                # A market counts as complete only when rows actually arrived.
+                # ETF labels are a presentation nicety: a plan without fund
+                # access must not hold the mainland directory at the short
+                # retry TTL, so an empty fund route simply stays incomplete.
+                if group and is_complete:
+                    completed_markets.add(default_market)
+                fetched_groups.append(group)
+                break
+            except Exception as exc:  # noqa: BLE001
+                rate_limited = bool(re.search(r"429", str(exc)))
+                if rate_limited and attempt < 2:
+                    time.sleep(0.6 * (attempt + 1))
+                    continue
+                errors.append(f"{method_name}: {exc}")
+                break
+
+    # The installed FTShare SDK has no all-HK-instruments endpoint.  Keep this
+    # independent from the SDK batch so a temporary public-directory failure
+    # cannot prevent A-share / ETF / US snapshots from being saved.
+    try:
+        hk_group = _fetch_hk_symbol_directory()
+        if hk_group:
+            fetched_groups.append(hk_group)
+            completed_markets.add("HK")
+    except Exception as exc:  # noqa: BLE001 - preserve the prior HK snapshot
+        errors.append(f"hk_directory: {exc}")
+
+    try:
+        us_group = _fetch_us_symbol_directory(market)
+        if us_group:
+            fetched_groups.append(us_group)
+            completed_markets.add("US")
+    except Exception as exc:  # noqa: BLE001 - preserve the prior US snapshot
+        errors.append(f"us_directory: {exc}")
+
+    fetched_count = sum(len(group) for group in fetched_groups)
+    # A partial fetch must not be published as a complete 24-hour snapshot.
+    # When one source is rate-limited (an observed HTTP 429 on company_list)
+    # while another succeeds, the old ``if fetched_count`` test still wrote the
+    # result with stale=False and a full-day expiry, which pinned a directory
+    # missing every mainland stock for 24 hours and made search look broken.
+    # Require the primary mainland listing before granting the long TTL.
+    if fetched_count and "CN" in completed_markets:
+        # Refreshes are independent per market.  Do not let a rate-limited US
+        # or HK request replace a previously complete market with an empty
+        # list; retain that market's last complete snapshot until its own next
+        # successful refresh.
+        cached_items = list(cached.get("items") or []) if cached else []
+        cached_complete = {
+            market_name
+            for market_name, state in (cached.get("coverage") or {}).items()
+            if isinstance(state, Mapping) and state.get("complete")
+        } if cached else set()
+        retained_items = [
+            item for item in cached_items
+            if str(item.get("market") or "") not in completed_markets
+        ]
+        completed_for_coverage = completed_markets | (cached_complete - completed_markets)
+        items = _merge_symbol_directory(*fetched_groups, retained_items, seed)
+        payload = {
+            "ok": True,
+            "version": SYMBOL_DIRECTORY_VERSION,
+            "generated_at": now,
+            "expires_at": now + SYMBOL_DIRECTORY_TTL_SECONDS,
+            "items": items,
+            "source": "ftshare",
+            "provider_mode": "builtin",
+            "provider_id": "FTShare SDK",
+            "coverage": _directory_coverage(
+                items,
+                complete_markets=completed_for_coverage,
+                partial_markets={item["market"] for item in seed} - completed_for_coverage,
+            ),
+            "stale": False,
+            "refreshed": True,
+            "needs_external_refresh": False,
+        }
+        payload["count"] = len(payload["items"])
+        if errors:
+            payload["warnings"] = errors
+        if not _write_symbol_directory_cache(payload):
+            payload["stale"] = True
+        return payload
+
+    # Incomplete refresh: keep whatever useful rows arrived, but mark the result
+    # stale and retry soon instead of serving a half-empty directory all day.
+    if fetched_count:
+        merged = _merge_symbol_directory(*fetched_groups, list(cached.get("items") or []) if cached else [], seed)
+        partial = {
+            "ok": True,
+            "version": SYMBOL_DIRECTORY_VERSION,
+            "generated_at": now,
+            "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
+            "items": merged,
+            "count": len(merged),
+            "source": "ftshare",
+            "provider_mode": "builtin",
+            "provider_id": "FTShare SDK",
+            "coverage": _directory_coverage(
+                merged,
+                complete_markets=completed_markets,
+                partial_markets={item["market"] for item in seed} - completed_markets,
+            ),
+            "stale": True,
+            "refreshed": False,
+            "needs_external_refresh": False,
+            "message": "Directory sources were only partially available; retrying shortly.",
+        }
+        if errors:
+            partial["refresh_errors"] = errors[:3]
+        _write_symbol_directory_cache(partial)
+        return partial
+
+    items = _merge_symbol_directory(list(cached.get("items") or []) if cached else [], seed)
+    fallback = {
+        "ok": True,
+        "version": SYMBOL_DIRECTORY_VERSION,
+        "generated_at": int(cached.get("generated_at") or now) if cached else now,
+        "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
+        "items": items,
+        "count": len(items),
+        "source": "cache" if cached else "seed",
+        "provider_mode": "builtin" if cached else "seed",
+        "provider_id": "FTShare SDK" if cached else "seed",
+        "coverage": _directory_coverage(items, partial_markets={item["market"] for item in seed}),
+        "stale": True,
+        "refreshed": False,
+        "needs_external_refresh": False,
+        "message": "FTShare directory refresh failed; using the last local symbol directory.",
+    }
+    if errors:
+        fallback["refresh_errors"] = errors[:3]
+    _write_symbol_directory_cache(fallback)
+    return fallback
+
+
+def search_symbols(query: str, *, limit: int = 8) -> dict[str, Any]:
+    """Search the locally available security directory without a provider call."""
+    q = str(query or "").strip()
+    if not q:
+        return {"ok": False, "error": "invalid_query", "message": "query is required"}
+    lim = max(1, min(int(limit or 8), 20))
+    cache_key = (q.casefold(), lim)
+    now = time.monotonic()
+    cached = _symbol_search_cache.get(cache_key)
+    if cached and now - cached[0] < _SYMBOL_SEARCH_CACHE_TTL_SECONDS:
+        # Return a shallow copy so a caller cannot mutate the shared cache.
+        return {**cached[1], "results": list(cached[1].get("results") or [])}
+
+    query_text = "".join(q.casefold().split())
+    canonical_query = _canonical_market_symbol(q).casefold()
+    # Users should never need to remember our canonical exchange suffixes.
+    # Search all equivalent forms locally: 600036, 600036.SH and
+    # 600036.XSHG are one identity; 700 / 0700 naturally match 00700.HK.
+    query_forms = {query_text, canonical_query}
+    canonical_code = canonical_query.split(".", 1)[0]
+    if canonical_code:
+        query_forms.add(canonical_code)
+    # Hong Kong is normally quoted without the leading zero (e.g. ``700``),
+    # while the official directory uses five digits (``00700.HK``).  Treat
+    # both as the same exact code so Tencent wins over incidental substrings.
+    hk_numeric_code = ""
+    if query_text.isdigit() and 1 <= len(query_text) <= 5:
+        hk_numeric_code = query_text.zfill(5)
+        query_forms.add(hk_numeric_code)
+    query_forms.discard("")
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add(item: Mapping[str, Any]) -> None:
+        market = item.get("market") or item.get("board")
+        symbol = _canonical_market_symbol(
+            _canonical_directory_symbol(
+                item.get("symbol")
+                or item.get("symbol_id")
+                or item.get("secid")
+                or item.get("stock_code")
+                or item.get("index_code")
+                or item.get("ticker")
+                or item.get("code"),
+                market=market,
+                default_market="US" if str(market or "").strip() == "105" else "",
+            )
+        )
+        if not symbol:
+            return
+        name = next(
+            (
+                item.get(key)
+                for key in ("name", "stock_name", "security_name", "index_name", "symbol_name")
+                if item.get(key)
+            ),
+            symbol,
+        )
+        if symbol in seen:
+            for result in results:
+                if result["symbol"] == symbol and result["name"] == symbol and str(name) != symbol:
+                    result["name"] = str(name)
+                    break
+            return
+        seen.add(symbol)
+        result: dict[str, Any] = {"symbol": symbol, "name": str(name)}
+        for key in ("board", "close", "change", "change_rate", "market"):
+            if item.get(key) is not None:
+                result[key] = "US" if key == "market" and str(item[key]).strip() == "105" else item[key]
+        results.append(result)
+
+    # Use the last local directory snapshot first. It is available without an
+    # API key and avoids sending every search to FTShare's keyed search route.
+    # Search must stay local and fast. The app refreshes this directory in the
+    # background; never block a keystroke on a full provider-directory request.
+    directory = _read_symbol_directory_cache()
+    directory_items = directory.get("items") if isinstance(directory, Mapping) else None
+    searchable_items = directory_items if isinstance(directory_items, list) else list(_SYMBOL_DIRECTORY_SEED)
+    # Keep built-in aliases in the fallback path and include the seed as a
+    # supplement when a provider directory is partial.
+    for item in [*searchable_items, *_SYMBOL_DIRECTORY_SEED]:
+        if not isinstance(item, Mapping):
+            continue
+        searchable = "".join(
+            f"{item.get('symbol', '')} {item.get('name', '')} {item.get('aliases', '')} "
+            f"{_BUILTIN_SEARCH_ALIASES.get(str(item.get('symbol') or ''), '')}".casefold().split()
+        )
+        if any(term in searchable for term in query_forms):
+            add(item)
+
+    def rank(item: Mapping[str, Any]) -> tuple[int, str, str]:
+        symbol = str(item.get("symbol") or "").casefold()
+        name = str(item.get("name") or "").casefold()
+        code = symbol.split(".", 1)[0]
+        if (
+            query_text in {symbol, name, code}
+            or canonical_query == symbol
+            or (hk_numeric_code and code == hk_numeric_code)
+        ):
+            priority = 0
+        elif code.startswith(query_text) or name.startswith(query_text):
+            priority = 1
+        elif query_text in symbol or query_text in name:
+            priority = 2
+        else:
+            priority = 3
+        return priority, name, symbol
+
+    results.sort(key=rank)
+    results = results[:lim]
+
+    if not results:
+        canonical = _canonical_market_symbol(q)
+        # Explicit market identity is usable even if its directory row is
+        # missing. Never guess a market for an ambiguous bare numeric code.
+        if re.fullmatch(r"(?:\d{6}\.(?:XSHG|XSHE|BJSE)|\d{5}\.HK|[A-Z][A-Z0-9.-]{0,15}\.(?:US|NASDAQ|NYSE))", canonical):
+            add({"symbol": canonical, "name": canonical})
+            results[-1]["verified"] = False
+    source = "directory" if isinstance(directory_items, list) else "builtin"
+    partial = not directory or not directory.get("coverage") or bool(directory.get("stale")) or any(
+        not item.get("complete") for item in (directory.get("coverage") or {}).values()
+    )
+    stale = not directory or bool(directory.get("stale")) or int(directory.get("expires_at") or 0) < time.time()
+    payload = {"ok": True, "query": q, "count": len(results), "results": results, "source": source,
+               "stale": stale, "partial": partial, "basic_directory_version": _BASIC_DIRECTORY["version"]}
+    if not results and (partial or stale):
+        payload["message"] = "未找到匹配标的。可继续输入名称、代码或常用简称。"
+    _symbol_search_cache[cache_key] = (now, payload)
+    if len(_symbol_search_cache) > _SYMBOL_SEARCH_CACHE_MAX_ENTRIES:
+        oldest_key = min(_symbol_search_cache, key=lambda key: _symbol_search_cache[key][0])
+        _symbol_search_cache.pop(oldest_key, None)
+    return {**payload, "results": list(results)}
+
+
+MARKET_TICKER_SOURCES = (
+    {"market": "CN", "name": "上证指数", "symbol": "000001.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "沪深300", "symbol": "000300.XSHG", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "深证成指", "symbol": "399001.XSHE", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "CN", "name": "创业板指", "symbol": "399006.XSHE", "kind": "cn_index", "timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"},
+    {"market": "HK", "name": "恒生指数", "symbol": "100.HSI", "kind": "global", "timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "纳斯达克100", "symbol": "100.NDX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "标普500", "symbol": "100.SPX", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+    {"market": "US", "name": "道琼斯", "symbol": "100.DJIA", "kind": "global", "timezone": "America/New_York", "open": "09:30", "close": "16:00"},
+)
+# Global index identities (secid "100.*") served by the official FTShare
+# `global_index_daily_kline` endpoint (free tier, per FTShare docs). Kept as a
+# small explicit registry; never auto-extended from upstream responses.
+GLOBAL_INDEX_SOURCES = {
+    "100.HSI": "恒生指数",
+    "100.NDX": "纳斯达克",
+    "100.SPX": "标普500",
+    "100.DJIA": "道琼斯",
+    "100.N225": "日经225",
+}
+# Kept as a public compatibility name for integrations that read this mapping.
+COMPARISON_INDEX_NAMES = {item["symbol"]: item["name"] for item in CN_BROAD_INDEXES}
+
+
+def _number(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def _ticker_timestamp(row: Mapping[str, Any]) -> float:
+    raw = row.get("ts_millis") or row.get("time") or row.get("timestamp")
+    number = _number(raw)
+    if number is not None:
+        return number
+    date = str(row.get("trade_date") or row.get("date") or "")
+    try:
+        return datetime.fromisoformat(date).replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _ticker_item(source: Mapping[str, str], raw: Any) -> dict[str, Any] | None:
+    rows = [row for row in raw if isinstance(row, Mapping)] if isinstance(raw, list) else []
+    if not rows:
+        return None
+    rows.sort(key=_ticker_timestamp)
+    latest = rows[-1]
+    close = _number(latest.get("close"))
+    if close is None:
+        return None
+    previous = _number(rows[-2].get("close")) if len(rows) > 1 else None
+    change = _number(latest.get("change_amount"))
+    change_pct = _number(latest.get("change_pct"))
+    if previous not in (None, 0):
+        change = close - previous
+        change_pct = change / previous * 100
+    if change is None or change_pct is None:
+        return None
+    timestamp = _ticker_timestamp(latest)
+    return {
+        "market": source["market"],
+        "symbol": source["symbol"],
+        "name": str(latest.get("name") or source["name"]),
+        "close": close,
+        "change": change,
+        "change_pct": change_pct,
+        "time": int(timestamp / 1000) if timestamp > 10_000_000_000 else int(timestamp),
+    }
+
+
+def _market_status(source: Mapping[str, str], now: datetime) -> str:
+    """Return the intentionally conservative delayed/closed label for a feed.
+
+    FTShare's compact index endpoints are daily snapshots, so we never label
+    them as real-time. During a local market session the snapshot is useful but
+    delayed; outside it the display is explicitly marked as closed.
+    """
+    try:
+        local_now = now.astimezone(ZoneInfo(source["timezone"]))
+        if local_now.weekday() >= 5:
+            return "closed"
+        open_at = clock_time.fromisoformat(source["open"])
+        close_at = clock_time.fromisoformat(source["close"])
+        return "delayed" if open_at <= local_now.time() <= close_at else "closed"
+    except (KeyError, ValueError):
+        return "delayed"
+
+
+def _symbol_market_status(symbol: str, now: datetime | None = None) -> str:
+    """Return the market-session state for a symbol without claiming real-time data."""
+    normalized = str(symbol or "").upper()
+    if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
+        source = {"timezone": "Asia/Hong_Kong", "open": "09:30", "close": "16:00"}
+    elif normalized.endswith((".US", ".NASDAQ", ".NYSE")) or normalized in {"100.NDX", "100.SPX", "100.DJIA"}:
+        source = {"timezone": "America/New_York", "open": "09:30", "close": "16:00"}
+    else:
+        source = {"timezone": "Asia/Shanghai", "open": "09:30", "close": "15:00"}
+    return "open" if _market_status(source, now or datetime.now(timezone.utc)) == "delayed" else "closed"
+
+
+def _candle_freshness(symbol: str, rows: list[dict[str, Any]], *, now: datetime | None = None) -> dict[str, Any]:
+    """Describe candle freshness without claiming a real-time provider feed.
+
+    FTShare OHLCV responses do not expose a universal quote timestamp.  We can
+    still report the latest supplied bar and whether it belongs to the current
+    exchange session; callers should treat ``delayed`` as end-of-bar data, not a
+    tick-level quote.
+    """
+    exchange_timezone = _exchange_timezone(symbol)
+    current = now or datetime.now(timezone.utc)
+    local_now = current.astimezone(ZoneInfo(exchange_timezone))
+    latest = max((int(row.get("time") or 0) for row in rows), default=0)
+    if not latest:
+        return {"status": "stale", "as_of": None, "freshness": "no_candle_timestamp", "exchange_timezone": exchange_timezone}
+    latest_local = datetime.fromtimestamp(latest, tz=ZoneInfo(exchange_timezone))
+    market_status = _symbol_market_status(symbol, current)
+    if market_status == "closed":
+        status = "closed"
+    elif latest_local.date() == local_now.date():
+        status = "delayed"
+    else:
+        status = "stale"
+    return {
+        "status": status,
+        "as_of": latest,
+        "freshness": "derived_from_latest_candle",
+        "exchange_timezone": exchange_timezone,
+    }
+
+
+def _ftshare_ticker_rows(market: Any, source_info: Mapping[str, Any]) -> list[dict[str, Any]] | None:
+    """Official FTShare rows for one bottom-strip index.
+
+    A-share indices use ``index_candlesticks``; global indices (100.*) use
+    ``global_index_daily_kline``. Rows are normalized to the canonical shape
+    and sorted ascending by time, so ``_ticker_item`` can derive the change.
+    """
+    kind = str(source_info.get("kind") or "")
+    try:
+        if kind == "global":
+            raw = market.global_index_daily_kline(secid=source_info["symbol"], limit=5, as_dataframe=False)
+        else:
+            until_ms = _until_ms()
+            raw = market.index_candlesticks(
+                symbol=source_info["symbol"],
+                interval_unit="Day",
+                interval_value=1,
+                adjust_kind="none",
+                since_ts_millis=until_ms - 15 * 86_400_000,
+                until_ts_millis=until_ms,
+                limit=6,
+                as_dataframe=False,
+            )
+    except Exception:  # noqa: BLE001 - per-source official ticker failure
+        return None
+    rows = _normalize_raw(raw)
+    return rows if len(rows) >= 2 else None
+
+
+def _ftshare_ticker_item(market: Any, source_info: Mapping[str, Any], now: datetime) -> dict[str, Any] | None:
+    """Try the official index once; the landing page has a separate fallback."""
+    rows = _ftshare_ticker_rows(market, source_info)
+    item = _ticker_item(source_info, rows) if rows is not None else None
+    if item is not None:
+        item["status"] = _market_status(source_info, now)
+    return item
+
+
+def _remember_market_ticker(item: Mapping[str, Any], fetched_at: float) -> None:
+    symbol = str(item.get("symbol") or "")
+    if not symbol:
+        return
+    snapshot = deepcopy(dict(item))
+    snapshot.pop("stale", None)
+    with _market_ticker_cache_lock:
+        _market_ticker_last_good[symbol] = (fetched_at, snapshot)
+
+
+def _last_market_ticker(symbol: str, now: float) -> dict[str, Any] | None:
+    with _market_ticker_cache_lock:
+        entry = _market_ticker_last_good.get(symbol)
+    if entry is None or now - entry[0] > _MARKET_TICKER_STALE_TTL_SECONDS:
+        return None
+    cached = deepcopy(entry[1])
+    cached["stale"] = True
+    return cached
+
+
+def fetch_market_ticker(symbols: list[str] | tuple[str, ...] | None = None) -> dict[str, Any]:
+    """Fetch a compact A/HK/US index ticker, degrading silently per source.
+
+    With a configured Key, FTShare official feeds are tried first: A-share
+    indices via ``index_candlesticks`` and global indices via
+    ``global_index_daily_kline``. The existing Tencent feed may fill supported
+    gaps when those endpoints fail or no Key is configured. Neither source is
+    guaranteed to return every index; ``missing`` reports the remainder.
+
+    ``symbols`` is intentionally limited to the fixed registry above. The
+    browser uses small, ordered batches on a cold market page so the first
+    available indices can render without waiting for every global endpoint.
+    It is not a general quote-search API.
+    """
+    fetched_at = int(time.time())
+    items_by_symbol: dict[str, dict[str, Any]] = {}
+    sources_used: set[str] = set()
+    now = datetime.now(timezone.utc)
+    requested_symbols = {str(symbol).strip().upper() for symbol in symbols or [] if str(symbol).strip()}
+    source_infos = tuple(
+        source_info for source_info in MARKET_TICKER_SOURCES
+        if not requested_symbols or str(source_info["symbol"]).upper() in requested_symbols
+    )
+
+    # An installed SDK is not an authenticated account.  Anonymous FTShare
+    # attempts can stall the first index card before the usable free feed runs.
+    if ftshare_available() and _ftshare_credential_source() != "none":
+        try:
+            market = _ftshare_market_api(timeout=4)
+            for source_info in source_infos:
+                item = _ftshare_ticker_item(market, source_info, now)
+                if item is not None:
+                    items_by_symbol[item["symbol"]] = item
+                    _remember_market_ticker(item, fetched_at)
+                    sources_used.add("ftshare")
+        except Exception:
+            # Continue to per-index free/cache fallback rather than discarding
+            # official rows that were already retrieved successfully.
+            pass
+
+    # Use the free feed only for the indexes FTShare did not return; replacing
+    # the whole strip used to turn a transient single-index error into a five
+    # index response.
+    free_by_symbol: dict[str, dict[str, Any]] = {}
+    if fetch_tencent_ticker_items is not None:
+        try:
+            free_by_symbol = {str(item.get("symbol") or ""): dict(item) for item in fetch_tencent_ticker_items()}
+        except Exception:  # noqa: BLE001
+            free_by_symbol = {}
+    source_by_symbol = {str(item["symbol"]): item for item in source_infos}
+    missing: list[dict[str, str]] = []
+    for symbol, source_info in source_by_symbol.items():
+        if symbol in items_by_symbol:
+            continue
+        item = free_by_symbol.get(symbol)
+        if item is not None:
+            item["status"] = _market_status(source_info, now)
+            items_by_symbol[symbol] = item
+            _remember_market_ticker(item, fetched_at)
+            sources_used.add("tencent_free")
+            continue
+        cached = _last_market_ticker(symbol, fetched_at)
+        if cached is not None:
+            cached["status"] = _market_status(source_info, now)
+            items_by_symbol[symbol] = cached
+            sources_used.add("cache")
+            continue
+        missing.append({"symbol": symbol, "name": str(source_info["name"]), "market": str(source_info["market"])})
+
+    items = [items_by_symbol[str(source_info["symbol"])] for source_info in source_infos if str(source_info["symbol"]) in items_by_symbol]
+    if not items:
+        return {"ok": True, "items": [], "missing": missing, "source": "free_unavailable", "updated_at": fetched_at, "status": "unavailable"}
+    statuses = {item.get("status") for item in items}
+    status = "delayed" if "delayed" in statuses else "closed" if statuses else "unavailable"
+    return {"ok": True, "items": items, "missing": missing, "source": "+".join(sorted(sources_used)) or "free_unavailable", "updated_at": fetched_at, "status": status}
+
+
+def _latest_session_close_millis(timezone_name: str) -> int:
+    """Return the latest weekday close in the exchange timezone.
+
+    FTShare's minute endpoint expects a completed session boundary more
+    reliably than a wall-clock timestamp late at night. Exchange holidays are
+    harmless here: an empty chunk simply advances to the preceding session.
+    """
+    now = datetime.now(ZoneInfo(timezone_name))
+    # US sessions can include 16:00--20:00 ET after-hours bars. Requesting the
+    # fully completed extended session preserves them when FTShare provides
+    # them, while the returned per-bar session label remains the source of truth.
+    close_by_timezone = {
+        "Asia/Shanghai": (15, 0),
+        "Asia/Hong_Kong": (16, 0),
+        "America/New_York": (20, 0),
+    }
+    hour, minute = close_by_timezone.get(timezone_name, (15, 0))
+    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if now < candidate:
+        candidate -= timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return int(candidate.timestamp() * 1000)
+
+
+def _intraday_session_label(timestamp: int, timezone_name: str) -> str:
+    """Classify a bar by its exchange-local start time without inventing bars."""
+    local = datetime.fromtimestamp(int(timestamp), tz=ZoneInfo(timezone_name)).time()
+    if timezone_name == "America/New_York":
+        if clock_time(4, 0) <= local < clock_time(9, 30):
+            return "pre_market"
+        if clock_time(9, 30) <= local < clock_time(16, 0):
+            return "regular"
+        if clock_time(16, 0) <= local < clock_time(20, 0):
+            return "after_hours"
+        return "overnight"
+    if timezone_name == "Asia/Hong_Kong":
+        if clock_time(9, 30) <= local < clock_time(12, 0):
+            return "morning"
+        if clock_time(13, 0) <= local < clock_time(16, 0):
+            return "afternoon"
+        return "outside_regular"
+    if clock_time(9, 30) <= local < clock_time(11, 30):
+        return "morning"
+    if clock_time(13, 0) <= local < clock_time(15, 0):
+        return "afternoon"
+    return "outside_regular"
+
+
+def _annotate_intraday_rows(rows: list[dict[str, Any]], *, timezone_name: str, interval_value: int) -> list[dict[str, Any]]:
+    """Attach exact open timestamps when supplied and a display-only session label."""
+    step_seconds = max(1, int(interval_value)) * 60
+    for row in rows:
+        close_time = int(row["time"])
+        start_time = int(row.get("open_time") or (close_time - step_seconds))
+        row["session"] = _intraday_session_label(start_time, timezone_name)
+    return rows
+
+
+def _complete_intraday_bars(rows: list[dict[str, Any]], *, interval_value: int) -> list[dict[str, Any]]:
+    """Exclude provider boundary rows that are shorter than the requested bar."""
+    expected_seconds = max(1, int(interval_value)) * 60
+    complete: list[dict[str, Any]] = []
+    for row in rows:
+        open_time = row.get("open_time")
+        if open_time is not None:
+            try:
+                if int(row["time"]) - int(open_time) != expected_seconds:
+                    continue
+            except (TypeError, ValueError):
+                continue
+        complete.append(row)
+    return complete
+
+
+def _complete_intraday_session_dates(
+    rows: list[dict[str, Any]], *, timezone_name: str, interval_value: int,
+) -> set[Any]:
+    """Return exchange dates that contain a usable, full intraday session.
+
+    The FTShare history API is inclusive at the beginning of a natural-date
+    window.  A request ending on Friday can therefore include only a single
+    15:00 bar from Wednesday.  That bar is a valid candle, but it is *not* a
+    day of history and must neither count toward a 5D chart nor become the
+    cursor for the next page.
+
+    We deliberately use both bar count and elapsed session span.  This rejects
+    an API boundary bar while tolerating a small number of missing/late bars.
+    """
+    timezone_value = ZoneInfo(timezone_name)
+    grouped: dict[Any, list[dict[str, Any]]] = {}
+    for row in rows:
+        try:
+            date_key = datetime.fromtimestamp(int(row["time"]), tz=timezone_value).date()
+        except (KeyError, TypeError, ValueError, OSError):
+            continue
+        grouped.setdefault(date_key, []).append(row)
+
+    # A normal mainland session has 240 trading minutes.  The thresholds for
+    # other exchanges are intentionally conservative because this endpoint can
+    # include pre/post-market rows there.  In all cases a lone boundary row
+    # fails both checks.
+    regular_minutes = {
+        "Asia/Shanghai": 240,
+        "Asia/Hong_Kong": 330,
+        "America/New_York": 390,
+    }.get(timezone_name, 240)
+    minimum_bars = max(2, int((regular_minutes / max(1, int(interval_value))) * 0.65))
+    minimum_span_seconds = 3 * 60 * 60
+    valid_dates: set[Any] = set()
+    for date_key, session_rows in grouped.items():
+        ordered = sorted(session_rows, key=lambda item: int(item["time"]))
+        first_open = int(ordered[0].get("open_time") or ordered[0]["time"])
+        last_close = int(ordered[-1]["time"])
+        if len(ordered) >= minimum_bars and last_close - first_open >= minimum_span_seconds:
+            valid_dates.add(date_key)
+    return valid_dates
+
+
+def _previous_weekday_session_close_millis(session_date: Any, timezone_name: str) -> int:
+    """Return the preceding weekday's exchange close for intraday pagination."""
+    close_by_timezone = {
+        "Asia/Shanghai": (15, 0),
+        "Asia/Hong_Kong": (16, 0),
+        "America/New_York": (20, 0),
+    }
+    hour, minute = close_by_timezone.get(timezone_name, (15, 0))
+    candidate = datetime.combine(session_date, clock_time(hour, minute), tzinfo=ZoneInfo(timezone_name)) - timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return int(candidate.timestamp() * 1000)
+
+
+def _fetch_candles_ftshare(
+    symbol: str,
+    *,
+    interval: str = "day",
+    interval_value: int = 1,
+    session_count: int | None = None,
+    limit: int = 220,
+    adjust: str = "none",
+) -> dict[str, Any]:
+    """Fetch OHLCV via ftshare SDK (primary implementation).
+
+    Kept under a private name: ``fetch_candles`` (the public entry) adds a
+    built-in free fallback for broad-market indices on top of this path.
+
+    Notes:
+    - The SDK accepts lowercase adjustment enum values: none/forward/backward.
+    - Quarterly bars are aggregated from monthly candles because FTShare does
+      not expose a native Quarter variant.
+    - ``limit`` is roughly calendar-days lookback on ftshare; we do **not**
+      overfetch/correct here (keep the new MCP thin). Agent wanting N bars
+      should request a larger limit.
+    """
+    normalized_adjust = normalize_adjustment(adjust)
+    if normalized_adjust is None:
+        return adjustment_error()
+    adjust = normalized_adjust
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9.-]{0,63}", sym):
+        return {"ok": False, "error": "invalid_symbol", "message": f"invalid symbol: {symbol}"}
+    normalized_interval = (interval or "day").strip().lower()
+    supported_intervals = {"minute", "day", "week", "month", "quarter", "year"}
+    if normalized_interval not in supported_intervals:
+        return {
+            "ok": False,
+            "error": "unsupported_interval",
+            "message": f"不支持的 K 线周期“{interval}”。请选择：{'、'.join(sorted(supported_intervals))}。",
+            "supported_intervals": sorted(supported_intervals),
+        }
+    ambiguous = _ambiguous_broad_index_result(sym)
+    if ambiguous is not None:
+        return ambiguous
+    # A-share broad indexes use their own verified candlestick endpoint
+    # (SDK index_candlesticks >= 1.0.0) and must never fall back to a
+    # same-code equity.
+    is_index = _broad_index_for_symbol(sym) is not None
+    # Global indices (100.HSI / 100.NDX / 100.SPX …) use the dedicated
+    # FTShare `global_index_daily_kline` endpoint (free tier per docs).
+    is_global_index = sym in GLOBAL_INDEX_SOURCES
+    is_etf = _is_etf_symbol(sym)
+
+    fetched_at = int(time.time())
+    if not ftshare_available():
+        return _ftshare_unavailable_result()
+
+    import ftshare as ft
+
+    unit = _interval_to_sdk(interval)
+    adj = _adjust_to_sdk(adjust)
+    step = max(1, min(int(interval_value or 1), 240))
+    sessions = max(1, min(int(session_count or 1), 10))
+    lim = max(1, min(int(limit or 220), 4000))
+    exchange_timezone = _exchange_timezone(sym)
+    if normalized_interval == "minute" and _is_us_symbol(sym):
+        return {
+            "ok": False,
+            "error": "intraday_provider_unavailable",
+            "error_code": "intraday_provider_unavailable",
+            "message": "当前 FTShare 股票分钟接口仅支持沪深北标的，不支持美股；这不代表 API Key 无效。",
+            "symbol": sym,
+            "source": "ftshare",
+            "next_action": "请选择美股日线或更长周期；分时数据可通过其他数据源的 rows 接入。",
+            "retryable": False,
+        }
+    if normalized_interval == "minute" and _is_hk_symbol(sym):
+        return {
+            "ok": False,
+            "error": "intraday_provider_unavailable",
+            "error_code": "intraday_provider_unavailable",
+            "message": "The current FTShare Python SDK has no verified Hong Kong minute-candle endpoint.",
+            "symbol": sym,
+            "source": "ftshare",
+            "next_action": "Use daily-or-larger Hong Kong candles, or pass verified minute rows from another provider.",
+            "retryable": False,
+        }
+    if normalized_interval == "minute" and is_global_index:
+        return {
+            "ok": False,
+            "error": "intraday_provider_unavailable",
+            "error_code": "intraday_provider_unavailable",
+            "message": "FTShare global-index K-lines are daily only; minute bars are not served for this index.",
+            "symbol": sym,
+            "source": "ftshare",
+            "next_action": "Use daily-or-larger candles for the global index, or pass verified minute rows from another provider.",
+            "retryable": False,
+        }
+    if is_etf:
+        contract_name = "etf_minutes" if normalized_interval == "minute" else "etf_candles"
+    elif is_index:
+        contract_name = "index_history_minute_candles" if normalized_interval == "minute" else "index_daily_candles"
+    elif is_global_index:
+        contract_name = "global_index_daily"
+    else:
+        contract_name = "history_minute_candles" if normalized_interval == "minute" else "daily_candles"
+    cache_key = _candle_cache_key(
+        sym, normalized_interval, step, sessions, lim, adjust,
+        _preferred_ftshare_transport(contract_name),
+    )
+    fresh_cache = _recent_candle_cache(cache_key)
+    if fresh_cache is not None:
+        return fresh_cache
+
+    market = _ftshare_market_api(timeout=20)
+    raw: Any = None
+    fetch_error: Exception | None = None
+    us_daily_history_error: Exception | None = None
+    hk_history_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            if is_etf and normalized_interval != "minute":
+                raw = _fetch_etf_history(
+                    market,
+                    symbol=sym,
+                    interval=normalized_interval,
+                    adjust_kind=adj,
+                    limit=lim,
+                )
+            elif is_index:
+                if normalized_interval == "minute":
+                    raw = _fetch_index_history_minutes(
+                        market,
+                        symbol=sym,
+                        interval_value=step,
+                        adjust_kind=adj,
+                        sessions=sessions,
+                        limit=lim,
+                        exchange_timezone=exchange_timezone,
+                    )
+                else:
+                    raw = _fetch_index_history(
+                        market,
+                        symbol=sym,
+                        interval=normalized_interval,
+                        interval_unit=unit,
+                        interval_value=step,
+                        adjust_kind=adj,
+                        limit=lim,
+                    )
+            elif is_global_index:
+                # Global index daily history: the FTShare endpoint returns
+                # daily bars only; weekly/monthly/quarterly/yearly views are
+                # aggregated locally below, mirroring the US daily-only path.
+                raw = _fetch_global_index_history(
+                    market,
+                    symbol=sym,
+                    interval=normalized_interval,
+                    limit=lim,
+                )
+            elif _is_us_symbol(sym) and normalized_interval != "minute":
+                try:
+                    raw = _fetch_us_daily_candles(market, sym, lim)
+                except Exception as exc:  # noqa: BLE001
+                    # The dedicated US endpoint is preferred when it is healthy,
+                    # but it has independently returned 5xx responses in
+                    # production. Fall back to the generic history endpoint so
+                    # daily 10D/30D/YTD charts do not fail while minute data works.
+                    us_daily_history_error = exc
+                    raw = _fetch_generic_history(
+                        market,
+                        symbol=sym,
+                        interval=normalized_interval,
+                        interval_unit=unit,
+                        interval_value=step,
+                        adjust_kind="none",
+                        limit=lim,
+                    )
+            elif _is_hk_symbol(sym) and normalized_interval in {"day", "week", "month", "quarter", "year"}:
+                try:
+                    raw = _fetch_hk_candles(market, sym, normalized_interval, lim, adjust)
+                except Exception as exc:  # noqa: BLE001
+                    hk_history_error = exc
+                    raw = _fetch_generic_history(
+                        market,
+                        symbol=sym,
+                        interval=normalized_interval,
+                        interval_unit=unit,
+                        interval_value=step,
+                        adjust_kind=adj,
+                        limit=lim,
+                    )
+            elif normalized_interval == "minute":
+                # FTShare minute history is restricted to short natural-date
+                # windows. Page backwards from the latest session close and retain
+                # the requested number of *trading* sessions after de-duplication.
+                # This is intentionally not a calendar-day slice: a 5D chart means
+                # five sessions even across a weekend.
+                cutoff = _latest_session_close_millis(exchange_timezone)
+                unique: dict[int, dict[str, Any]] = {}
+                # FTShare rejects windows that span more than three natural
+                # days. Keep each page to two days and walk backwards until the
+                # requested number of trading sessions has been collected.
+                page_window_days = 2
+                max_pages = max(8, sessions * 3 + 2)
+                for _page in range(max_pages):
+                    chunk: list[dict[str, Any]] = []
+                    complete_dates: set[Any] = set()
+                    # v4 is the raw one-minute stream for the current A-share
+                    # stock session.  Do not re-aggregate it: the UI has no
+                    # intraday period selector. This endpoint has no adjustment
+                    # parameter: adjusted requests must use history, including
+                    # when history fails; never relabel the raw realtime feed.
+                    # Multi-session history, ETFs and indexes also retain v2.
+                    if _page == 0 and not is_etf and sessions == 1 and step == 1 and adj == "none":
+                        try:
+                            realtime_chunk = _complete_intraday_bars(
+                                _normalize_realtime_minute_raw(
+                                    _ftshare_stock_realtime_minutes(market, symbol=sym)
+                                ),
+                                interval_value=step,
+                            )
+                            realtime_dates = _complete_intraday_session_dates(
+                                realtime_chunk,
+                                timezone_name=exchange_timezone,
+                                interval_value=step,
+                            )
+                            if realtime_dates:
+                                chunk = [
+                                    row for row in realtime_chunk
+                                    if datetime.fromtimestamp(
+                                        int(row["time"]), tz=ZoneInfo(exchange_timezone)
+                                    ).date() in realtime_dates
+                                ]
+                                complete_dates = realtime_dates
+                        except Exception:  # noqa: BLE001 - v2 remains the compatibility path
+                            pass
+                    if not chunk:
+                        page = (_ftshare_etf_minutes if is_etf else _ftshare_stock_minutes)(
+                            market,
+                            symbol=_etf_minute_symbol(sym) if is_etf else sym,
+                            interval_value=step,
+                            adjust_kind=adj,
+                            since_ts_millis=max(
+                                0,
+                                cutoff - page_window_days * 86_400_000,
+                            ),
+                            until_ts_millis=cutoff,
+                            limit=min(500, max(lim, sessions * 250)),
+                            as_dataframe=False,
+                        )
+                        chunk = _complete_intraday_bars(_normalize_raw(page), interval_value=step)
+                        complete_dates = _complete_intraday_session_dates(
+                            chunk, timezone_name=exchange_timezone, interval_value=step,
+                        )
+                    chunk = [
+                        row for row in chunk
+                        if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in complete_dates
+                    ]
+                    if not chunk:
+                        cutoff = _previous_weekday_session_close_millis(
+                            datetime.fromtimestamp(cutoff / 1000, tz=ZoneInfo(exchange_timezone)).date(),
+                            exchange_timezone,
+                        )
+                        continue
+                    chunk_dates = {
+                        datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+                        for row in chunk
+                    }
+                    known_dates = {
+                        datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+                        for row in unique.values()
+                    }
+                    if known_dates and not (chunk_dates - known_dates):
+                        break
+                    for row in chunk:
+                        unique[int(row["time"])] = row
+                    local_dates = {
+                        datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date()
+                        for row in unique.values()
+                    }
+                    if len(local_dates) >= sessions:
+                        break
+                    cutoff = _previous_weekday_session_close_millis(min(chunk_dates), exchange_timezone)
+                raw = list(unique.values())
+            else:
+                raw = _fetch_generic_history(
+                    market,
+                    symbol=sym,
+                    interval=normalized_interval,
+                    interval_unit=unit,
+                    interval_value=step,
+                    adjust_kind=adj,
+                    limit=lim,
+                )
+            fetch_error = None
+            break
+        except Exception as exc:  # noqa: BLE001
+            fetch_error = exc
+            if attempt == 0:
+                time.sleep(0.35)
+    if fetch_error is not None:
+        fallback = _cached_candle_fallback(cache_key, fetch_error)
+        if fallback is not None:
+            return fallback
+        provider_error, provider_message = _classify_ftshare_error(fetch_error)
+        return {
+            "ok": False,
+            "error": provider_error,
+            "error_code": provider_error,
+            "message": provider_message,
+            "symbol": sym,
+            "source": "ftshare",
+            "updated_at": fetched_at,
+            "status": "delayed",
+            "market_status": _symbol_market_status(sym),
+        }
+
+    rows = _normalize_raw(raw)
+    if normalized_interval == "minute" and rows:
+        rows = _annotate_intraday_rows(rows, timezone_name=exchange_timezone, interval_value=step)
+        complete_dates = _complete_intraday_session_dates(
+            rows, timezone_name=exchange_timezone, interval_value=step,
+        )
+        selected_dates = set(sorted(complete_dates)[-sessions:])
+        rows = [
+            row
+            for row in rows
+            if datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(exchange_timezone)).date() in selected_dates
+        ]
+    if (is_etf or _is_us_symbol(sym) or _is_hk_symbol(sym) or is_global_index) and normalized_interval != "minute":
+        # Aggregate the complete daily history first, then apply the requested
+        # number of bars.  Trimming raw days before aggregation makes the
+        # oldest requested week/month/quarter/year incomplete.
+        rows = _aggregate_interval(rows, interval, timezone_name=exchange_timezone)[-lim:]
+    elif normalized_interval == "quarter":
+        rows = _aggregate_quarters(rows, timezone_name=exchange_timezone)[-lim:]
+    elif not _is_hk_symbol(sym) and normalized_interval != "minute" and len(rows) > lim:
+        rows = rows[-lim:]
+    if len(rows) < 2:
+        market_data_unavailable = (
+            (_is_hk_symbol(sym) or _is_us_symbol(sym))
+            and normalized_interval != "minute"
+        )
+        empty_error = (
+            "当前 FTShare 暂未返回该港股/美股标的的足够日线数据；请检查标的代码、数据覆盖与账户权限，"
+            "或切换到其他数据源。这不一定是 API Key 配置问题。"
+            if market_data_unavailable
+            else "当前数据源返回的有效 K 线不足两根，请检查标的代码、数据权限或切换数据源后重试。"
+        )
+        fallback = _cached_candle_fallback(cache_key, empty_error)
+        if fallback is not None:
+            return fallback
+        result = {
+            "ok": False,
+            "error": "market_data_unavailable" if market_data_unavailable else "insufficient_candles",
+            "message": empty_error,
+            "symbol": sym,
+            "source": "ftshare",
+            "updated_at": fetched_at,
+            "status": "delayed",
+            "market_status": _symbol_market_status(sym),
+            "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport"),
+        }
+        if hk_history_error is not None:
+            result["warning"] = "FTShare HK history was stale or unavailable; generic candle fallback had insufficient data."
+            result["upstream_error"] = str(hk_history_error)[:500]
+            result["fallback"] = "generic_stock_candlesticks"
+        return result
+    name = GLOBAL_INDEX_SOURCES.get(sym) or _symbol_name(market, sym)
+    freshness = _candle_freshness(sym, rows)
+    result = {
+        "ok": True,
+        "symbol": sym,
+        "name": name,
+        "instrument_type": "etf" if is_etf else "index" if (is_index or is_global_index) else "stock",
+        "interval": normalized_interval,
+        "interval_value": step,
+        "session_count": sessions if normalized_interval == "minute" else None,
+        "adjust": (
+            "none"
+            if (_is_us_symbol(sym) and normalized_interval != "minute") or is_global_index
+            else (adjust or "none").strip().lower()
+        ),
+        "count": len(rows),
+        "rows": rows,
+        "source": "ftshare",
+        "updated_at": fetched_at,
+        "status": freshness["status"],
+        "market_status": _symbol_market_status(sym),
+        "exchange_timezone": freshness["exchange_timezone"],
+        "as_of": freshness["as_of"],
+        "freshness": freshness["freshness"],
+        "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport", "sdk"),
+    }
+    if us_daily_history_error is not None:
+        result["warning"] = "FTShare US daily history endpoint failed; used generic candle fallback."
+        result["upstream_error"] = str(us_daily_history_error)[:500]
+        result["fallback"] = "generic_stock_candlesticks"
+    if _is_us_symbol(sym) and normalized_interval != "minute" and (adjust or "none").strip().lower() != "none":
+        result["adjust_requested"] = (adjust or "none").strip().lower()
+        result["warning"] = "FTShare US daily history is returned unadjusted; adjust was not applied."
+    if is_global_index and adjust != "none":
+        result.update(adjust_requested=adjust, warning="FTShare global-index history is unadjusted; adjust was not applied.")
+    if hk_history_error is not None:
+        result["warning"] = "FTShare HK history endpoint failed; used generic candle fallback."
+        result["upstream_error"] = str(hk_history_error)[:500]
+        result["fallback"] = "generic_stock_candlesticks"
+    if normalized_interval == "minute":
+        sessions_seen = sorted({str(row.get("session") or "") for row in rows if row.get("session")})
+        result["timestamp_semantics"] = "time is bar close in Unix seconds; open_time is present only when supplied by FTShare."
+        result["sessions"] = sessions_seen
+    _cache_candles(cache_key, result)
+    return result
+
+
+def _free_index_candles_result(
+    symbol: str, *, interval: str, limit: int, adjust: str
+) -> dict[str, Any] | None:
+    """Built-in free fallback for broad-market index daily K-lines.
+
+    Used only when FTShare cannot serve a broad-market index (anonymous/free
+    tier). Returns None when the symbol is not covered or the free source is
+    unavailable, so the caller keeps its original FTShare error untouched.
+    """
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return None
+    if fetch_em_index_daily is None and fetch_tencent_index_daily is None:
+        return None
+    normalized_interval = (interval or "day").strip().lower()
+    if normalized_interval not in {"day", "week", "month", "quarter", "year"}:
+        return None
+    if str(sym).upper() not in EM_INDEX_NAMES:
+        return None
+    fetched_at = int(time.time())
+    # Try Eastmoney first, then Tencent: two independent public feeds make the
+    # free tier resilient to either vendor's transient throttling.
+    free_rows: list[dict[str, Any]] | None = None
+    source_name = ""
+    source_url = ""
+    source_label = ""
+    if fetch_em_index_daily is not None:
+        try:
+            free_rows = fetch_em_index_daily(sym, limit=max(2, min(int(limit), 4000)))
+        except Exception:  # noqa: BLE001 - free fallback degrades silently
+            free_rows = None
+        if free_rows and len(free_rows) >= 2:
+            source_name, source_url, source_label = "eastmoney_free", SOURCE_URL, SOURCE_LABEL
+    if (not free_rows or len(free_rows) < 2) and fetch_tencent_index_daily is not None:
+        try:
+            free_rows = fetch_tencent_index_daily(sym, limit=max(2, min(int(limit), 4000)))
+        except Exception:  # noqa: BLE001
+            free_rows = None
+        if free_rows and len(free_rows) >= 2:
+            source_name, source_url, source_label = "tencent_free", TENCENT_SOURCE_URL, TENCENT_LABEL
+    if not free_rows or len(free_rows) < 2:
+        return None
+    # Aggregation helpers mirror the FTShare path (week/month/quarter/year).
+    rows = list(free_rows)
+    if normalized_interval == "quarter":
+        rows = _aggregate_quarters(rows, timezone_name="Asia/Shanghai")
+    elif normalized_interval in {"week", "month", "year"}:
+        rows = _aggregate_interval(rows, normalized_interval, timezone_name="Asia/Shanghai")
+    rows = rows[-max(2, min(int(limit), 4000)):]
+    if len(rows) < 2:
+        return None
+    name = EM_INDEX_NAMES.get(str(sym).upper()) or sym
+    freshness = _candle_freshness(sym, rows)
+    return {
+        "ok": True,
+        "symbol": sym,
+        "name": name,
+        "interval": normalized_interval,
+        "interval_value": 1,
+        "session_count": None,
+        "adjust": "none",
+        **({"adjust_requested": adjust, "warning": "Free index history is unadjusted; adjust was not applied."} if adjust != "none" else {}),
+        "count": len(rows),
+        "rows": rows,
+        "source": source_name,
+        "source_url": source_url,
+        "updated_at": fetched_at,
+        "status": freshness["status"],
+        "market_status": _symbol_market_status(sym),
+        "exchange_timezone": freshness["exchange_timezone"],
+        "as_of": freshness["as_of"],
+        "freshness": freshness["freshness"],
+        "notice": (
+            f"当前展示为{source_label}数据（免费大盘行情）。"
+            "接入 FTShare Key 后可获得分钟K、新闻与官方数据能力。"
+        ),
+        "fallback_from": "ftshare",
+    }
+
+
+def _free_stock_candles_result(
+    symbol: str, *, interval: str, interval_value: int, limit: int, adjust: str,
+    after_ftshare_failure: bool = False,
+) -> dict[str, Any] | None:
+    """Bounded BaoStock → Tencent fallback for qualified沪深 A-share history."""
+    sym = _canonical_market_symbol(symbol)
+    normalized_interval = str(interval or "day").strip().lower()
+    if (
+        not eligible_stock_code(sym) or _broad_index_for_symbol(sym) is not None
+        or _is_etf_symbol(sym) or normalized_interval not in {"day", "week", "month", "quarter", "year"}
+        or int(interval_value or 1) != 1
+    ):
+        return None
+    requested = max(2, min(int(limit or 220), 4000))
+    # Aggregate complete daily bars locally.  Never combine the two vendors'
+    # rows into one result or mislabel an unsupported adjustment as none.
+    daily_factor = {"day": 1, "week": 6, "month": 26, "quarter": 80, "year": 260}[normalized_interval]
+    source_name, source_url = BAOSTOCK_SOURCE, BAOSTOCK_SOURCE_URL
+    raw = fetch_stock_daily(sym, limit=min(4000, requested * daily_factor + daily_factor), adjust=adjust)
+    if not raw and fetch_tencent_stock_daily is not None:
+        try:
+            raw = fetch_tencent_stock_daily(
+                sym, limit=min(4000, requested * daily_factor + daily_factor), adjust=adjust,
+            )
+        except Exception:  # noqa: BLE001 - a public fallback must remain bounded and optional
+            raw = None
+        if raw:
+            source_name, source_url = "tencent_free", TENCENT_SOURCE_URL
+    if not raw:
+        return None
+    rows = _aggregate_interval(raw, normalized_interval, timezone_name="Asia/Shanghai")[-requested:]
+    if len(rows) < 2:
+        return None
+    freshness = _candle_freshness(sym, rows)
+    latest_date = datetime.fromtimestamp(rows[-1]["time"], tz=ZoneInfo("Asia/Shanghai")).date()
+    if (datetime.now(ZoneInfo("Asia/Shanghai")).date() - latest_date).days > 5:
+        freshness["status"] = "stale"
+        freshness["freshness"] = "historical_daily_stale"
+    return {
+        "ok": True,
+        "symbol": sym,
+        "name": next((str(item["name"]) for item in _SYMBOL_DIRECTORY_SEED if item["symbol"] == sym), sym),
+        "instrument_type": "stock",
+        "interval": normalized_interval,
+        "interval_value": 1,
+        "session_count": None,
+        "adjust": adjust,
+        "count": len(rows),
+        "rows": rows,
+        "source": source_name,
+        "source_url": source_url,
+        "updated_at": int(time.time()),
+        "status": freshness["status"],
+        "market_status": _symbol_market_status(sym),
+        "exchange_timezone": freshness["exchange_timezone"],
+        "as_of": freshness["as_of"],
+        "freshness": freshness["freshness"],
+        "requested_count": requested,
+        "history_complete": len(rows) >= requested,
+        **({"fallback_from": "ftshare"} if after_ftshare_failure else {}),
+    }
+
+
+def fetch_candles(
+    symbol: str,
+    *,
+    interval: str = "day",
+    interval_value: int = 1,
+    session_count: int | None = None,
+    limit: int = 220,
+    adjust: str = "none",
+) -> dict[str, Any]:
+    """Public candle entry with bounded, explicitly scoped free fallbacks.
+
+    Configured FTShare remains first. Without a key, eligible沪深 A-share
+    stock daily history goes directly to BaoStock and then Tencent's public
+    JSON K-line feed. Indexes use their separate free feeds.
+    """
+    normalized_adjust = normalize_adjustment(adjust)
+    if normalized_adjust is None:
+        return adjustment_error()
+    adjust = normalized_adjust
+    key_configured = _ftshare_credential_source() != "none"
+    stock_options = {"interval": interval, "interval_value": interval_value, "limit": limit, "adjust": adjust}
+    free_stock_eligible = (
+        eligible_stock_code(_canonical_market_symbol(symbol)) is not None
+        and str(interval or "day").strip().lower() in {"day", "week", "month", "quarter", "year"}
+        and int(interval_value or 1) == 1
+    )
+    if not key_configured:
+        free_stock = _free_stock_candles_result(symbol, **stock_options)
+        if free_stock is not None:
+            return free_stock
+        if free_stock_eligible:
+            return {
+                "ok": False,
+                "error": "free_stock_unavailable",
+                "error_code": "free_stock_unavailable",
+                "message": "BaoStock 与腾讯公开源暂未返回该标的历史 K 线，请稍后重试。",
+                "attempted_sources": [BAOSTOCK_SOURCE, "tencent_free"],
+                "source_urls": [BAOSTOCK_SOURCE_URL, TENCENT_SOURCE_URL],
+                "ftshare_key_configured": False,
+            }
+        # Use the public index providers before constructing an anonymous
+        # FTShare client.  This keeps a key-less request from consuming the
+        # keyed/anonymous SDK path when a supported index is available free.
+        free_index = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
+        if free_index is not None:
+            return free_index
+    primary = _fetch_candles_ftshare(
+        symbol,
+        interval=interval,
+        interval_value=interval_value,
+        session_count=session_count,
+        limit=limit,
+        adjust=adjust,
+    )
+    # Safe, non-secret context for the UI: a missing credential needs different
+    # guidance from a configured account that has hit its plan's rate limit.
+    primary = {**primary, "ftshare_key_configured": key_configured}
+    if primary.get("ok"):
+        actual = len(primary.get("rows") or [])
+        is_intraday = str(interval or "").strip().lower() == "minute"
+        if is_intraday:
+            timezone_name = str(primary.get("exchange_timezone") or "Asia/Shanghai")
+            available_sessions = len({
+                datetime.fromtimestamp(int(row["time"]), tz=ZoneInfo(timezone_name)).date()
+                for row in primary.get("rows") or []
+            })
+            requested_sessions = max(1, min(int(session_count or 1), 10))
+            primary = {
+                **primary,
+                "requested_count": limit,
+                "requested_sessions": requested_sessions,
+                "available_sessions": available_sessions,
+                "history_complete": available_sessions >= requested_sessions,
+            }
+            if available_sessions < requested_sessions and primary.get("rows"):
+                primary["warnings"] = [
+                    *primary.get("warnings", []),
+                    f"请求 {requested_sessions} 个交易日的分钟线，实际获得 {available_sessions} 个交易日；已仅展示完整分钟 K。",
+                ]
+        else:
+            primary = {**primary, "requested_count": limit, "history_complete": actual >= limit}
+        if not is_intraday and actual < limit and primary.get("rows"):
+            start = int(primary["rows"][0]["time"])
+            primary["history_start"] = start
+            primary["warnings"] = [*primary.get("warnings", []), f"请求 {limit} 根，实际获得 {actual} 根；最早数据为 {datetime.fromtimestamp(start, tz=ZoneInfo('Asia/Shanghai')).date()}。历史覆盖不足，原因尚未确认。"]
+        return primary
+    fallback = _free_index_candles_result(symbol, interval=interval, limit=limit, adjust=adjust)
+    if fallback is not None:
+        return fallback
+    if key_configured:
+        free_stock = _free_stock_candles_result(symbol, **stock_options, after_ftshare_failure=True)
+        if free_stock is not None:
+            return free_stock
+    return primary
+
+
+def _workspace_rows(raw: Any) -> list[dict[str, Any]]:
+    return [dict(item) for item in _rows_from_directory_response(raw)]
+
+
+_US_INCOME_FIELD_MAP = {
+    "revenue": "total_revenue",
+    "tot_revenue": "total_revenue",
+    "net_income": "net_income",
+    "net_incattparesh": "net_income",
+    "gross_profit": "gross_profit",
+    "operating_income": "operating_income",
+    "basic_eps": "basic_eps",
+    "dilute_eps": "diluted_eps",
+}
+
+
+def _pivot_us_income_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Turn FTShare U.S. ``ind_name`` / ``ind_value`` records into report rows."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        end_date = str(row.get("end_date") or row.get("report_date") or "").strip()
+        period = str(row.get("ind_type") or row.get("report_type") or "").strip()
+        source_name = str(row.get("ind_name") or "").strip().lower()
+        value = row.get("ind_value")
+        target_name = _US_INCOME_FIELD_MAP.get(source_name)
+        if not end_date or not target_name or value in (None, ""):
+            continue
+        item = groups.setdefault(
+            (end_date, period),
+            {
+                "report_date": f"{end_date} {period}".strip(),
+                "end_date": end_date,
+                "report_type": period,
+                "currency": row.get("currency") or row.get("currency_code") or "USD",
+            },
+        )
+        item.setdefault(target_name, value)
+    return [groups[key] for key in sorted(groups, reverse=True)]
+
+
+def _workspace_value(row: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _intelligence_item(row: Mapping[str, Any], *, fallback: str = "--") -> dict[str, str]:
+    """Normalize heterogeneous FTShare rows into a small, stable UI record."""
+    title = _workspace_value(
+        row, "name", "stock_name", "security_name", "sector_name", "industry_name",
+        "concept_name", "title", "event_name", "symbol", "stock_code", "code",
+    )
+    # Capital-flow endpoints use ``main_net`` / ``main_pct`` while quote
+    # endpoints use price-change names.  Treating them as one unordered bag
+    # previously selected a stock's close change and discarded its actual
+    # capital flow, which made the sector page appear empty or misleading.
+    value = _workspace_value(
+        row, "main_net", "main_net_inflow", "net_inflow", "net_amount", "net_flow", "amount",
+        "close", "sh_close", "close_price", "event_time",
+    )
+    detail = _workspace_value(
+        row, "reason", "event", "event_type", "industry", "sector", "trade_date",
+        "date", "time", "description", "rank",
+    )
+    change = _workspace_value(
+        row, "main_pct", "main_net_pct", "sh_change_pct", "change_pct", "pct_chg", "change_rate", "pct_change", "change",
+    )
+    numeric_value = _intelligence_number(value)
+    numeric_change = _intelligence_number(change)
+    rendered_value = _display_number(numeric_value) if numeric_value is not None else str(value or "--")
+    rendered_change = _display_percent(numeric_change) if numeric_change is not None else str(change or "")
+    return {
+        "title": str(title or fallback),
+        "value": rendered_value,
+        "detail": str(detail or ""),
+        "change": rendered_change,
+    }
+
+
+def _intelligence_number(value: Any) -> float | None:
+    """Accept the numeric strings commonly returned by FTShare data APIs."""
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        return float(str(value).strip().replace(",", "").replace("%", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _intelligence_items(rows: list[dict[str, Any]], *, limit: int = 8, fallback: str = "--") -> list[dict[str, str]]:
+    return [_intelligence_item(row, fallback=fallback) for row in rows[:limit]]
+
+
+def _latest_intelligence_rows(rows: list[dict[str, Any]], *, limit: int = 1) -> list[dict[str, Any]]:
+    """Keep the newest provider records; several FTShare endpoints are oldest-first."""
+    ordered = sorted(
+        rows,
+        key=lambda row: str(_workspace_value(row, "trade_date", "date", "time", "event_time") or ""),
+        reverse=True,
+    )
+    return ordered[:limit]
+
+
+def _industry_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return the strongest industry flows, never a provider's arbitrary regional prefix."""
+    industries = [row for row in rows if str(_workspace_value(row, "sector_type", "board_type") or "").lower() == "industry"]
+    # Only use untyped rows for older providers. A typed concept or regional
+    # board must never be relabeled as an industry to fill an empty panel.
+    has_types = any(_workspace_value(row, "sector_type", "board_type") for row in rows)
+    candidates = industries if has_types else rows
+    return sorted(
+        candidates,
+        key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
+        reverse=True,
+    )[:limit]
+
+
+def _concept_flow_rows(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return concept flows only when the provider explicitly labels them.
+
+    Concepts and industries look similar in a market UI, but they answer
+    different questions.  Never relabel an industry or regional board as a
+    concept merely to fill a panel.
+    """
+    concepts = [row for row in rows if str(_workspace_value(row, "sector_type", "board_type") or "").lower() == "concept"]
+    return sorted(
+        concepts,
+        key=lambda row: _intelligence_number(_workspace_value(row, "main_net", "net_inflow", "net_amount")) or float("-inf"),
+        reverse=True,
+    )[:limit]
+
+
+def _market_board_items(rows: list[dict[str, Any]], *, limit: int = 8) -> list[dict[str, str]]:
+    """Keep the provider's verified board identifier beside its UI summary."""
+    unique_rows = []
+    seen = set()
+    for row in rows:
+        code = str(_workspace_value(row, "sector_code", "board_code", "code") or "").strip().upper()
+        name = str(_workspace_value(row, "sector_name", "board_name", "board", "name") or "").strip()
+        key = f"code:{code}" if code else f"name:{name}"
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        unique_rows.append(row)
+        if len(unique_rows) >= limit:
+            break
+    items = _intelligence_items(unique_rows, limit=limit, fallback="板块")
+    for item, row in zip(items, unique_rows):
+        # The SDK's board endpoint uses board_name, while older providers use
+        # sector_name. Do not replace a real board name with the generic label.
+        item["title"] = str(_workspace_value(row, "sector_name", "board_name", "board", "name") or item["title"])
+        item["board_code"] = str(_workspace_value(row, "sector_code", "board_code", "code") or "")
+        item["board_kind"] = str(_workspace_value(row, "sector_type", "board_type") or "")
+    return items
+
+
+def _flow_history_items(
+    rows: list[dict[str, Any]], *, limit: int, fallback: str, leader: bool = False,
+) -> list[dict[str, str]]:
+    """Render a dated flow history instead of repeating a sector or stock name.
+
+    Both the industry- and stock-flow endpoints return a *time series*.  The
+    generic intelligence normalizer used the constant name as each card title,
+    so a user saw six identical "银行" or "招商银行" cards.  Make time the
+    primary identity and keep the related leader/price as supporting context.
+    """
+    items: list[dict[str, str]] = []
+    for row in _latest_intelligence_rows(rows, limit=limit):
+        raw_date = _workspace_value(row, "trade_date", "date", "time")
+        if raw_date in (None, ""):
+            # Preserve provider-neutral compatibility for adapters without a
+            # dated history contract.
+            items.append(_intelligence_item(row, fallback=fallback))
+            continue
+        date = str(raw_date).strip()
+        compact_date = f"{date[4:6]}-{date[6:8]}" if re.fullmatch(r"\d{8}", date) else date
+        net = _intelligence_number(_workspace_value(row, "main_net", "main_net_inflow", "net_inflow", "net_amount", "net_flow"))
+        pct = _intelligence_number(_workspace_value(row, "main_pct", "main_net_pct", "change_pct", "pct_chg", "change_rate"))
+        if row.get("change_rate") not in (None, "") and pct is not None:
+            pct *= 100
+        detail_parts: list[str] = []
+        if leader:
+            leader_name = _workspace_value(row, "leader_name", "leader", "leading_stock")
+            leader_change = _intelligence_number(_workspace_value(row, "leader_change_pct", "leader_pct", "leader_change"))
+            if leader_name:
+                leader_label = f"领涨 {leader_name}"
+                if leader_change is not None:
+                    leader_label += f" {_display_percent(leader_change)}"
+                detail_parts.append(leader_label)
+        else:
+            close = _intelligence_number(_workspace_value(row, "close_price", "close", "price"))
+            close_change = _intelligence_number(_workspace_value(row, "change_pct", "pct_chg", "change_rate"))
+            if row.get("change_rate") not in (None, "") and close_change is not None:
+                close_change *= 100
+            if close is not None:
+                close_label = f"收盘 {_display_number(close)}"
+                if close_change is not None:
+                    close_label += f" · {_display_percent(close_change)}"
+                detail_parts.append(close_label)
+        items.append({
+            "title": compact_date,
+            "value": _display_number(net) if net is not None else "--",
+            "change": _display_percent(pct) if pct is not None else "",
+            "detail": " · ".join(detail_parts),
+            # Net inflow/outflow is the semantic direction of a flow card;
+            # do not let an unrelated price percentage recolor it.
+            "tone": "up" if net is not None and net > 0 else "down" if net is not None and net < 0 else "",
+        })
+    return items
+
+
+def _market_rank_items(rows: list[dict[str, Any]], *, market: str = "CN", limit: int = 8) -> list[dict[str, str]]:
+    """Normalize a market leaderboard while retaining an actionable symbol."""
+    items: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        item = _intelligence_item(row, fallback="--")
+        raw_symbol = _workspace_value(row, "symbol", "normalized_symbol", "stock_code", "code", "security_code", "ticker")
+        symbol = _canonical_directory_symbol(raw_symbol, market=market, default_market=market)
+        name = _workspace_value(row, "stock_name", "symbol_name", "security_name", "name")
+        price = _workspace_value(row, "latest_price", "price", "current_price", "close", "close_price")
+        change = _workspace_value(row, "change_pct", "pct_chg", "change_rate", "pct_change", "change")
+        rank = _workspace_value(row, "rank", "ranking", "rank_no")
+        heat = _workspace_value(row, "metric_value", "heat", "popularity")
+        if row.get("change_rate") not in (None, "") and _intelligence_number(change) is not None:
+            change = (_intelligence_number(change) or 0) * 100
+        item["title"] = str(name or item["title"])
+        item["symbol"] = symbol
+        item["value"] = _display_number(_intelligence_number(price)) if _intelligence_number(price) is not None else item["value"]
+        item["change"] = _display_percent(_intelligence_number(change)) if _intelligence_number(change) is not None else item["change"]
+        item["detail"] = " · ".join(
+            part for part in (symbol, f"#{rank}" if rank not in (None, "") else "", _display_number(_intelligence_number(heat)) if heat not in (None, "") else "") if part
+        )
+        items.append(item)
+    return items
+
+
+def _abnormal_trading_items(rows: list[dict[str, Any]], *, market: Any = None, limit: int = 20) -> list[dict[str, str]]:
+    """Normalize 龙虎榜 rows into clickable market activity cards.
+
+    The overview endpoint only provides a list of symbols; the detail endpoint
+    also supplies the brokerage seats needed for a meaningful buy/sell ranking.
+    Keep the compact overview shape when details are unavailable, but expose a
+    five-seat net amount whenever the provider returned one.
+    """
+    items: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        symbol = _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN")
+        change = _intelligence_number(_workspace_value(row, "change_rate", "change_pct", "pct_chg"))
+        if row.get("change_rate") not in (None, "") and change is not None:
+            change *= 100
+        turnover = _intelligence_number(_workspace_value(row, "turnover", "amount", "volume"))
+        name = str(_workspace_value(row, "symbol_name", "stock_name", "name") or "").strip()
+        # Detail rows do not always repeat the security name. Prefer the
+        # overview enrichment above, then use the existing local directory / a
+        # targeted FTShare lookup rather than exposing a bare code as a name.
+        if not name or name.upper() in {symbol.upper(), symbol.split(".", 1)[0].upper()}:
+            resolved = _symbol_name(market, symbol)
+            if resolved and str(resolved).upper() not in {symbol.upper(), symbol.split(".", 1)[0].upper()}:
+                name = str(resolved)
+        item: dict[str, Any] = {
+            "title": name or symbol or "--",
+            "symbol": symbol,
+            "value": _display_number(_intelligence_number(_workspace_value(row, "close", "latest_price", "price"))),
+            "change": _display_percent(change) if change is not None else "",
+            "detail": f"成交额 {_display_number(turnover)}" if turnover is not None else symbol,
+        }
+        seat_nets: dict[str, float] = {}
+        for seat in [*_workspace_rows(_workspace_value(row, "top_buyers")), *_workspace_rows(_workspace_value(row, "top_sellers"))]:
+            name = str(_workspace_value(seat, "name", "broker_name", "seat_name") or "").strip()
+            net = _intelligence_number(_workspace_value(seat, "net", "net_amount", "net_buy"))
+            if not name or net is None:
+                continue
+            # A broker can be present in both lists.  It denotes the same seat,
+            # so retain one value rather than counting its net flow twice.
+            previous = seat_nets.get(name)
+            if previous is None or abs(net) > abs(previous):
+                seat_nets[name] = net
+        if seat_nets:
+            five_seat_net = sum(seat_nets.values())
+            item.update({
+                "five_seat_net": _display_number(five_seat_net),
+                "five_seat_net_value": five_seat_net,
+                "five_seat_label": "五席净额",
+                "tone": "up" if five_seat_net > 0 else "down" if five_seat_net < 0 else "",
+            })
+        items.append(item)
+    return items
+
+
+def _primary_industry(value: Any) -> str:
+    """Turn provider category bundles into one queryable industry label.
+
+    Company metadata sometimes returns a comma-separated set of concepts,
+    indexes and styles.  Sector endpoints expect one industry name, so using
+    the entire bundle would make an otherwise available section look broken.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    return re.split(r"[,，;；、|/]", raw, maxsplit=1)[0].strip()[:80]
+
+
+def _intelligence_section_state(
+    rows: list[dict[str, Any]], errors: list[dict[str, str]], *, unsupported: bool = False,
+) -> dict[str, Any]:
+    if rows:
+        return {"state": "partial" if errors else "available", "errors": errors}
+    if unsupported:
+        return {"state": "unsupported", "errors": errors}
+    return {"state": "error" if errors else "empty", "errors": errors}
+
+
+def _read_intelligence_section(
+    market_client: Any,
+    errors: dict[str, list[dict[str, str]]],
+    section: str,
+    method_name: str,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Read an optional FTShare endpoint without breaking adjacent sections."""
+    method = getattr(market_client, method_name, None)
+    if not callable(method):
+        errors.setdefault(section, []).append({"code": "unsupported", "message": f"missing endpoint: {method_name}"})
+        return []
+    for attempt in range(3):
+        try:
+            return _workspace_rows(method(as_dataframe=False, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - provider diagnostics become structured states
+            code, message = _classify_ftshare_error(exc)
+            if code == "rate_limited" and attempt < 2:
+                time.sleep(0.15 * (attempt + 1))
+                continue
+            errors.setdefault(section, []).append({"code": code, "message": message})
+            return []
+    return []
+
+
+def _provider_unavailable_intelligence(kind: str, *, symbol: str = "") -> dict[str, Any]:
+    sections = ("breadth", "flows", "sectors", "concepts", "rankings", "events") if kind == "market_pulse" else ("sector", "flows", "events")
+    result = {
+        "ok": True,
+        "source": {"name": "FTShare", "status": "unavailable"},
+        "sections": {section: {"state": "unsupported", "errors": []} for section in sections},
+    }
+    if symbol:
+        result["symbol"] = symbol
+    result[kind] = {"message": "FTShare is not available in this runtime."}
+    return result
+
+
+def fetch_market_pulse(*, refresh: bool = False, sections: Sequence[str] | None = None) -> dict[str, Any]:
+    """Return a provider-neutral, best-effort mainland market pulse.
+
+    This is a standalone market-intelligence primitive: the chart UI, an agent,
+    and another MCP client all consume the same compact schema.  A missing
+    premium endpoint degrades one section only; it never makes the entire
+    pulse look like a failed data source.
+    """
+    global _market_pulse_cache
+    selected_sections = _MARKET_PULSE_SECTIONS if sections is None else sections
+    requested = {str(section).strip().lower() for section in selected_sections} & _MARKET_PULSE_SECTIONS
+    full_request = requested == _MARKET_PULSE_SECTIONS
+    now = time.time()
+    # Market-intelligence endpoints have no anonymous fallback.  Avoid a burst
+    # of doomed requests when the SDK is installed but no key is configured.
+    if not ftshare_available() or _ftshare_credential_source() == "none":
+        return _provider_unavailable_intelligence("market_pulse")
+    if full_request and not refresh and _market_pulse_cache and now - _market_pulse_cache[0] < _MARKET_PULSE_CACHE_TTL_SECONDS:
+        return {**_market_pulse_cache[1], "cached": True}
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d")
+    rank_trade_date = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
+
+    # Each logical group is fetched at most once per TTL window and concurrent
+    # identical group loads share a single upstream attempt.  The date keys
+    # participate in the scope so a stale cache can never leak across a session
+    # boundary (the previous day's rows would otherwise be served as today's).
+    def _read_group(name: str, reader: Any) -> Any:
+        scope = f"{name}:{trade_date}"
+        cached = _cached_market_pulse_section(scope, refresh=refresh)
+        if cached is not None:
+            return cached
+        with _market_pulse_section_lock(scope):
+            # Re-check after acquiring: a concurrent caller may have just
+            # populated the entry while this one was waiting.
+            cached = _cached_market_pulse_section(scope, refresh=refresh)
+            if cached is not None:
+                return cached
+            value = reader()
+            return value
+
+    def _load_breadth() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        # SDK 1.x uses the documented words rather than the older U/D aliases.
+        up = _read_intelligence_section(market, local, "breadth", "limit_list", limit_type="up", trade_date=trade_date)
+        down = _read_intelligence_section(market, local, "breadth", "limit_list", limit_type="down", trade_date=trade_date)
+        return {"up": up, "down": down, "errors": local}
+
+    def _load_flows() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        # These endpoints are oldest-first.  Request enough rows to locate the
+        # latest market reading rather than displaying January data in September.
+        market_flow = _read_intelligence_section(market, local, "flows", "eastmoney_dapan_flow", limit=500)
+        northbound = _read_intelligence_section(market, local, "flows", "northbound", date=trade_date)
+        southbound = _read_intelligence_section(market, local, "flows", "southbound", date=trade_date)
+        return {"market": market_flow, "northbound": northbound, "southbound": southbound, "errors": local}
+
+    def _load_boards() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        sector = _read_intelligence_section(market, local, "sectors", "eastmoney_sector_flow", limit=500)
+        return {"sectors": sector, "errors": local}
+
+    def _load_rankings() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        hot = _read_intelligence_section(
+            market, local, "rankings", "eastmoney_rank", rank_group="hot", market="A", trade_date=rank_trade_date,
+        )
+        surging = _read_intelligence_section(
+            market, local, "rankings", "eastmoney_rank", rank_group="up", market="A", trade_date=rank_trade_date,
+        )
+        # Eastmoney's ranking endpoint can be temporarily rate-limited even when
+        # its free data exists. Snowball's attention rank is a like-for-like
+        # fallback for the *popularity* view only; it is never mislabeled as a
+        # price-momentum leaderboard.
+        source = "eastmoney"
+        if not hot:
+            hot = _read_intelligence_section(
+                market, local, "rankings", "xueqiu_rank", rank_group="follow", period="total", limit=8,
+            )
+            source = "xueqiu" if hot else ""
+        return {"hot": hot, "surging": surging, "source": source, "errors": local}
+
+    def _load_events() -> dict[str, Any]:
+        local: dict[str, list[dict[str, str]]] = {}
+        abnormal = _read_intelligence_section(market, local, "events", "abnormal_trading_details", date=trade_date, limit=20)
+        # During a trading day the endpoint may expose its latest completed
+        # snapshot without a same-day date key.
+        if not abnormal:
+            abnormal = _read_intelligence_section(market, local, "events", "abnormal_trading_details", limit=20)
+        overview = _read_intelligence_section(market, local, "events", "abnormal_trading_overview", date=trade_date, limit=20)
+        if not overview:
+            overview = _read_intelligence_section(market, local, "events", "abnormal_trading_overview", limit=20)
+        # Details carry the broker-seat ledger but currently omit the security
+        # name. Enrich each detail row from the matching overview row; this is
+        # still one coherent provider snapshot, not a guessed local mapping.
+        if abnormal and overview:
+            overview_by_symbol = {
+                _canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"): row
+                for row in overview
+            }
+            abnormal = [
+                {**overview_by_symbol.get(_canonical_directory_symbol(_workspace_value(row, "symbol", "stock_code", "code"), default_market="CN"), {}), **row}
+                for row in abnormal
+            ]
+        # Older SDKs or temporary provider rollouts may omit the detail route.
+        # The overview remains actionable, but the UI will label it as a plain
+        # symbol list rather than pretend it is a net-flow ranking.
+        if not abnormal:
+            abnormal = overview
+        return {"abnormal": abnormal, "errors": local}
+
+    want_boards = bool({"sectors", "concepts"} & requested)
+    groups: dict[str, dict[str, Any]] = {}
+    group_readers = (
+        ("breadth", _load_breadth, "breadth" in requested),
+        ("flows", _load_flows, "flows" in requested),
+        ("boards", _load_boards, want_boards),
+        ("rankings", _load_rankings, "rankings" in requested),
+        ("events", _load_events, "events" in requested),
+    )
+    for group_name, reader, wanted in group_readers:
+        if not wanted:
+            continue
+        groups[group_name] = _read_group(group_name, reader)
+        for section_errors in (groups[group_name].get("errors") or {}).items():
+            section_key, entries = section_errors
+            if entries:
+                errors.setdefault(section_key, []).extend(entries)
+
+    up_rows = list((groups.get("breadth") or {}).get("up") or [])
+    down_rows = list((groups.get("breadth") or {}).get("down") or [])
+    flow_group = groups.get("flows") or {}
+    market_flow_rows = list(flow_group.get("market") or [])
+    northbound_rows = list(flow_group.get("northbound") or [])
+    southbound_rows = list(flow_group.get("southbound") or [])
+    sector_rows = list((groups.get("boards") or {}).get("sectors") or [])
+    rank_group = groups.get("rankings") or {}
+    hot_rank_rows = list(rank_group.get("hot") or [])
+    surging_rank_rows = list(rank_group.get("surging") or [])
+    hot_rank_source = str(rank_group.get("source") or "")
+    abnormal_rows = list((groups.get("events") or {}).get("abnormal") or [])
+    breadth = [
+        {"title": "涨停", "value": str(len(up_rows)), "detail": "当日涨停池", "change": "", "tone": "up"},
+        {"title": "跌停", "value": str(len(down_rows)), "detail": "当日跌停池", "change": "", "tone": "down"},
+    ]
+    latest_market_rows = _latest_intelligence_rows(market_flow_rows)
+    latest_northbound_rows = _latest_intelligence_rows(northbound_rows)
+    latest_southbound_rows = _latest_intelligence_rows(southbound_rows)
+    industry_rows = _industry_flow_rows(sector_rows)
+    concept_rows = _concept_flow_rows(sector_rows)
+    flow_rows = [*latest_market_rows, *latest_northbound_rows, *latest_southbound_rows]
+    as_of_rows = [*up_rows, *down_rows, *flow_rows, *industry_rows]
+    as_of = _latest_intelligence_rows(as_of_rows)
+    pulse: dict[str, Any] = {"as_of": str(_workspace_value(as_of[0], "trade_date", "date", "time") or trade_date) if as_of else trade_date}
+    if "breadth" in requested:
+        pulse["breadth"] = breadth
+    if "flows" in requested:
+        pulse["flows"] = _intelligence_items(flow_rows, limit=5, fallback="资金流")
+    if "sectors" in requested:
+        pulse["hot_sectors"] = _market_board_items(industry_rows, limit=8)
+    if "concepts" in requested:
+        pulse["hot_concepts"] = _market_board_items(concept_rows, limit=8)
+    if "rankings" in requested:
+        pulse["rankings"] = {
+            "hot": _market_rank_items(hot_rank_rows, market="CN"),
+            "surging": _market_rank_items(surging_rank_rows, market="CN"),
+            "hot_source": hot_rank_source,
+        }
+    if "events" in requested:
+        pulse["abnormal_trading"] = _abnormal_trading_items(abnormal_rows, market=market)
+    result = {
+        "ok": True,
+        "cached": False,
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+        "market_pulse": pulse,
+        "sections": {
+            "breadth": _intelligence_section_state([*up_rows, *down_rows], errors.get("breadth", [])) if "breadth" in requested else {"state": "deferred", "errors": []},
+            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])) if "flows" in requested else {"state": "deferred", "errors": []},
+            "sectors": _intelligence_section_state(industry_rows, errors.get("sectors", [])) if "sectors" in requested else {"state": "deferred", "errors": []},
+            "concepts": _intelligence_section_state(concept_rows, errors.get("concepts", [])) if "concepts" in requested else {"state": "deferred", "errors": []},
+            "rankings": _intelligence_section_state([*hot_rank_rows, *surging_rank_rows], errors.get("rankings", [])) if "rankings" in requested else {"state": "deferred", "errors": []},
+            "events": _intelligence_section_state(abnormal_rows, errors.get("events", [])) if "events" in requested else {"state": "deferred", "errors": []},
+        },
+    }
+    if full_request and not any(errors.values()):
+        _market_pulse_cache = (now, result)
+    # Store only groups that actually returned data.  Caching an empty result
+    # would pin a transient provider failure for the whole TTL window and turn
+    # a momentary hiccup into a 90-second outage.
+    if not refresh:
+        fresh_at = time.time()
+        for group_name, payload in groups.items():
+            if payload and not payload.get("errors"):
+                _market_pulse_section_cache[f"{group_name}:{trade_date}"] = (fresh_at, deepcopy(payload))
+    return result
+
+
+def fetch_market_board_detail(
+    name: str, *, board_code: str | None = None, kind: str = "industry", refresh: bool = False,
+) -> dict[str, Any]:
+    """Read one board's verified snapshot and available funding history.
+
+    Board identifiers are vendor-specific.  We only promise the information
+    that is returned for the selected code; membership is explicitly marked
+    source-dependent until its endpoint accepts the same identifier.
+    """
+    label = str(name or "").strip()[:80]
+    code = str(board_code or "").strip()[:40]
+    requested_kind = str(kind or "industry").strip().lower()
+    if not label and not code:
+        return {"ok": False, "error": "invalid_board", "message": "board name or code is required"}
+    if requested_kind not in {"industry", "concept"}:
+        return {"ok": False, "error": "invalid_board_kind", "message": "board kind must be industry or concept"}
+    if not ftshare_available():
+        return _provider_unavailable_intelligence("market_pulse")
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    snapshot_rows = _read_intelligence_section(market, errors, "board", "eastmoney_sector_flow", limit=500)
+    board = next((row for row in snapshot_rows if
+                  ((code and str(_workspace_value(row, "sector_code", "board_code") or "") == code)
+                   or (not code and str(_workspace_value(row, "sector_name", "board_name") or "") == label))
+                  and str(_workspace_value(row, "sector_type", "board_type") or "").lower() == requested_kind), None)
+    if board is None:
+        return {
+            "ok": True,
+            "board": {"name": label or code, "code": code, "kind": requested_kind, "snapshot": {}, "history": [], "members": []},
+            "sections": {"board": _intelligence_section_state([], errors.get("board", [])), "members": {"state": "source_dependent", "errors": []}},
+            "source": {"name": "FTShare", "status": "empty"},
+        }
+    resolved_name = str(_workspace_value(board, "sector_name", "board_name") or label)
+    resolved_kind = str(_workspace_value(board, "sector_type", "board_type") or requested_kind).lower()
+    history_rows: list[dict[str, Any]] = []
+    if resolved_kind == "industry":
+        end = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        history_rows = _read_intelligence_section(
+            market, errors, "board", "ths_industry_daily_flow", sector_name=resolved_name,
+            start_date=(end - timedelta(days=12)).strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), limit=10,
+        )
+    snapshot = _intelligence_item(board, fallback=resolved_name)
+    snapshot["title"] = resolved_name
+    return {
+        "ok": True,
+        "board": {
+            "name": resolved_name,
+            "code": str(_workspace_value(board, "sector_code", "board_code") or code),
+            "kind": resolved_kind,
+            "snapshot": snapshot,
+            "history": _flow_history_items(history_rows, limit=6, fallback=resolved_name, leader=True),
+            "members": [],
+        },
+        "sections": {
+            "board": _intelligence_section_state([board, *history_rows], errors.get("board", [])),
+            "members": {"state": "source_dependent", "errors": []},
+        },
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+    }
+
+
+def fetch_security_intelligence(symbol: str, *, name: str | None = None, refresh: bool = False) -> dict[str, Any]:
+    """Load sector linkage, capital flow, and event context for one symbol.
+
+    The response is intentionally independent of ``fetch_security_workspace``.
+    It can be shown in the workbench, called by an agent, or composed by a
+    future Market Intelligence Core without coupling to a chart session.
+    """
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    if _broad_index_for_symbol(sym) or sym in GLOBAL_INDEX_SOURCES:
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "not_applicable"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "index", "sector": {}, "flows": [], "events": []},
+            "sections": {section: {"state": "not_applicable", "errors": []} for section in ("sector", "flows", "events")},
+        }
+    if _is_etf_symbol(sym):
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "not_applicable"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "etf", "sector": {}, "flows": [], "events": []},
+            "sections": {"sector": {"state": "not_applicable", "errors": []}, "flows": {"state": "unsupported", "errors": []}, "events": {"state": "not_applicable", "errors": []}},
+        }
+    key = sym.upper()
+    cached = _security_intelligence_cache.get(key)
+    now = time.time()
+    if not refresh and cached and now - cached[0] < _SECURITY_INTELLIGENCE_CACHE_TTL_SECONDS:
+        return {**cached[1], "cached": True}
+    if not ftshare_available():
+        return _provider_unavailable_intelligence("security_intelligence", symbol=sym)
+    market_name = _workspace_market(sym)
+    if market_name != "CN":
+        return {
+            "ok": True,
+            "symbol": sym,
+            "source": {"name": "FTShare", "status": "limited"},
+            "security_intelligence": {"name": name or sym, "instrument_type": "stock", "sector": {}, "flows": [], "events": []},
+            "sections": {section: {"state": "unsupported", "errors": []} for section in ("sector", "flows", "events")},
+        }
+    market = _ftshare_market_api(timeout=12)
+    errors: dict[str, list[dict[str, str]]] = {}
+    code = _cn_stock_code(sym)
+    bare = code.split(".")[0]
+    basic_rows = _read_intelligence_section(market, errors, "sector", "company_list", stock_code=bare, limit=1)
+    industry = _primary_industry(_workspace_value(basic_rows[0], "industry", "industry_name", "sector", "bk")) if basic_rows else ""
+    flow_rows = _read_intelligence_section(market, errors, "flows", "eastmoney_stock_flow", symbol=code, limit=10)
+    if not flow_rows:
+        flow_rows = _read_intelligence_section(market, errors, "flows", "ths_stock_daily_flow", code=bare, limit=10)
+    event_rows = _read_intelligence_section(market, errors, "events", "limit_event_timeline_3s", symbol=code)
+    industry_rows: list[dict[str, Any]] = []
+    peer_rows: list[dict[str, Any]] = []
+    if industry:
+        industry_end = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        industry_start = industry_end - timedelta(days=10)
+        industry_rows = _read_intelligence_section(
+            market,
+            errors,
+            "sector",
+            "ths_industry_daily_flow",
+            sector_name=industry,
+            start_date=industry_start.strftime("%Y%m%d"),
+            end_date=industry_end.strftime("%Y%m%d"),
+            limit=10,
+        )
+        peer_rows = _read_intelligence_section(market, errors, "sector", "supply_chain_subsubindustry_companies", subindustry_name=industry)
+    intelligence = {
+        "name": name or _symbol_name(market, sym),
+        "instrument_type": "stock",
+        "sector": {
+            "industry": industry or "--",
+            "flow": _flow_history_items(industry_rows, limit=8, fallback=industry or "行业资金", leader=True),
+            "peers": _intelligence_items(peer_rows, limit=12, fallback="同类公司"),
+        },
+        "flows": _flow_history_items(flow_rows, limit=10, fallback="个股资金"),
+        "events": _intelligence_items(event_rows, limit=10, fallback="交易事件"),
+    }
+    result = {
+        "ok": True,
+        "cached": False,
+        "symbol": sym,
+        "source": {"name": "FTShare", "status": "retrieved", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
+        "security_intelligence": intelligence,
+        "sections": {
+            "sector": _intelligence_section_state([*basic_rows, *industry_rows, *peer_rows], errors.get("sector", [])),
+            "flows": _intelligence_section_state(flow_rows, errors.get("flows", [])),
+            "events": _intelligence_section_state(event_rows, errors.get("events", [])),
+        },
+    }
+    if not any(errors.values()):
+        _security_intelligence_cache[key] = (now, result)
+    return result
+
+
+def _display_number(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "--"
+    absolute = abs(number)
+    if absolute >= 100_000_000:
+        return f"{number / 100_000_000:.2f}亿"
+    if absolute >= 10_000:
+        return f"{number / 10_000:.2f}万"
+    return f"{number:,.2f}".rstrip("0").rstrip(".")
+
+
+def _cn_stock_code(symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    return normalized.replace(".XSHG", ".SH").replace(".XSHE", ".SZ")
+
+
+def _workspace_market(symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    if _is_us_symbol(normalized):
+        return "US"
+    if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
+        return "HK"
+    return "CN"
+
+
+def _workspace_news(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Normalize articles while retaining source provenance when supplied."""
+    items: list[dict[str, str]] = []
+    for row in rows[:12]:
+        title = _workspace_value(row, "title", "news_title", "headline", "name")
+        if not title:
+            continue
+        items.append(
+            {
+                "title": str(title),
+                "time": str(_workspace_value(row, "time", "publish_time", "datetime", "date") or "--"),
+                "summary": str(_workspace_value(row, "summary", "content", "abstract", "digest") or ""),
+                "kind": str(_workspace_value(row, "kind", "source", "media", "category") or "资讯"),
+                "source_url": str(_workspace_value(row, "source_url", "url", "link", "article_url") or ""),
+                "article_id": str(_workspace_value(row, "article_id", "news_id", "id", "uuid") or ""),
+                "entity_id": str(_workspace_value(row, "symbol", "security_id", "entity_id", "stock_code") or ""),
+            }
+        )
+    return items
+
+
+def _workspace_financials(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    normalized_rows: list[list[str]] = []
+    metrics: list[dict[str, str]] = []
+    for index, row in enumerate(rows[:8]):
+        period = _workspace_value(row, "report_date", "end_date", "period", "report_period", "report_type_cn", "date") or "--"
+        # FTShare's wide A-share income records use t_revenue/n_profit while
+        # other adapters commonly use total_revenue/net_income. Keep both
+        # families so a valid record never becomes a row of placeholder values.
+        revenue = _workspace_value(row, "total_operate_income", "total_revenue", "t_revenue", "revenue", "operating_revenue")
+        profit = _workspace_value(row, "net_profit", "n_profit", "net_income", "netprofit", "parent_netprofit", "parcomp_n_profit")
+        margin = _workspace_value(row, "gross_margin", "grossprofit_margin")
+        cash = _workspace_value(row, "operate_cash_flow", "operating_cash_flow", "cash_from_operations")
+        normalized_rows.append([str(period), _display_number(revenue), _display_number(profit), _display_number(margin), _display_number(cash)])
+        if index == 0:
+            for label, value in (("营业收入", revenue), ("净利润", profit), ("毛利率", margin), ("经营现金流", cash)):
+                if value not in (None, ""):
+                    metrics.append({"label": label, "value": _display_number(value)})
+    currency = _workspace_value(rows[0], "currency", "currency_code", "unit", "currency_unit") if rows else None
+    return {"metrics": metrics, "rows": normalized_rows, "unit": str(currency or "未声明")}
+
+
+def _workspace_holders(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    flattened: list[dict[str, Any]] = []
+    for record in rows:
+        nested = record.get("fen_holders")
+        if isinstance(nested, list):
+            for item in nested:
+                if isinstance(item, Mapping):
+                    flattened.append(
+                        {
+                            **dict(item),
+                            "report_date": _workspace_value(record, "report_date", "publish_date", "end_date", "date"),
+                        }
+                    )
+        else:
+            flattened.append(record)
+    items: list[dict[str, Any]] = []
+    for row in flattened[:10]:
+        name = _workspace_value(row, "holder_name", "shareholder_name", "name", "holder")
+        if not name:
+            continue
+        percent = _workspace_value(row, "hold_ratio", "holding_ratio", "shareholding_ratio", "share_ratio", "percent", "ratio")
+        shares = _workspace_value(row, "hold_amount", "holding_amount", "shareholding", "shares", "hold_num")
+        change = _workspace_value(row, "change_ratio", "change_percentage", "change", "hold_change")
+        try:
+            percent_number = float(percent) if percent not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            percent_number = 0.0
+        items.append({"name": str(name), "percent": percent_number, "shares": _display_number(shares), "change": str(change or "--")})
+    updated = _workspace_value(rows[0], "report_date", "publish_date", "end_date", "date") if rows else None
+    return {"updated_at": str(updated or "--"), "items": items}
+
+
+def _workspace_overview_metrics(
+    financials: Mapping[str, Any], balance_rows: list[dict[str, Any]], cashflow_rows: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Build a compact factual company snapshot from FTShare wide tables."""
+    metrics = list(financials.get("metrics") or [])[:2]
+    balance = balance_rows[0] if balance_rows else {}
+    cashflow = cashflow_rows[0] if cashflow_rows else {}
+    assets = _workspace_value(balance, "t_assets", "total_assets", "assets")
+    liability_ratio = _workspace_value(balance, "asset_liability_ratio", "debt_to_assets")
+    operating_cash = _workspace_value(cashflow, "net_oper_cash_flow", "operate_cash_flow", "operating_cash_flow")
+    if assets not in (None, ""):
+        metrics.append({"label": "总资产", "value": _display_number(assets)})
+    if liability_ratio not in (None, ""):
+        try:
+            metrics.append({"label": "资产负债率", "value": f"{float(liability_ratio):.2f}%"})
+        except (TypeError, ValueError):
+            pass
+    if operating_cash not in (None, ""):
+        metrics.append({"label": "经营现金流", "value": _display_number(operating_cash)})
+    return metrics[:5]
+
+
+def _display_percent(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "--"
+    return f"{number:.2f}%"
+
+
+def _workspace_overview_details(
+    *,
+    basic: Mapping[str, Any],
+    financial_rows: list[dict[str, Any]],
+    balance_rows: list[dict[str, Any]],
+    cashflow_rows: list[dict[str, Any]],
+    holder_count_rows: list[dict[str, Any]],
+    pledge_rows: list[dict[str, Any]],
+    share_change_rows: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Normalize the factual fields that make an equity profile actionable.
+
+    FTShare endpoints use different field names across source families. Keep a
+    compact, de-duplicated list so the frontend can omit unavailable fields
+    instead of rendering a table full of placeholders.
+    """
+    details: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def add(label: str, value: Any, *keys: str, style: str = "text", group: str = "经营与资本结构") -> None:
+        candidate = value if value not in (None, "") else _workspace_value(row, *keys)
+        if candidate in (None, "") or label in seen:
+            return
+        rendered = _display_percent(candidate) if style == "percent" else _display_number(candidate) if style == "number" else str(candidate)
+        if rendered == "--":
+            return
+        seen.add(label)
+        details.append({"label": label, "value": rendered, "group": group})
+
+    row: Mapping[str, Any] = basic
+    add("所属板块", None, "bk", group="公司档案")
+    add("主要产品", None, "business_products", group="公司档案")
+    add("成立日期", None, "establish_date", "found_date", "setup_date", "founded_date", group="公司档案")
+    add("注册资本", None, "registered_capital", "reg_capital", "register_capital", style="number", group="公司档案")
+    add("法人代表", None, "legal_representative", "legal_person", "chairman", "representative", group="公司档案")
+    add("注册地", None, "registered_address", "address", "province", "city", group="公司档案")
+    add("主营业务", None, "main_business", "business_scope", "business", "description", group="公司档案")
+
+    row = financial_rows[0] if financial_rows else {}
+    add("最新报告期", None, "report_date", "end_date", "period", "report_period", "report_type_cn", "date")
+    add("营业收入同比", None, "revenue_yoy", "total_revenue_yoy", "yoy_revenue", "operate_income_yoy", style="percent")
+    add("净利润同比", None, "net_profit_yoy", "n_profit_yoy", "yoy_netprofit", "net_income_yoy", style="percent")
+    add("净资产收益率", None, "roe", "roe_weighted", "return_on_equity", style="percent")
+    add("每股收益", None, "basic_eps", "eps", "diluted_eps")
+
+    row = balance_rows[0] if balance_rows else {}
+    add("总负债", None, "t_liabilities", "total_liabilities", "liabilities", style="number")
+    add("归母权益", None, "total_hldr_eqy_exc_min_int", "total_hldr_eqy_inc_min_int", "total_equity", "shareholders_equity", style="number")
+    add("货币资金", None, "money_cap", "cash", "cash_and_equivalents", style="number")
+    add("应收账款", None, "accounts_receivable", "acct_rcv", "receivables", style="number")
+    add("存货", None, "inventories", "inventory", style="number")
+
+    row = cashflow_rows[0] if cashflow_rows else {}
+    add("投资现金流", None, "net_invest_cash_flow", "invest_cash_flow", "cash_from_investment", style="number")
+    add("筹资现金流", None, "net_finance_cash_flow", "finance_cash_flow", "cash_from_financing", style="number")
+    add("期末现金余额", None, "cash_equ_end_period", "cash_end", "ending_cash", style="number")
+
+    row = holder_count_rows[0] if holder_count_rows else {}
+    add("股东户数", None, "holder_num", "holder_count", "holders_num", "shareholder_num", style="number", group="股东与治理")
+    add("股东户数变动", None, "holder_num_change", "holder_change", "change_ratio", "change_percentage", style="percent", group="股东与治理")
+
+    row = pledge_rows[0] if pledge_rows else {}
+    add("股份质押比例", None, "pledge_ratio", "pledged_ratio", "pledge_percent", style="percent", group="股东与治理")
+    add("质押股份", None, "pledge_shares", "pledged_shares", "pledge_amount", style="number", group="股东与治理")
+
+    row = share_change_rows[0] if share_change_rows else {}
+    add("最近增减持日期", None, "change_date", "announce_date", "end_date", "date", group="股东与治理")
+    add("最近增减持比例", None, "change_ratio", "change_percentage", "ratio", style="percent", group="股东与治理")
+    return details[:24]
+
+
+def _workspace_optional_rows(market: Any, method_name: str, **kwargs: Any) -> list[dict[str, Any]]:
+    """Call an optional FTShare endpoint without making its availability fatal."""
+    method = getattr(market, method_name, None)
+    if not callable(method):
+        return []
+    return _workspace_rows(method(as_dataframe=False, **kwargs))
+
+
+def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: bool = False) -> dict[str, Any]:
+    """Load FTShare news and company data into the provider-neutral app schema.
+
+    This is deliberately independent from ``fetch_candles``: a slow or missing
+    company endpoint must never delay the chart.  Each section is best-effort,
+    and callers can later replace the same ``security_workspace`` contract with
+    another licensed provider.
+    """
+    sym = str(symbol or "").strip()
+    if not sym:
+        return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    key = sym.upper()
+    cached = _security_workspace_cache.get(key)
+    now = time.time()
+    if not refresh and cached and now - cached[0] < _SECURITY_WORKSPACE_CACHE_TTL_SECONDS:
+        return {"ok": True, "cached": True, "security_workspace": cached[1]}
+    index = _broad_index_for_symbol(sym) or GLOBAL_INDEX_SOURCES.get(key)
+    if index:
+        if not isinstance(index, Mapping):
+            index = next((item for item in _SYMBOL_DIRECTORY_SEED if item["symbol"] == key), {})
+        workspace = {
+            "symbol": sym, "instrument_type": "index",
+            "source": {"name": "本地标的目录", "status": "reference"},
+            "overview": {"company_name": name or index.get("name") or sym,
+                         "market": index.get("market") or "--", "metrics": [], "details": [],
+                         "description": "此标的是指数，不是上市公司，不适用公司财报、主营业务或公司股东资料。当前未接入指数编制说明和成分股资料。"},
+            "news": [], "financials": {}, "holders": {}, "errors": [],
+            "sections": {"overview": {"state": "available"}, "news": {"state": "unsupported"},
+                         "financials": {"state": "not_applicable"}, "holders": {"state": "not_applicable"}},
+        }
+        return {"ok": True, "cached": False, "security_workspace": workspace}
+    if not ftshare_available():
+        return _ftshare_unavailable_result()
+
+    market = _ftshare_market_api(timeout=12)
+    display_name = str(name or sym)
+    market_name = _workspace_market(sym)
+    try:
+        resolved = _symbol_name(market, sym)
+        if resolved and resolved != sym:
+            display_name = resolved
+    except Exception:
+        pass
+    errors: list[str] = []
+    section_errors: dict[str, list[dict[str, str]]] = {}
+    # FTShare rate limits apply to the account rather than one endpoint. Once
+    # the provider asks us to slow down, do not turn one company page into a
+    # burst of identical requests and errors; the UI will retain available data
+    # and make one background retry after the short cooldown.
+    rate_limited_until = 0.0
+
+    def read_section(section: str, method_name: str, **kwargs: Any) -> list[dict[str, Any]]:
+        nonlocal rate_limited_until
+        if time.monotonic() < rate_limited_until:
+            message = "FTShare 请求过于频繁，请稍后重试。"
+            section_errors.setdefault(section, []).append({"code": "rate_limited", "message": message})
+            errors.append(f"{method_name}: {message}")
+            return []
+        method = getattr(market, method_name, None)
+        if not callable(method):
+            message = f"missing endpoint: {method_name}"
+            section_errors.setdefault(section, []).append({"code": "unsupported", "message": message})
+            errors.append(f"{method_name}: {message}")
+            return []
+        for attempt in range(3):
+            try:
+                return _workspace_rows(method(as_dataframe=False, **kwargs))
+            except Exception as exc:
+                code, message = _classify_ftshare_error(exc)
+                if code == "rate_limited" and attempt < 2:
+                    time.sleep(0.2 * (attempt + 1))
+                    continue
+                if code == "rate_limited":
+                    rate_limited_until = time.monotonic() + 3.0
+                section_errors.setdefault(section, []).append({"code": code, "message": message})
+                errors.append(f"{method_name}: {message}")
+                return []
+        return []
+    news_rows: list[dict[str, Any]] = []
+    financial_rows: list[dict[str, Any]] = []
+    holder_rows: list[dict[str, Any]] = []
+    basic_rows: list[dict[str, Any]] = []
+    balance_rows: list[dict[str, Any]] = []
+    cashflow_rows: list[dict[str, Any]] = []
+    holder_count_rows: list[dict[str, Any]] = []
+    pledge_rows: list[dict[str, Any]] = []
+    share_change_rows: list[dict[str, Any]] = []
+    news_query = f"{display_name} {sym}" if display_name != sym else sym
+    news_rows = read_section("news", "semantic_search_news", query=news_query, limit=12)
+    if market_name == "US":
+        bare = _bare_us_symbol(sym)
+        basic_rows = read_section("overview", "us_basic", stock_code=bare, limit=1)
+        financial_rows = _pivot_us_income_rows(read_section("financials", "us_income", stock_code=bare, limit=200))
+    elif market_name == "CN":
+        code = _cn_stock_code(sym)
+        # Company lookup requires a bare code; financial endpoints use .SH/.SZ.
+        basic_rows = read_section("overview", "company_list", stock_code=code.split(".")[0], limit=1)
+        financial_rows = read_section("financials", "income", stock_code=code, limit=8)
+        holder_rows = read_section("holders", "stock_holders", stock_code=code, limit=10)
+    if market_name == "CN":
+        code = _cn_stock_code(sym)
+        balance_rows = read_section("overview", "balance", stock_code=code, limit=8)
+        cashflow_rows = read_section("overview", "cashflow", stock_code=code, limit=8)
+        for label, method_name, kwargs in (
+            ("holder_count", "stock_holders_number", {"stock_code": code, "limit": 2}),
+            ("pledge", "stock_pledge_detail", {"stock_code": code, "limit": 1}),
+            ("share_change", "stock_share_chg", {"stock_code": code, "limit": 1}),
+        ):
+            rows = read_section("overview", method_name, **kwargs)
+            if label == "holder_count":
+                holder_count_rows = rows
+            elif label == "pledge":
+                pledge_rows = rows
+            else:
+                share_change_rows = rows
+    basic = basic_rows[0] if basic_rows else {}
+    financials = _workspace_financials(financial_rows)
+    overview_metrics = _workspace_overview_metrics(financials, balance_rows, cashflow_rows)
+    overview_details = _workspace_overview_details(
+        basic=basic,
+        financial_rows=financial_rows,
+        balance_rows=balance_rows,
+        cashflow_rows=cashflow_rows,
+        holder_count_rows=holder_count_rows,
+        pledge_rows=pledge_rows,
+        share_change_rows=share_change_rows,
+    )
+    overview = {
+        "company_name": str(_workspace_value(basic, "name", "company_name", "stock_name") or display_name),
+        "market": market_name,
+        "industry": str(_workspace_value(basic, "industry", "sector", "industry_name") or "--"),
+        "listing_date": str(_workspace_value(basic, "listing_date", "list_date", "ipo_date") or "--"),
+        "website": str(_workspace_value(basic, "website", "url", "company_website") or "--"),
+        "employees": str(_workspace_value(basic, "employees", "employee_count") or "--"),
+        "description": str(_workspace_value(basic, "company_profile", "description", "introduction", "business_scope") or "--"),
+        # Company profile fields are not available for every FTShare market
+        # adapter. Reuse factual, latest reported financial metrics rather
+        # than rendering an empty Company page in that case.
+        "metrics": overview_metrics,
+        "details": overview_details,
+    }
+    def section_state(section: str, available: bool, unsupported: bool = False) -> dict[str, Any]:
+        failures = section_errors.get(section, [])
+        return {"state": ("partial" if failures else "available") if available else
+                ("unsupported" if unsupported else "error" if failures else "empty"), "errors": failures}
+
+    workspace = {
+        "symbol": sym,
+        "source": {
+            "name": "FTShare",
+            "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            "status": "retrieved",
+            "retrieved_at": int(time.time()),
+            "query": news_query,
+        },
+        "news": _workspace_news(news_rows),
+        "overview": overview,
+        "financials": financials,
+        "holders": _workspace_holders(holder_rows),
+        "errors": errors,
+        "sections": {
+            "news": section_state("news", bool(news_rows)),
+            "overview": section_state("overview", bool(basic_rows or overview_metrics or overview_details), market_name == "HK"),
+            "financials": section_state("financials", bool(financials["metrics"]), market_name == "HK"),
+            "holders": section_state("holders", bool(holder_rows), market_name in {"HK", "US"}),
+        },
+    }
+    # Failed requests are retryable, not five-minute negative-cache entries.
+    if not errors:
+        _security_workspace_cache[key] = (now, workspace)
+    return {"ok": True, "cached": False, "security_workspace": workspace}
+
+
+def fetch_comparison_candles(symbol: str, *, limit: int = 390) -> dict[str, Any]:
+    """Fetch daily comparison data without silently changing instrument type.
+
+    The browser normalizes successful series against their first comparable
+    close. A broad-index request returns the same explicit provider capability
+    error as ``fetch_candles`` until a verified A-share index source is wired.
+    """
+    sym = _canonical_market_symbol(symbol)
+    if not sym:
+        return {"ok": False, "error": "invalid_symbol", "message": "symbol is required"}
+    return fetch_candles(sym, interval="day", limit=limit, adjust="none")

@@ -100,7 +100,9 @@
     "test:python": "node ./scripts/run-tests.mjs --python",
     "test:launcher": "node --test tests/launcher-paths.test.mjs",
     "generate:codex-catalog": "python scripts/generate-codex-catalog.py",
-    "verify:codex-catalog": "python scripts/generate-codex-catalog.py --check"
+    "verify:codex-catalog": "python scripts/generate-codex-catalog.py --check",
+    "sync:codex-marketplace": "node scripts/sync-codex-marketplace.mjs",
+    "verify:codex-marketplace": "node scripts/sync-codex-marketplace.mjs --check"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.5-rc.2",

@@ -62,6 +62,7 @@ jobs:
         run: |
           pnpm pack:release
           pnpm pack:codex
+          pnpm verify:codex-marketplace
 
       - name: Exercise the packed ordinary-user install
         run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.2.tgz
@@ -71,3 +72,6 @@ jobs:
 
       - name: Exercise isolated Codex package paths
         run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.2.zip
+
+      - name: Exercise standalone GitHub marketplace plugin
+        run: python scripts/smoke-codex-package.py marketplace/ft-kline

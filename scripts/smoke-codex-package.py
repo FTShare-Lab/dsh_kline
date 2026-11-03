@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract and import a Codex package from a Unicode/space path without caches."""
+"""Copy a Codex ZIP or marketplace directory into a clean Unicode/space path."""
 from __future__ import annotations
 
 import os
@@ -86,12 +86,15 @@ def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> 
 
 def main() -> int:
     archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.2.zip").resolve()
-    if not archive.is_file(): raise SystemExit(f"archive not found: {archive}")
+    if not archive.exists(): raise SystemExit(f"package not found: {archive}")
     temporary = Path(tempfile.mkdtemp(prefix="ft-kline-codex-smoke-"))
     try:
         destination = temporary / "全新 安装 FT K线"
-        with zipfile.ZipFile(archive) as package:
-            package.extractall(destination)
+        if archive.is_dir():
+            shutil.copytree(archive, destination, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo'))
+        else:
+            with zipfile.ZipFile(archive) as package:
+                package.extractall(destination)
         for required in ("plugin.json", ".codex-plugin/plugin.json", "mcp.json", ".mcp.json", "codex_server.py", "codex_runtime/state.py"):
             if not (destination / required).is_file(): raise SystemExit(f"missing packaged file: {required}")
             if not os.access(destination / required, os.R_OK): raise SystemExit(f"packaged file is not readable: {required}")

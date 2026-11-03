@@ -1,0 +1,10 @@
+{
+  "name": "ftshare",
+  "interface": { "displayName": "FTShare" },
+  "plugins": [{
+    "name": "ft-kline",
+    "source": { "source": "local", "path": "./marketplace/ft-kline" },
+    "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+    "category": "Productivity"
+  }]
+}

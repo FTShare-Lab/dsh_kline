@@ -1,0 +1,3 @@
+# This installable snapshot is generated from the Codex package allowlist.
+# Preserve canonical source bytes, including existing blank lines at EOF.
+marketplace/ft-kline/** linguist-generated=true whitespace=-blank-at-eof

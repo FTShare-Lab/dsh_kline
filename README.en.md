@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently a **v0.6.2 local/private distribution**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The Codex plugin is currently **v0.6.2**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -42,20 +42,50 @@ In the same chart, a follow-up natural-language request adds a descending channe
 
 ## Use with Codex
 
-DSH and Codex use separate packages: `dsh-kline-v0.6.2.tgz` for DeepSeek Harness and `ft-kline-v0.6.2.zip` for Codex. A universal installer does not guess the host. Codex uses local/private marketplaces and is not in the public plugin directory.
+The Codex plugin is `ft-kline`, available from the **FTShare** marketplace (`ftshare`). Add the GitHub source once, install the plugin, and use the same source for updates. No ZIP download or source build is required. This is a project-maintained marketplace, not a listing in OpenAI's official public plugin directory.
 
 ### Install and verify
 
-1. Install Node.js **22.19+**, Python **3.11+**, and a Codex client supporting local plugins. Enable Python Launcher on Windows; Git Bash and WSL are unnecessary.
-2. Download the Codex ZIP and SHA-256 from the [v0.6.2 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2), verify the hash, and extract to a permanent folder. The ZIP includes its local marketplace manifest; no source build is needed.
-3. Replace the quoted path below with the absolute extracted-folder path:
+1. Install Git, Node.js **22.19+**, Python **3.11+**, and a Codex client supporting plugins. Enable Python Launcher on Windows; Git Bash and WSL are unnecessary.
+2. Run these commands. The first adds the source and follows CI-validated `main`; the second installs and enables the plugin:
+
+```bash
+codex plugin marketplace add FTShare-Lab/dsh_kline --ref main
+codex plugin add ft-kline@ftshare
+```
+
+3. Reopen Codex and ask for a daily chart and its data source. During first-time preparation, ask to check FT K-Line runtime status. Desktop users can expand the chart card, search symbols and use the drawing workbench; CLI returns data and analysis.
+
+After adding the source, you can also reopen the desktop app and select **FTShare → FT K-Line** in the Plugins page. Inspect the source and available plugins with:
+
+```bash
+codex plugin marketplace list
+codex plugin list --marketplace ftshare --available --json
+```
+
+### Updates and migration
+
+Refresh the existing source, install its current plugin version, then reopen Codex:
+
+```bash
+codex plugin marketplace upgrade ftshare
+codex plugin add ft-kline@ftshare
+```
+
+If you previously installed `ft-kline@ftshare-local` from a ZIP, disable that old installation in the Plugins page before enabling `ft-kline@ftshare`, so two sources do not expose duplicate tools. The GitHub source needs access to GitHub; first launch also downloads Python dependencies.
+
+### Install a fixed release ZIP
+
+To stay on a fixed release, download `ft-kline-v0.6.2.zip` and its SHA-256 from the [v0.6.2 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2), verify the hash, and extract to a permanent folder. Replace the quoted path below with that absolute folder path:
 
 ```bash
 codex plugin marketplace add "/absolute/path/ft-kline-v0.6.2"
 codex plugin add ft-kline@ftshare-local
 ```
 
-4. Reopen the desktop app and start a new chat, or restart CLI. Ask to check FT K-Line runtime status, then request a daily chart and its data source.
+Reopen Codex to use it. The ZIP source is `ftshare-local`, separate from the public GitHub source `ftshare`. DSH retains its `dsh-kline-v0.6.2.tgz` package and the installation method below.
+
+### First launch and runtime modes
 
 First use finds Python and installs dependencies automatically, which can take several minutes. The Node entry completes the handshake and exposes the **complete catalog on the first tools/list**, plus preloadable chart resources. It does not depend on catalog-change notifications. Check `ft_kline_runtime_status` while preparing. Ordinary calls wait briefly, then return `runtime_preparing` if necessary; rejected edits never execute later. Once ready, retry the original request without refreshing tools or reopening the chat. Logs are in `~/.cache/ft-kline/bootstrap.log` or `%LOCALAPPDATA%\ft-kline\bootstrap.log` on Windows.
 
@@ -217,3 +247,5 @@ The host owns the interpreter, dependency search paths, and isolation settings (
 See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for version history. This project is released under the [MIT License](LICENSE); frontend provenance is in [PROVENANCE.md](PROVENANCE.md).
 
 Maintainers changing tools, annotations, resources or the App bridge must regenerate the packaged catalog with `python scripts/generate-codex-catalog.py`; `--check` and regression tests detect stale catalogs.
+
+The public `marketplace/ft-kline/` snapshot is generated from the same Codex package allowlist. After editing source, plugin manifests or README files, run `pnpm sync:codex-marketplace` and commit the generated files. CI runs `pnpm verify:codex-marketplace` and independently starts the directory in Desktop and CLI modes. Do not edit generated files directly; see [marketplace maintenance](marketplace/README.md).

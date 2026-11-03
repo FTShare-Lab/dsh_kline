@@ -1,5 +1,17 @@
 {
   "name": "ft-kline",
   "version": "0.6.2",
-  "description": "FT K-Line private Codex Desktop preview"
+  "description": "Interactive K-line charts, market data and technical analysis for Codex Desktop and CLI.",
+  "interface": {
+    "displayName": "FT K-Line",
+    "shortDescription": "Interactive charts and technical analysis",
+    "developerName": "FTShare-Lab",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/FTShare-Lab/dsh_kline",
+    "composerIcon": "./assets/ft-kline.svg",
+    "logo": "./assets/ft-kline.svg",
+    "defaultPrompt": [
+      "打开招商银行日 K，并显示数据来源。"
+    ]
+  }
 }

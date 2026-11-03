@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ft-kline",
+  "version": "0.6.2",
+  "description": "Interactive K-line charts, market data and technical analysis for Codex Desktop and CLI.",
+  "extensions": {
+    "com.openai": {
+      "mcpApps": {
+        "resourceUri": "ui://ft-kline/chart-v3",
+        "mimeType": "text/html;profile=mcp-app",
+        "displayModes": [
+          "inline",
+          "fullscreen"
+        ]
+      },
+      "interface": {
+        "displayName": "FT K-Line",
+        "shortDescription": "Interactive charts and technical analysis",
+        "developerName": "FTShare-Lab",
+        "category": "Productivity",
+        "websiteURL": "https://github.com/FTShare-Lab/dsh_kline",
+        "composerIcon": "./assets/ft-kline.svg",
+        "logo": "./assets/ft-kline.svg",
+        "defaultPrompt": [
+          "打开招商银行日 K，并显示数据来源。"
+        ]
+      }
+    }
+  },
+  "author": {
+    "name": "FTShare-Lab",
+    "url": "https://github.com/FTShare-Lab"
+  },
+  "homepage": "https://github.com/FTShare-Lab/dsh_kline#readme",
+  "repository": "https://github.com/FTShare-Lab/dsh_kline",
+  "license": "MIT",
+  "keywords": [
+    "kline",
+    "stocks",
+    "technical-analysis",
+    "ftshare"
+  ]
+}
