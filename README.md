@@ -1,14 +1,22 @@
-# 非凸 K 线助手 / dsh_kline
+# 非凸 K 线助手 / FT K-Line
 
 简体中文 | [English](README.en.md)
 
-[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://github.com/FTShare-Lab/dsh_kline#开始使用) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#开始使用-dsh-版) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-在 DeepSeek Harness 里，用自然语言分析 K 线、画图并继续修改；也可以在图上亲自选点。对话和绘图工作台共用当前图与同一批对象，支持水平线、趋势线、通道、平台框、斐波那契、ABC 标注及精选指标落图。
+**支持 DeepSeek Harness 和 Codex。** DSH 插件名为 `dsh_kline`；Codex 插件名为 `ft-kline`。两者都能用自然语言分析 K 线，并在桌面图表中创建和修改受控绘图。Codex 桌面版提供交互图表；Codex CLI 提供行情、指标和结构化分析，不显示交互图表。
 
 > 行情与技术分析用于研究和学习，不构成投资建议。
 
-[功能](#它能帮你做什么) · [自然语言绘图演示](#预览) · [安装与入口](#开始使用) · [界面兼容](#界面兼容) · [绘图能力](#绘图对话与工作台共用一个对象流程) · [数据源](#行情与数据源) · [常见问题](#常见问题)
+[功能](#它能帮你做什么) · [Codex 使用与安装](#在-codex-中使用) · [DSH 安装与入口](#开始使用-dsh-版) · [自然语言绘图演示](#预览) · [绘图能力](#绘图对话与工作台共用一个对象流程) · [数据源](#行情与数据源)
+
+| 运行环境 | 图表与手动绘图 | 自然语言绘图 | 行情、指标与分析 |
+| --- | --- | --- | --- |
+| DeepSeek Harness Web | 支持 | 支持 | 支持 |
+| Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
+| Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
+
+Codex 版目前是 **v0.6.0 私有灰度**，尚未进入公共插件目录；DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -33,15 +41,17 @@
 
 ![完整 DSH Web 页面：左侧 DeepSeek 说明卧龙电驱下降通道的锚点和偏离，右侧日 K 图同时显示下降通道与 ABC 标注](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
-## Codex 私有灰度（v0.6.0）
+## 在 Codex 中使用
 
-`ft-kline` 是与 DSH 包隔离的 Codex 插件：ChatGPT Desktop 使用完整图表、手动工作台和受控的自然语言绘图；Codex CLI 仅提供行情、分析、TA-Lib 与结构化结果，并会明确提示“CLI 不支持交互图表”。
+Codex 插件 `ft-kline` 是独立安装包，不会因安装 DSH 插件 `dsh_kline` 而自动出现。当前 v0.6.0 仅供私有灰度测试者使用，**尚不能从公共插件目录搜索安装**。获邀测试者可在 Codex 桌面版的插件目录中选择已提供的私有来源，安装 `ft-kline`，然后开始新对话。开发者可运行 `pnpm install --frozen-lockfile && pnpm pack:codex` 生成 `release/ft-kline-v0.6.0.zip`；该包需要通过[本地或私有 marketplace](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually) 提供给 Codex，而不是作为 DSH 插件安装。Codex CLI 也可启用同一插件的无界面工具。
 
-Codex 图表状态、函数结果和 App 输入的临时 FTShare Key 仅存在当前连接内存中，关闭资源、连接结束或 30 分钟空闲后清除。环境变量 `FTSHARE_API_KEY` 优先；App 中输入的 Key 不回显、不写盘。所有当前图写操作必须使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`，其中服务端提交、UI 回执与像素核验是不同状态。
+在 Codex 桌面版中，可以说“打开招商银行日 K，显示数据来源”，展开返回的图表卡片，再用中文名称或代码搜索、切换标的，或请求画水平线、通道、平台框、斐波那契及 ABC 折线。自然语言修改当前图时，Codex 使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`；服务端提交、应用界面回执与实际像素观察分别核对。CLI 会返回行情、分析和 TA-Lib 结果，并明确提示不支持交互图表。
 
-该版本仅在私有 marketplace 灰度，未提交公共目录；发布资产与人工桌面验收要求见 [v0.6.0 发布说明](docs/release-notes-v0.6.0.md) 和 [验收说明](docs/release-acceptance-v0.6.0.md)。DSH 用户继续按下文原有方式安装。
+Codex 的图表、函数结果、自选和在应用内输入的临时 FTShare Key 只保存在当前连接的内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。环境变量 `FTSHARE_API_KEY` 优先，应用内 Key 不回显、不写盘；Codex 不读取 DSH 的私有 Key 文件，也不沿用 DSH 的持久化自选。行情可用范围取决于实际数据源与权限，图上会显示来源。
 
-## 开始使用
+发布资产和人工桌面验收要求见 [v0.6.0 发布说明](docs/release-notes-v0.6.0.md) 与 [验收说明](docs/release-acceptance-v0.6.0.md)。
+
+## 开始使用 DSH 版
 
 ### 1. 安装并启用
 
@@ -152,7 +162,7 @@ DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布�
 
 主题和语言默认跟随 dsh 宿主，可在 **设置 → 主题/语言** 中改为手动选择；随时可切回“跟随宿主（默认）”。
 
-[FTShare 的“免费版”接口](https://market.ft.tech/gateway/doc/p/pb8eizu3)仍需注册并配置 API Key。完全不配置 Key 时，插件仅为部分大盘指数提供独立的免费备用行情；个股和 ETF 的新 K 线图不能保证可用。已有的合规 K 线数据（包括宿主提供的标准 OHLCV）仍可用于本地指标计算与绘图。遇到限流、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
+[FTShare 的“免费版”接口](https://market.ft.tech/gateway/doc/p/pb8eizu3)仍需注册并配置 API Key。完全不配置 Key 时，部分 A 股历史日 K 可尝试 BaoStock 备用源，部分大盘指数也有免费备用行情；分钟线、其他市场及新闻等能力仍取决于来源与权限。已有的合规 K 线数据（包括宿主提供的标准 OHLCV）仍可用于本地指标计算与绘图。遇到限流、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
 
 ## 常见问题
 

@@ -1,14 +1,22 @@
-# 非凸 K 线助手 / dsh_kline
+# Nonconvex K-Line Assistant / FT K-Line
 
 [简体中文](README.md) | English
 
-[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#get-started) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#get-started-with-dsh) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-Analyze, draw, and revise a K-line chart through natural language in DeepSeek Harness—or pick anchors yourself on the chart. Chat and the drawing workbench share the current chart and its protected objects: levels, trend lines, channels, range boxes, Fibonacci retracements, ABC labels, and selected drawable indicators.
+**Supports DeepSeek Harness and Codex.** The DSH plugin is `dsh_kline`; the Codex plugin is `ft-kline`. Both support natural-language K-line analysis and guarded drawing in their desktop chart. Codex in the desktop app has an interactive chart; Codex CLI returns market data, indicators, and structured analysis without an interactive chart.
 
 > Quotes and technical analysis are for research and education only, not investment advice.
 
-[Features](#what-it-helps-you-do) · [Live drawing preview](#preview) · [Install and start](#get-started) · [Sidebar compatibility](#sidebar-compatibility) · [Drawing tools](#drawing-through-chat-and-the-workbench) · [Data sources](#quotes-and-data-sources) · [FAQ](#frequently-asked-questions)
+[Features](#what-it-helps-you-do) · [Use with Codex](#use-with-codex) · [Install DSH](#get-started-with-dsh) · [Drawing preview](#preview) · [Drawing tools](#drawing-through-chat-and-the-workbench) · [Data sources](#quotes-and-data-sources)
+
+| Environment | Chart and manual drawing | Natural-language drawing | Market data, indicators, analysis |
+| --- | --- | --- | --- |
+| DeepSeek Harness Web | Yes | Yes | Yes |
+| Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
+| Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
+
+The Codex plugin is currently a **private v0.6.0 preview**, not a public directory listing. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -32,15 +40,17 @@ In the same chart, a follow-up natural-language request adds a descending channe
 
 ![Full DSH Web page: DeepSeek explains the descending channel's anchors and deviations while the daily chart shows both the channel and ABC labels](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
-## Codex private preview (v0.6.0)
+## Use with Codex
 
-`ft-kline` is an isolated Codex plugin. ChatGPT Desktop provides the complete chart, manual workbench, and guarded natural-language drawing; Codex CLI provides market data, analysis, TA-Lib, and structured output only, and explicitly does not support interactive charts.
+The `ft-kline` Codex plugin is a separate package; installing the DSH plugin `dsh_kline` does not install it. Version 0.6.0 is available only to private-preview testers and **cannot yet be found in the public Plugins Directory**. Invited testers can select the provided private source in the Codex desktop plugin browser, install `ft-kline`, and start a new chat. Developers can run `pnpm install --frozen-lockfile && pnpm pack:codex` to build `release/ft-kline-v0.6.0.zip`. Make that package available through a [local or private marketplace](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually); it is not a DSH plugin install. Codex CLI can also enable the plugin's non-visual tools.
 
-Codex chart state, function results, and an App-entered FTShare key remain in current-connection memory only. They are cleared when the resource or connection closes or after 30 minutes idle. `FTSHARE_API_KEY` from the environment has priority; an App key is neither echoed nor written to disk. Current-chart writes must use `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`; server commit, UI receipt, and pixel verification are deliberately separate states.
+In Codex desktop, try “Open China Merchants Bank daily K-line and show the data source.” Expand the returned chart card, search by Chinese name or ticker, switch symbols, or ask for a horizontal level, channel, range box, Fibonacci retracement, or ABC polyline. Current-chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`. A server commit, an app UI receipt, and visual pixel observation are checked separately. CLI returns market data, analysis, and TA-Lib results and explicitly reports that interactive charts are unavailable.
 
-This version is private-marketplace preview only and is not a public-directory submission. See the [v0.6.0 release notes](docs/release-notes-v0.6.0.md) and [acceptance checklist](docs/release-acceptance-v0.6.0.md). DSH installation remains unchanged below.
+Codex chart state, function results, watchlists, and a temporary FTShare key entered in the app stay in memory for the current connection. They are cleared when the last chart view closes, the connection ends, or 30 minutes pass idle. An environment `FTSHARE_API_KEY` has priority; the app key is never echoed or written to disk. Codex neither reads DSH's private key files nor inherits its persistent watchlists. Coverage depends on the actual data source and permissions, and the chart identifies its source.
 
-## Get started
+See the [v0.6.0 release notes](docs/release-notes-v0.6.0.md) and [acceptance checklist](docs/release-acceptance-v0.6.0.md) for the planned release assets and desktop checks.
+
+## Get started with DSH
 
 ### 1. Install and enable
 
@@ -102,7 +112,7 @@ For safety, the plugin never scans `.env` files, shell configuration, keychains,
 
 Theme and language follow the DSH host by default. **Settings → Theme/Language** also offers manual choices and a way back to **Follow host (default)**.
 
-[FTShare's free-plan endpoints](https://market.ft.tech/gateway/doc/p/pb8eizu3) still require a registered API key. With no key at all, the plugin has an independent free-data fallback only for selected broad-market indices; fresh individual-stock and ETF charts are not guaranteed. Existing valid OHLCV data, including rows supplied by the host, can still drive local indicators and drawing. The UI reports the applicable source or error when data is rate-limited, unavailable, or outside the account's entitlement.
+[FTShare's free-plan endpoints](https://market.ft.tech/gateway/doc/p/pb8eizu3) still require a registered API key. Without a key, some historical daily A-share bars can use BaoStock and selected broad-market indices have another free fallback; intraday bars, other markets, and news still depend on source coverage and permissions. Existing valid OHLCV data, including rows supplied by the host, can still drive local indicators and drawing. The UI reports the applicable source or error when data is rate-limited, unavailable, or outside the account's entitlement.
 
 ## Frequently asked questions
 
