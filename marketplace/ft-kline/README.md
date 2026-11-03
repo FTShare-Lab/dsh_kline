@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前为 **v0.6.2**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+Codex 版目前为 **v0.6.3**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -77,14 +77,14 @@ codex plugin add ft-kline@ftshare
 
 ### 固定版本 ZIP 安装
 
-如需固定在发布版本，也可从 [v0.6.2 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.2) 下载 `ft-kline-v0.6.2.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
+如需固定在发布版本，也可从 [v0.6.3 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.3) 下载 `ft-kline-v0.6.3.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.2"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.3"
 codex plugin add ft-kline@ftshare-local
 ```
 
-重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.2.tgz` 安装包及下文的 DSH 安装方式。
+重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.3.tgz` 安装包及下文的 DSH 安装方式。
 
 ### 首次准备与运行模式
 
@@ -108,7 +108,7 @@ Codex 依次使用：
 
 图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
 
-发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.2 发布说明](docs/release-notes-v0.6.2.md) 与 [验收说明](docs/release-acceptance-v0.6.2.md)。
+发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.3 发布说明](docs/release-notes-v0.6.3.md) 与 [验收说明](docs/release-acceptance-v0.6.3.md)。
 
 ## 开始使用 DSH 版
 
@@ -203,7 +203,7 @@ DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线
 二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
 
 运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.2 验收说明](docs/release-acceptance-v0.6.2.md)。
+DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.3 验收说明](docs/release-acceptance-v0.6.3.md)。
 首次自动准备依赖需要网络，耗时取决于网络和本机环境。
 
 ## 行情与数据源

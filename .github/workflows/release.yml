@@ -59,6 +59,7 @@ jobs:
         run: |
           pnpm pack:release
           pnpm pack:codex
+          pnpm verify:codex-marketplace
           (cd release && sha256sum "dsh-kline-v${VERSION}.tgz" > "dsh-kline-v${VERSION}.tgz.sha256")
           (cd release && sha256sum "ft-kline-v${VERSION}.zip" > "ft-kline-v${VERSION}.zip.sha256")
 
@@ -67,6 +68,7 @@ jobs:
           node scripts/smoke-packed-install.mjs "release/dsh-kline-v${VERSION}.tgz"
           node scripts/smoke-dsh-profile.mjs "release/dsh-kline-v${VERSION}.tgz"
           python scripts/smoke-codex-package.py "release/ft-kline-v${VERSION}.zip"
+          python scripts/smoke-codex-package.py marketplace/ft-kline
 
       - name: Create draft release for manual verification
         env:

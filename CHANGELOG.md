@@ -2,9 +2,9 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## Unreleased
+## 0.6.3 - 2026-11-04
 
-- 新增公开 FTShare GitHub 插件源：添加 `FTShare-Lab/dsh_kline --ref main` 后可安装 `ft-kline@ftshare`，不需要构建源码或手动下载 ZIP。插件运行时版本保持 v0.6.2。
+- 新增公开 FTShare GitHub 插件源：添加 `FTShare-Lab/dsh_kline --ref main` 后可安装 `ft-kline@ftshare`，不需要构建源码或手动下载 ZIP。源与发布包版本统一为 v0.6.3，运行功能保持不变。
 - 从 Codex ZIP 的同一清单生成独立可安装目录，CI 检查逐文件一致性并验证桌面 / CLI 启动；补齐插件展示信息。
 - 中英文 README 补充添加源、安装、更新、ZIP 固定版本及旧来源迁移说明。
 
