@@ -240,6 +240,8 @@ Ordinary installs default to `DSH_KLINE_RUNTIME_MODE=auto`, preserving existing 
 
 `external` requires Python 3.11+ with the required dependencies already available. It only validates and launches the service: no venv creation, dependency installation, or interpreter fallback. The host must repair failures. This mode rejects `DSH_KLINE_VENV`, `--prepare-project`, and `--bootstrap-runtime`. `DSH_KLINE_DEFER_BOOTSTRAP` does not trigger background installation in this mode.
 
+`DSH_KLINE_PYTHON` must identify the executable file (`python.exe` on Windows), not its directory. Automatic preparation distinguishes `PYTHON_NOT_FOUND`, `PYTHON_VERSION_TOO_OLD`, `PYTHON_EXECUTION_FAILED`, `PYTHON_VENV_UNAVAILABLE`, `PYTHON_DEPENDENCY_INSTALL_FAILED`, and `PYTHON_IMPORT_CHECK_FAILED`; an unusable Windows Store redirector is `PYTHON_STORE_ALIAS`. Candidate paths and outcomes are logged locally, without keys or a dump of the parent environment.
+
 In `external` mode, the host owns the interpreter, dependency search paths, and isolation settings (such as `PYTHONPATH`, `PYTHONNOUSERSITE`, or Windows embedded Python's `._pth`); no other interpreter is discovered. `auto` mode uses the bounded discovery and repair described above. Set `DSH_KLINE_CHART_PORT=0` for a dynamic port. The MCP patch explicitly forwards runtime variables without changes to DSH core.
 
 ## Updates and license

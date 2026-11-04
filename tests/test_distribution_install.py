@@ -28,7 +28,7 @@ import sys
 args = sys.argv[1:]
 if args[:1] == ['-c']:
     if 'print(f"{sys.version_info.major}.{sys.version_info.minor}")' in args[1]:
-        print('3.12')
+        print('3.10' if os.environ.get('FAKE_OLD_PYTHON') else '3.12')
         raise SystemExit(0)
     if 'version_info' in args[1]:
         raise SystemExit(1 if os.environ.get('FAKE_OLD_PYTHON') else 0)
@@ -37,6 +37,8 @@ if args[:1] == ['-c']:
     if args[1] in ('import pip', 'import ensurepip'):
         raise SystemExit(0)
     if 'installed_version' in args[1] and os.environ.get('FAKE_PIN_MISMATCH') and not (Path(__file__).parent.parent / '.pins-ready').exists():
+        raise SystemExit(1)
+    if os.environ.get('FAKE_IMPORT_FAILURE'):
         raise SystemExit(1)
     ready = (Path(__file__).parent / '.imports-ready').exists() or (Path(__file__).parent.parent / '.imports-ready').exists()
     raise SystemExit(0 if ready else 1)
@@ -516,6 +518,8 @@ def test_failed_dependency_upgrade_never_certifies_old_importable_packages(tmp_p
     second = _run_launcher(project, env)
     assert first.returncode == second.returncode == 1
     assert 'simulated pip failure' in first.stderr
+    failure = json.loads((venv / '.dsh-kline-bootstrap-failed').read_text())
+    assert failure['failureCode'] == 'PYTHON_DEPENDENCY_INSTALL_FAILED'
     assert 'recently failed' in second.stderr
     assert (venv / '.dsh-kline-requirements').read_text().strip() == 'old-pins'
     assert not (project / '.server-launched').exists()
@@ -583,6 +587,7 @@ def test_trimmed_base_python_reports_missing_venv_instead_of_wrong_version(tmp_p
     result = _run_launcher(project, env)
     assert result.returncode == 1
     assert 'venv/ensurepip missing' in result.stderr
+    assert 'PYTHON_VENV_UNAVAILABLE' in result.stderr
     assert 'No usable Python' not in result.stderr
 
 
@@ -611,3 +616,29 @@ def test_native_venv_upgrade_without_a_base_interpreter_or_network(tmp_path):
     assert result.stdout == 'native-mcp-ready\n'
     assert 'Reusing the existing Python environment' in result.stderr
     assert stamp.read_text().strip() == _requirements_fingerprint(project / 'requirements.txt')
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_import_verification_failure_does_not_stamp_or_launch(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path, runtime_exists=True, stamp='old-pins')
+    env['FAKE_IMPORT_FAILURE'] = '1'
+    result = _run_launcher(project, env)
+    assert result.returncode == 1
+    assert 'PYTHON_IMPORT_CHECK_FAILED' in result.stderr
+    assert (venv / '.dsh-kline-requirements').read_text().strip() == 'old-pins'
+    assert json.loads((venv / '.dsh-kline-bootstrap-failed').read_text())['failureCode'] == 'PYTHON_IMPORT_CHECK_FAILED'
+    assert not (project / '.server-launched').exists()
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_old_base_interpreter_is_classified_in_the_bootstrap_log(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env['FAKE_OLD_PYTHON'] = '1'
+    result = _run_launcher(project, env)
+    assert result.returncode == 1
+    assert 'PYTHON_VERSION_TOO_OLD' in result.stderr
+    failure = json.loads((venv / '.dsh-kline-bootstrap-failed').read_text())
+    assert failure['failureCode'] == 'PYTHON_VERSION_TOO_OLD'
+    log = (tmp_path / 'cache/bootstrap.log').read_text()
+    assert 'Python candidate:' in log and '3.10' in log
+    assert 'PYTHON_VERSION_TOO_OLD' in log

@@ -22,7 +22,19 @@ if (nested) {
   const bundle = join(scratch, 'bundle 安装')
   const packageRoot = join(bundle, 'node_modules', '@ftshare-lab', 'dsh-kline')
   await mkdir(packageRoot, { recursive: true })
-  const extracted = spawnSync('tar', ['-xzf', archive, '--strip-components=1', '-C', packageRoot], { encoding: 'utf8', windowsHide: true })
+  // Git-for-Windows tar can replace Unicode argv paths with '?'. Python's
+  // native Unicode file APIs keep the actual nested-install fixture intact.
+  const extract = `import sys, tarfile
+with tarfile.open(sys.argv[1]) as archive:
+    for member in archive.getmembers():
+        if not member.name.startswith('package/'):
+            raise ValueError('Unexpected package archive path')
+        member.name = member.name[len('package/'):]
+        if member.name:
+            archive.extract(member, sys.argv[2], filter='data')
+`
+  const extracted = spawnSync(process.env.DSH_KLINE_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+    ['-c', extract, archive, packageRoot], { encoding: 'utf8', windowsHide: true })
   assert.equal(extracted.status, 0, extracted.stderr)
   const prefix = './node_modules/@ftshare-lab/dsh-kline/'
   const patch = (await readFile(join(packageRoot, 'cordis.patch.yml'), 'utf8'))

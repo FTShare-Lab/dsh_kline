@@ -256,6 +256,8 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 
 `external` 模式要求 Python 3.11+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
 
+`DSH_KLINE_PYTHON` 必须指向解释器文件本身（Windows 为 `python.exe`），不能填目录。自动准备失败时，日志会区分 `PYTHON_NOT_FOUND`、`PYTHON_VERSION_TOO_OLD`、`PYTHON_EXECUTION_FAILED`、`PYTHON_VENV_UNAVAILABLE`、`PYTHON_DEPENDENCY_INSTALL_FAILED` 和 `PYTHON_IMPORT_CHECK_FAILED`；不可用的 Windows Store 重定向入口标为 `PYTHON_STORE_ALIAS`。候选路径与结果仅用于本机诊断，不记录密钥或完整环境变量。
+
 `external` 模式由宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），不自动探测其他解释器。`auto` 模式的补装和有限解释器探测如上所述。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心。
 
 ## 更新与许可

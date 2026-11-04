@@ -11,9 +11,20 @@ import {
   pythonPathForVenv,
   desktopPythonCandidates,
   venvBaseCandidates,
+  pythonProbeOutcome,
   settingsCredentialEnvironment,
   settingsCredentialFile,
 } from '../scripts/run-dsh-kline.mjs'
+
+test('Python diagnostics distinguish missing, old, broken and Store redirectors', () => {
+  const candidate = { command: 'python', args: [] }
+  assert.equal(pythonProbeOutcome(candidate, { error: { code: 'ENOENT' } }).code, 'PYTHON_NOT_FOUND')
+  assert.equal(pythonProbeOutcome(candidate, { status: 0, stdout: '3.10\n' }).code, 'PYTHON_VERSION_TOO_OLD')
+  assert.equal(pythonProbeOutcome(candidate, { status: 1 }).code, 'PYTHON_EXECUTION_FAILED')
+  const alias = 'C:\\Users\\test\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe'
+  assert.equal(pythonProbeOutcome(candidate, { status: 9009 }, 'win32', alias).code, 'PYTHON_STORE_ALIAS')
+  assert.equal(pythonProbeOutcome(candidate, { status: 0, stdout: '3.12\n' }, 'win32', alias).code, 'PYTHON_READY')
+})
 
 test('Desktop and pyvenv base interpreters support Windows spaces and Unicode', () => {
   const executable = 'C:\\Users\\测试 User\\DeepSeek Harness\\DeepSeek Harness.exe'
@@ -24,8 +35,7 @@ test('Desktop and pyvenv base interpreters support Windows spaces and Unicode', 
   assert.deepEqual(venvBaseCandidates('home = relative\n', 'win32'), [])
   assert.ok(pythonCandidates({ LOCALAPPDATA: 'C:\\Users\\测试 User\\AppData\\Local' }, 'win32')
     .some(candidate => candidate.command.endsWith('Programs\\Python\\Python313\\python.exe')))
-  assert.equal(desktopPythonCandidates('/Applications/DSH.app/Contents/MacOS/DSH', 'darwin')[0].command,
-    '/Applications/DSH.app/Contents/Resources/runtime/primary-runtime/dependencies/python/bin/python3')
+  assert.deepEqual(desktopPythonCandidates('/Applications/DSH.app/Contents/MacOS/DSH', 'darwin'), [])
 })
 
 test('Windows uses native venv and LOCALAPPDATA paths', () => {
