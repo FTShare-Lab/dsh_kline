@@ -2,7 +2,7 @@
 // verifies that the bundle patch starts the MCP/chart service successfully.
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +16,29 @@ const dshHome = join(scratch, 'DSH profile 空格')
 const runtime = join(scratch, '运行 runtime')
 const cache = join(scratch, '用户 cache')
 await mkdir(dshHome, { recursive: true })
+let installArchive = archive
+const nested = process.argv.includes('--nested')
+if (nested) {
+  const bundle = join(scratch, 'bundle 安装')
+  const packageRoot = join(bundle, 'node_modules', '@ftshare-lab', 'dsh-kline')
+  await mkdir(packageRoot, { recursive: true })
+  const extracted = spawnSync('tar', ['-xzf', archive, '--strip-components=1', '-C', packageRoot], { encoding: 'utf8', windowsHide: true })
+  assert.equal(extracted.status, 0, extracted.stderr)
+  const prefix = './node_modules/@ftshare-lab/dsh-kline/'
+  const patch = (await readFile(join(packageRoot, 'cordis.patch.yml'), 'utf8'))
+    .replace("name: './scripts/dsh-mcp-plugin.mjs'", `name: '${prefix}scripts/dsh-mcp-plugin.mjs'`)
+    .replace("name: '@ftshare-lab/dsh-kline'", `name: '${prefix}lib/index.js'`)
+  await writeFile(join(bundle, 'cordis.patch.yml'), patch)
+  const version = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')).version
+  await writeFile(join(bundle, 'package.json'), JSON.stringify({ name: '@ftshare-lab/kline-nested-smoke', version: '1.0.0',
+    dsh: { bundle: { patch: './cordis.patch.yml' } }, dependencies: { '@ftshare-lab/dsh-kline': version },
+    bundledDependencies: ['@ftshare-lab/dsh-kline'], files: ['cordis.patch.yml'] }))
+  const packed = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch],
+    { cwd: bundle, encoding: 'utf8', shell: process.platform === 'win32', windowsHide: true })
+  assert.equal(packed.status, 0, packed.stderr)
+  installArchive = join(scratch, JSON.parse(packed.stdout)[0].filename)
+}
 const env = {
   ...process.env,
   DSH_HOME: dshHome,
@@ -30,7 +53,7 @@ const env = {
   FTSHARE_API_KEY_FILE: join(scratch, 'no-credentials.json'),
 }
 
-const install = spawnSync(process.execPath, [dshBin, 'plugin', '--profile', 'web', 'add', archive], {
+const install = spawnSync(process.execPath, [dshBin, 'plugin', '--profile', 'web', 'add', installArchive], {
   cwd: project,
   env,
   encoding: 'utf8',
@@ -38,6 +61,10 @@ const install = spawnSync(process.execPath, [dshBin, 'plugin', '--profile', 'web
   windowsHide: true,
 })
 assert.equal(install.status, 0, `isolated DSH plugin install failed:\n${install.stderr}`)
+if (nested) {
+  const profileRoot = join(dshHome, 'profiles', 'web', 'node_modules', '@ftshare-lab', 'dsh-kline')
+  await assert.rejects(readFile(join(profileRoot, 'package.json')), { code: 'ENOENT' })
+}
 
 const child = spawn(process.execPath, [dshBin, '--profile', 'web', '--no-open', '--port', '0'], {
   cwd: project,
@@ -91,7 +118,7 @@ try {
   assert.equal(services.length, 1, `expected one MCP service locator, got ${services.length}`)
   assert.equal(locator.ok, true)
   assert.ok(Number.isSafeInteger(locator.process_id) && locator.process_id > 0)
-  console.log('PASS isolated DSH Web install + bundle patch + MCP/chart startup')
+  console.log(`PASS isolated DSH Web ${nested ? 'nested bundle' : 'direct'} install + MCP/chart startup`)
 } finally {
   if (child.exitCode === null) child.kill()
   await Promise.race([exited, new Promise(resolveDelay => setTimeout(resolveDelay, 5000))])

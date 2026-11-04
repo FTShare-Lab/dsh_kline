@@ -2,6 +2,14 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 0.6.4 - 2026-11-04
+
+- 修复 DSH 嵌套 bundle 安装的工作目录定位，避免 MCP 在 Python 启动前即发生 `spawn ENOENT`。
+- 依赖升级复用已有 venv；重建时支持已记录的基础解释器与 Desktop 随附 Python，明确校验 venv/ensurepip 能力。
+- 固定版本依赖必须校验通过后才写入新指纹，失败不会被误记为升级成功。
+- 解释器配置或可用状态变化后立即重试；保持未变化失败的有限冷却。
+- 两种安装包与公开 GitHub 插件源同步至 v0.6.4；增加跨平台嵌套安装烟测。
+
 ## 0.6.3 - 2026-11-04
 
 - 新增公开 FTShare GitHub 插件源：添加 `FTShare-Lab/dsh_kline --ref main` 后可安装 `ft-kline@ftshare`，不需要构建源码或手动下载 ZIP。源与发布包版本统一为 v0.6.3，运行功能保持不变。

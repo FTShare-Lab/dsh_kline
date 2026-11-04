@@ -9,9 +9,24 @@ import {
   pythonCandidates,
   pythonEnvironment,
   pythonPathForVenv,
+  desktopPythonCandidates,
+  venvBaseCandidates,
   settingsCredentialEnvironment,
   settingsCredentialFile,
 } from '../scripts/run-dsh-kline.mjs'
+
+test('Desktop and pyvenv base interpreters support Windows spaces and Unicode', () => {
+  const executable = 'C:\\Users\\测试 User\\DeepSeek Harness\\DeepSeek Harness.exe'
+  assert.equal(desktopPythonCandidates(executable, 'win32')[0].command,
+    'C:\\Users\\测试 User\\DeepSeek Harness\\resources\\runtime\\primary-runtime\\dependencies\\python\\python.exe')
+  assert.deepEqual(venvBaseCandidates('home = D:\\Python 环境\r\nversion = 3.12.0\r\n', 'win32'),
+    [{ command: 'D:\\Python 环境\\python.exe', args: [] }])
+  assert.deepEqual(venvBaseCandidates('home = relative\n', 'win32'), [])
+  assert.ok(pythonCandidates({ LOCALAPPDATA: 'C:\\Users\\测试 User\\AppData\\Local' }, 'win32')
+    .some(candidate => candidate.command.endsWith('Programs\\Python\\Python313\\python.exe')))
+  assert.equal(desktopPythonCandidates('/Applications/DSH.app/Contents/MacOS/DSH', 'darwin')[0].command,
+    '/Applications/DSH.app/Contents/Resources/runtime/primary-runtime/dependencies/python/bin/python3')
+})
 
 test('Windows uses native venv and LOCALAPPDATA paths', () => {
   const env = { LOCALAPPDATA: 'C:\\Users\\测试 User\\AppData\\Local' }

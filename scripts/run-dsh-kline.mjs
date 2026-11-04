@@ -3,9 +3,9 @@
 import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, posix, resolve, win32 } from 'node:path'
+import { delimiter, dirname, join, posix, resolve, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -21,6 +21,66 @@ const BACKGROUND_BOOTSTRAP_STALE_MS = 10 * 60 * 1000
 // permanent startup failure. Keep reconnect storms from repeatedly invoking
 // pip, but let a later launch repair the environment by itself.
 const BOOTSTRAP_FAILURE_RETRY_MS = 5 * 60 * 1000
+
+async function dependencyImportCheck() {
+  const requirements = await readFile(REQUIREMENTS_FILE, 'utf8')
+  const pins = {}
+  for (const line of requirements.split(/\r?\n/)) {
+    const pinned = line.match(/^([\w.-]+)==([^\s;]+)\s*$/)
+    const tagged = line.match(/^([\w.-]+)\s+@\s+https:\/\/github\.com\/[^\s]+\/refs\/tags\/v([\d.]+)\.tar\.gz\s*$/)
+    if (pinned || tagged) { const [, name, version] = pinned || tagged; pins[name] = version }
+  }
+  return `${IMPORT_CHECK}; from importlib.metadata import version as installed_version; assert all(installed_version(name) == expected for name, expected in ${JSON.stringify(pins)}.items()), "Pinned runtime dependency mismatch"`
+}
+
+export function desktopPythonCandidates(executable = process.execPath, platform = process.platform) {
+  const paths = platform === 'win32' ? win32 : posix
+  const resources = platform === 'darwin'
+    ? paths.resolve(paths.dirname(executable), '..', 'Resources')
+    : paths.join(paths.dirname(executable), 'resources')
+  const python = paths.join(resources, 'runtime', 'primary-runtime', 'dependencies', 'python')
+  return [paths.join(python, platform === 'win32' ? 'python.exe' : 'bin/python3'),
+    ...(platform === 'win32' ? [paths.join(python, 'bin', 'python.exe')] : [])]
+    .map(command => ({ command, args: [] }))
+}
+
+export function venvBaseCandidates(config, platform = process.platform) {
+  const paths = platform === 'win32' ? win32 : posix
+  const home = config.match(/^\s*home\s*=\s*(.+?)\s*$/mi)?.[1]
+  const executable = config.match(/^\s*executable\s*=\s*(.+?)\s*$/mi)?.[1]
+  return [executable, ...(home ? [paths.join(home, platform === 'win32' ? 'python.exe' : 'python3')] : [])]
+    .filter(path => path && paths.isAbsolute(path)).map(command => ({ command, args: [] }))
+}
+
+async function bootstrapCandidates(venvDirectory, preferred = '') {
+  // An explicit interpreter is authoritative; do not fall back to another one.
+  if (String(process.env.DSH_KLINE_PYTHON || '').trim()) return pythonCandidates()
+  let config = ''
+  try { config = await readFile(join(venvDirectory, 'pyvenv.cfg'), 'utf8') } catch {}
+  return [...(preferred ? [{ command: preferred, args: [] }] : []),
+    ...venvBaseCandidates(config), ...desktopPythonCandidates(), ...pythonCandidates()]
+}
+
+export async function bootstrapEnvironmentFingerprint(venvDirectory) {
+  const candidates = [{ command: pythonPathForVenv(venvDirectory), args: [] },
+    ...await bootstrapCandidates(venvDirectory)]
+  const observations = []
+  for (const candidate of candidates) {
+    const locations = /[\\/]/.test(candidate.command) ? [candidate.command]
+      : (process.env.PATH || '').split(delimiter).filter(Boolean).flatMap(directory => {
+        const path = join(directory, candidate.command)
+        return process.platform === 'win32' ? [path, path + '.exe'] : [path]
+      })
+    for (const location of locations) {
+      try { const file = await stat(location); observations.push([location, file.size, file.mtimeMs, file.mode]) } catch {}
+    }
+  }
+  let config = ''
+  try { config = await readFile(join(venvDirectory, 'pyvenv.cfg'), 'utf8') } catch {}
+  return createHash('sha256').update(JSON.stringify({ candidates, observations, config,
+    python: process.env.DSH_KLINE_PYTHON || '', path: process.env.PATH || '',
+    pythonHome: process.env.PYTHONHOME || '', pythonPath: process.env.PYTHONPATH || '' })).digest('hex')
+}
 
 export function pythonPathForVenv(venvDirectory, platform = process.platform) {
   const paths = platform === 'win32' ? win32 : posix
@@ -80,8 +140,13 @@ export function pythonCandidates(env = process.env, platform = process.platform)
   const explicit = String(env.DSH_KLINE_PYTHON || '').trim()
   if (explicit) return [{ command: explicit, args: [] }]
   if (platform === 'win32') {
+    const installed = ['313', '312', '311'].flatMap(version => [
+      ...(env.LOCALAPPDATA ? [win32.join(env.LOCALAPPDATA, 'Programs', 'Python', `Python${version}`, 'python.exe')] : []),
+      ...(env.ProgramFiles ? [win32.join(env.ProgramFiles, `Python${version}`, 'python.exe')] : []),
+    ])
     return [
       ...['3.13', '3.12', '3.11'].map(version => ({ command: 'py', args: [`-${version}`] })),
+      ...installed.map(command => ({ command, args: [] })),
       { command: 'python', args: [] },
       { command: 'python3', args: [] },
     ]
@@ -209,21 +274,24 @@ export function backgroundBootstrapSpawnOptions(platform = process.platform, env
   }
 }
 
-function findBootstrapPython(preferred = '') {
-  const candidates = preferred
-    ? [{ command: preferred, args: [] }, ...pythonCandidates()]
-    : pythonCandidates()
+async function findBootstrapPython(venvDirectory, preferred = '') {
+  const candidates = await bootstrapCandidates(venvDirectory, preferred)
   const seen = new Set()
+  let foundPython = false
   for (const candidate of candidates) {
     const key = `${candidate.command}\u0000${candidate.args.join('\u0000')}`
     if (seen.has(key)) continue
     seen.add(key)
-    if (commandPasses(candidate.command, candidate.args, VERSION_CHECK)) return candidate
+    if (!commandPasses(candidate.command, candidate.args, VERSION_CHECK)) continue
+    foundPython = true
+    if (commandPasses(candidate.command, candidate.args, 'import venv, ensurepip')) return candidate
   }
   const hint = process.platform === 'win32'
     ? 'Install Python 3.11 or newer from python.org, enable the Python Launcher, or set DSH_KLINE_PYTHON.'
     : 'Install Python 3.11 or newer, or set DSH_KLINE_PYTHON to its executable.'
-  throw new Error(`dsh_kline requires Python 3.11 or newer. ${hint}`)
+  throw new Error(foundPython
+    ? `Python was found but cannot create a virtual environment (venv/ensurepip missing). ${hint}`
+    : `No usable Python interpreter was found; dsh_kline requires Python 3.11 or newer. ${hint}`)
 }
 
 async function runLogged(command, args, logPath) {
@@ -261,22 +329,30 @@ async function runLogged(command, args, logPath) {
 }
 
 async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPython = '', clearExisting = false) {
-  const base = findBootstrapPython(preferredPython)
   await mkdir(dirname(venvDirectory), { recursive: true })
   await mkdir(dirname(logPath), { recursive: true })
   await writeFile(logPath, '', { encoding: 'utf8', mode: 0o600 })
-  process.stderr.write('[dsh_kline] Creating or repairing the Python environment…\n')
-  const venvArgs = [...base.args, '-m', 'venv', ...(clearExisting ? ['--clear'] : []), venvDirectory]
-  const venvMs = await runLogged(base.command, venvArgs, logPath)
-  process.stderr.write(`[dsh_kline] Python environment ready in ${Math.ceil(venvMs / 1000)}s.\n`)
   const runtimePython = pythonPathForVenv(venvDirectory)
+  const reusable = !clearExisting && await pathExists(runtimePython)
+    && commandPasses(runtimePython, [], VERSION_CHECK) && await venvInterpreterMatches(venvDirectory, runtimePython)
+    && (commandPasses(runtimePython, [], 'import pip') || commandPasses(runtimePython, [], 'import ensurepip'))
+  if (reusable) {
+    process.stderr.write('[dsh_kline] Reusing the existing Python environment.\n')
+    if (!commandPasses(runtimePython, [], 'import pip')) await runLogged(runtimePython, ['-m', 'ensurepip', '--upgrade'], logPath)
+  } else {
+    const base = await findBootstrapPython(venvDirectory, preferredPython)
+    process.stderr.write('[dsh_kline] Creating or repairing the Python environment…\n')
+    const venvArgs = [...base.args, '-m', 'venv', ...(clearExisting ? ['--clear'] : []), venvDirectory]
+    const venvMs = await runLogged(base.command, venvArgs, logPath)
+    process.stderr.write(`[dsh_kline] Python environment ready in ${Math.ceil(venvMs / 1000)}s.\n`)
+  }
   process.stderr.write('[dsh_kline] Installing dependencies…\n')
   // Isolate pip from a user's config (notably `user = true`, which makes a
   // venv install fail before it can write the ready stamp).
   const dependenciesMs = await runLogged(runtimePython, ['-m', 'pip', '--isolated', 'install', '-r', REQUIREMENTS_FILE], logPath)
   process.stderr.write(`[dsh_kline] Dependencies ready in ${Math.ceil(dependenciesMs / 1000)}s.\n`)
   process.stderr.write('[dsh_kline] Verifying the runtime…\n')
-  await runLogged(runtimePython, ['-c', IMPORT_CHECK], logPath)
+  await runLogged(runtimePython, ['-c', await dependencyImportCheck()], logPath)
   await writeStamp(venvDirectory, fingerprint)
   await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true })
   if (!(await stampMatches(venvDirectory, fingerprint))) {
@@ -286,10 +362,10 @@ async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPyth
   return runtimePython
 }
 
-async function readBootstrapFailure(venvDirectory, fingerprint) {
+async function readBootstrapFailure(venvDirectory, fingerprint, environment) {
   try {
     const failure = JSON.parse(await readFile(join(venvDirectory, BOOTSTRAP_FAILURE), 'utf8'))
-    return failure?.fingerprint === fingerprint ? failure : null
+    return failure?.fingerprint === fingerprint && failure.environment === environment ? failure : null
   } catch {
     return null
   }
@@ -297,7 +373,8 @@ async function readBootstrapFailure(venvDirectory, fingerprint) {
 
 async function writeBootstrapFailure(venvDirectory, fingerprint, error) {
   await mkdir(venvDirectory, { recursive: true })
-  await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
+  const environment = await bootstrapEnvironmentFingerprint(venvDirectory)
+  await writeFile(join(venvDirectory, BOOTSTRAP_FAILURE), JSON.stringify({ fingerprint, environment, at: new Date().toISOString(), error: String(error) }), { encoding: 'utf8', mode: 0o600 })
 }
 
 function bootstrapFailureRetryAt(failure) {
@@ -440,36 +517,27 @@ export async function main(argv = process.argv.slice(2)) {
     }
     return await launchServer(configuredPython, runtimeDirectory)
   }
+  const importCheck = await dependencyImportCheck()
   const projectVenv = join(PROJECT_ROOT, '.venv')
   const projectPython = pythonPathForVenv(projectVenv)
   const hasProjectRuntime = await pathExists(projectPython)
   const configuredPythonWorks = !prepareProject && !configuredVenv && Boolean(configuredPython)
     && commandPasses(configuredPython, [], VERSION_CHECK)
-    && commandPasses(configuredPython, [], IMPORT_CHECK)
+    && commandPasses(configuredPython, [], importCheck)
   const venvDirectory = prepareProject
     ? projectVenv
     : configuredVenv || (hasProjectRuntime ? projectVenv : join(stateDirectory, 'venv'))
   const managedRuntime = !configuredPythonWorks && (prepareProject || Boolean(configuredVenv) || !hasProjectRuntime)
   let runtimePython = configuredPythonWorks ? configuredPython : pythonPathForVenv(venvDirectory)
   const fingerprint = await requirementsFingerprint()
-  const runtimeImportsWork = await pathExists(runtimePython) && commandPasses(runtimePython, [], IMPORT_CHECK)
+  const runtimeImportsWork = await pathExists(runtimePython) && commandPasses(runtimePython, [], importCheck)
   const runtimeVenvMatches = configuredPythonWorks || !runtimeImportsWork
     ? true
     : await venvInterpreterMatches(venvDirectory, runtimePython)
   const runtimeWorks = runtimeImportsWork && runtimeVenvMatches
-  const previousFailure = managedRuntime ? await readBootstrapFailure(venvDirectory, fingerprint) : null
+  const previousFailure = managedRuntime ? await readBootstrapFailure(venvDirectory, fingerprint,
+    await bootstrapEnvironmentFingerprint(venvDirectory)) : null
   let requirementsMatch = !managedRuntime || await stampMatches(venvDirectory, fingerprint)
-  // A previous bootstrap can fail after pip has installed every dependency
-  // but before the fingerprint is written. Re-verify imports above, then
-  // atomically restore the stamp and clear the stale failure instead of
-  // indefinitely rejecting an already-healthy runtime.
-  if (runtimeWorks && managedRuntime && !requirementsMatch && previousFailure && !prepareProject) {
-    try {
-      await writeStamp(venvDirectory, fingerprint)
-      requirementsMatch = await stampMatches(venvDirectory, fingerprint)
-      if (requirementsMatch) await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true })
-    } catch { /* Normal bootstrap below remains the safe fallback. */ }
-  }
   let reason = ''
   if (!runtimeWorks) reason = runtimeImportsWork
     ? 'Python runtime interpreter metadata is inconsistent'

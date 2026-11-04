@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前为 **v0.6.3**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+Codex 版目前为 **v0.6.4**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -77,14 +77,14 @@ codex plugin add ft-kline@ftshare
 
 ### 固定版本 ZIP 安装
 
-如需固定在发布版本，也可从 [v0.6.3 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.3) 下载 `ft-kline-v0.6.3.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
+如需固定在发布版本，也可从 [v0.6.4 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.4) 下载 `ft-kline-v0.6.4.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.3"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.4"
 codex plugin add ft-kline@ftshare-local
 ```
 
-重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.3.tgz` 安装包及下文的 DSH 安装方式。
+重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.4.tgz` 安装包及下文的 DSH 安装方式。
 
 ### 首次准备与运行模式
 
@@ -108,7 +108,7 @@ Codex 依次使用：
 
 图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
 
-发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.3 发布说明](docs/release-notes-v0.6.3.md) 与 [验收说明](docs/release-acceptance-v0.6.3.md)。
+发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.4 发布说明](docs/release-notes-v0.6.4.md) 与 [验收说明](docs/release-acceptance-v0.6.4.md)。
 
 ## 开始使用 DSH 版
 
@@ -203,7 +203,7 @@ DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线
 二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
 
 运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.3 验收说明](docs/release-acceptance-v0.6.3.md)。
+DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，本版安装与 Codex 验证见[v0.6.4 验收说明](docs/release-acceptance-v0.6.4.md)。
 首次自动准备依赖需要网络，耗时取决于网络和本机环境。
 
 ## 行情与数据源
@@ -230,7 +230,7 @@ DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布�
 
 **Windows 首次启动失败怎么办？**
 
-先在终端执行 `py -3.11 --version`（更高版本也可以），确认 Python Launcher 能找到 Python。然后查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`；如果 Python 安装在自定义位置，可在启动 DSH Web 前设置 `DSH_KLINE_PYTHON` 为 `python.exe` 的完整路径。DSH Web 本身的安装或 Windows sandbox 问题需要参考 DSH 官方文档。
+先查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。v0.6.4 起，依赖更新优先复用现有 venv；重建时会尝试已记录的基础解释器和 Desktop 随附的标准 Python。裁剪版 Python 缺少 venv/ensurepip 时仍需另装 Python 3.11+。可执行 `py -3.11 --version`（更高版本也可以），或在启动 DSH 前将 `DSH_KLINE_PYTHON` 设为 `python.exe` 的完整路径；修正后无需等旧失败记录冷却。嵌套 bundle 安装不再要求 profile 根存在 K 线包，但固定旧版依赖的 bundle 仍需更新。DSH 自身安装或 Windows sandbox 问题请参考 DSH 文档。
 
 **为什么两个对话显示不同的图？**
 这是刻意设计：图表会绑定各自对话，避免 A 对话的分析覆盖 B 对话。需要在另一个对话查看时，直接搜索或重新发起分析即可。
@@ -250,13 +250,13 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 
 | 环境变量 | 含义 |
 | --- | --- |
-| `DSH_KLINE_PACKAGE_ROOT` | 可选的插件包根目录绝对路径；未设置时按原 profile 安装位置定位。 |
+| `DSH_KLINE_PACKAGE_ROOT` | 可选的插件包根目录绝对路径；未设置时从插件模块自身定位，支持嵌套安装。 |
 | `DSH_KLINE_PYTHON` | 宿主提供的 Python 解释器路径。 |
 | `DSH_KLINE_RUNTIME_MODE` | `auto`（默认）或 `external`。 |
 
 `external` 模式要求 Python 3.11+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
 
-宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），插件不推导宿主目录布局。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心；直接运行 Node 启动器时，插件根目录由启动器自身位置决定。
+`external` 模式由宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），不自动探测其他解释器。`auto` 模式的补装和有限解释器探测如上所述。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心。
 
 ## 更新与许可
 

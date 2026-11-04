@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently **v0.6.3**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The Codex plugin is currently **v0.6.4**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -76,14 +76,14 @@ If you previously installed `ft-kline@ftshare-local` from a ZIP, disable that ol
 
 ### Install a fixed release ZIP
 
-To stay on a fixed release, download `ft-kline-v0.6.3.zip` and its SHA-256 from the [v0.6.3 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.3), verify the hash, and extract to a permanent folder. Replace the quoted path below with that absolute folder path:
+To stay on a fixed release, download `ft-kline-v0.6.4.zip` and its SHA-256 from the [v0.6.4 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.4), verify the hash, and extract to a permanent folder. Replace the quoted path below with that absolute folder path:
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.3"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.4"
 codex plugin add ft-kline@ftshare-local
 ```
 
-Reopen Codex to use it. The ZIP source is `ftshare-local`, separate from the public GitHub source `ftshare`. DSH retains its `dsh-kline-v0.6.3.tgz` package and the installation method below.
+Reopen Codex to use it. The ZIP source is `ftshare-local`, separate from the public GitHub source `ftshare`. DSH retains its `dsh-kline-v0.6.4.tgz` package and the installation method below.
 
 ### First launch and runtime modes
 
@@ -103,7 +103,7 @@ The selected file is reread before provider requests and is never modified or de
 
 Without a key, supported A-share daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
 
-See the [v0.6.3 release notes](docs/release-notes-v0.6.3.md) and [acceptance checklist](docs/release-acceptance-v0.6.3.md) for verification and remaining manual desktop checks.
+See the [v0.6.4 release notes](docs/release-notes-v0.6.4.md) and [acceptance checklist](docs/release-acceptance-v0.6.4.md) for verification and remaining manual desktop checks.
 
 ## Get started with DSH
 
@@ -176,7 +176,7 @@ Intraday access depends on the symbol's market, your account plan, and the sourc
 
 **What if the first launch fails on Windows?**
 
-Run `py -3.11 --version` in a terminal (a newer version is also supported) to confirm that the Python Launcher can find Python, then inspect `%LOCALAPPDATA%\dsh_kline\bootstrap.log`. For a custom Python location, set `DSH_KLINE_PYTHON` to the full `python.exe` path before starting DSH Web. Installing DSH Web itself and troubleshooting its Windows sandbox remain host-level concerns covered by the DSH documentation.
+Inspect `%LOCALAPPDATA%\dsh_kline\bootstrap.log`. From v0.6.4, dependency upgrades reuse a working venv; rebuilding also tries its recorded base interpreter and Desktop's bundled standard Python. Trimmed distributions lacking venv/ensurepip still need a standard Python 3.11+ installation. Check `py -3.11 --version` (newer versions work), or set `DSH_KLINE_PYTHON` to the full `python.exe` path before starting DSH. Correcting the configuration invalidates the old retry delay. Nested bundles no longer need a profile-root K-line package, but bundles pinning an older plugin must update it. DSH installation and Windows sandbox issues remain host-level concerns.
 
 **Why do two conversations show different charts?**
 This is intentional: each chart belongs to its conversation, so an analysis in one conversation cannot replace another's chart. Search or start a new analysis in the other conversation when needed.
@@ -234,13 +234,13 @@ Ordinary installs default to `DSH_KLINE_RUNTIME_MODE=auto`, preserving existing 
 
 | Environment variable | Meaning |
 | --- | --- |
-| `DSH_KLINE_PACKAGE_ROOT` | Optional absolute plugin package directory; defaults to the existing profile-relative installation location. |
+| `DSH_KLINE_PACKAGE_ROOT` | Optional absolute plugin package directory; otherwise resolved beside the plugin module, including nested installs. |
 | `DSH_KLINE_PYTHON` | Path to the Python interpreter provided by the host. |
 | `DSH_KLINE_RUNTIME_MODE` | `auto` (default) or `external`. |
 
 `external` requires Python 3.11+ with the required dependencies already available. It only validates and launches the service: no venv creation, dependency installation, or interpreter fallback. The host must repair failures. This mode rejects `DSH_KLINE_VENV`, `--prepare-project`, and `--bootstrap-runtime`. `DSH_KLINE_DEFER_BOOTSTRAP` does not trigger background installation in this mode.
 
-The host owns the interpreter, dependency search paths, and isolation settings (such as `PYTHONPATH`, `PYTHONNOUSERSITE`, or Windows embedded Python's `._pth`); the plugin does not infer the host's directory layout. Set `DSH_KLINE_CHART_PORT=0` for a dynamic port. The MCP patch explicitly forwards the runtime variables without changes to DSH core. When running the Node launcher directly, its own location determines the package root.
+In `external` mode, the host owns the interpreter, dependency search paths, and isolation settings (such as `PYTHONPATH`, `PYTHONNOUSERSITE`, or Windows embedded Python's `._pth`); no other interpreter is discovered. `auto` mode uses the bounded discovery and repair described above. Set `DSH_KLINE_CHART_PORT=0` for a dynamic port. The MCP patch explicitly forwards runtime variables without changes to DSH core.
 
 ## Updates and license
 

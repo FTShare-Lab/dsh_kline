@@ -67,6 +67,7 @@ jobs:
         run: |
           node scripts/smoke-packed-install.mjs "release/dsh-kline-v${VERSION}.tgz"
           node scripts/smoke-dsh-profile.mjs "release/dsh-kline-v${VERSION}.tgz"
+          node scripts/smoke-dsh-profile.mjs "release/dsh-kline-v${VERSION}.tgz" --nested
           python scripts/smoke-codex-package.py "release/ft-kline-v${VERSION}.zip"
           python scripts/smoke-codex-package.py marketplace/ft-kline
 

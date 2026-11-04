@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 import time
 
@@ -31,6 +32,12 @@ if args[:1] == ['-c']:
         raise SystemExit(0)
     if 'version_info' in args[1]:
         raise SystemExit(1 if os.environ.get('FAKE_OLD_PYTHON') else 0)
+    if args[1] == 'import venv, ensurepip':
+        raise SystemExit(1 if os.environ.get('FAKE_NO_VENV_MODULES') else 0)
+    if args[1] in ('import pip', 'import ensurepip'):
+        raise SystemExit(0)
+    if 'installed_version' in args[1] and os.environ.get('FAKE_PIN_MISMATCH') and not (Path(__file__).parent.parent / '.pins-ready').exists():
+        raise SystemExit(1)
     ready = (Path(__file__).parent / '.imports-ready').exists() or (Path(__file__).parent.parent / '.imports-ready').exists()
     raise SystemExit(0 if ready else 1)
 if args[:2] == ['-m', 'venv']:
@@ -47,6 +54,11 @@ if args[:2] == ['-m', 'venv']:
     print('venv completed')
     raise SystemExit(0)
 if args[:2] == ['-m', 'pip']:
+    if os.environ.get('FAKE_PIP_FAILURE'):
+        print('simulated pip failure', file=sys.stderr)
+        raise SystemExit(24)
+    (Path(__file__).parent.parent / '.imports-ready').write_text('ready')
+    (Path(__file__).parent.parent / '.pins-ready').write_text('ready')
     print('pip completed')
     raise SystemExit(0)
 if args and args[0].endswith('server.py'):
@@ -64,7 +76,7 @@ def _prepare_launcher_fixture(tmp_path, *, runtime_exists=False, stamp=None, imp
     (project / "server.py").write_text("# exercised by the fake Python executable\n")
 
     fake_base = tmp_path / "fake-python"
-    fake_base.write_text(_fake_python_body())
+    fake_base.write_text(_fake_python_body().replace('#!/usr/bin/env python3', f'#!{sys.executable}'))
     fake_base.chmod(0o755)
     venv = tmp_path / "venv"
     runtime = venv / "bin" / "python"
@@ -100,17 +112,24 @@ def _run_launcher(project, env, *args):
     )
 
 
+def _environment_fingerprint(project, venv, env):
+    code = 'const m=await import(process.argv[1]); console.log(await m.bootstrapEnvironmentFingerprint(process.argv[2]))'
+    return subprocess.check_output(['node', '--input-type=module', '-e', code,
+        (project / 'scripts/run-dsh-kline.mjs').as_uri(), str(venv)], env=env, text=True).strip()
+
+
 def test_bundle_mounts_sidebar_and_cross_platform_mcp():
     patch = (ROOT / "cordis.patch.yml").read_text(encoding="utf-8")
 
     assert "id: mcp-dsh-kline" in patch
-    assert "name: '@deepseek-ai/dsh-mcp-client'" in patch
+    assert "name: './scripts/dsh-mcp-plugin.mjs'" in patch
     assert "id: dsh-kline-sidebar" in patch
     assert "command: !!js process.execPath" in patch
-    assert "scripts/run-dsh-kline.mjs" in patch
+    assert "scripts/dsh-mcp-plugin.mjs" in patch
     assert "/bin/bash" not in patch
     assert "DSH_KLINE_RUNTIME_DIR" in patch
-    assert "process.platform === 'win32'" in patch
+    assert "ctx.baseUrl" not in patch
+    assert "scripts/dsh-mcp-plugin.mjs" in (ROOT / 'package.json').read_text()
 
 
 def test_launcher_contains_native_windows_runtime_support():
@@ -211,7 +230,9 @@ def test_changed_requirements_repair_an_existing_runtime(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "dependency requirements changed" in result.stderr
-    assert "venv completed" in result.stderr
+    assert "Reusing the existing Python environment" in result.stderr
+    assert "pip completed" in result.stderr
+    assert "venv completed" not in result.stderr
     assert (venv / ".dsh-kline-requirements").read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
 
 
@@ -227,7 +248,8 @@ def test_incomplete_install_is_repaired_on_next_launch(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "Python runtime is missing or incomplete" in result.stderr
-    assert "venv completed" in result.stderr
+    assert "Reusing the existing Python environment" in result.stderr
+    assert "pip completed" in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")
@@ -301,6 +323,7 @@ def test_recent_bootstrap_failure_reports_its_log_and_defers_retry(tmp_path):
     venv.mkdir(parents=True, exist_ok=True)
     (venv / ".dsh-kline-bootstrap-failed").write_text(json.dumps({
         "fingerprint": fingerprint,
+        "environment": _environment_fingerprint(project, venv, env),
         "at": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
         "error": "network unavailable",
     }))
@@ -472,3 +495,119 @@ def test_windows_credentials_default_to_local_app_data(tmp_path, monkeypatch):
     monkeypatch.delenv("FTSHARE_API_KEY_FILE", raising=False)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     assert fetch._ftshare_key_path() == tmp_path / "dsh_kline" / "ftshare-credentials.json"
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_existing_venv_upgrade_does_not_require_a_base_python(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path, runtime_exists=True, stamp='old-pins')
+    env['DSH_KLINE_PYTHON'] = str(tmp_path / 'missing-base-python')
+    result = _run_launcher(project, env)
+    assert result.returncode == 0, result.stderr
+    assert 'pip completed' in result.stderr
+    assert 'venv completed' not in result.stderr
+    assert (venv / '.dsh-kline-requirements').read_text().strip() == _requirements_fingerprint(project / 'requirements.txt')
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_failed_dependency_upgrade_never_certifies_old_importable_packages(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path, runtime_exists=True, stamp='old-pins')
+    env['FAKE_PIP_FAILURE'] = '1'
+    first = _run_launcher(project, env)
+    second = _run_launcher(project, env)
+    assert first.returncode == second.returncode == 1
+    assert 'simulated pip failure' in first.stderr
+    assert 'recently failed' in second.stderr
+    assert (venv / '.dsh-kline-requirements').read_text().strip() == 'old-pins'
+    assert not (project / '.server-launched').exists()
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_changed_interpreter_configuration_retries_without_waiting(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env['DSH_KLINE_PYTHON'] = str(tmp_path / 'missing-base-python')
+    first = _run_launcher(project, env)
+    assert first.returncode == 1 and 'No usable Python' in first.stderr
+    env['DSH_KLINE_PYTHON'] = str(tmp_path / 'fake-python')
+    second = _run_launcher(project, env)
+    assert second.returncode == 0, second.stderr
+    assert 'venv completed' in second.stderr
+    assert not (venv / '.dsh-kline-bootstrap-failed').exists()
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_interpreter_installed_at_the_same_path_retries_immediately(tmp_path):
+    project, _venv, env = _prepare_launcher_fixture(tmp_path)
+    installed = tmp_path / 'new-python'
+    env['DSH_KLINE_PYTHON'] = str(installed)
+    assert _run_launcher(project, env).returncode == 1
+    shutil.copyfile(tmp_path / 'fake-python', installed)
+    installed.chmod(0o755)
+    result = _run_launcher(project, env)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_pinned_version_mismatch_repairs_even_with_a_matching_stamp(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path, runtime_exists=True,
+        stamp=_requirements_fingerprint(ROOT / 'requirements.txt'))
+    env['FAKE_PIN_MISMATCH'] = '1'
+    result = _run_launcher(project, env)
+    assert result.returncode == 0, result.stderr
+    assert 'pip completed' in result.stderr
+    assert (venv / '.pins-ready').exists()
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_base_python_is_recovered_from_pyvenv_home_without_path_python(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env.pop('DSH_KLINE_PYTHON')
+    base = tmp_path / 'python base 中文'
+    base.mkdir()
+    shutil.copyfile(tmp_path / 'fake-python', base / 'python3')
+    (base / 'python3').chmod(0o755)
+    venv.mkdir()
+    (venv / 'pyvenv.cfg').write_text(f'home = {base}\nversion = 3.12.0\n')
+    path = tmp_path / 'node-only-path'
+    path.mkdir()
+    (path / 'node').symlink_to(shutil.which('node'))
+    env['PATH'] = str(path)
+    result = _run_launcher(project, env)
+    assert result.returncode == 0, result.stderr
+    assert 'venv completed' in result.stderr
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX fake executable integration test')
+def test_trimmed_base_python_reports_missing_venv_instead_of_wrong_version(tmp_path):
+    project, _venv, env = _prepare_launcher_fixture(tmp_path)
+    env['FAKE_NO_VENV_MODULES'] = '1'
+    result = _run_launcher(project, env)
+    assert result.returncode == 1
+    assert 'venv/ensurepip missing' in result.stderr
+    assert 'No usable Python' not in result.stderr
+
+
+def test_native_venv_upgrade_without_a_base_interpreter_or_network(tmp_path):
+    """Exercise actual Windows/POSIX Python and pip, without market dependencies."""
+    project = tmp_path / '安装 package'
+    scripts = project / 'scripts'
+    scripts.mkdir(parents=True)
+    shutil.copyfile(ROOT / 'scripts/run-dsh-kline.mjs', scripts / 'run-dsh-kline.mjs')
+    (project / 'requirements.txt').write_text('# offline environment upgrade\n')
+    (project / 'server.py').write_text('print("native-mcp-ready")\n')
+    venv = tmp_path / '已有 Python 环境'
+    subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True, capture_output=True, timeout=60)
+    python = venv / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+    site = Path(subprocess.check_output([str(python), '-c', 'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip())
+    for module in ('ftshare', 'mcp', 'pydantic', 'pydantic_settings'):
+        (site / f'{module}.py').write_text('# offline import fixture\n')
+    (site / 'talib.py').write_text('__version__="0.8.2"\ndef get_functions(): return list(range(201))\n')
+    stamp = venv / '.dsh-kline-requirements'
+    stamp.write_text('previous-requirements\n')
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('DSH_KLINE_', 'FTSHARE_', 'PYTHONPATH', 'PYTHONHOME'))}
+    env.update(DSH_KLINE_PYTHON=str(tmp_path / 'missing-base-python'), DSH_KLINE_VENV=str(venv),
+        DSH_KLINE_CACHE_DIR=str(tmp_path / 'cache'), DSH_KLINE_RUNTIME_DIR=str(tmp_path / 'runtime'))
+    result = _run_launcher(project, env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == 'native-mcp-ready\n'
+    assert 'Reusing the existing Python environment' in result.stderr
+    assert stamp.read_text().strip() == _requirements_fingerprint(project / 'requirements.txt')
