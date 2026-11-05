@@ -269,6 +269,28 @@ test('failed context publication retries full state, not a misleading success he
   } finally {publisher.dispose();await new Promise(resolve=>setImmediate(resolve))}
 })
 
+test('an explicit source retry survives an older in-flight heartbeat without fetching or drawing',async()=>{
+  const calls:any[]=[],snapshot={symbol:'TEST.X',chartCommands:[]}
+  let release:()=>void=()=>{}
+  const held=new Promise<void>(resolve=>{release=resolve})
+  const publisher=createChartContextPublisher({conversationId:'A',viewId:'a'.repeat(32),capture:state,isActive:()=>true,
+    captureSource:()=>snapshot,bindSource:()=>assert.fail('no handoff was offered'),
+    confirmSource:()=>assert.fail('no handoff was offered'),apply:()=>assert.fail('retry must not draw'),
+    transport:async body=>{calls.push(body);if(calls.length===2)await held;return {ok:true}}})
+  try {
+    await new Promise(resolve=>setImmediate(resolve))
+    publisher.notify();await new Promise(resolve=>setImmediate(resolve))
+    assert.equal(calls.length,2)
+    assert.equal(calls[1].state,null)
+    publisher.retrySource();await new Promise(resolve=>setImmediate(resolve))
+    release();await new Promise(resolve=>setImmediate(resolve))
+    assert.equal(calls.length,3)
+    assert.deepEqual(calls[2].source_payload,snapshot,'retry must recapture the source after the older reply settles')
+    assert.equal(calls[2].state.state,'ready')
+    assert.ok(calls.every(body=>!body.edit && !body.candidate_chart_session && !body.request_id))
+  } finally {release();publisher.dispose();await new Promise(resolve=>setImmediate(resolve))}
+})
+
 test('publisher immediately rehydrates a restarted host after its state-required reply',async()=>{
   const calls:any[]=[]
   let rehydrated:()=>void=()=>{}

@@ -49,7 +49,7 @@ export function createChartContextPublisher(options: Options) {
     })
   }
   let disposed=false, busy=false, pending=false, sequence=0, lastState='', lastActive: boolean | undefined
-  let scheduled=false
+  let scheduled=false, sourceRetryPending=false
   let lastCaptured: any
   let receipt:any
   let sourceReceipt:any
@@ -71,6 +71,11 @@ export function createChartContextPublisher(options: Options) {
     try {
       do {
         pending=false
+        // Consume retries after the older publication settles. Resetting
+        // lastState inside retrySource() lets that older reply overwrite it.
+        if(sourceRetryPending) {
+          sourceRetryPending=false;blockedSourceState='';lastState=''
+        }
         const active=!disposed && options.isActive()
         const state=disposed ? lastCaptured ?? {state:'empty',candles:[],drawings:[]} : options.capture()
         lastCaptured=state
@@ -153,7 +158,7 @@ export function createChartContextPublisher(options: Options) {
   notify()
   return { notify, retrySource() {
     if(disposed)return
-    blockedSourceState='';lastState='';notify()
+    sourceRetryPending=true;notify()
   }, dispose() {
     if(disposed) return
     disposed=true; clearInterval(heartbeat)
