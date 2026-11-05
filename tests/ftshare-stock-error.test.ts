@@ -12,6 +12,8 @@ const copy: Record<string, string> = {
   ftshareProbeRateLimited: 'Too many requests. Try again later.',
   ftshareProbePlanLimited: 'Not included in this plan.',
   ftshareProbeAuthRequired: 'Configure a valid key.',
+  ftshareAnonymousLimited: 'Anonymous access cannot use this endpoint.',
+  ftshareRequestRejected: 'Check the market, symbol and parameters.',
 }
 const detail: any = runInNewContext(source + '; dataFetchFailureDetail', {
   t: (key: string) => copy[key] || key,
@@ -23,6 +25,8 @@ test('chart errors distinguish no key, configured rate limit and plan limits', (
   assert.equal(detail({ code: 'rate_limited', ftshare_key_configured: false }), copy.noKeyStockData)
   assert.equal(detail({ code: 'rate_limited', ftshare_key_configured: true }), copy.ftshareProbeRateLimited)
   assert.equal(detail({ code: 'capability_limited', ftshare_key_configured: true }), copy.ftshareProbePlanLimited)
+  assert.equal(detail({ code: 'capability_limited', ftshare_key_configured: false }), copy.ftshareAnonymousLimited)
+  assert.equal(detail({ code: 'request_rejected', ftshare_key_configured: false }), copy.ftshareRequestRejected)
   assert.equal(detail({ code: 'free_stock_unavailable', ftshare_key_configured: false }), copy.freeStockUnavailable)
   const minuteDetail: any = runInNewContext(source + '; dataFetchFailureDetail', {
     t: (key: string) => copy[key] || key,
@@ -30,6 +34,15 @@ test('chart errors distinguish no key, configured rate limit and plan limits', (
     isIntradayRange: () => true,
   })
   assert.equal(minuteDetail({ code: 'auth_required', ftshare_key_configured: false }), copy.ftshareMinuteKeyRequired)
+})
+
+test('board notices distinguish anonymous access, denied access and a temporary outage', () => {
+  const source = html.slice(html.indexOf('function marketBoardsUnavailableMessage('), html.indexOf('function renderMarketWorkspace('))
+  const notice: any = runInNewContext(source + '; marketBoardsUnavailableMessage', { t: (key: string) => key })
+  assert.equal(notice({ unavailable_reason: 'key_not_configured', ftshare_key_configured: false }), 'marketBoardsNoKey')
+  assert.equal(notice({ sections: { sectors: { errors: [{ code: 'capability_limited' }] } } }), 'marketBoardsAccessLimited')
+  assert.equal(notice({ sections: { sectors: { errors: [{ code: 'upstream_error' }] } } }), 'marketBoardsUnavailable')
+  assert.equal(notice({}), 'marketBoardsUnavailable')
 })
 
 test('market tool preserves no-key context from the service for chart errors', async () => {

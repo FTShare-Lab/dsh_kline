@@ -98,6 +98,8 @@ Codex 入口默认按宿主声明的 MCP Apps HTML 能力选择模式：具备�
 
 ### 已有 FTShare Key 如何复用
 
+无 Key 不等于所有市场都不可用，搜索目录与行情权限也相互独立。当前 main 已改进港美股公开目录、中文别名和错误提示；能力范围、实测及免费日 K 评估见[无 Key 说明](docs/anonymous-market-support.md)。固定版本安装包以对应发行版为准。
+
 Codex 依次使用：
 
 1. **启动插件的进程环境**中的 `FTSHARE_API_KEY`；仅在另一个终端执行过 `export`，不代表桌面应用也能继承。

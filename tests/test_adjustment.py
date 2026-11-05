@@ -112,16 +112,17 @@ class AdjustmentTests(unittest.TestCase):
                 dirty = deepcopy(context); dirty["candles"][0]["volume"] += 1
                 f.assert_code("chart_snapshot_not_aligned", lambda: require_alignment(dirty, f.payload, f.token, f.payload["symbol"]))
 
-    def test_us_generic_fallback_requests_unadjusted_rows_consistent_with_its_metadata(self):
+    def test_us_dedicated_history_keeps_unadjusted_metadata_without_mainland_fallback(self):
         with patch("tools.fetch.ftshare_available", return_value=True), \
              patch("tools.fetch._ftshare_market_api", return_value=object()), \
              patch("tools.fetch._recent_candle_cache", return_value=None), \
              patch("tools.fetch._symbol_name", return_value="TEST"), \
-             patch("tools.fetch._fetch_us_daily_candles", side_effect=OSError("fixture")), \
-             patch("tools.fetch._fetch_generic_history", return_value=sample_rows(4)) as generic:
+             patch("tools.fetch._fetch_us_daily_candles", return_value=sample_rows(4)) as primary, \
+             patch("tools.fetch._fetch_generic_history", side_effect=AssertionError("must not change market")) as generic:
             result = fetch._fetch_candles_ftshare("NVDA.US", adjust="forward", limit=4)
         self.assertTrue(result["ok"])
-        self.assertEqual(generic.call_args.kwargs["adjust_kind"], "none")
+        primary.assert_called_once()
+        generic.assert_not_called()
         self.assertEqual(result["adjust"], "none"); self.assertEqual(result["adjust_requested"], "forward")
 
     def test_global_index_without_adjustment_argument_never_claims_requested_adjustment(self):

@@ -220,6 +220,9 @@ def test_market_pulse_without_key_does_not_probe_paid_sections():
     official.assert_not_called()
     assert result["source"]["status"] == "unavailable"
     assert result["sections"]["sectors"]["state"] == "unsupported"
+    assert result["ftshare_key_configured"] is False
+    assert result["unavailable_reason"] == "key_not_configured"
+    assert 'not available in this runtime' not in result['market_pulse']['message']
 
 
 def test_data_source_capability_contract_keeps_external_rows_intentionally_narrow():

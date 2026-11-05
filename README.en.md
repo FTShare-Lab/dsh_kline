@@ -97,6 +97,8 @@ Chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edi
 
 ### Reuse an FTShare key
 
+Symbol discovery and quote access are separate. Current `main` improves public HK/US directories, common Chinese aliases and error messages without requiring a key. See the [key-less capability and evaluation notes](docs/anonymous-market-support.md); fixed release archives retain their release's behavior.
+
 Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly configured `FTSHARE_API_KEY_FILE` → temporary App-session key**. An export in an unrelated terminal is not automatically visible to the desktop app.
 
 The selected file is reread before provider requests and is never modified or deleted by the plugin. Use JSON `{"version":1,"api_key":"your key"}`. macOS/Linux require owner-only permissions (`chmod 600`); symbolic links are rejected. Status reports only `environment`, `external_file`, `session` or `none`, never the key or path. Codex does not discover DSH credentials or scan `.env`, shell profiles, keychains or other apps; sharing a file requires explicitly configuring its path.

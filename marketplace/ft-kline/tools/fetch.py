@@ -14,6 +14,7 @@ This module never searches for or imports another MCP repository.
 from __future__ import annotations
 
 import os
+import csv
 import json
 import io
 import re
@@ -183,6 +184,10 @@ SYMBOL_DIRECTORY_MAX_ITEMS = 50_000
 # HKEX publishes its complete securities master as a small XLSX each trading
 # day.  It is a more stable directory source than a quote-page endpoint.
 _HK_DIRECTORY_URL = "https://www.hkex.com.hk/eng/services/trading/securities/securitieslists/ListOfSecurities.xlsx"
+_US_DIRECTORY_URLS = (
+    "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+    "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+)
 _HK_DIRECTORY_CATEGORIES = frozenset({"Equity", "Exchange Traded Products", "Real Estate Investment Trusts"})
 CN_BROAD_INDEXES = (
     {"symbol": "000001.XSHG", "name": "上证指数", "market": "CN_INDEX", "aliases": "沪指 上证综指 上证综合指数 shanghai composite"},
@@ -1023,8 +1028,10 @@ def _classify_ftshare_error(exc: Exception) -> tuple[str, str]:
             return "auth_required", "FTShare 未收到 API Key，请检查配置后重试。"
         if re.search(r"格式|非法|invalid|malformed", raw, re.IGNORECASE):
             return "invalid_key", "FTShare API Key 校验失败，请检查 Key 是否完整后重试。"
-        if re.search(r"额度|配额|quota|permission|权限|订阅|套餐|upgrade|plan", safe_raw, re.IGNORECASE):
-            return "capability_limited", "FTShare API Key 有效，但当前套餐未开通此项数据能力。"
+        if re.search(r"额度|配额|quota|permission|route_not_allowed|权限|订阅|套餐|upgrade|plan", safe_raw, re.IGNORECASE):
+            if not configured_key:
+                return "capability_limited", "FTShare 当前匿名访问无权使用此接口；可配置具备相应权限的 Key，或使用其他数据源。"
+            return "capability_limited", "FTShare 当前凭据或套餐无权访问此项数据，请检查该接口的访问权限。"
         return "auth_required", "FTShare API Key 未通过校验，请检查配置或数据权限。"
     if status == "429":
         return "rate_limited", "FTShare 请求过于频繁，请稍后重试。"
@@ -1042,6 +1049,8 @@ def _classify_ftshare_error(exc: Exception) -> tuple[str, str]:
         return "sdk_contract_mismatch", "FTShare SDK 与当前接口契约不一致，请升级插件后重试。"
     if status == "405":
         return "ftshare_endpoint_unavailable", "FTShare 分钟线校验接口暂不可用，请稍后重试。"
+    if status == "400":
+        return "request_rejected", "FTShare 接口拒绝了请求，请检查标的市场、代码和参数；这不表示 API Key 无效。"
     return "ftshare_connection_failed", f"FTShare 连接失败：{safe_raw}"
 
 
@@ -1254,7 +1263,7 @@ def _etf_minute_symbol(symbol: str) -> str:
 
 
 def _bare_us_symbol(symbol: str) -> str:
-    return str(symbol or "").strip().upper().split(".")[0]
+    return _canonical_market_symbol(symbol).removesuffix(".US")
 
 
 def _aggregate_interval(
@@ -1891,14 +1900,21 @@ def _directory_items(rows: Any, default_market: str) -> list[dict[str, str]]:
 
 
 def _merge_symbol_directory(*groups: list[dict[str, str]]) -> list[dict[str, str]]:
-    seen: set[str] = set()
+    seen: dict[str, dict[str, str]] = {}
     merged: list[dict[str, str]] = []
     for group in groups:
         for item in group:
             symbol = str(item.get("symbol") or "").strip()
-            if not symbol or symbol in seen:
+            if not symbol:
                 continue
-            seen.add(symbol)
+            if symbol in seen:
+                existing = seen[symbol]
+                aliases = " ".join(dict.fromkeys(" ".join([existing.get("aliases", ""),
+                    str(item.get("aliases") or "").strip(),
+                    str(item.get("name") or "").strip() if item.get("name") != existing["name"] else ""]).split()))
+                if aliases:
+                    existing["aliases"] = aliases
+                continue
             normalized = {
                 "symbol": symbol,
                 "name": str(item.get("name") or symbol).strip(),
@@ -1907,6 +1923,7 @@ def _merge_symbol_directory(*groups: list[dict[str, str]]) -> list[dict[str, str
             aliases = str(item.get("aliases") or "").strip()
             if aliases:
                 normalized["aliases"] = aliases
+            seen[symbol] = normalized
             merged.append(normalized)
     return sorted(merged, key=lambda item: (item["market"], item["symbol"]))
 
@@ -1945,8 +1962,10 @@ def _fetch_hk_symbol_directory() -> list[dict[str, str]]:
     for attempt in range(3):
         try:
             request = Request(_HK_DIRECTORY_URL, headers={"User-Agent": "dsh-kline/0.2"})
-            with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed official HTTPS URL above
-                payload = response.read()
+            with urlopen(request, timeout=10) as response:  # noqa: S310 - fixed official HTTPS URL above
+                payload = response.read(12_000_001)
+            if len(payload) > 12_000_000:
+                raise ValueError("HKEX securities list exceeds the size limit")
             break
         except OSError as exc:
             last_error = exc
@@ -1988,6 +2007,36 @@ def _fetch_hk_symbol_directory() -> list[dict[str, str]]:
     if not items:
         raise ValueError("HKEX securities list contained no searchable Hong Kong instruments")
     return items
+
+
+def _fetch_public_us_symbol_directory() -> list[dict[str, str]]:
+    """Read Nasdaq's two official exchange listing files without a market key.
+
+    This is a symbol directory, not a quote source or an entitlement claim.
+    Both files must succeed before the supported listing snapshot is complete.
+    """
+    groups: list[list[dict[str, str]]] = []
+    for url in _US_DIRECTORY_URLS:
+        request = Request(url, headers={"User-Agent": "dsh-kline/0.6"})
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - fixed official HTTPS URLs
+            data = response.read(4_000_001)
+        if len(data) > 4_000_000:
+            raise ValueError("US securities directory exceeds the size limit")
+        reader = csv.DictReader(io.StringIO(data.decode("utf-8-sig")), delimiter="|")
+        symbol_field = "Symbol" if "Symbol" in (reader.fieldnames or []) else "ACT Symbol"
+        if not {symbol_field, "Security Name", "Test Issue"} <= set(reader.fieldnames or []):
+            raise ValueError("US securities directory has unexpected columns")
+        items: list[dict[str, str]] = []
+        for row in reader:
+            code = str(row.get(symbol_field) or "").strip().upper()
+            name = str(row.get("Security Name") or "").strip()
+            if row.get("Test Issue") != "N" or not name or not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,15}", code):
+                continue
+            items.append({"symbol": f"{code}.US", "name": name[:255], "market": "US"})
+        if not items:
+            raise ValueError("US securities directory contained no supported listings")
+        groups.append(items)
+    return _merge_symbol_directory(*groups)
 
 
 def _fetch_us_symbol_directory(market: Any) -> list[dict[str, str]]:
@@ -2100,22 +2149,27 @@ def register_symbol_directory(
 
 
 def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
-    """Load a versioned local symbol directory and refresh it from FTShare when stale.
+    """Refresh a local directory from provider and independent public listings.
 
     The chart app stores this compact name/code directory in localStorage. It is
-    deliberately separate from quotes: price and status still come from FTShare.
+    deliberately separate from quotes and their data-source permissions.
     """
     now = int(time.time())
     cached = _read_symbol_directory_cache()
     cached_expires = int(cached.get("expires_at") or 0) if cached else 0
-    if cached and not force_refresh and cached_expires > now:
+    public_coverage_complete = cached and all(
+        (cached.get("coverage") or {}).get(market, {}).get("complete") for market in ("HK", "US")
+    )
+    if cached and not force_refresh and cached_expires > now and (
+        cached.get("provider_mode") == "external" or public_coverage_complete
+    ):
         # Always merge the built-in seed into a cache hit.  The seed carries
         # curated entries (broad indexes, common ETFs) that provider routes may
         # not cover at all, and returning the cached snapshot verbatim meant a
         # seed update could not reach clients until the next full refresh.
         cached_items = list(cached.get("items") or [])
         merged = _merge_symbol_directory(cached_items, [dict(item) for item in _SYMBOL_DIRECTORY_SEED])
-        if len(merged) != len(cached_items):
+        if merged != cached_items:
             return {
                 **cached,
                 "items": merged,
@@ -2147,26 +2201,14 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         }
 
     seed = [dict(item) for item in _SYMBOL_DIRECTORY_SEED]
-    if not ftshare_available():
-        items = _merge_symbol_directory(list(cached.get("items") or []) if cached else [], seed)
-        return {
-            "ok": True,
-            "version": SYMBOL_DIRECTORY_VERSION,
-            "generated_at": int(cached.get("generated_at") or now) if cached else now,
-            "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
-            "items": items,
-            "count": len(items),
-            "source": "cache" if cached else "seed",
-            "provider_mode": "builtin" if cached else "seed",
-            "provider_id": "FTShare SDK" if cached else "seed",
-            "coverage": _directory_coverage(items, partial_markets={item["market"] for item in seed}),
-            "stale": True,
-            "refreshed": False,
-            "needs_external_refresh": False,
-            "message": "FTShare unavailable; using the last local symbol directory.",
-        }
-
-    market = _ftshare_market_api(timeout=20)
+    # Public HK/US directories do not depend on the FTShare SDK or a key.
+    market = None
+    client_unavailable = False
+    if ftshare_available():
+        try:
+            market = _ftshare_market_api(timeout=20)
+        except Exception:  # SDK initialization must not block public directories.
+            client_unavailable = True
     source_specs = (
         # The default endpoint page is intentionally small. Request all pages
         # so a code-only chart can still be labelled from the local directory
@@ -2181,7 +2223,7 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         ("etf_description_all", "ETF", {}, True),
     )
     fetched_groups: list[list[dict[str, str]]] = []
-    errors: list[str] = []
+    errors: list[str] = ["FTShare client unavailable; public directories remain enabled."] if client_unavailable else []
     completed_markets: set[str] = set()
     for method_name, default_market, kwargs, is_complete in source_specs:
         method = getattr(market, method_name, None)
@@ -2222,7 +2264,12 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         errors.append(f"hk_directory: {exc}")
 
     try:
-        us_group = _fetch_us_symbol_directory(market)
+        try:
+            us_group = _fetch_public_us_symbol_directory()
+        except Exception as public_error:
+            if market is None:
+                raise public_error
+            us_group = _fetch_us_symbol_directory(market)
         if us_group:
             fetched_groups.append(us_group)
             completed_markets.add("US")
@@ -2259,9 +2306,9 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
             "generated_at": now,
             "expires_at": now + SYMBOL_DIRECTORY_TTL_SECONDS,
             "items": items,
-            "source": "ftshare",
+            "source": "ftshare+public_directories",
             "provider_mode": "builtin",
-            "provider_id": "FTShare SDK",
+            "provider_id": "FTShare and public symbol directories",
             "coverage": _directory_coverage(
                 items,
                 complete_markets=completed_for_coverage,
@@ -2289,9 +2336,9 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
             "expires_at": now + SYMBOL_DIRECTORY_RETRY_SECONDS,
             "items": merged,
             "count": len(merged),
-            "source": "ftshare",
+            "source": "public_directories" if market is None else "ftshare+public_directories",
             "provider_mode": "builtin",
-            "provider_id": "FTShare SDK",
+            "provider_id": "Public symbol directories" if market is None else "FTShare and public symbol directories",
             "coverage": _directory_coverage(
                 merged,
                 complete_markets=completed_markets,
@@ -2322,7 +2369,7 @@ def symbol_directory(*, force_refresh: bool = False) -> dict[str, Any]:
         "stale": True,
         "refreshed": False,
         "needs_external_refresh": False,
-        "message": "FTShare directory refresh failed; using the last local symbol directory.",
+        "message": "Directory refresh failed; using cached symbols and the built-in directory.",
     }
     if errors:
         fallback["refresh_errors"] = errors[:3]
@@ -2981,8 +3028,6 @@ def _fetch_candles_ftshare(
     market = _ftshare_market_api(timeout=20)
     raw: Any = None
     fetch_error: Exception | None = None
-    us_daily_history_error: Exception | None = None
-    hk_history_error: Exception | None = None
     for attempt in range(2):
         try:
             if is_etf and normalized_interval != "minute":
@@ -3025,37 +3070,9 @@ def _fetch_candles_ftshare(
                     limit=lim,
                 )
             elif _is_us_symbol(sym) and normalized_interval != "minute":
-                try:
-                    raw = _fetch_us_daily_candles(market, sym, lim)
-                except Exception as exc:  # noqa: BLE001
-                    # The dedicated US endpoint is preferred when it is healthy,
-                    # but it has independently returned 5xx responses in
-                    # production. Fall back to the generic history endpoint so
-                    # daily 10D/30D/YTD charts do not fail while minute data works.
-                    us_daily_history_error = exc
-                    raw = _fetch_generic_history(
-                        market,
-                        symbol=sym,
-                        interval=normalized_interval,
-                        interval_unit=unit,
-                        interval_value=step,
-                        adjust_kind="none",
-                        limit=lim,
-                    )
+                raw = _fetch_us_daily_candles(market, sym, lim)
             elif _is_hk_symbol(sym) and normalized_interval in {"day", "week", "month", "quarter", "year"}:
-                try:
-                    raw = _fetch_hk_candles(market, sym, normalized_interval, lim, adjust)
-                except Exception as exc:  # noqa: BLE001
-                    hk_history_error = exc
-                    raw = _fetch_generic_history(
-                        market,
-                        symbol=sym,
-                        interval=normalized_interval,
-                        interval_unit=unit,
-                        interval_value=step,
-                        adjust_kind=adj,
-                        limit=lim,
-                    )
+                raw = _fetch_hk_candles(market, sym, normalized_interval, lim, adjust)
             elif normalized_interval == "minute":
                 # FTShare minute history is restricted to short natural-date
                 # windows. Page backwards from the latest session close and retain
@@ -3163,6 +3180,9 @@ def _fetch_candles_ftshare(
             break
         except Exception as exc:  # noqa: BLE001
             fetch_error = exc
+            code, _ = _classify_ftshare_error(exc)
+            if code in {"auth_required", "invalid_key", "capability_limited", "request_rejected", "rate_limited"}:
+                break
             if attempt == 0:
                 time.sleep(0.35)
     if fetch_error is not None:
@@ -3228,10 +3248,6 @@ def _fetch_candles_ftshare(
             "market_status": _symbol_market_status(sym),
             "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport"),
         }
-        if hk_history_error is not None:
-            result["warning"] = "FTShare HK history was stale or unavailable; generic candle fallback had insufficient data."
-            result["upstream_error"] = str(hk_history_error)[:500]
-            result["fallback"] = "generic_stock_candlesticks"
         return result
     name = GLOBAL_INDEX_SOURCES.get(sym) or _symbol_name(market, sym)
     freshness = _candle_freshness(sym, rows)
@@ -3259,19 +3275,11 @@ def _fetch_candles_ftshare(
         "freshness": freshness["freshness"],
         "transport": _FTSHARE_TRANSPORT_STATE.get(contract_name, {}).get("transport", "sdk"),
     }
-    if us_daily_history_error is not None:
-        result["warning"] = "FTShare US daily history endpoint failed; used generic candle fallback."
-        result["upstream_error"] = str(us_daily_history_error)[:500]
-        result["fallback"] = "generic_stock_candlesticks"
     if _is_us_symbol(sym) and normalized_interval != "minute" and (adjust or "none").strip().lower() != "none":
         result["adjust_requested"] = (adjust or "none").strip().lower()
         result["warning"] = "FTShare US daily history is returned unadjusted; adjust was not applied."
     if is_global_index and adjust != "none":
         result.update(adjust_requested=adjust, warning="FTShare global-index history is unadjusted; adjust was not applied.")
-    if hk_history_error is not None:
-        result["warning"] = "FTShare HK history endpoint failed; used generic candle fallback."
-        result["upstream_error"] = str(hk_history_error)[:500]
-        result["fallback"] = "generic_stock_candlesticks"
     if normalized_interval == "minute":
         sessions_seen = sorted({str(row.get("session") or "") for row in rows if row.get("session")})
         result["timestamp_semantics"] = "time is bar close in Unix seconds; open_time is present only when supplied by FTShare."
@@ -3860,14 +3868,18 @@ def _read_intelligence_section(
 
 def _provider_unavailable_intelligence(kind: str, *, symbol: str = "") -> dict[str, Any]:
     sections = ("breadth", "flows", "sectors", "concepts", "rankings", "events") if kind == "market_pulse" else ("sector", "flows", "events")
+    key_configured = _ftshare_credential_source() != "none"
     result = {
         "ok": True,
         "source": {"name": "FTShare", "status": "unavailable"},
         "sections": {section: {"state": "unsupported", "errors": []} for section in sections},
+        "ftshare_key_configured": key_configured,
+        "unavailable_reason": "key_not_configured" if not key_configured else "provider_unavailable",
     }
     if symbol:
         result["symbol"] = symbol
-    result[kind] = {"message": "FTShare is not available in this runtime."}
+    result[kind] = {"message": "This section needs an FTShare key with access to its endpoint; search and supported key-less candles are independent."
+                    if not key_configured else "The FTShare provider is unavailable in this runtime."}
     return result
 
 

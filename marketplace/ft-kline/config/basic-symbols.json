@@ -1,7 +1,7 @@
 {
-  "version": "2026-09-07",
+  "version": "2026-11-05",
   "source": "https://qt.gtimg.cn/",
-  "description": "安装自带的常用证券目录；名称与代码于版本日期核对，不代表全市场覆盖或行情权限。",
+  "description": "安装自带的常用证券名称、代码与别名；仅为搜索目录，不代表行情权限或全市场覆盖。",
   "items": [
     {
       "symbol": "601398.XSHG",
@@ -161,7 +161,8 @@
     {
       "symbol": "03690.HK",
       "name": "美团-W",
-      "market": "HK"
+      "market": "HK",
+      "aliases": "美团 Meituan"
     },
     {
       "symbol": "01810.HK",
@@ -176,7 +177,8 @@
     {
       "symbol": "01211.HK",
       "name": "比亚迪股份",
-      "market": "HK"
+      "market": "HK",
+      "aliases": "比亚迪 BYD 港股"
     },
     {
       "symbol": "00939.HK",
@@ -196,17 +198,20 @@
     {
       "symbol": "09618.HK",
       "name": "京东集团-SW",
-      "market": "HK"
+      "market": "HK",
+      "aliases": "京东 JD"
     },
     {
       "symbol": "09888.HK",
       "name": "百度集团-W",
-      "market": "HK"
+      "market": "HK",
+      "aliases": "百度 Baidu"
     },
     {
       "symbol": "09999.HK",
       "name": "网易",
-      "market": "HK"
+      "market": "HK",
+      "aliases": "网易 NetEase"
     },
     {
       "symbol": "512400.XSHG",
@@ -387,6 +392,179 @@
       "symbol": "563300.XSHG",
       "name": "中证2000ETF华泰柏瑞",
       "market": "ETF"
+    },
+    {
+      "symbol": "TSLA.US",
+      "name": "Tesla, Inc.  - Common Stock",
+      "market": "US",
+      "aliases": "特斯拉 Tesla"
+    },
+    {
+      "symbol": "META.US",
+      "name": "Meta Platforms, Inc. - Class A Common Stock",
+      "market": "US",
+      "aliases": "Meta 脸书 Facebook"
+    },
+    {
+      "symbol": "AMZN.US",
+      "name": "Amazon.com, Inc. - Common Stock",
+      "market": "US",
+      "aliases": "亚马逊 Amazon"
+    },
+    {
+      "symbol": "GOOGL.US",
+      "name": "Alphabet Inc. - Class A Common Stock",
+      "market": "US",
+      "aliases": "谷歌 Alphabet Google A类"
+    },
+    {
+      "symbol": "GOOG.US",
+      "name": "Alphabet Inc. - Class C Capital Stock",
+      "market": "US",
+      "aliases": "谷歌 Alphabet Google C类"
+    },
+    {
+      "symbol": "NFLX.US",
+      "name": "Netflix, Inc. - Common Stock",
+      "market": "US",
+      "aliases": "奈飞 网飞 Netflix"
+    },
+    {
+      "symbol": "AVGO.US",
+      "name": "Broadcom Inc. - Common Stock",
+      "market": "US",
+      "aliases": "博通 Broadcom"
+    },
+    {
+      "symbol": "TSM.US",
+      "name": "Taiwan Semiconductor Manufacturing Company Ltd.",
+      "market": "US",
+      "aliases": "台积电 TSMC"
+    },
+    {
+      "symbol": "BABA.US",
+      "name": "Alibaba Group Holding Limited American Depositary Shares each representing eight Ordinary share",
+      "market": "US",
+      "aliases": "阿里巴巴 Alibaba 美股"
+    },
+    {
+      "symbol": "JPM.US",
+      "name": "JP Morgan Chase & Co. Common Stock",
+      "market": "US",
+      "aliases": "摩根大通 JPMorgan"
+    },
+    {
+      "symbol": "V.US",
+      "name": "Visa Inc.",
+      "market": "US",
+      "aliases": "维萨 Visa"
+    },
+    {
+      "symbol": "MA.US",
+      "name": "Mastercard Incorporated Common Stock",
+      "market": "US",
+      "aliases": "万事达 Mastercard"
+    },
+    {
+      "symbol": "BRK.B.US",
+      "name": "Berkshire Hathaway Inc. New Common Stock",
+      "market": "US",
+      "aliases": "伯克希尔 Berkshire B类"
+    },
+    {
+      "symbol": "KO.US",
+      "name": "Coca-Cola Company (The) Common Stock",
+      "market": "US",
+      "aliases": "可口可乐 Coca Cola"
+    },
+    {
+      "symbol": "WMT.US",
+      "name": "Walmart Inc. - Common Stock",
+      "market": "US",
+      "aliases": "沃尔玛 Walmart"
+    },
+    {
+      "symbol": "DIS.US",
+      "name": "Walt Disney Company (The) Common Stock",
+      "market": "US",
+      "aliases": "迪士尼 Disney"
+    },
+    {
+      "symbol": "NKE.US",
+      "name": "Nike, Inc. Common Stock",
+      "market": "US",
+      "aliases": "耐克 Nike"
+    },
+    {
+      "symbol": "INTC.US",
+      "name": "Intel Corporation - Common Stock",
+      "market": "US",
+      "aliases": "英特尔 Intel"
+    },
+    {
+      "symbol": "PLTR.US",
+      "name": "Palantir Technologies Inc. - Class A Common Stock",
+      "market": "US",
+      "aliases": "Palantir 帕兰提尔"
+    },
+    {
+      "symbol": "COIN.US",
+      "name": "Coinbase Global, Inc. - Class A Common Stock",
+      "market": "US",
+      "aliases": "Coinbase 加密交易所"
+    },
+    {
+      "symbol": "00388.HK",
+      "name": "HKEX",
+      "market": "HK",
+      "aliases": "港交所 香港交易所 HKEX"
+    },
+    {
+      "symbol": "00005.HK",
+      "name": "HSBC HOLDINGS",
+      "market": "HK",
+      "aliases": "汇丰 汇丰控股 HSBC"
+    },
+    {
+      "symbol": "00941.HK",
+      "name": "CHINA MOBILE",
+      "market": "HK",
+      "aliases": "中国移动 China Mobile"
+    },
+    {
+      "symbol": "01024.HK",
+      "name": "KUAISHOU-W",
+      "market": "HK",
+      "aliases": "快手 Kuaishou"
+    },
+    {
+      "symbol": "09961.HK",
+      "name": "TRIP.COM-S",
+      "market": "HK",
+      "aliases": "携程 Trip.com"
+    },
+    {
+      "symbol": "02015.HK",
+      "name": "LI AUTO-W",
+      "market": "HK",
+      "aliases": "理想汽车 Li Auto"
+    },
+    {
+      "symbol": "09868.HK",
+      "name": "XPENG-W",
+      "market": "HK",
+      "aliases": "小鹏汽车 XPeng"
+    },
+    {
+      "symbol": "02020.HK",
+      "name": "ANTA SPORTS",
+      "market": "HK",
+      "aliases": "安踏体育 Anta"
     }
+  ],
+  "sources": [
+    "https://qt.gtimg.cn/",
+    "https://www.nasdaqtrader.com/trader.aspx?id=symboldirdefs",
+    "https://www.hkex.com.hk/eng/services/trading/securities/securitieslists/ListOfSecurities.xlsx"
   ]
 }
