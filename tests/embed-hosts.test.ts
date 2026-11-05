@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
 import { klineHostDataset, sameSymbol, symbolKey } from '../src/client/embed.ts'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -83,12 +84,39 @@ test('the embedded flag is script-scoped, never a free variable at the bridge', 
   assert.ok(bridgeAt > initAt, 'the host bridge is a top-level branch after init()')
 })
 
-test('symbol comparison ignores the exchange suffix and never matches empties', () => {
-  assert.equal(symbolKey('600519.SH'), '600519')
-  assert.equal(symbolKey(' 000001.xshe '), '000001')
-  assert.ok(sameSymbol('600519', '600519.SH'))
-  assert.ok(sameSymbol('600519.SH', '600519'))
-  assert.ok(!sameSymbol('600519', '600520'))
-  assert.ok(!sameSymbol('', ''))
-  assert.ok(!sameSymbol(undefined, '600519'))
+test('equivalent exchange aliases and bare chart inputs keep one identity', () => {
+  assert.equal(symbolKey('600519.SH'), '600519.XSHG')
+  assert.equal(symbolKey(' 000001.xshe '), '000001.XSHE')
+  for (const [left, right] of [
+    ['600519', '600519.SH'], ['SH600519', '600519.XSHG'],
+    ['000001.SZ', '000001.XSHE'], ['BJ920000', '920000.BJSE'],
+    ['700', '00700.HK'], ['700.HKG', '00700.HK'],
+    ['v', 'V.US'], ['V.NYSE', 'V.US'], ['AAPL.NASDAQ', 'AAPL.US'],
+  ]) {
+    assert.ok(sameSymbol(left, right), `${left} and ${right}`)
+    assert.ok(sameSymbol(right, left), `${right} and ${left}`)
+  }
+})
+
+test('different markets, ticker prefixes and share classes must trigger a symbol change', () => {
+  for (const [left, right] of [
+    ['000001.XSHG', '000001.XSHE'], ['000001.SH', '000001.SZ'],
+    ['000001', '000001.XSHG'], ['000001.HK', '000001.XSHE'],
+    ['V.US', 'VZ.US'], ['BRK.US', 'BRK.B.US'], ['BRK.A.US', 'BRK.B.US'],
+    ['007.HK', '00700.HK'], ['600519', '600520'],
+    ['', ''], ['   ', '600519'], [undefined, '600519'],
+  ]) {
+    assert.ok(!sameSymbol(left, right), `${left} and ${right}`)
+    assert.ok(!sameSymbol(right, left), `${right} and ${left}`)
+  }
+})
+
+test('bare and exchange-qualified host inputs agree with actual chart routing', () => {
+  const start = view.indexOf('function normalizeSymbolInput(')
+  const end = view.indexOf('function directoryEntryForSymbol(', start)
+  const normalize = runInNewContext(view.slice(start, end) + '; normalizeSymbolInput')
+  for (const input of ['600519', '000001', '920000', 'SH600519', 'SZ000001', 'BJ920000',
+    '600519.SH', '000001.XSHG', '000001.SZ', '920000.BJ', '700', '700.HKG', '00700.HK', 'v', 'VZ.US']) {
+    assert.equal(symbolKey(input), normalize(input), input)
+  }
 })

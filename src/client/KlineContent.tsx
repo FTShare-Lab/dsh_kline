@@ -162,8 +162,8 @@ export function StandaloneKlineApp({ conversationId, ownerConversationId, visibl
   // A host palette pins the chart theme; a change repaints without a remount.
   // No theme means "follow the host document", which is the old behaviour.
   useEffect(() => {
-    if (!ready || theme === undefined) return
-    bridge.current?.setTheme(theme)
+    if (!ready) return
+    bridge.current?.setTheme(theme ?? 'host')
   }, [ready, theme])
 
   return (

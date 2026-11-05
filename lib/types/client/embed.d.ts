@@ -31,7 +31,7 @@ export interface KlineEmbedApi {
  * gets `{}` — no attribute, so none of the embedding CSS can ever match it.
  */
 export declare function klineHostDataset({ embedded, chrome }?: Pick<KlineHostProps, 'embedded' | 'chrome'>): Record<string, string>;
-/** Exchange suffix in a symbol is optional: `600519` and `600519.SH` are the same instrument. */
+/** Normalize host identities using the chart's input conventions, retaining the market. */
 export declare function symbolKey(value: string | undefined): string;
-/** Compare two instruments the way a host bus would: suffix-insensitive, empty never matches. */
+/** Only an exact normalized identity is the same instrument; empty never matches. */
 export declare function sameSymbol(left: string | undefined, right: string | undefined): boolean;
