@@ -108,7 +108,7 @@ class BaoStockFallbackTests(unittest.TestCase):
         ) as fallback, patch("tools.fetch._fetch_candles_ftshare", return_value={"ok": False, "error": "unavailable"}), patch(
             "tools.fetch._free_index_candles_result", return_value=None
         ):
-            for symbol, interval in (("600519.XSHG", "minute"), ("000001.XSHG", "day"), ("510300.XSHG", "day"), ("00700.HK", "day")):
+            for symbol, interval in (("600519.XSHG", "minute"), ("000001.XSHG", "day"), ("510300.XSHG", "day"), ("830799.BJSE", "day")):
                 self.assertFalse(fetch_candles(symbol, interval=interval)["ok"])
             fallback.assert_not_called()
 

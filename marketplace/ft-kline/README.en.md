@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently **v0.6.6**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The Codex plugin is currently **v0.6.7**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -76,14 +76,14 @@ If you previously installed `ft-kline@ftshare-local` from a ZIP, disable that ol
 
 ### Install a fixed release ZIP
 
-To stay on a fixed release, download `ft-kline-v0.6.6.zip` and its SHA-256 from the [v0.6.6 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.6), verify the hash, and extract to a permanent folder. Replace the quoted path below with that absolute folder path:
+To stay on a fixed release, download `ft-kline-v0.6.7.zip` and its SHA-256 from the [v0.6.7 release](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.7), verify the hash, and extract to a permanent folder. Replace the quoted path below with that absolute folder path:
 
 ```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.6"
+codex plugin marketplace add "/absolute/path/ft-kline-v0.6.7"
 codex plugin add ft-kline@ftshare-local
 ```
 
-Reopen Codex to use it. The ZIP source is `ftshare-local`, separate from the public GitHub source `ftshare`. DSH retains its `dsh-kline-v0.6.6.tgz` package and the installation method below.
+Reopen Codex to use it. The ZIP source is `ftshare-local`, separate from the public GitHub source `ftshare`. DSH retains its `dsh-kline-v0.6.7.tgz` package and the installation method below.
 
 ### First launch and runtime modes
 
@@ -97,7 +97,7 @@ Chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edi
 
 ### Reuse an FTShare key
 
-Symbol discovery and quote access are separate. v0.6.6 improves public HK/US directories, common Chinese aliases and error messages without requiring a key. See the [key-less capability and evaluation notes](docs/anonymous-market-support.md); fixed release archives retain their release's behavior.
+Symbol discovery and quote access are separate. v0.6.7 adds a keyless Tencent HK/US daily fallback: HK supports unadjusted, forward and backward adjustment; US supports unadjusted and forward adjustment. Volumes remain historical session shares. Public-source coverage is bounded; see the [data contract](docs/free-foreign-daily.md). See the [key-less capability and evaluation notes](docs/anonymous-market-support.md); fixed release archives retain their release's behavior.
 
 Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly configured `FTSHARE_API_KEY_FILE` → temporary App-session key**. An export in an unrelated terminal is not automatically visible to the desktop app.
 
@@ -105,7 +105,7 @@ The selected file is reread before provider requests and is never modified or de
 
 Without a key, supported A-share daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
 
-See the [v0.6.6 release notes](docs/release-notes-v0.6.6.md) and [acceptance checklist](docs/release-acceptance-v0.6.6.md) for verification and remaining manual desktop checks.
+See the [v0.6.7 release notes](docs/release-notes-v0.6.7.md) and [acceptance checklist](docs/release-acceptance-v0.6.7.md) for verification and remaining manual desktop checks.
 
 ## Get started with DSH
 

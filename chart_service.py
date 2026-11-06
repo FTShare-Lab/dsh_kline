@@ -300,7 +300,8 @@ def _http_analyze_kline(args: dict[str, Any]) -> dict[str, Any]:
                 "fetched_count": len(fetched.get("rows") or []),
                 "latest": latest,
                 "metrics": metric_data,
-                "warnings": ([f"ignored unsupported indicators: {', '.join(unknown_indicators)}"] if unknown_indicators else []),
+                "warnings": [*fetched.get("warnings", []), *([f"ignored unsupported indicators: {', '.join(unknown_indicators)}"] if unknown_indicators else [])],
+                **{key: fetched[key] for key in ("source_url", "notice", "volume_unit", "volume_adjustment", "price_adjustment", "timestamp_convention", "history_complete", "history_start", "history_end", "coverage_reason", "source_symbol", "requested_count") if key in fetched},
             }
         )
         return payload

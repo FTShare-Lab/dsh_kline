@@ -153,7 +153,7 @@ def analyze_symbol(symbol: str, *, interval: str = "day", interval_value: int = 
                           mark_support_resistance=mark_support_resistance, ma_periods=ma_periods, rsi_period=rsi_period,
                           boll_period=boll_period, boll_std=boll_std, volume_ma=volume_ma, atr_period=atr_period,
                           data_source=str(fetched.get("source") or "ftshare"), data_source_url=fetched.get("source_url"))
-    result.update({key: fetched.get(key) for key in ("updated_at", "as_of", "exchange_timezone", "freshness", "status", "notice", "warnings") if key in fetched})
+    result.update({key: fetched.get(key) for key in ("updated_at", "as_of", "exchange_timezone", "freshness", "status", "notice", "warnings", "volume_unit", "volume_adjustment", "price_adjustment", "timestamp_convention", "history_complete", "history_start", "history_end", "coverage_reason", "source_symbol", "requested_count") if key in fetched})
     result["fetched_count"] = len(fetched.get("rows") or [])
     return result
 

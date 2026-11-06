@@ -21,7 +21,7 @@ def test_foreign_market_errors_never_fall_back_to_mainland_candles(symbol, metho
     with ExitStack() as stack:
         for name, value in [('ftshare_available', True), ('_ftshare_credential_source', 'none'),
                             ('_recent_candle_cache', None), ('_cached_candle_fallback', None),
-                            ('_free_index_candles_result', None), ('_ftshare_market_api', object())]:
+                            ('_free_index_candles_result', None), ('_free_foreign_candles_result', None), ('_ftshare_market_api', object())]:
             stack.enter_context(patch.object(f, name, return_value=value))
         stack.enter_context(patch.dict('os.environ', {'FTSHARE_API_KEY': ''}))
         stack.enter_context(patch.object(f.time, 'sleep'))

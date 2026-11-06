@@ -915,6 +915,8 @@ async def analyze_kline(
     )
     chart_payload["adjust"] = effective_adjust
     chart_payload["interval_value"] = interval_value
+    provider_metadata = {key: fetched[key] for key in ("source_url", "notice", "volume_unit", "volume_adjustment", "price_adjustment", "timestamp_convention", "history_complete", "history_start", "history_end", "coverage_reason", "source_symbol", "requested_count") if key in fetched}
+    chart_payload.update(provider_metadata)
     chart = _chart_spec(rows, active_indicators, periods, normalized_interval or "day", analysis_marks)
     chart_session: str | None = None
     chart_service_status: dict[str, Any]
@@ -931,6 +933,7 @@ async def analyze_kline(
     data = {
         "ok": True,
         "workflow": "fetch_analyze_chart_session",
+        **provider_metadata,
         "symbol": fetched.get("symbol") or resolved_symbol or symbol,
         "name": fetched.get("name") or resolved_name or symbol,
         "interval": normalized_interval or "day",

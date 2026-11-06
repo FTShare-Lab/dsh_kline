@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.6.zip`)
+const archive = resolve(process.argv[2] ?? `${root}/release/ft-kline-v0.6.7.zip`)
 const data = await readFile(archive)
 const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
 if (end < 0) throw new Error('not a ZIP archive')

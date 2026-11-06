@@ -1031,7 +1031,7 @@
           </div>
         </section>
         <section class="settings-section" id="settingsSectionSource" hidden>
-          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。</span></div>
+          <div class="source-intro"><strong data-i18n="sourceIntroTitle">数据源简介</strong><span data-i18n="sourceIntro">未配置 FTShare Key 时，A 股可尝试 BaoStock，港美股可尝试腾讯免费日 K；分钟 K、新闻等按接口和权限提供。</span></div>
           <div class="settings-info"><div class="settings-info-title" id="settingsCurrentChartTitle">当前图数据</div><div id="settingsSourceStatus"></div></div>
           <div class="source-autoload"><strong data-i18n="sourceAutoloadTitle">自动使用已有的 FTShare Key</strong><span data-i18n="sourceAutoload">dsh_kline 每次启动都会先复用当前 DSH 服务可读取的 Key；若没有，再使用本插件此前保存到本机的 Key。Key 不会显示或上传。</span></div>
           <div class="settings-provider">
@@ -1849,7 +1849,7 @@ Object.assign(UI_COPY.en, {
 // A free FTShare account is different from making anonymous requests. Keep
 // these entitlement messages together so the source and error UI agree.
 Object.assign(UI_COPY.zh, {
-  sourceIntro: "未配置 FTShare Key 时，沪深 A 股历史日 K 可尝试 BaoStock 备用源；分钟 K 等仍需相应权限。",
+  sourceIntro: "未配置 FTShare Key 时，A 股可尝试 BaoStock，港美股可尝试腾讯免费日 K；分钟 K、新闻等按接口和权限提供。",
   sourceFreeMode: "注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。",
   ftshareStatusAnonymous: "未配置 API Key",
   ftshareHintAnonymous: "沪深 A 股历史日 K 可尝试 BaoStock 备用源；更多行情请配置 FTShare Key。",
@@ -1868,7 +1868,7 @@ Object.assign(UI_COPY.zh, {
   ftshareRequestRejected: "数据接口拒绝了请求，请检查标的市场、代码和参数；这不表示 Key 无效。",
 });
 Object.assign(UI_COPY.en, {
-  sourceIntro: "Without an FTShare key, historical daily bars for Shanghai and Shenzhen A-shares can use BaoStock. Minute bars still depend on source access.",
+  sourceIntro: "Without an FTShare key, A-share daily history can use BaoStock and HK/US daily history can use Tencent. Minute bars and news depend on source access.",
   sourceFreeMode: "Register a free FTShare key for stock candles allowed by your plan. Minute bars, news, and other data depend on the endpoint and plan.",
   ftshareStatusAnonymous: "API key not configured",
   ftshareHintAnonymous: "Historical daily A-share bars can use BaoStock; configure an FTShare key for broader coverage.",

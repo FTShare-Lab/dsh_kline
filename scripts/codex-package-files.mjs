@@ -14,12 +14,13 @@ const allowlist = [
   'docs/release-notes-v0.6.4.md', 'docs/release-acceptance-v0.6.4.md',
   'docs/embedding.md', 'docs/anonymous-market-support.md', 'docs/release-notes-v0.6.5.md', 'docs/release-acceptance-v0.6.5.md',
   'docs/release-notes-v0.6.6.md', 'docs/release-acceptance-v0.6.6.md',
+  'docs/free-foreign-daily.md', 'docs/release-notes-v0.6.7.md', 'docs/release-acceptance-v0.6.7.md',
   'codex_server.py', 'codex_runtime', 'core', 'config/basic-symbols.json', 'view',
   // Only provider/indicator/geometry modules shared by the Codex adapter.
   // DSH context, HTTP application, and snapshot modules are intentionally not
   // present in this archive.
   'tools/annotations.py', 'tools/calc.py', 'tools/chart_indicators.py', 'tools/channels.py', 'tools/channel_candidates.py',
-  'tools/baostock_source.py', 'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/lines.py',
+  'tools/baostock_source.py', 'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/foreign_daily.py', 'tools/lines.py',
   'tools/pivots.py', 'tools/polylines.py', 'tools/price_bands.py', 'tools/price_series.py',
   'tools/price_sticks.py', 'tools/range_candidates.py', 'tools/rectangles.py', 'tools/trend_lines.py',
   'scripts/run-dsh-kline.mjs', 'scripts/codex-bootstrap.mjs', 'scripts/run-ft-kline.mjs', 'scripts/run-ft-kline-cli.mjs',

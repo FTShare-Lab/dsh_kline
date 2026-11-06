@@ -33,6 +33,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 from core.adjustment import normalize_adjustment, adjustment_error
+from tools.foreign_daily import fetch_foreign_daily, foreign_market, SOURCE_URL as FOREIGN_SOURCE_URL
 from tools.baostock_source import SOURCE as BAOSTOCK_SOURCE, SOURCE_URL as BAOSTOCK_SOURCE_URL, eligible_stock_code, fetch_stock_daily
 
 try:  # Built-in free fallback source; never required for the FTShare path.
@@ -3431,6 +3432,41 @@ def _free_stock_candles_result(
     }
 
 
+def _free_foreign_candles_result(
+    symbol: str, *, interval: str, interval_value: int, limit: int, adjust: str,
+    after_ftshare_failure: bool = False,
+) -> dict[str, Any] | None:
+    sym = _canonical_market_symbol(symbol)
+    if foreign_market(sym) is None or str(interval).lower() != "day" or int(interval_value or 1) != 1:
+        return None
+    requested = max(2, min(int(limit or 220), 4000))
+    try:
+        history = fetch_foreign_daily(sym, limit=requested, adjust=adjust)
+    except Exception:  # Optional public source must never mask the primary error.
+        history = None
+    if not history:
+        return None
+    rows = history["rows"]
+    freshness = _candle_freshness(sym, rows)
+    local_zone = ZoneInfo(history.get("exchange_timezone") or _exchange_timezone(sym))
+    if (datetime.now(local_zone).date() - datetime.fromtimestamp(rows[-1]["time"], local_zone).date()).days > 5:
+        freshness.update(status="stale", freshness="historical_daily_stale")
+    warning = [] if history["history_complete"] else [
+        f"免费日 K 请求 {requested} 根，实际获得 {len(rows)} 根；历史覆盖受公开源限制（{history['coverage_reason']}）。"
+    ]
+    return {
+        **history, "ok": True, "symbol": sym,
+        "name": next((str(item["name"]) for item in _SYMBOL_DIRECTORY_SEED if item["symbol"] == sym), sym),
+        "interval": "day", "interval_value": 1, "session_count": None, "adjust": adjust,
+        "count": len(rows), "requested_count": requested, "source": "tencent_free",
+        "source_url": FOREIGN_SOURCE_URL, "updated_at": int(time.time()),
+        **freshness, "market_status": _symbol_market_status(sym),
+        "notice": "腾讯免费日 K；成交量为历史当日股数，复权仅作用于价格。分钟 K、新闻和板块排行不在此备用源范围。",
+        "warnings": warning,
+        **({"fallback_from": "ftshare"} if after_ftshare_failure else {}),
+    }
+
+
 def fetch_candles(
     symbol: str,
     *,
@@ -3458,6 +3494,9 @@ def fetch_candles(
         and int(interval_value or 1) == 1
     )
     if not key_configured:
+        free_foreign = _free_foreign_candles_result(symbol, **stock_options)
+        if free_foreign is not None:
+            return {**free_foreign, "ftshare_key_configured": False}
         free_stock = _free_stock_candles_result(symbol, **stock_options)
         if free_stock is not None:
             return free_stock
@@ -3524,6 +3563,14 @@ def fetch_candles(
         free_stock = _free_stock_candles_result(symbol, **stock_options, after_ftshare_failure=True)
         if free_stock is not None:
             return free_stock
+    if key_configured:
+        free_foreign = _free_foreign_candles_result(symbol, **stock_options, after_ftshare_failure=True)
+        if free_foreign is not None:
+            return {**free_foreign, "ftshare_key_configured": True}
+    if foreign_market(_canonical_market_symbol(symbol)) == "US" and adjust == "backward":
+        limitation = "美股免费日 K 仅支持不复权和前复权；未将不复权冒充后复权。"
+        primary = {**primary, "free_fallback_limitation": limitation,
+                   "message": str(primary.get("message") or "") + " " + limitation}
     return primary
 
 

@@ -154,7 +154,8 @@ def test_us_history_supplies_upper_bound_and_aggregates_before_trimming(interval
     market.eastmoney_us_stock_daily_ohlc.side_effect = daily
     f._candle_cache.clear()
     with patch.object(f, '_ftshare_market_api', return_value=market), \
-         patch.object(f, '_symbol_name', return_value='NVIDIA'):
+         patch.object(f, '_symbol_name', return_value='NVIDIA'), \
+         patch.object(f, '_free_foreign_candles_result', return_value=None):
         result = f.fetch_candles('NVDA.US', interval=interval, limit=limit)
     assert result['ok']
     assert result['rows'] == f._aggregate_interval(history, interval, timezone_name='America/New_York')[-limit:]
