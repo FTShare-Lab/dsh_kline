@@ -103,7 +103,7 @@ Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly config
 
 The selected file is reread before provider requests and is never modified or deleted by the plugin. Use JSON `{"version":1,"api_key":"your key"}`. macOS/Linux require owner-only permissions (`chmod 600`); symbolic links are rejected. Status reports only `environment`, `external_file`, `session` or `none`, never the key or path. Codex does not discover DSH credentials or scan `.env`, shell profiles, keychains or other apps; sharing a file requires explicitly configuring its path.
 
-Without a key, supported A-share daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
+Without a key, supported A-share, HK and US daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
 
 See the [v0.6.7 release notes](docs/release-notes-v0.6.7.md) and [acceptance checklist](docs/release-acceptance-v0.6.7.md) for verification and remaining manual desktop checks.
 
@@ -171,7 +171,7 @@ For safety, the plugin never scans `.env` files, shell configuration, keychains,
 
 Theme and language follow the DSH host by default. **Settings → Theme/Language** also offers manual choices and a way back to **Follow host (default)**.
 
-[FTShare's free-plan endpoints](https://market.ft.tech/gateway/doc/p/pb8eizu3) still require a registered API key. Without a key, some historical daily A-share bars can use BaoStock and selected broad-market indices have another free fallback; intraday bars, other markets, and news still depend on source coverage and permissions. Existing valid OHLCV data, including rows supplied by the host, can still drive local indicators and drawing. The UI reports the applicable source or error when data is rate-limited, unavailable, or outside the account's entitlement.
+[FTShare's free-plan endpoints](https://market.ft.tech/gateway/doc/p/pb8eizu3) still require a registered API key. Without a key, some historical daily A-share bars can use BaoStock, HK/US daily bars can use Tencent, and selected broad-market indices have separate free fallbacks. Intraday bars, news and other capabilities still depend on source coverage and permissions. Existing valid OHLCV data, including rows supplied by the host, can still drive local indicators and drawing. The UI reports the applicable source or error when data is rate-limited, unavailable, or outside the account's entitlement.
 
 ## Frequently asked questions
 
