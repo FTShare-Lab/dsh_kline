@@ -39,8 +39,8 @@ def test_locator_failure_retains_mcp_and_recovers_without_restart(tmp_path):
     reader.start()
     def send(message):
         child.stdin.write(json.dumps({'jsonrpc':'2.0', **message})+'\n'); child.stdin.flush()
-    def response(expected):
-        deadline = time.monotonic()+25
+    def response(expected, timeout=25):
+        deadline = time.monotonic()+timeout
         while time.monotonic() < deadline:
             value = responses.get(timeout=max(0.1, deadline-time.monotonic()))
             assert 'invalid_stdout' not in value, value
@@ -48,7 +48,7 @@ def test_locator_failure_retains_mcp_and_recovers_without_restart(tmp_path):
         raise AssertionError(f'missing response {expected}')
     try:
         send({'id':1, 'method':'initialize', 'params':{'protocolVersion':'2024-11-05', 'capabilities':{}, 'clientInfo':{'name':'recovery-test','version':'1'}}})
-        assert response(1)['result']['serverInfo']['name'] == 'dsh_kline'
+        assert response(1, timeout=120)['result']['serverInfo']['name'] == 'dsh_kline'
         send({'method':'notifications/initialized'})
         send({'id':2,'method':'tools/list'})
         assert any(t['name']=='analyze_kline' for t in response(2)['result']['tools'])
@@ -105,7 +105,9 @@ def test_real_backend_exit_recovers_on_the_same_node_mcp_connection(tmp_path):
         raise AssertionError('MCP response timed out')
     manifest=tmp_path/'runtime/services'/f'{os.getpid()}.json'
     def await_backend(previous=None):
-        deadline=time.monotonic()+30
+        # Match the clean-install smoke budget: cold native imports are not
+        # a front-MCP timeout, and must not require provider downloads.
+        deadline=time.monotonic()+180
         while time.monotonic()<deadline:
             status=request('tools/call',{'name':'dsh_kline_runtime_status'})['result']['structuredContent']
             if status['phase']=='ready' and manifest.exists():

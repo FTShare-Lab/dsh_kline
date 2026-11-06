@@ -117,14 +117,14 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
       if (!value || typeof value !== 'object' || Array.isArray(value) || value.jsonrpc !== '2.0') {
         log('[dsh_kline] Ignored invalid backend protocol frame.\n'); return
       }
-      if (value.id === 'dsh-kline-bootstrap-initialize') {
+      if (!ready && value.id === 'dsh-kline-bootstrap-initialize') {
         if (value.error || !value.result) { down(generation, 'backend_initialize_failed'); return }
         clearTimeout(handshakeTimer)
         forward({ jsonrpc: '2.0', method: 'notifications/initialized' })
         ready = true; lastError = undefined; failures = 0; persist()
         for (const [id, request] of queued) { cancelQueued(id); forward(request.message) }
       } else if (!['notifications/tools/list_changed', 'notifications/resources/list_changed'].includes(value.method)) {
-        inFlight.delete(value.id)
+        if (!value.method) inFlight.delete(value.id)
         send(value)
       }
     })

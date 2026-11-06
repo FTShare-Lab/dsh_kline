@@ -38,6 +38,9 @@ if args[:1] == ['-c']:
         raise SystemExit(0)
     if 'installed_version' in args[1] and os.environ.get('FAKE_PIN_MISMATCH') and not (Path(__file__).parent.parent / '.pins-ready').exists():
         raise SystemExit(1)
+    if os.environ.get('FAKE_IMPORT_DELAY'):
+        import time
+        time.sleep(float(os.environ['FAKE_IMPORT_DELAY']))
     if os.environ.get('FAKE_IMPORT_FAILURE'):
         raise SystemExit(1)
     ready = (Path(__file__).parent / '.imports-ready').exists() or (Path(__file__).parent.parent / '.imports-ready').exists()
@@ -655,3 +658,18 @@ def test_old_base_interpreter_is_classified_in_the_bootstrap_log(tmp_path):
     log = (tmp_path / 'cache/bootstrap.log').read_text()
     assert 'Python candidate:' in log and '3.10' in log
     assert 'PYTHON_VERSION_TOO_OLD' in log
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fake executable integration")
+def test_cold_dependency_import_is_not_misclassified_as_missing(tmp_path):
+    project, venv, env = _prepare_launcher_fixture(tmp_path)
+    env.pop('DSH_KLINE_VENV')
+    env['DSH_KLINE_RUNTIME_MODE'] = 'external'
+    env['FAKE_IMPORT_DELAY'] = '11'
+    (tmp_path / '.imports-ready').write_text('ready')
+    result = subprocess.run(['node', str(project/'scripts/run-dsh-kline.mjs')], cwd=project,
+                            env=env, capture_output=True, text=True, timeout=40)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == 'mcp-ready\n'
+    assert not venv.exists()
+    assert not (tmp_path/'cache').exists()

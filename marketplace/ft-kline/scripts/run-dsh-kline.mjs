@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url'
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const REQUIREMENTS_FILE = join(PROJECT_ROOT, 'requirements.txt')
 const IMPORT_CHECK = 'import ftshare, mcp, pydantic, pydantic_settings, talib; assert talib.__version__ == "0.8.2" and len(talib.get_functions()) == 201'
+// Native dependency imports can be cold on macOS. Node already owns the MCP
+// handshake, so a short probe timeout must not trigger needless reinstallation.
+const IMPORT_PROBE_TIMEOUT_MS = 90_000
 const VERSION_CHECK = 'import sys; raise SystemExit(sys.version_info < (3, 11))'
 const RUNTIME_VERSION_CHECK = 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
 const REQUIREMENTS_STAMP = '.dsh-kline-requirements'
@@ -209,12 +212,12 @@ export function pythonEnvironment(env = process.env) {
   }
 }
 
-function commandPasses(command, args, code) {
+function commandPasses(command, args, code, timeoutMs = 10_000) {
   const result = spawnSync(command, [...args, '-c', code], {
     env: pythonEnvironment(),
     encoding: 'utf8',
     stdio: 'ignore',
-    timeout: 10_000,
+    timeout: timeoutMs,
     windowsHide: true,
   })
   return result.status === 0
@@ -574,7 +577,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (!commandPasses(configuredPython, [], VERSION_CHECK)) {
       throw new Error('External DSH_KLINE_PYTHON must be a working Python 3.11 or newer; automatic installation is disabled')
     }
-    if (!commandPasses(configuredPython, [], IMPORT_CHECK)) {
+    if (!commandPasses(configuredPython, [], IMPORT_CHECK, IMPORT_PROBE_TIMEOUT_MS)) {
       throw new Error('External DSH_KLINE_PYTHON is missing required dependencies; the host must provision them, automatic installation is disabled')
     }
     return await launchServer(configuredPython, runtimeDirectory)
@@ -585,14 +588,14 @@ export async function main(argv = process.argv.slice(2)) {
   const hasProjectRuntime = await pathExists(projectPython)
   const configuredPythonWorks = !prepareProject && !configuredVenv && Boolean(configuredPython)
     && commandPasses(configuredPython, [], VERSION_CHECK)
-    && commandPasses(configuredPython, [], importCheck)
+    && commandPasses(configuredPython, [], importCheck, IMPORT_PROBE_TIMEOUT_MS)
   const venvDirectory = prepareProject
     ? projectVenv
     : configuredVenv || (hasProjectRuntime ? projectVenv : join(stateDirectory, 'venv'))
   const managedRuntime = !configuredPythonWorks && (prepareProject || Boolean(configuredVenv) || !hasProjectRuntime)
   let runtimePython = configuredPythonWorks ? configuredPython : pythonPathForVenv(venvDirectory)
   const fingerprint = await requirementsFingerprint()
-  const runtimeImportsWork = await pathExists(runtimePython) && commandPasses(runtimePython, [], importCheck)
+  const runtimeImportsWork = configuredPythonWorks || await pathExists(runtimePython) && commandPasses(runtimePython, [], importCheck, IMPORT_PROBE_TIMEOUT_MS)
   const runtimeVenvMatches = configuredPythonWorks || !runtimeImportsWork
     ? true
     : await venvInterpreterMatches(venvDirectory, runtimePython)

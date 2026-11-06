@@ -131,3 +131,16 @@ test('host shutdown terminates an in-progress installer descendant', async () =>
     assert.equal(existsSync(leaked),false,'an installer survived its MCP owner')
   } finally {server.shutdown();rmSync(directory,{recursive:true,force:true})}
 })
+
+
+test('string request IDs cannot collide with the completed backend handshake', () => {
+  const f=fixture()
+  try {
+    f.initialize();f.ready()
+    const id='dsh-kline-bootstrap-initialize'
+    f.send({id,method:'tools/call',params:{name:'list_ta_functions',arguments:{limit:1}}})
+    const result={content:[{type:'text',text:'ok'}]}
+    f.children[0].stdout.write(JSON.stringify({jsonrpc:'2.0',id,result})+'\n')
+    assert.deepEqual(f.replies.at(-1),{jsonrpc:'2.0',id,result})
+  } finally {f.close()}
+})
