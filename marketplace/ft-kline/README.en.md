@@ -255,3 +255,11 @@ See [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) for version hi
 Maintainers changing tools, annotations, resources or the App bridge must regenerate the packaged catalog with `python scripts/generate-codex-catalog.py`; `--check` and regression tests detect stale catalogs.
 
 The public `marketplace/ft-kline/` snapshot is generated from the same Codex package allowlist. After editing source, plugin manifests or README files, run `pnpm sync:codex-marketplace` and commit the generated files. CI runs `pnpm verify:codex-marketplace` and independently starts the directory in Desktop and CLI modes. Do not edit generated files directly; see [marketplace maintenance](marketplace/README.md).
+
+### DSH startup diagnostics
+
+MCP discovery remains connected while Python is prepared; `dsh_kline_runtime_status` reports `preparing`, `recovering`, or `ready`. Backend restarts never replay operations with unknown outcomes. Chart registration retries without terminating other MCP tools.
+
+Request `/dsh-kline/healthz` on the current DSH Web origin: 200 confirms the locator and HTTP backend instance agree; 503 identifies the failure. It does not check provider permissions or MCP tool execution. Historical `/dsh-kline/session?session=…` snapshots are not a health check. Use the locator's actual service port rather than assuming 8765.
+
+Dependency logs remain in `bootstrap.log`; backend stderr is persisted to `logs/backend-<host_pid>.log` with one `.previous` rotation at approximately 1 MiB. The default cache is `~/.cache/dsh_kline` on macOS/Linux (honoring `XDG_CACHE_HOME`) or `%LOCALAPPDATA%\dsh_kline` on Windows. `DSH_KLINE_CACHE_DIR` overrides it; `DSH_KLINE_RUNTIME_DIR` independently overrides runtime files. Health responses never expose the service token.

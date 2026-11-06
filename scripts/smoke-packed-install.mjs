@@ -23,7 +23,7 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !ke
 const runtime = join(scratch, '运行 runtime')
 Object.assign(env, {DSH_KLINE_HOST_PID:String(process.pid), DSH_KLINE_CHART_PORT:'0',
   DSH_KLINE_VENV:join(scratch, 'fresh-venv'), DSH_KLINE_CACHE_DIR:join(scratch, 'cache'),
-  DSH_KLINE_RUNTIME_DIR:runtime,
+  DSH_KLINE_RUNTIME_DIR:runtime, DSH_KLINE_DEFER_BOOTSTRAP:'1',
   FTSHARE_API_KEY_FILE:join(scratch, 'no-credentials.json')})
 const stderr = createWriteStream(join(scratch, 'bootstrap.log'), {mode:0o600})
 const child = spawn(process.execPath, ['scripts/run-dsh-kline.mjs'], {cwd:root, env, stdio:['pipe','pipe','pipe'], windowsHide:true})
@@ -74,6 +74,13 @@ try {
   ]
   for (const name of requiredTools) assert.ok(toolNames.has(name), `Missing MCP tool: ${name}`)
   console.log(`PASS MCP initialize + ${toolNames.size} tools (${requiredTools.length} required)`)
+  const readyDeadline=Date.now()+300000
+  while(true){
+    const status=await request('tools/call',{name:'dsh_kline_runtime_status',arguments:{}})
+    if(status.result?.structuredContent?.phase==='ready')break
+    assert.ok(Date.now()<readyDeadline,`Python preparation timed out; see ${scratch}/bootstrap.log`)
+    await new Promise(resolve=>setTimeout(resolve,100))
+  }
   const catalog = await request('tools/call', {name:'list_ta_functions', arguments:{limit:1}})
   assert.equal(catalog.result?.isError ?? false, false)
   assert.equal(catalog.result?.structuredContent?.total_catalog, 201)
@@ -90,7 +97,11 @@ try {
   assert.equal(health.status, 200)
   const denied = await fetch(`${locator.service_url}/api/tools/data_source_status`, {method:'POST',body:'{}'})
   assert.equal(denied.status, 401)
-  console.log('PASS host-scoped locator + HTTP health + unauthenticated access denied')
+  const healthBody=await health.json()
+  assert.equal(healthBody.instance_id,locator.instance_id)
+  assert.equal(healthBody.process_id,locator.process_id)
+  assert.equal(healthBody.host_process_id,process.pid)
+  console.log('PASS host-scoped locator + HTTP instance identity + unauthenticated access denied')
   console.log(`Test artifacts retained in ${scratch}`)
 } finally {
   lines.close()

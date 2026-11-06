@@ -11,6 +11,7 @@ import json
 import hmac
 import os
 import secrets
+import sys
 import re
 from copy import deepcopy
 import tempfile
@@ -425,7 +426,9 @@ class ChartRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
         if path == "/healthz":
-            self._send_json({"ok": True, "service": "dsh_kline_chart", "version": SERVER_VERSION})
+            self._send_json({"ok": True, "service": "dsh_kline_chart", "version": SERVER_VERSION,
+                             "process_id": os.getpid(), "host_process_id": HOST_PROCESS_ID,
+                             "instance_id": self.server.instance_id})
             return
         if not self._authorized():
             self._send_json({"ok": False, "error": "unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
@@ -504,6 +507,7 @@ class ChartHTTPServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], store: ChartSessionStore, auth_token: str) -> None:
         self.session_store = store
         self.auth_token = auth_token
+        self.instance_id = secrets.token_hex(16)
         super().__init__(address, ChartRequestHandler)
 
 
@@ -520,11 +524,11 @@ class ChartService:
     def publish(self, payload: dict[str, Any]) -> tuple[str, str]:
         token = self.store.create(payload)
         service_url = f"http://{self.host}:{self.port}"
-        _write_runtime_session(token, service_url, self.auth_token, payload)
+        _write_runtime_session(token, service_url, self.auth_token, payload, self.httpd.instance_id)
         return token, service_url
 
 
-def _write_runtime_session(token: str, service_url: str, service_token: str, payload: dict[str, Any]) -> None:
+def _write_runtime_session(token: str, service_url: str, service_token: str, payload: dict[str, Any], instance_id: str) -> None:
     RUNTIME_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     document = {
         "ok": True,
@@ -533,6 +537,7 @@ def _write_runtime_session(token: str, service_url: str, service_token: str, pay
         "session": token,
         "service_url": service_url,
         "service_token": service_token,
+        "instance_id": instance_id,
         "symbol": str(payload.get("symbol") or ""),
         "name": str(payload.get("name") or ""),
         "published_at": int(time.time()),
@@ -630,12 +635,52 @@ def read_chart_snapshot(token: str) -> dict[str, Any] | None:
         return None
 
 
-def start_chart_service() -> None:
-    """Refresh only the service locator after restart; no chart is selected."""
+_registration_thread: threading.Thread | None = None
+_registration_lock = threading.Lock()
+
+
+def _register_chart_service() -> None:
     service = ensure_chart_service()
     _atomic_runtime_json(RUNTIME_SESSION_FILE, {
         "ok": True, "session": "", "process_id": os.getpid(),
         "host_process_id": HOST_PROCESS_ID,
         "service_url": f"http://{service.host}:{service.port}",
         "service_token": service.auth_token, "published_at": int(time.time()),
+        "instance_id": service.httpd.instance_id,
     })
+
+
+def _registration_error(exc: OSError | ValueError) -> None:
+    # Protocol stdout belongs exclusively to MCP. The Node owner persists stderr.
+    code = getattr(exc, "errno", None)
+    print(f"[dsh_kline] chart_service_registration_failed errno={code} "
+          f"locator={RUNTIME_SESSION_FILE}: {exc}", file=sys.stderr, flush=True)
+
+
+def _retry_registration() -> None:
+    delay = 0.25
+    while True:
+        time.sleep(delay)
+        try:
+            _register_chart_service()
+            print("[dsh_kline] chart_service_registration_recovered", file=sys.stderr, flush=True)
+            return
+        except (OSError, ValueError):
+            # Keep MCP tools available while a temporary runtime/port failure
+            # clears. Chart publication still reports its own write failures.
+            delay = min(5.0, delay * 2)
+
+
+def start_chart_service() -> bool:
+    """Register eagerly; retain MCP and retry when chart startup is degraded."""
+    global _registration_thread
+    try:
+        _register_chart_service()
+        return True
+    except (OSError, ValueError) as exc:
+        _registration_error(exc)
+    with _registration_lock:
+        if _registration_thread is None or not _registration_thread.is_alive():
+            _registration_thread = threading.Thread(target=_retry_registration, name="dsh-kline-registration", daemon=True)
+            _registration_thread.start()
+    return False

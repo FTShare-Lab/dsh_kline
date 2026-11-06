@@ -53,7 +53,8 @@
     "docs/release-acceptance-v0.6.6.md",
     "docs/free-foreign-daily.md",
     "docs/release-notes-v0.6.7.md",
-    "docs/release-acceptance-v0.6.7.md"
+    "docs/release-acceptance-v0.6.7.md",
+    "scripts/dsh-bootstrap.mjs"
   ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -116,7 +117,9 @@
     "generate:codex-catalog": "python scripts/generate-codex-catalog.py",
     "verify:codex-catalog": "python scripts/generate-codex-catalog.py --check",
     "sync:codex-marketplace": "node scripts/sync-codex-marketplace.mjs",
-    "verify:codex-marketplace": "node scripts/sync-codex-marketplace.mjs --check"
+    "verify:codex-marketplace": "node scripts/sync-codex-marketplace.mjs --check",
+    "generate:dsh-catalog": "python scripts/generate-dsh-catalog.py",
+    "verify:dsh-catalog": "python scripts/generate-dsh-catalog.py --check"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.5-rc.2",

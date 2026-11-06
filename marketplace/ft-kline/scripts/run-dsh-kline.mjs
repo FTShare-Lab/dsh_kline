@@ -548,6 +548,14 @@ async function launchServer(runtimePython, runtimeDirectory) {
 export async function main(argv = process.argv.slice(2)) {
   const prepareProject = argv.includes('--prepare-project')
   const bootstrapRuntime = argv.includes('--bootstrap-runtime')
+  // The host must never spend its reconnect budget waiting for pip. A stable
+  // Node endpoint owns discovery while this same launcher prepares Python.
+  if (!prepareProject && !bootstrapRuntime && process.env.DSH_KLINE_DEFER_BOOTSTRAP === '1'
+    && process.env.DSH_KLINE_RUNTIME_MODE !== 'external' && process.env.FT_KLINE_SERVER_ENTRY !== 'codex_server.py') {
+    const { serve } = await import('./dsh-bootstrap.mjs')
+    serve({ args: [fileURLToPath(import.meta.url)] })
+    return 0
+  }
   const stateDirectory = defaultStateDirectory()
   const runtimeDirectory = defaultRuntimeDirectory()
   const configuredVenv = String(process.env.DSH_KLINE_VENV || '').trim()
@@ -609,12 +617,6 @@ export async function main(argv = process.argv.slice(2)) {
         throw new Error(`Python runtime preparation recently failed [${previousFailure.failureCode || 'BOOTSTRAP_FAILED'}]; automatic retry will resume after ${new Date(retryAt).toISOString()}. Run: pnpm bootstrap to retry now. See ${logPath}.`)
       }
       await rm(join(venvDirectory, BOOTSTRAP_FAILURE), { force: true }).catch(() => {})
-    }
-    const deferredBootstrap = String(process.env.DSH_KLINE_DEFER_BOOTSTRAP || '').trim() === '1'
-    if (deferredBootstrap && !prepareProject && !bootstrapRuntime) {
-      const started = await startBackgroundBootstrap(venvDirectory)
-      const state = started ? 'started' : 'is already running'
-      throw new Error(`Python runtime preparation ${state}. The MCP connection will retry automatically.`)
     }
     const logPath = join(stateDirectory, 'bootstrap.log')
     process.stderr.write(`[dsh_kline] Preparing Python runtime: ${reason}.\n`)

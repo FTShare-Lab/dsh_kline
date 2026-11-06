@@ -21,9 +21,8 @@
           FTSHARE_API_KEY: !!js process.env.FTSHARE_API_KEY || ''
           FTSHARE_API_KEY_FILE: !!js process.env.FTSHARE_API_KEY_FILE || ''
         toolCallTimeoutMs: 120000
-        # A fresh Python environment can outlast the MCP SDK's fixed 60 s
-        # discovery timeout. Let the launcher's detached bootstrap finish and
-        # let reconnect attach the tools, rather than aborting DSH Web itself.
+        # Node serves the complete MCP catalog immediately and prepares Python
+        # on the same connection; dependency installation consumes no retries.
         failOnStartupError: false
         reconnect:
           enabled: true

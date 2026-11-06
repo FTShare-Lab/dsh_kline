@@ -271,3 +271,11 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 维护者修改工具参数、注解、资源或 App 桥接代码后，运行 `python scripts/generate-codex-catalog.py` 更新随包目录；`--check` 与回归测试会阻止过期目录进入发布包。
 
 公开 GitHub 源中的 `marketplace/ft-kline/` 由同一 Codex 打包清单生成。修改源码、插件声明或 README 后，运行 `pnpm sync:codex-marketplace` 并提交生成结果；CI 通过 `pnpm verify:codex-marketplace` 检查文件一致性，并独立验证该目录的桌面及 CLI 启动。不要直接修改生成目录，维护说明见 [marketplace/README.md](marketplace/README.md)。
+
+### DSH 启动诊断
+
+首次启动时，MCP 工具目录会立即注册，Python 环境在同一连接内准备。`dsh_kline_runtime_status` 返回 `preparing` / `recovering` / `ready`；未就绪的调用会明确说明是否已经发送。结果未知的操作必须先核对状态，不能自动重放。图表定位文件写失败时其他 MCP 工具仍可用，目录恢复后自动注册。
+
+在当前 DSH Web 地址请求 `/dsh-kline/healthz`：200 表示定位记录与实际 HTTP 后端实例一致；503 返回故障原因。这个检查不验证行情供应商权限或 MCP 工具调用。`/dsh-kline/session?session=…` 读取历史快照，不能代替健康检查。后端实际端口由定位文件决定，不能假定固定为 8765。
+
+安装日志为缓存目录下的 `bootstrap.log`，后端 stderr 为 `logs/backend-<宿主PID>.log`，超过约 1 MiB 时保留一份 `.previous`。默认缓存目录为 macOS/Linux 的 `~/.cache/dsh_kline`（支持 `XDG_CACHE_HOME`）或 Windows 的 `%LOCALAPPDATA%\dsh_kline`，可用 `DSH_KLINE_CACHE_DIR` 覆盖；`DSH_KLINE_RUNTIME_DIR` 可独立覆盖运行目录。健康响应不会返回服务令牌。

@@ -255,22 +255,35 @@ def test_incomplete_install_is_repaired_on_next_launch(tmp_path):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")
-def test_dsh_host_bootstraps_in_background_before_reconnect(tmp_path):
+def test_dsh_host_preparation_retains_mcp_connection(tmp_path):
     project, venv, env = _prepare_launcher_fixture(tmp_path)
+    shutil.copyfile(ROOT / "scripts/dsh-bootstrap.mjs", project / "scripts/dsh-bootstrap.mjs")
+    (project / 'config').mkdir()
+    shutil.copyfile(ROOT / 'config/dsh-tool-catalog.json', project / 'config/dsh-tool-catalog.json')
     env["DSH_KLINE_DEFER_BOOTSTRAP"] = "1"
-    result = _run_launcher(project, env)
-
-    assert result.returncode == 1
-    assert "MCP connection will retry automatically" in result.stderr
-    deadline = time.monotonic() + 5
-    stamp = venv / ".dsh-kline-requirements"
-    marker = venv / ".dsh-kline-bootstrap-running"
-    while time.monotonic() < deadline and (not stamp.exists() or marker.exists()):
-        time.sleep(0.05)
-    assert stamp.exists(), "background bootstrap did not finish writing the requirements stamp"
-    assert stamp.read_text().strip() == _requirements_fingerprint(project / "requirements.txt")
-    assert not marker.exists(), f"background bootstrap left a running marker: {marker.read_text()}"
-    assert not (project / ".server-launched").exists()
+    child = subprocess.Popen(['node', str(project / 'scripts/run-dsh-kline.mjs')], cwd=project,
+                             env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        child.stdin.write(json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize',
+            'params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'test','version':'1'}}})+'\n')
+        child.stdin.write(json.dumps({'jsonrpc':'2.0','id':2,'method':'tools/list'})+'\n')
+        child.stdin.flush()
+        # Fake Python does not speak MCP: the front connection still completes
+        # discovery and starts installation without asking the host to reconnect.
+        assert json.loads(child.stdout.readline())['result']['serverInfo']['name'] == 'dsh_kline'
+        tools = json.loads(child.stdout.readline())['result']['tools']
+        assert any(tool['name'] == 'analyze_kline' for tool in tools)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not (project / '.server-launched').exists():
+            time.sleep(0.05)
+        assert (project / '.server-launched').exists()
+        assert (venv / '.dsh-kline-requirements').exists()
+        assert child.poll() is None, 'MCP front must remain connected after backend exit'
+    finally:
+        child.stdin.close()
+        child.wait(timeout=10)
+        child.stdout.close()
+        child.stderr.close()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows is covered by the packed-install CI smoke test")

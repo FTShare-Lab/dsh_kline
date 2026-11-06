@@ -128,6 +128,18 @@ try {
   await waitUntilReady()
   const { services, locator } = await waitForServiceLocator()
   assert.equal(services.length, 1, `expected one MCP service locator, got ${services.length}`)
+  const webUrl=output.match(/dsh web: (http:\/\/[^\s]+)/)?.[1]
+  assert.ok(webUrl,'DSH Web URL was not reported')
+  const sidecarHealth=new URL('/dsh-kline/healthz',webUrl)
+  const webParams=new URL(webUrl).searchParams
+  for(const [key,value] of webParams)sidecarHealth.searchParams.set(key,value)
+  const diagnostics=await fetch(sidecarHealth)
+  assert.equal(diagnostics.status,200,'sidecar must reach its own live backend')
+  const detail=await diagnostics.json()
+  assert.equal(detail.ok,true)
+  assert.equal(detail.process_id,locator.process_id)
+  assert.equal(detail.host_process_id,locator.host_process_id)
+  assert.equal(detail.service_token,undefined)
   assert.equal(locator.ok, true)
   assert.ok(Number.isSafeInteger(locator.process_id) && locator.process_id > 0)
   console.log(`PASS isolated DSH Web ${nested ? 'nested bundle' : 'direct'} install + MCP/chart startup`)

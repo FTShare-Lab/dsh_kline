@@ -1,0 +1,3783 @@
+{
+  "instructions": "IMPORTANT workflow policy: For ordinary K-line requests, call analyze_kline exactly once. It performs one configured-source fetch, deterministic calculations, and chart generation against one row set. FTShare is optional: when another tool or application already has OHLCV rows, call analyze_kline_rows exactly once. Never call health, fetch_candles, or calc_metrics as a preflight or follow-up; never use shell, filesystem, scripts, web probes, or another chart generator for the same request. Do not switch providers or reconstruct market rows. If the provider rejects a symbol or interval, explain that error and stop; do not probe other symbols or substitute another interval unless the user explicitly asks. Use fetch_candles only when raw OHLCV rows are explicitly requested, and use calc_metrics only for caller-supplied rows. analyze_kline_rows accepts OHLCV rows from any user-selected data source without persisting provider state. Only calculate and annotate support and resistance when the user explicitly requests it: pass metrics including support_resistance or set mark_support_resistance=true.  In DeepSeek Harness, say that the interactive chart is open in the right sidebar only when chart_ready is true; otherwise explain that the chart service is unavailable. Do not create files or claim that a chart was rendered based on a script or URL. Report count, interval, latest, and indicator values exactly as returned; do not infer a different bar count from the selected timeframe. Keep support/resistance labels from the metrics, but describe whether each level is above or below the latest close instead of calling an above-price support a current support. Use data_source_status, configure_ftshare, or test_ftshare_connection only when the user explicitly asks to inspect or configure a data source. Use market_pulse for an explicit whole-market overview, and use security_intelligence for an explicit request about a mainland stock's sector linkage, capital flows, or trading events; neither tool replaces analyze_kline for chart analysis. For the chart currently on screen, use get_chart_context with context_ref from THIS conversation's current runtime context. Never guess a reference, borrow another conversation or treat an older chart_session as live UI state. The context reports browser observations, separate loaded/visible ranges and stored drawing objects, not visual proof. After analyze_kline opens a chart, use the newly injected current-view reference to read its candles; an earlier launcher reference can become inactive during mounting. An inactive/loading reference is NOT a reason to call fetch_candles or analyze_kline again. Re-read a fresh reference when available, or report that the view is not ready. Context references are read-only and are NOT chart_session tokens. For ALL current-view drawing creates/updates/deletes, including literal requests, use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status, never legacy snapshot mutations. For Fibonacci, labeled paths or reusable geometry, discover list_chart_functions and run_chart_function against fresh context, then pass edit.result_ref into that same guarded workflow. Functions calculate; they do not apply drawings or automatically discover pivots. For standard technical indicators on the current loaded chart, discover list_ta_functions, then run_ta_function and optionally read_ta_result. These TA-Lib results are analysis_only, may have null/no-finite outputs, and do not draw by themselves. Only when the user explicitly requests a price-pane drawing may a finite SMA/EMA(close, 2..200) result be selected as kind=series_line, or a finite BBANDS(close, SMA middle) result as one kind=price_band three-line group, but only when selectable_render_targets advertises that kind. Pass the result_ref as edit.ta_result_ref into prepare_chart_edit; other TA results remain read-only. Never copy long output arrays into edit parameters. prepare_chart_edit prepares one guarded candidate using the observed revision and aligned source chart_session; supply a stable request_id for retries. Preparation does NOT apply to the browser. Then apply_chart_edit queues that exact candidate to its owning view; get_chart_edit_status reads its acknowledgment. queued/delivered are NOT applied. applied confirms view STATE, not screen pixels. Unknown results must not be automatically resent or bypassed with old snapshot-only tools. Read fresh current context before the next edit. For pending status use one bounded wait_ms=3000 query; if still pending explain it, do not tightly poll. expired/needs_attention is not an acknowledgment or permission to resend. drawing_feedback reports browser chart-object API observations, not screen pixels. created means registered object with matched shape/style; time_range_overlap only checks the reported time-axis span (current in get_chart_context, historical in get_chart_edit_status), NOT price-axis visibility or screen pixels. outside_time_viewport is geometric scope only, and outside_loaded_price_envelope is a warning, NOT proof the line is hidden. The edit interaction describes only its target object; other drawing_feedback items may need separate review. Explain hidden/failed/unknown items and their reasons; never turn apply_status=applied or created into a claim of visual verification. get_chart_context feedback is current-view observation; get_chart_edit_status feedback is historical for that application. Do not silently apply snapshot-only tools to a different symbol/period/range shown in the browser. If context is stale, ambiguous or unavailable explain that state instead of re-fetching market data to guess it. The create/update/delete_horizontal_line and create/update/delete_trend_line tools are LEGACY SNAPSHOT ONLY, for explicitly requested snapshot editing, not charts on screen. get_horizontal_lines/get_trend_lines read named snapshots only. No tool auto-selects anchors. Two-point segments require two explicit times and prices; date-only anchors use Asia/Shanghai and must match existing bars. Intraday anchors require exact bar-close ISO times with timezone or Unix seconds. Never fabricate unavailable anchors, snap dates, or substitute automatic levels. Distinguish literal drawing from analysis-assisted drawing. For literal requests, preserve the original USER-requested fields and ask about missing or ambiguous coordinates. When the user explicitly asks you to find/analyze a region or propose a drawing, YOU, the host, may derive a candidate from this conversation's actual chart candles; read fresh current context before making the proposal, not just old conversation rows. the plugin does not choose anchors or assess pattern quality. Do not ask the user to supply every coordinate merely because the execution tool needs explicit parameters. If the user asks for a proposal first, do not prepare, queue or mutate drawings before their confirmation. Give one preferred candidate with exact existing-bar dates, prices, a short data-grounded reason and a limitation; offer alternatives only when materially useful. Treat the user's confirmation as approval of THAT stated proposal plus their overrides. After confirmation read fresh context; if instrument/period/rows or relevant objects have changed, reassess and seek confirmation rather than silently moving the approved bounds. Numerical claims must agree with the candles; do not call volume monotonically declining when an intervening bar increases, or describe a subjective candidate as uniquely correct. For a chosen region, get_chart_context with region_start_time/region_end_time returns deterministic region_measurements without fetching or changing charts. body_envelope contains all open/close bodies; body_overlap is their common intersection, not the same range. Use boundary_evidence for the actual date and open/close field of each extremum. An empty intersection has no price shared by EVERY body; a point intersection shares exactly one. Never reinterpret relation=empty/exists=false as a shared zero-width point. Empty common intersection does NOT imply a gap uncovered by ANY body. The candidate difference is not an uncovered gap; union coverage is not measured. State only the measured result and its evidence, without extra coverage claims. Use volume_changes to distinguish a net decline from a monotonic decline. These measurements do NOT classify the region as a platform. Check chosen bounds with this before asking approval. If the data do not support a consolidation region, say so; do not force a platform, invent prices or imply a profitable prediction. Keep ordinary replies concise: proposal or changed object, reason/limitation, and one useful confirmation; omit internal IDs, revisions and protocol fields unless the user requests them or they explain a failure. For current-view parallel channels use prepare_chart_edit with kind=channel; create/update/delete_channel are LEGACY SNAPSHOT ONLY. Geometry requires two baseline anchors and a third time/price on the other boundary, within the start/end window. In literal mode ask for missing anchors; in authorized analysis mode derive and explain all three from real data under the proposal rules above. Geometry uses candle indices and linear prices, not elapsed calendar time. Before proposing a host-chosen channel, use read-only preview_chart_channel with three explicit anchors to check parallel geometry and full-region per-bar deviations. It never selects/fits anchors, draws, scores pattern quality or extends beyond the chosen dates. Horizontal body intersection is not a necessary criterion for a sloped channel. For current-view platform/range boxes use prepare_chart_edit with kind=rectangle; create/update/delete_rectangle are LEGACY SNAPSHOT ONLY. Specify start/end bar times and lower/upper prices. These draw finite rectangles, not automatic consolidation detection or flat channels. Ask for missing bounds in literal mode; an authorized host analysis may propose bounds from actual candles, but the execution tool always needs explicit values. Never swap reversed times/prices or replace a rectangle with two horizontal lines. Preserve the user's FULL requested label, without abbreviating T or U. Honor explicit colors: blue/蓝色=info, green/绿色=success, orange/橙色=warning, red/红色=danger. The token success in drawing style requests means green, not a generic success status. After each mutation call verify_chart_drawings with the original USER-requested fields, or the user-approved proposal and overrides, and the returned stable ID, NOT fields copied from the mutation result. Keep those expectations independently of the execution result. Verify exists=false after deletion; include requested name/color/anchors on create/update. If mismatched, correct only those requested fields using latest chart_session and verify again. Do not claim a name/color was applied merely because publication succeeded. A matched snapshot check is not visual verification. Perform drawing mutations sequentially, using each returned new chart_session; parallel edits of the same parent snapshot create branches, not a merged chart. Drawing tools never fetch candles; always use the latest chart_session returned in this conversation and its exact symbol. A mutation publishes a NEW immutable chart snapshot. It does not include manual browser edits. Do not re-run analyze_kline just to edit a line. Published commands are not proof of visible rendering: when render_verified is false say they were published, not visually verified. Market data may be delayed, incomplete, or unavailable; results and indicators are informational and do not constitute investment advice.",
+  "tools": [
+    {
+      "description": "Check runtime health only when the user explicitly asks for a health check.",
+      "inputSchema": {
+        "properties": {},
+        "title": "healthArguments",
+        "type": "object"
+      },
+      "name": "health"
+    },
+    {
+      "description": "Return safe data-source capability/configuration status for the UI.",
+      "inputSchema": {
+        "properties": {},
+        "title": "data_source_statusArguments",
+        "type": "object"
+      },
+      "name": "data_source_status"
+    },
+    {
+      "description": "Search the local symbol directory; this does not call a market provider.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 8,
+            "description": "最多返回的候选数量",
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "query": {
+            "description": "标的代码、名称或常用简称",
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_symbols_toolArguments",
+        "type": "object"
+      },
+      "name": "search_symbols"
+    },
+    {
+      "description": "Configure FTShare without returning the key; results include safe capability status.",
+      "inputSchema": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "FTShare API Key；留空可清除当前配置",
+            "title": "Api Key"
+          },
+          "persist": {
+            "default": true,
+            "description": "是否保存到本机，默认保存",
+            "title": "Persist",
+            "type": "boolean"
+          },
+          "test_connection": {
+            "default": true,
+            "description": "配置后是否发起一次最小连接测试",
+            "title": "Test Connection",
+            "type": "boolean"
+          }
+        },
+        "title": "configure_ftshareArguments",
+        "type": "object"
+      },
+      "name": "configure_ftshare"
+    },
+    {
+      "description": "Test the current anonymous/API-key FTShare connection without changing it.",
+      "inputSchema": {
+        "properties": {},
+        "title": "test_ftshare_connection_toolArguments",
+        "type": "object"
+      },
+      "name": "test_ftshare_connection"
+    },
+    {
+      "description": "Read selected market-intelligence sections; callers can load groups progressively.",
+      "inputSchema": {
+        "properties": {
+          "refresh": {
+            "default": false,
+            "description": "是否绕过短时缓存并重新拉取",
+            "title": "Refresh",
+            "type": "boolean"
+          },
+          "sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选：仅加载 breadth、flows、sectors、concepts、rankings、events 中指定分组",
+            "title": "Sections"
+          }
+        },
+        "title": "market_pulseArguments",
+        "type": "object"
+      },
+      "name": "market_pulse"
+    },
+    {
+      "description": "Read a market board snapshot and available funding history.",
+      "inputSchema": {
+        "properties": {
+          "board_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "市场快照返回的板块代码",
+            "title": "Board Code"
+          },
+          "kind": {
+            "default": "industry",
+            "description": "板块类型",
+            "enum": [
+              "industry",
+              "concept"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "行业或概念板块名称",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "market_board_detailArguments",
+        "type": "object"
+      },
+      "name": "market_board_detail"
+    },
+    {
+      "description": "Read sector linkage, stock capital flow and trading-event context independently from charts.",
+      "inputSchema": {
+        "properties": {
+          "refresh": {
+            "default": false,
+            "description": "是否绕过短时缓存并重新拉取",
+            "title": "Refresh",
+            "type": "boolean"
+          },
+          "symbol": {
+            "description": "沪深北股票代码，例如 600519.XSHG",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "security_intelligenceArguments",
+        "type": "object"
+      },
+      "name": "security_intelligence"
+    },
+    {
+      "description": "Read the user's persistent dsh_kline watchlist, shared across conversations.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_watchlistArguments",
+        "type": "object"
+      },
+      "name": "get_watchlist"
+    },
+    {
+      "description": "Replace the user's persistent watchlist with a validated complete state.",
+      "inputSchema": {
+        "properties": {
+          "watchlist": {
+            "additionalProperties": true,
+            "description": "完整自选状态：groups、items、activeGroupId、sort",
+            "title": "Watchlist",
+            "type": "object"
+          }
+        },
+        "required": [
+          "watchlist"
+        ],
+        "title": "save_watchlistArguments",
+        "type": "object"
+      },
+      "name": "save_watchlist"
+    },
+    {
+      "description": "Fetch raw OHLCV rows only when the user explicitly requests raw candle data.",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "description": "复权：none不复权 / forward前复权 / backward后复权；兼容qfq=forward、hfq=backward",
+            "enum": [
+              "none",
+              "forward",
+              "backward",
+              "qfq",
+              "hfq"
+            ],
+            "title": "Adjust",
+            "type": "string"
+          },
+          "interval": {
+            "default": "day",
+            "description": "K 线周期：minute / day / week / month / quarter / year",
+            "title": "Interval",
+            "type": "string"
+          },
+          "interval_value": {
+            "default": 1,
+            "description": "分钟粒度",
+            "maximum": 240,
+            "minimum": 1,
+            "title": "Interval Value",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 220,
+            "description": "回看窗口",
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "session_count": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "分钟 K 的交易日数量",
+            "title": "Session Count"
+          },
+          "symbol": {
+            "description": "标的代码，如 00700.HK / 600519.XSHG / NVDA.US",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "fetch_candles_toolArguments",
+        "type": "object"
+      },
+      "name": "fetch_candles"
+    },
+    {
+      "description": "Calculate metrics only for rows explicitly supplied by the caller.",
+      "inputSchema": {
+        "properties": {
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5.0,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "指标子集：max_drawdown, support_resistance, ma_cross, volume_breakout, bollinger, rsi, atr",
+            "title": "Metrics"
+          },
+          "rows": {
+            "description": "canonical OHLCV rows with unix-second time",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "calc_metricsArguments",
+        "type": "object"
+      },
+      "name": "calc_metrics"
+    },
+    {
+      "description": "Analyze caller-supplied OHLCV rows and open the native chart sidebar.",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "description": "复权：none不复权 / forward前复权 / backward后复权；兼容qfq=forward、hfq=backward；只标记调用方已有数据，不重新复权",
+            "enum": [
+              "none",
+              "forward",
+              "backward",
+              "qfq",
+              "hfq"
+            ],
+            "title": "Adjust",
+            "type": "string"
+          },
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5.0,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "data_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "数据源名称，不要放 API key 或其他秘密",
+            "title": "Data Source"
+          },
+          "data_source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选的 HTTPS 数据源说明链接",
+            "title": "Data Source Url"
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "ma / vol / macd / kdj / boll / rsi / atr / vwap",
+            "title": "Indicators"
+          },
+          "interval": {
+            "default": "day",
+            "description": "K 线周期：minute / day / week / month / quarter / year",
+            "title": "Interval",
+            "type": "string"
+          },
+          "limit": {
+            "default": 60,
+            "description": "最终分析使用的最近 K 线根数",
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "ma_periods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MA 周期，默认 [5, 10, 20, 30, 60]",
+            "title": "Ma Periods"
+          },
+          "mark_support_resistance": {
+            "default": false,
+            "description": "仅在用户明确要求支撑位/压力位时设为 true",
+            "title": "Mark Support Resistance",
+            "type": "boolean"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "指标摘要子集，可选：max_drawdown, support_resistance, ma_cross, volume_breakout, bollinger, rsi, atr",
+            "title": "Metrics"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "标的名称",
+            "title": "Name"
+          },
+          "rows": {
+            "description": "来自任意数据源的 OHLCV 行；time 可为 Unix 秒或毫秒",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "security_workspace": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选的标准化新闻/简况数据",
+            "title": "Security Workspace"
+          },
+          "symbol": {
+            "description": "标的代码或名称",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows",
+          "symbol"
+        ],
+        "title": "analyze_kline_rowsArguments",
+        "type": "object"
+      },
+      "name": "analyze_kline_rows"
+    },
+    {
+      "description": "Use this single call for ordinary K-line analysis; it also opens the native chart sidebar.",
+      "inputSchema": {
+        "properties": {
+          "adjust": {
+            "default": "none",
+            "description": "复权：none不复权 / forward前复权 / backward后复权；兼容qfq=forward、hfq=backward",
+            "enum": [
+              "none",
+              "forward",
+              "backward",
+              "qfq",
+              "hfq"
+            ],
+            "title": "Adjust",
+            "type": "string"
+          },
+          "atr_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Atr Period",
+            "type": "integer"
+          },
+          "boll_period": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Boll Period",
+            "type": "integer"
+          },
+          "boll_std": {
+            "default": 2.0,
+            "maximum": 5.0,
+            "minimum": 0.5,
+            "title": "Boll Std",
+            "type": "number"
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "ma / vol / macd / kdj / boll / rsi / atr / vwap",
+            "title": "Indicators"
+          },
+          "interval": {
+            "default": "day",
+            "description": "K 线周期：minute / day / week / month / quarter / year",
+            "title": "Interval",
+            "type": "string"
+          },
+          "interval_value": {
+            "default": 1,
+            "description": "分钟粒度；非分钟周期通常为 1",
+            "maximum": 240,
+            "minimum": 1,
+            "title": "Interval Value",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 60,
+            "description": "最终分析使用的最近 K 线根数",
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "ma_periods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MA 周期，默认 [5, 10, 20, 30, 60]",
+            "title": "Ma Periods"
+          },
+          "mark_support_resistance": {
+            "default": false,
+            "description": "仅在用户明确要求支撑位/压力位时设为 true；默认不标注",
+            "title": "Mark Support Resistance",
+            "type": "boolean"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "指标摘要子集，可选：max_drawdown, support_resistance, ma_cross, volume_breakout, bollinger, rsi, atr",
+            "title": "Metrics"
+          },
+          "rsi_period": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Rsi Period",
+            "type": "integer"
+          },
+          "session_count": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "分钟 K 的最近交易日数量",
+            "title": "Session Count"
+          },
+          "symbol": {
+            "description": "标的代码，如 00700.HK / 600519.XSHG / NVDA.US",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "volume_ma": {
+            "default": 20,
+            "maximum": 200,
+            "minimum": 2,
+            "title": "Volume Ma",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "analyze_klineArguments",
+        "type": "object"
+      },
+      "name": "analyze_kline"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read the current conversation's live browser observation without fetching or changing charts.\n\nRead fresh context before analysis proposals and again after user confirmation before edits.\nWhen the user asks to find a drawing region, the HOST may choose a candidate from actual\ncandles; the plugin does not choose/classify it. Before asking approval for that chosen\nregion, call this with paired region_start_time/region_end_time to check numeric claims.\nA proposal-first request must not prepare/apply drawings before confirmation. Keep ordinary\nproposals concise; avoid arbitrary universal pattern thresholds and internal IDs.\nAn inactive initial reference during mounting requires a newly injected current-view\nreference, NOT another market fetch or analyze call.\nVisible candles are actual viewport-index rows, not all loaded candles; unknown viewport\nstays unknown. Limit samples the last rows with explicit truncation. Stored object inventory\nis not proof of rendering; live_view_editable=false. No old-snapshot or global-latest fallback.\ndata_provenance reports provider metadata and browser-input vs displayed intervals, not\nvendor-native granularity. local_aggregation (e.g. day -> week) explains a normal interval\ndifference, not stale data by itself; aggregation completeness is NOT verified. Unknown\nproviders/transforms must not be guessed. This metadata is not source-snapshot alignment\nor edit authorization; guarded edits still require exact current candles and AI inventory.\nAfter local period/range/symbol changes the browser can seal and confirm its current\nsource without fetching or drawing. A pending/unconfirmed source is not editable: wait\nfor fresh context, never refetch or fall back to old snapshot tools. Source binding does\nnot approve a drawing proposal or move existing objects into a different period.\nUse time_display's deterministic +08:00 ISO/date labels when reporting dates; do not\nmentally convert Unix seconds or guess dates. Minute anchors require exact ISO times.\nOptional paired region times measure the full loaded region (max 4000 bars), independently\nof returned candle sampling. source_status is allowlisted diagnostic metadata only:\nchecking means wait for a fresh report, blocked means follow next_action; an uncertain\ndrawing outcome must be checked via get_chart_edit_status, never resent automatically.\nSource aligned is not drawing approval, pixel proof, vendor freshness or a guard bypass.\nRecheck only republishes/checks the current browser chart; it does not fetch quotes or queue drawings.\nBody envelope != common body intersection; volume net change\n!= monotonic change. Measurements do not select/classify a platform or authorize drawing.\nboundary_evidence gives an actual bar's +08:00 date/ISO, source_fields (open/close/low/high),\nprice and matched_bar_count for each extreme; ties use the first matching bar, not a unique\nor preferred drawing anchor. Cite these, not guessed dates. body_overlap's candidate lower\nis max(body lows), candidate upper is min(body highs): lower>upper is EMPTY (no shared\nprice shared by EVERY body), equality is a POINT, lower<upper is a RANGE. Never turn exists=false/relation=empty\ninto a shared point. These diagnostic candidates are not drawable bounds when empty.\nEmpty common intersection does NOT imply a gap uncovered by ANY body. The candidate\ndifference is not an uncovered gap; union coverage is not measured. Report the measured\nresult with its witnesses, not extra coverage claims. A claim about a specific bar must\nbe checked against that bar's actual open/close values, not inferred from the intersection.\n",
+      "inputSchema": {
+        "properties": {
+          "candle_scope": {
+            "default": "visible",
+            "enum": [
+              "visible",
+              "loaded",
+              "none"
+            ],
+            "title": "Candle Scope",
+            "type": "string"
+          },
+          "context_ref": {
+            "description": "当前对话运行时上下文提供的32字符引用；不是chart_session，不得猜测其他对话",
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "limit": {
+            "default": 200,
+            "maximum": 4000,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "region_end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选：测量终点；精确时间规则同画线，不吸附、不扩充行情",
+            "title": "Region End Time"
+          },
+          "region_start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选：宿主选定测量区域的已有K线起点；与region_end_time同时填写",
+            "title": "Region Start Time"
+          }
+        },
+        "required": [
+          "context_ref"
+        ],
+        "title": "get_chart_contextArguments",
+        "type": "object"
+      },
+      "name": "get_chart_context"
+    },
+    {
+      "annotations": {
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Preview a HOST-chosen three-anchor channel against fresh current browser candles, read-only.\n\nThe host selects explicit anchors from fresh actual candles under user-authorized analysis;\nthis tool never searches/fits/selects anchors or judges professional pattern quality. Use it\nbefore proposing a channel, without shell arithmetic or refetching candles. Date-only anchors\nuse UTC+08:00 on daily/larger bars; minute bars need exact timezone ISO or Unix seconds.\nGeometry is identical to channel execution: candle_index_linear_price, finite inclusive\nstart/end, no calendar-time slope or extrapolated bars. Returns upper/lower boundaries,\nraw signed wick/body distances, full-region exceedance counts and worst-bar witnesses.\nPositive high_minus_upper is above the upper boundary; negative low_minus_lower is below\nthe lower. Body variants use max/min(open, close). Counts ignore only the disclosed floating\nroundoff allowance, NOT a market tolerance; no touch count, fit score or recognition is given.\nAn empty horizontal body intersection does not disqualify a sloped channel. Containment does\nnot prove a meaningful pattern, predictive power or uniqueness. Do not add unsupported claims.\nbar_limit truncates only the returned per-bar list, never the full-region summary (max4000).\nexact_matching_ohlc_fields are exact matches only; caller-supplied prices need not be extrema.\nNo chart fetch, snapshot publication, prepare/apply, drawing or edit authorization occurs.\nA preview is arithmetic, NOT a visual preview or rendering receipt. Re-read fresh context\nafter user confirmation and preserve the independently approved anchors for guarded execution.\n",
+      "inputSchema": {
+        "properties": {
+          "bar_limit": {
+            "default": 200,
+            "description": "逐根结果只返回前N根；汇总核对完整区间，最多4000根",
+            "maximum": 4000,
+            "minimum": 1,
+            "title": "Bar Limit",
+            "type": "integer"
+          },
+          "context_ref": {
+            "description": "本对话运行时的当前视图引用；不是chart_session",
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "end_price": {
+            "exclusiveMinimum": 0,
+            "title": "End Price",
+            "type": "number"
+          },
+          "end_time": {
+            "description": "基准线终点，必须晚于起点，不交换、不吸附",
+            "title": "End Time",
+            "type": "string"
+          },
+          "parallel_price": {
+            "exclusiveMinimum": 0,
+            "title": "Parallel Price",
+            "type": "number"
+          },
+          "parallel_time": {
+            "description": "另一边界的第三点，须在起止区间内",
+            "title": "Parallel Time",
+            "type": "string"
+          },
+          "start_price": {
+            "exclusiveMinimum": 0,
+            "title": "Start Price",
+            "type": "number"
+          },
+          "start_time": {
+            "description": "基准线起点，必须精确对应当前图已有K线",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "start_time",
+          "start_price",
+          "end_time",
+          "end_price",
+          "parallel_time",
+          "parallel_price"
+        ],
+        "title": "preview_chart_channelArguments",
+        "type": "object"
+      },
+      "name": "preview_chart_channel"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Discover implemented deterministic chart functions, parameters, versions and limits.\n\nNo market fetch, chart mutation or arbitrary code execution. Candidate functions propose\nrule-based geometry for review; they do not draw or claim professional pattern confirmation.\nFunctions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,\npivot_candidates, regression_channel, channel_candidates, range_candidates, price_series_line,\nconditional_annotation, price_band, price_sticks.\npivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;\nchannel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current\nrequires a recent end anchor and checks the arithmetic extension through the latest bar; scope=historical\nis for past geometry only, with no current breakout inference. Zero candidates does not prove\na lack of recent confirmed pivots; inspect pivot_scan and rejection_counts. range_candidates proposes\nhorizontal boxes ending at the latest loaded bar, distinct from explicitly drawn range_box.\nAll four analysis functions are read-only and may validly return no candidate.\nlabeled_polyline connects 2..8 explicitly labeled anchors, not automatic Elliott wave recognition.\nprice_series_line uses current loaded OHLC or SMA(close, 2..200) and an optional price comparison.\nIt returns a bounded result_ref; null warmup/false-condition bars break the price-pane line.\nconditional_annotation selects only the latest loaded bar matching a required price condition;\nits result uses the existing guarded text, number or icon annotation kind, not a batch of marks.\nprice_band fills between two OHLC/SMA price sources in the candle pane. Its upper boundary\nmust stay strictly above the lower boundary on every eligible bar; warmup/false conditions break the band.\nprice_sticks draws independent vertical strokes between two OHLC/SMA price sources on matching bars;\nzero-length endpoints are omitted. This is not a full formula interpreter.\n",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_chart_functionsArguments",
+        "type": "object"
+      },
+      "name": "list_chart_functions"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Page/search all 201 pinned TA-Lib functions and their input/parameter/output metadata.\n\nAnalysis only. No data fetch or chart mutation; use run_ta_function on the current chart.\n",
+      "inputSchema": {
+        "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Query"
+          }
+        },
+        "title": "list_ta_functionsArguments",
+        "type": "object"
+      },
+      "name": "list_ta_functions"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Run one TA-Lib function on current loaded OHLCV; returns analysis result_ref, never draws.\n\nDiscover parameter names with list_ta_functions. No host-supplied arrays or formula code.\nprice_sources keys are the generic input names from list_ta_functions, not TA-Lib's\nlow-level inReal name. For example SMA uses {\"price\":\"close\"}; omit it for default close.\nValues may only be current open/high/low/close columns.\nMAVP uses a constant per-bar periods array; periods_constant is ignored for other functions only at 14.\nFinite SMA/EMA(close, 2..200) may advertise series_line; finite BBANDS(close, SMA middle)\nmay advertise price_band with upper/middle/lower as one object. If the user explicitly asks\nto draw one, pass result_ref as edit.ta_result_ref with the advertised kind to\nprepare_chart_edit, then apply_chart_edit and check status. Other TA results stay analysis-only.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "expected_revision": {
+            "exclusiveMinimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "function": {
+            "title": "Function",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          },
+          "periods_constant": {
+            "default": 14,
+            "maximum": 4000,
+            "minimum": 2,
+            "title": "Periods Constant",
+            "type": "integer"
+          },
+          "price_sources": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "enum": [
+                    "open",
+                    "high",
+                    "low",
+                    "close"
+                  ],
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price Sources"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "expected_revision",
+          "chart_session",
+          "symbol",
+          "function"
+        ],
+        "title": "run_ta_functionArguments",
+        "type": "object"
+      },
+      "name": "run_ta_function"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read one TA-Lib output page from a result bound to the unchanged current chart.",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "expected_revision": {
+            "exclusiveMinimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 200,
+            "maximum": 250,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "output_name": {
+            "title": "Output Name",
+            "type": "string"
+          },
+          "result_ref": {
+            "title": "Result Ref",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "expected_revision",
+          "chart_session",
+          "symbol",
+          "result_ref",
+          "output_name"
+        ],
+        "title": "read_ta_resultArguments",
+        "type": "object"
+      },
+      "name": "read_ta_result"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Calculate on explicitly aligned current loaded candles; return immutable result_ref, NOT a drawing.\n\nRead get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;\nask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,\nregression_channel, channel_candidates and range_candidates return analysis-only results;\nnever pass these refs as edit.result_ref. Channel/range candidates may be selected only after\nexplicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and\nuser_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation\nbefore a separate guarded drawing operation. Default channel scope=current may return no candidate;\nhistorical scope must not be described as a current channel or current breakout signal.\nIf no candidate passes, report only that no anchor triple met every rule; do not infer\nthat recent pivots or real-world channel structure are absent. Inspect pivot_scan for pivots.\nNo market fetch, LLM coordinate arithmetic,\nconfirmed pattern identification, arbitrary formula/code or chart selection.\nFibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.\nFor drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then\napply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;\nonly channel/range candidates have the separate explicit-selection route. Recompute after data/period/adjustment changes.\nprice_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},\noptional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.\nNo host-provided price arrays or executable formulas. Zero matched bars are not drawable.\nconditional_annotation requires annotation_kind, anchor_source and condition, plus exactly one\nmatching annotation_text / annotation_value / annotation_icon. It chooses the latest matching\nloaded bar and returns one guarded annotation result_ref; no match means no drawing.\nprice_band requires upper_source and lower_source, with optional condition. Crossing or equal\nboundaries are rejected; no matched bars are not drawable. Full arrays remain plugin-side.\nprice_sticks requires start_source and end_source, with optional condition. Each matched bar has\none independent stroke; equal endpoints, warmup and false conditions do not draw a stroke.\nStyle edits reuse the existing object ID; calculation alone never means drawn/applied.\nlabeled_polyline creates a group from parameters.points (unique labels, increasing times).\nTo move one labeled point, skip recalculation and use prepare_chart_edit with the current\nobject_id, point_label and point_time/point_price. Do NOT copy/rewrite all points or invent anchors.\n",
+      "inputSchema": {
+        "$defs": {
+          "ChartFunctionParameters": {
+            "additionalProperties": false,
+            "properties": {
+              "anchor_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "条件标注所用价格锚点，取最新一根满足条件的已加载K线"
+              },
+              "annotation_icon": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "arrow_up",
+                      "arrow_down",
+                      "diamond"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Annotation Icon"
+              },
+              "annotation_kind": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "text_annotation",
+                      "number_annotation",
+                      "icon_annotation"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Annotation Kind"
+              },
+              "annotation_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Annotation Text"
+              },
+              "annotation_value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Annotation Value"
+              },
+              "condition": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceCondition"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "可选价格条件；不接受宿主传入行情数组或代码"
+              },
+              "direction": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "ascending",
+                      "descending",
+                      "both"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "通道候选方向；默认both",
+                "title": "Direction"
+              },
+              "end_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Price"
+              },
+              "end_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "逐K线柱线终点价格来源"
+              },
+              "end_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Time"
+              },
+              "left_bars": {
+                "anyOf": [
+                  {
+                    "maximum": 20,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "左侧比较K线数；默认2",
+                "title": "Left Bars"
+              },
+              "limit": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "最多返回最新候选数；默认20",
+                "title": "Limit"
+              },
+              "lookback_bars": {
+                "anyOf": [
+                  {
+                    "maximum": 300,
+                    "minimum": 30,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "最近已加载K线根数；默认120",
+                "title": "Lookback Bars"
+              },
+              "lower_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lower Price"
+              },
+              "lower_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "带状填充下边界价格来源"
+              },
+              "max_candidates": {
+                "anyOf": [
+                  {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "最多返回候选数；默认3",
+                "title": "Max Candidates"
+              },
+              "min_span_bars": {
+                "anyOf": [
+                  {
+                    "maximum": 100,
+                    "minimum": 10,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "两基准锚点最小间隔；默认12",
+                "title": "Min Span Bars"
+              },
+              "mode": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "high",
+                      "low",
+                      "both"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "返回局部高点、低点或两者；默认both",
+                "title": "Mode"
+              },
+              "multiplier": {
+                "anyOf": [
+                  {
+                    "maximum": 5,
+                    "minimum": 0.5,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "回归上下轨距离倍数；默认2，乘以回归残差总体RMS",
+                "title": "Multiplier"
+              },
+              "parallel_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Price"
+              },
+              "parallel_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Time"
+              },
+              "points": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/LabeledPoint"
+                    },
+                    "maxItems": 8,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "时间递增、组内标签唯一的2至8个明确锚点；不是自动识浪",
+                "title": "Points"
+              },
+              "price_scale": {
+                "const": "linear",
+                "default": "linear",
+                "title": "Price Scale",
+                "type": "string"
+              },
+              "ratios": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 16,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ratios"
+              },
+              "right_bars": {
+                "anyOf": [
+                  {
+                    "maximum": 20,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "右侧确认K线数；默认2",
+                "title": "Right Bars"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "current",
+                      "historical"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "通道候选范围；默认current，仅历史回看时选historical",
+                "title": "Scope"
+              },
+              "start_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Price"
+              },
+              "start_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "逐K线柱线起点价格来源"
+              },
+              "start_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Time"
+              },
+              "upper_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Upper Price"
+              },
+              "upper_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "带状填充上边界价格来源"
+              },
+              "value_source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "序列线取值：OHLC、SMA 或 EMA(close, 2至200根)"
+              },
+              "window_sizes": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "maximum": 120,
+                      "minimum": 16,
+                      "type": "integer"
+                    },
+                    "maxItems": 8,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "平台候选窗口根数；默认20、30、40、60；不得重复",
+                "title": "Window Sizes"
+              }
+            },
+            "title": "ChartFunctionParameters",
+            "type": "object"
+          },
+          "LabeledPoint": {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "description": "点名，组内唯一，例如 A、B、C 或 1、2；不是自动识浪结果",
+                "maxLength": 16,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "price": {
+                "exclusiveMinimum": 0,
+                "title": "Price",
+                "type": "number"
+              },
+              "time": {
+                "description": "已加载 K 线的日期、带时区 ISO 或 Unix 秒字符串",
+                "minLength": 1,
+                "title": "Time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "time",
+              "price"
+            ],
+            "title": "LabeledPoint",
+            "type": "object"
+          },
+          "PriceCondition": {
+            "additionalProperties": false,
+            "properties": {
+              "left": {
+                "$ref": "#/$defs/PriceSource"
+              },
+              "op": {
+                "enum": [
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte"
+                ],
+                "title": "Op",
+                "type": "string"
+              },
+              "right": {
+                "$ref": "#/$defs/PriceOperand"
+              }
+            },
+            "required": [
+              "left",
+              "op",
+              "right"
+            ],
+            "title": "PriceCondition",
+            "type": "object"
+          },
+          "PriceOperand": {
+            "additionalProperties": false,
+            "properties": {
+              "constant": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Constant"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PriceSource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "title": "PriceOperand",
+            "type": "object"
+          },
+          "PriceSource": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "open",
+                  "high",
+                  "low",
+                  "close",
+                  "sma",
+                  "ema"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "period": {
+                "anyOf": [
+                  {
+                    "maximum": 200,
+                    "minimum": 2,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Period"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "title": "PriceSource",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "expected_revision": {
+            "exclusiveMinimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "function": {
+            "enum": [
+              "fibonacci_retracement",
+              "parallel_channel",
+              "range_box",
+              "labeled_polyline",
+              "pivot_candidates",
+              "regression_channel",
+              "channel_candidates",
+              "range_candidates",
+              "price_series_line",
+              "conditional_annotation",
+              "price_band",
+              "price_sticks"
+            ],
+            "title": "Function",
+            "type": "string"
+          },
+          "parameters": {
+            "$ref": "#/$defs/ChartFunctionParameters"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "expected_revision",
+          "chart_session",
+          "symbol",
+          "function",
+          "parameters"
+        ],
+        "title": "run_chart_functionArguments",
+        "type": "object"
+      },
+      "name": "run_chart_function"
+    },
+    {
+      "description": "DEFAULT entry for ALL browser-chart drawing creates/updates/deletes, including Fibonacci and labeled paths.\n\nRead get_chart_context first, then prepare here, apply_chart_edit, get_chart_edit_status.\nIncludes literal requests; legacy create/update/delete_* tools edit snapshots, NOT the current view.\nPrepare, NOT APPLY, one current-view drawing candidate with revision/alignment guards.\n\nFor proposal-first requests, call only AFTER the user approves the host's stated candidate;\nread fresh current context first, and preserve independently saved approved coordinates\nand user overrides. If relevant state changed, reassess before preparing. The host reasons,\nthe executor does not choose points or validate pattern quality.\nAccept edit.result_ref from run_chart_function instead of direct anchors/bounds/ratios;\nname/color and applicable display switches may accompany a result reference.\nFor confirmed channel/range candidates use edit.candidate_result_ref, candidate_number\n(1-based) and user_confirmed_candidate=true with action=create; do not copy candidate coordinates.\nAn unconfirmed or stale candidate remains analysis only and cannot create a drawing.\nFor series_line, create or change source/condition using the price_series_line result_ref;\nstyle-only updates and delete use the stable object_id. Calculation and indicator registration\ndo not prove canvas pixels visible.\nA finite SMA/EMA(close, 2..200) result may use edit.ta_result_ref for series_line; a finite\nBBANDS(close, SMA middle) result may use it for one price_band containing upper/middle/lower.\nBoth require an explicit drawing request and selectable_render_targets for the chosen kind.\nDo not pass other TA outputs, manually copy series values or conflate these AI objects with\nthe built-in indicator toggles.\nFor conditional_annotation, create or recompute an existing text/number/icon annotation using\nits result_ref with matching edit.kind; style-only edits and deletion use object_id.\nFor price_band, use its result_ref with edit.kind=price_band to create/recompute one bounded\nprice-pane object; style-only updates and deletion use its stable object_id.\nFor price_sticks, use its result_ref with edit.kind=price_sticks; its independent strokes share\none stable object_id. Style-only updates and deletion do not recompute the price series.\nFor Fibonacci geometry use the function result; style-only edits/delete need no recalculation.\nFor labeled_polyline creation use run_chart_function and edit.result_ref. For updates pass\ncurrent object_id + point_label + point_time/point_price, or name/color. Never reserialize\nthe entire point array or use a create result_ref to overwrite an existing path.\nPoint labels are group-local; ambiguous group names require clarification. ABC/1..5 labels\nare user/host-specified annotations, not algorithmically recognized or validated waves.\nFor explicit point labels, text_annotation uses anchor_time + anchor_price + annotation_text;\nnumber_annotation uses anchor_time + anchor_price + annotation_value. Both update/delete by object_id\nand display literal user-provided content; the plugin does not calculate the value or select anchors.\nicon_annotation uses anchor_time + anchor_price + annotation_icon (arrow_up, arrow_down or diamond),\nand follows the same guarded create/update/delete flow.\nReuses deterministic AI drawing families. Reject stale/ambiguous/inactive contexts,\nunaligned snapshots, manual objects and parallel edits from a consumed revision.\nA replay returns the same candidate, never publishes another. Unknown publication outcomes\nstop retries. No fetching or automatic chart selection. Use apply_chart_edit explicitly next.\n",
+      "inputSchema": {
+        "$defs": {
+          "ChartEdit": {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "create",
+                  "update",
+                  "delete"
+                ],
+                "title": "Action",
+                "type": "string"
+              },
+              "anchor_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Anchor Price"
+              },
+              "anchor_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "标注锚定的已加载K线日期/时间",
+                "title": "Anchor Time"
+              },
+              "annotation_icon": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "arrow_up",
+                      "arrow_down",
+                      "diamond"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "图标标注：向上箭头、向下箭头或菱形",
+                "title": "Annotation Icon"
+              },
+              "annotation_text": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "文字标注内容",
+                "title": "Annotation Text"
+              },
+              "annotation_value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "数值标注内容，可为负数或零",
+                "title": "Annotation Value"
+              },
+              "candidate_number": {
+                "anyOf": [
+                  {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "用户选择的候选序号，从1开始；必须与 candidate_result_ref 同时提供",
+                "title": "Candidate Number"
+              },
+              "candidate_result_ref": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "通道/平台候选函数返回的只读引用；只有用户明确选定候选后才能用来创建图形",
+                "title": "Candidate Result Ref"
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "info",
+                      "success",
+                      "warning",
+                      "danger",
+                      "blue",
+                      "green",
+                      "orange",
+                      "red",
+                      "蓝色",
+                      "绿色",
+                      "橙色",
+                      "红色"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Color"
+              },
+              "end_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Price"
+              },
+              "end_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Time"
+              },
+              "kind": {
+                "enum": [
+                  "horizontal_line",
+                  "trend_line",
+                  "channel",
+                  "rectangle",
+                  "fibonacci_retracement",
+                  "labeled_polyline",
+                  "text_annotation",
+                  "number_annotation",
+                  "icon_annotation",
+                  "series_line",
+                  "price_band",
+                  "price_sticks",
+                  "all_drawings"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "lower_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lower Price"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "maxLength": 48,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Name"
+              },
+              "object_id": {
+                "anyOf": [
+                  {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "修改/删除使用当前观察中的 AI 稳定 ID；创建不填",
+                "title": "Object Id"
+              },
+              "parallel_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Price"
+              },
+              "parallel_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Time"
+              },
+              "point_label": {
+                "anyOf": [
+                  {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "更新该对象内的唯一点名，不按索引猜点",
+                "title": "Point Label"
+              },
+              "point_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Point Price"
+              },
+              "point_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Point Time"
+              },
+              "points": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/LabeledPoint"
+                    },
+                    "maxItems": 8,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "仅用于创建标注折线，续改用单点字段",
+                "title": "Points"
+              },
+              "price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Price"
+              },
+              "ratios": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 16,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ratios"
+              },
+              "result_ref": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "run_chart_function 返回的结果引用；不能同时指定锚点、边界或比例。名称、颜色可另填。",
+                "title": "Result Ref"
+              },
+              "show_fill": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Show Fill"
+              },
+              "show_midline": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Show Midline"
+              },
+              "start_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Price"
+              },
+              "start_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Time"
+              },
+              "ta_result_ref": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "明确选择同一当前图的 SMA/EMA(close) 到 series_line，或 BBANDS(close) 三线到 price_band；不自动绘图。",
+                "title": "Ta Result Ref"
+              },
+              "upper_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Upper Price"
+              },
+              "user_confirmed_candidate": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "仅当用户明确确认该候选才填 true；候选函数不会自动绘图",
+                "title": "User Confirmed Candidate"
+              }
+            },
+            "required": [
+              "kind",
+              "action"
+            ],
+            "title": "ChartEdit",
+            "type": "object"
+          },
+          "LabeledPoint": {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "description": "点名，组内唯一，例如 A、B、C 或 1、2；不是自动识浪结果",
+                "maxLength": 16,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "price": {
+                "exclusiveMinimum": 0,
+                "title": "Price",
+                "type": "number"
+              },
+              "time": {
+                "description": "已加载 K 线的日期、带时区 ISO 或 Unix 秒字符串",
+                "minLength": 1,
+                "title": "Time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "time",
+              "price"
+            ],
+            "title": "LabeledPoint",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "chart_session": {
+            "description": "当前观察的 source_chart_session；必须经行情与 AI 图形核对对齐",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "description": "本对话 get_chart_context 返回的当前视图引用",
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "edit": {
+            "$ref": "#/$defs/ChartEdit"
+          },
+          "expected_revision": {
+            "description": "刚读回的观察 revision，不猜测或递增",
+            "exclusiveMinimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "description": "同一次准备及重试使用同一 ID；不同参数不可复用",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "expected_revision",
+          "chart_session",
+          "symbol",
+          "request_id",
+          "edit"
+        ],
+        "title": "prepare_chart_editArguments",
+        "type": "object"
+      },
+      "name": "prepare_chart_edit"
+    },
+    {
+      "description": "Queue exactly this prepared candidate for its owning live view, never select a global chart.\n\nIdempotent for this immutable candidate. Queued/delivered do not prove application.\nRead get_chart_edit_status; applied confirms view state only, not screen pixels.\nUnknown outcomes stop automatic retries. No candle fetch or ordinary renderer bypass.\n",
+      "inputSchema": {
+        "properties": {
+          "candidate_chart_session": {
+            "title": "Candidate Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "title": "Context Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_ref",
+          "candidate_chart_session"
+        ],
+        "title": "apply_chart_editArguments",
+        "type": "object"
+      },
+      "name": "apply_chart_edit"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read the exact candidate's historical preparation/application state, not screen visibility.\n\nA verified prepared candidate without an application request returns prepared/not_requested.\nThis does not prove the current view is editable or permit applying an old candidate after refresh.\nOptional bounded wait avoids tight polling; never fetches, republishes or invents a receipt.\nRead fresh get_chart_context separately before another mutation.\n",
+      "inputSchema": {
+        "properties": {
+          "candidate_chart_session": {
+            "title": "Candidate Chart Session",
+            "type": "string"
+          },
+          "context_ref": {
+            "title": "Context Ref",
+            "type": "string"
+          },
+          "wait_ms": {
+            "default": 0,
+            "maximum": 5000,
+            "minimum": 0,
+            "title": "Wait Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "context_ref",
+          "candidate_chart_session"
+        ],
+        "title": "get_chart_edit_statusArguments",
+        "type": "object"
+      },
+      "name": "get_chart_edit_status"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read exact AI horizontal lines in the named snapshot; no market fetch or UI claim.",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "description": "当前对话最近一次工具返回的 chart_session",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "symbol": {
+            "description": "该快照的完整标的代码",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol"
+        ],
+        "title": "get_horizontal_linesArguments",
+        "type": "object"
+      },
+      "name": "get_horizontal_lines"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Creates a full-width horizontal line snapshot.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "description": "当前对话最近一次工具返回的 chart_session",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "default": "info",
+            "description": "按用户颜色填写；蓝色/info、绿色/success、橙色/warning、红色/danger；success不是成功状态",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "danger",
+              "blue",
+              "green",
+              "orange",
+              "red",
+              "蓝色",
+              "绿色",
+              "橙色",
+              "红色"
+            ],
+            "title": "Color",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "description": "用户指定的完整名称，原样保留，不得缩写",
+            "maxLength": 48,
+            "title": "Name",
+            "type": "string"
+          },
+          "price": {
+            "description": "用户指定的精确价格",
+            "exclusiveMinimum": 0,
+            "title": "Price",
+            "type": "number"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可选重试标识；相同操作重试使用同一值",
+            "title": "Request Id"
+          },
+          "symbol": {
+            "description": "该快照的完整标的代码",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "price"
+        ],
+        "title": "create_horizontal_lineArguments",
+        "type": "object"
+      },
+      "name": "create_horizontal_line"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Move/rename/recolor one snapshot AI line by ID.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "description": "当前对话最新的 chart_session，不要使用旧快照",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "danger",
+                  "blue",
+                  "green",
+                  "orange",
+                  "red",
+                  "蓝色",
+                  "绿色",
+                  "橙色",
+                  "红色"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "仅在用户要求改色时填写，可直接传绿色/红色等；success=绿色",
+            "title": "Color"
+          },
+          "line_id": {
+            "description": "create_horizontal_line 或 get_horizontal_lines 返回的 line.id",
+            "title": "Line Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "修改为用户完整指定名称，不缩写",
+            "title": "Name"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "line_id"
+        ],
+        "title": "update_horizontal_lineArguments",
+        "type": "object"
+      },
+      "name": "update_horizontal_line"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Delete one AI line from the snapshot, not the live UI.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "line_id"
+        ],
+        "title": "delete_horizontal_lineArguments",
+        "type": "object"
+      },
+      "name": "delete_horizontal_line"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nDraw an exact finite two-point segment. No rays, auto anchors, channels or market fetches.\n\nUse the latest chart_session in this conversation and perform mutations sequentially.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "default": "info",
+            "description": "用户指定颜色；蓝色/info、绿色/success、橙色/warning、红色/danger",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "danger",
+              "blue",
+              "green",
+              "orange",
+              "red",
+              "蓝色",
+              "绿色",
+              "橙色",
+              "红色"
+            ],
+            "title": "Color",
+            "type": "string"
+          },
+          "end_price": {
+            "exclusiveMinimum": 0,
+            "title": "End Price",
+            "type": "number"
+          },
+          "end_time": {
+            "description": "终点：必须是当前图中已有K线，且晚于起点；不自动就近匹配",
+            "title": "End Time",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "description": "用户指定的完整趋势线名称，不缩写、不省略前缀",
+            "maxLength": 48,
+            "title": "Name",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "start_price": {
+            "exclusiveMinimum": 0,
+            "title": "Start Price",
+            "type": "number"
+          },
+          "start_time": {
+            "description": "起点：已有K线日期 YYYY-MM-DD（上海时区），或精确带时区ISO收盘时间/Unix秒字符串",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "start_time",
+          "start_price",
+          "end_time",
+          "end_price"
+        ],
+        "title": "create_trend_lineArguments",
+        "type": "object"
+      },
+      "name": "create_trend_line"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read exact AI trend segments and stable IDs in this conversation's latest snapshot.",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol"
+        ],
+        "title": "get_trend_linesArguments",
+        "type": "object"
+      },
+      "name": "get_trend_lines"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nModify only supplied anchors/name/color by AI trend line ID. Preserve all other shapes.\n\nSame exact time rules as create_trend_line. Use latest chart_session, never the old parent.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "danger",
+                  "blue",
+                  "green",
+                  "orange",
+                  "red",
+                  "蓝色",
+                  "绿色",
+                  "橙色",
+                  "红色"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "仅修改所请求颜色；绿色/green/success同义，红色/red/danger同义",
+            "title": "Color"
+          },
+          "end_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Price"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Time"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "用户指定的完整名称，不缩写",
+            "title": "Name"
+          },
+          "start_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Price"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Time"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "line_id"
+        ],
+        "title": "update_trend_lineArguments",
+        "type": "object"
+      },
+      "name": "update_trend_line"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Delete one AI trend segment from the snapshot.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "line_id"
+        ],
+        "title": "delete_trend_lineArguments",
+        "type": "object"
+      },
+      "name": "delete_trend_line"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nCreate one finite parallel channel (ascending/descending/horizontal) from three explicit anchors.\n\nExact bar-time rules as trend lines. Uses candle-index spacing and linear prices, not calendar\nelapsed time; no rays, log-price geometry, automatic identification or invented anchors.\nRead returned upper/lower edges; verify user-requested fields via verify_chart_drawings.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "description": "当前对话最新chart_session，每次操作依次使用新快照",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "default": "info",
+            "description": "蓝色/info、绿色/success、橙色/warning、红色/danger",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "danger",
+              "blue",
+              "green",
+              "orange",
+              "red",
+              "蓝色",
+              "绿色",
+              "橙色",
+              "红色"
+            ],
+            "title": "Color",
+            "type": "string"
+          },
+          "end_price": {
+            "exclusiveMinimum": 0,
+            "title": "End Price",
+            "type": "number"
+          },
+          "end_time": {
+            "description": "基准线终点：已有K线时间，必须晚于起点",
+            "title": "End Time",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "description": "用户指定的完整通道名称，不缩写",
+            "maxLength": 48,
+            "title": "Name",
+            "type": "string"
+          },
+          "parallel_price": {
+            "description": "第三点精确价格，不得落在基准线上；不自动猜通道宽度",
+            "exclusiveMinimum": 0,
+            "title": "Parallel Price",
+            "type": "number"
+          },
+          "parallel_time": {
+            "description": "第三点：另一平行边界的已有K线时间，位于起止时间内；必须由用户明确提供",
+            "title": "Parallel Time",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "show_midline": {
+            "default": true,
+            "description": "是否显示通道中线，默认显示",
+            "title": "Show Midline",
+            "type": "boolean"
+          },
+          "start_price": {
+            "exclusiveMinimum": 0,
+            "title": "Start Price",
+            "type": "number"
+          },
+          "start_time": {
+            "description": "基准线起点：已有K线日期，或带时区收盘时间/Unix秒字符串",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "start_time",
+          "start_price",
+          "end_time",
+          "end_price",
+          "parallel_time",
+          "parallel_price"
+        ],
+        "title": "create_channelArguments",
+        "type": "object"
+      },
+      "name": "create_channel"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read AI channels, three source anchors, derived upper/lower edges and stable IDs. No market fetch.",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol"
+        ],
+        "title": "get_channelsArguments",
+        "type": "object"
+      },
+      "name": "get_channels"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nEdit one channel atomically; recalculate parallel boundaries from its three explicit anchors.\n\nUnspecified anchors remain fixed. Changing baseline may change width relative to the unchanged\nthird anchor. To change width adjust parallel_price; no partial updates on invalid geometry.\nUse latest chart_session and verify original user-requested fields after publication.\n",
+      "inputSchema": {
+        "properties": {
+          "channel_id": {
+            "description": "创建/读取返回的channel.id，不是边界线ID",
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "danger",
+                  "blue",
+                  "green",
+                  "orange",
+                  "red",
+                  "蓝色",
+                  "绿色",
+                  "橙色",
+                  "红色"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "可直接传绿色/红色等；省略表示不改色",
+            "title": "Color"
+          },
+          "end_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Price"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Time"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "完整名称，不缩写",
+            "title": "Name"
+          },
+          "parallel_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parallel Price"
+          },
+          "parallel_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parallel Time"
+          },
+          "show_midline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Show Midline"
+          },
+          "start_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Price"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Time"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "channel_id"
+        ],
+        "title": "update_channelArguments",
+        "type": "object"
+      },
+      "name": "update_channel"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Delete one whole AI channel from the snapshot.\n",
+      "inputSchema": {
+        "properties": {
+          "channel_id": {
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "channel_id"
+        ],
+        "title": "delete_channelArguments",
+        "type": "object"
+      },
+      "name": "delete_channel"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nCreate one finite time/price rectangle using explicit user or approved-proposal bounds.\n\nThe executor does no pattern recognition: the host may analyze real candles when authorized,\npropose exact bounds, and honor a user's request to confirm before drawing. No invented bars or rays.\nOwns all four edges and optional fill under one stable ID. Verify the original requested/approved\nname/color/time/bounds/show_fill via verify_chart_drawings(kind='rectangle').\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "description": "当前对话最新 chart_session，操作后依次使用新快照",
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "default": "info",
+            "description": "蓝色/info、绿色/success、橙色/warning、红色/danger",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "danger",
+              "blue",
+              "green",
+              "orange",
+              "red",
+              "蓝色",
+              "绿色",
+              "橙色",
+              "红色"
+            ],
+            "title": "Color",
+            "type": "string"
+          },
+          "end_time": {
+            "description": "平台框终点：已有 K 线时间，必须晚于起点；不自动就近匹配",
+            "title": "End Time",
+            "type": "string"
+          },
+          "lower_price": {
+            "description": "明确下沿：用户指定，或用户确认的宿主分析方案；执行器不选点",
+            "exclusiveMinimum": 0,
+            "title": "Lower Price",
+            "type": "number"
+          },
+          "name": {
+            "default": "",
+            "description": "用户指定或确认方案的完整平台框名称，不缩写",
+            "maxLength": 48,
+            "title": "Name",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "show_fill": {
+            "default": true,
+            "description": "是否显示淡色填充，默认显示；关闭后保留完整边框",
+            "title": "Show Fill",
+            "type": "boolean"
+          },
+          "start_time": {
+            "description": "平台框起点：已有 K 线日期，或精确带时区收盘时间/Unix秒字符串",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "upper_price": {
+            "description": "平台上沿价格，必须高于下沿，不自动交换",
+            "exclusiveMinimum": 0,
+            "title": "Upper Price",
+            "type": "number"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "start_time",
+          "end_time",
+          "lower_price",
+          "upper_price"
+        ],
+        "title": "create_rectangleArguments",
+        "type": "object"
+      },
+      "name": "create_rectangle"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read AI platform rectangles, exact time/price bounds, fill state and stable IDs. No market fetch.",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol"
+        ],
+        "title": "get_rectanglesArguments",
+        "type": "object"
+      },
+      "name": "get_rectangles"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool.\nAtomically edit one platform rectangle by ID; unspecified bounds/style remain fixed.\n\nChange one bound or both together; invalid time/price order rejects the whole update.\nUse the latest chart_session and verify original requested fields, not copied actual values.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "danger",
+                  "blue",
+                  "green",
+                  "orange",
+                  "red",
+                  "蓝色",
+                  "绿色",
+                  "橙色",
+                  "红色"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "仅修改所请求颜色；绿色/green/success同义",
+            "title": "Color"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Time"
+          },
+          "lower_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lower Price"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "用户指定的完整名称，不缩写",
+            "title": "Name"
+          },
+          "rectangle_id": {
+            "description": "创建/读回返回的 rectangle.id，不是名称或手动图形 ID",
+            "title": "Rectangle Id",
+            "type": "string"
+          },
+          "show_fill": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Show Fill"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Time"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "upper_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Upper Price"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "rectangle_id"
+        ],
+        "title": "update_rectangleArguments",
+        "type": "object"
+      },
+      "name": "update_rectangle"
+    },
+    {
+      "description": "LEGACY SNAPSHOT ONLY. Not for the current browser chart, even literal requests.\n\nFor current charts use get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status.\nOnly explicit snapshot-editing requests use this tool. Delete one whole AI rectangle from the snapshot.\n",
+      "inputSchema": {
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "rectangle_id": {
+            "title": "Rectangle Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "rectangle_id"
+        ],
+        "title": "delete_rectangleArguments",
+        "type": "object"
+      },
+      "name": "delete_rectangle"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read-only exact snapshot verification. Catch shortened labels, omitted colors and wrong anchors.\n\nReturn each expected/actual field and mismatch; matches=false must not be described as success.\nNever publishes a snapshot or proves visible rendering. Verify only supplied expectations,\nnot inferred human intent. Repair mismatches only within the user's existing instructions\nor confirmed proposal; never alter an approved plan to make a mismatching result pass.\n",
+      "inputSchema": {
+        "$defs": {
+          "DrawingExpectation": {
+            "additionalProperties": false,
+            "properties": {
+              "band_hash": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Band Hash"
+              },
+              "bar_count": {
+                "anyOf": [
+                  {
+                    "maximum": 4000,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Bar Count"
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "info",
+                      "success",
+                      "warning",
+                      "danger",
+                      "blue",
+                      "green",
+                      "orange",
+                      "red",
+                      "蓝色",
+                      "绿色",
+                      "橙色",
+                      "红色"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "用户原始指定颜色，可直接填绿色、红色等，核对时标准化",
+                "title": "Color"
+              },
+              "end_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Price"
+              },
+              "end_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "End Time"
+              },
+              "exists": {
+                "default": true,
+                "description": "删除后填 false，并且不传其他期望参数",
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "icon": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "arrow_up",
+                      "arrow_down",
+                      "diamond"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Icon"
+              },
+              "id": {
+                "description": "工具返回的稳定图形 ID，不按名称猜测",
+                "maxLength": 128,
+                "minLength": 1,
+                "title": "Id",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "horizontal_line",
+                  "trend_line",
+                  "channel",
+                  "rectangle",
+                  "fibonacci_retracement",
+                  "labeled_polyline",
+                  "text_annotation",
+                  "number_annotation",
+                  "icon_annotation",
+                  "series_line",
+                  "price_band",
+                  "price_sticks"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "lower_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lower Price"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "maxLength": 48,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "用户原始指定的完整名称，不能缩写；空字符串也会核对",
+                "title": "Name"
+              },
+              "parallel_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Price"
+              },
+              "parallel_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parallel Time"
+              },
+              "point_label": {
+                "anyOf": [
+                  {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Point Label"
+              },
+              "point_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Point Price"
+              },
+              "point_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Point Time"
+              },
+              "price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Price"
+              },
+              "ratios": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 16,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ratios"
+              },
+              "series_hash": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Series Hash"
+              },
+              "show_fill": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Show Fill"
+              },
+              "show_midline": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Show Midline"
+              },
+              "start_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Price"
+              },
+              "start_time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Start Time"
+              },
+              "sticks_hash": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sticks Hash"
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Text"
+              },
+              "time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Time"
+              },
+              "upper_price": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Upper Price"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Value"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "title": "DrawingExpectation",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "chart_session": {
+            "title": "Chart Session",
+            "type": "string"
+          },
+          "expectations": {
+            "description": "按原始要求或用户确认的方案及覆盖项独立填写期望，不抄修改结果；核对名称/颜色/锚点，删除填exists=false",
+            "items": {
+              "$ref": "#/$defs/DrawingExpectation"
+            },
+            "maxItems": 180,
+            "minItems": 1,
+            "title": "Expectations",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_session",
+          "symbol",
+          "expectations"
+        ],
+        "title": "verify_chart_drawingsArguments",
+        "type": "object"
+      },
+      "name": "verify_chart_drawings"
+    }
+  ],
+  "version": "0.6.7"
+}

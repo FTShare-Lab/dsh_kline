@@ -8,7 +8,8 @@ import { join } from 'node:path'
 
 const testRuntime = await mkdtemp(join(tmpdir(), 'dsh-kline-session-test-'))
 process.env.DSH_KLINE_RUNTIME_DIR = testRuntime
-const { apply } = await import('../src/index.ts')
+process.env.DSH_KLINE_CACHE_DIR = join(testRuntime, 'cache')
+const { apply, runtimeDirectory } = await import('../src/index.ts')
 after(async () => { await rm(testRuntime, { recursive: true, force: true }) })
 
 test('each Harness uses only its own live MCP locator, never a sibling or stale service', async () => {
@@ -135,4 +136,66 @@ test('browser context route registers public host runtime context and rejects cr
   } finally {
     server.closeAllConnections(); await new Promise<void>(resolve=>server.close(()=>resolve()))
   }
+})
+
+
+test('health probes the actual backend identity and unknown paths never masquerade as health', async () => {
+  let handler: any
+  apply({effect:callback=>callback(),webServer:{register:route=>{handler=route.handler;return()=>{}}}})
+  const server=createServer((request,response)=>{void handler(request,response)})
+  const backend=createServer((_request,response)=>{
+    response.setHeader('Content-Type','application/json')
+    response.end(JSON.stringify({ok:true,service:'dsh_kline_chart',process_id:process.pid,
+      host_process_id:process.pid,instance_id:identity}))
+  })
+  let identity='current-instance'
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve))
+  await new Promise<void>(resolve=>backend.listen(0,'127.0.0.1',resolve))
+  const origin=`http://127.0.0.1:${(server.address() as any).port}`
+  const manifest=join(testRuntime,'services',`${process.pid}.json`)
+  const health=async()=>{const response=await fetch(origin+'/dsh-kline/healthz');return {status:response.status,body:await response.json()}}
+  try {
+    assert.equal((await fetch(origin+'/dsh-kline/nope')).status,404)
+    let result=await health()
+    assert.equal(result.status,503)
+    assert.equal(result.body.reason,'service_locator_missing')
+    assert.equal((await (await fetch(origin+'/dsh-kline/session')).json()).error,'chart_session_required')
+    await mkdir(join(testRuntime,'services'),{recursive:true})
+    const locator={ok:true,host_process_id:process.pid,process_id:process.pid,session:'',
+      service_url:`http://127.0.0.1:${(backend.address() as any).port}`,service_token:'private-token-'.repeat(4),
+      published_at:Math.floor(Date.now()/1000),instance_id:identity}
+    await writeFile(manifest,JSON.stringify(locator))
+    result=await health()
+    assert.equal(result.status,200)
+    assert.equal(result.body.ok,true)
+    assert.equal(result.body.service_token,undefined)
+    assert.equal(JSON.stringify(result.body).includes(locator.service_token),false)
+    identity='different-process-on-same-port'
+    assert.equal((await health()).body.reason,'backend_identity_mismatch')
+    await writeFile(manifest,'{broken-json')
+    assert.equal((await health()).body.reason,'service_locator_invalid')
+    await writeFile(manifest,JSON.stringify({...locator,host_process_id:process.pid+1}))
+    assert.equal((await health()).body.reason,'service_host_mismatch')
+    await writeFile(manifest,JSON.stringify(locator))
+    backend.closeAllConnections()
+    await new Promise<void>(resolve=>backend.close(()=>resolve()))
+    result=await health()
+    assert.equal(result.status,503)
+    assert.equal(result.body.reason,'backend_unreachable','live PID alone cannot prove health')
+    assert.equal((await fetch(origin+'/dsh-kline/nope')).status,404)
+  } finally {
+    await unlink(manifest).catch(()=>{})
+    for(const instance of [server,backend]){
+      instance.closeAllConnections()
+      if(instance.listening)await new Promise<void>(resolve=>instance.close(()=>resolve()))
+    }
+  }
+})
+
+
+test('sidebar resolves a custom cache directory exactly like the Python launcher', () => {
+  const cache=join(testRuntime,'custom-cache')
+  assert.equal(runtimeDirectory({DSH_KLINE_CACHE_DIR:cache}),join(cache,'runtime'))
+  const runtime=join(testRuntime,'explicit-runtime')
+  assert.equal(runtimeDirectory({DSH_KLINE_CACHE_DIR:cache,DSH_KLINE_RUNTIME_DIR:runtime}),runtime)
 })

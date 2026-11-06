@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const requiredFiles = [
   'lib/index.js',
+  'lib/chart-service-status.js',
+  'scripts/dsh-bootstrap.mjs',
+  'config/dsh-tool-catalog.json',
   'lib/chart-context.js',
   'lib/chart-observation.js',
   'lib/chart-applications.js',
