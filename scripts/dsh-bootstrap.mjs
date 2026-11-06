@@ -56,13 +56,25 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
     if (message.id != null && message.method) inFlight.set(message.id, message)
     child.stdin.write(`${JSON.stringify(message)}\n`)
   }
+  const terminate = generation => {
+    generation.stdin.destroy()
+    if (!generation.pid) { generation.kill(); return }
+    if (process.platform === 'win32') {
+      // Terminate the owned install/backend tree, including pip children. A
+      // parent-only kill can leave an installer racing the next activation.
+      const killer = spawn('taskkill', ['/pid', String(generation.pid), '/T', '/F'], {stdio:'ignore', windowsHide:true})
+      killer.on('error', () => generation.kill())
+    } else {
+      // spawn(detached) below gives this generation its own process group.
+      try { process.kill(-generation.pid, 'SIGTERM') } catch { generation.kill() }
+    }
+  }
   const down = (generation, reason) => {
     if (closed || child !== generation) return
     ready = false; child = undefined; lastError = reason
     clearTimeout(handshakeTimer)
     lines?.close()
-    generation.stdin.destroy()
-    generation.kill()
+    terminate(generation)
     for (const [id, message] of inFlight) {
       if (message.method === 'tools/call') unavailable(id, true)
       else protocolError(id, -32603, 'Backend connection lost; request was not replayed')
@@ -83,7 +95,7 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
   const start = () => {
     if (closed || child) return
     let generation
-    try { generation = spawnServer(command, args, { env: { ...env, DSH_KLINE_DEFER_BOOTSTRAP: '0' }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }) }
+    try { generation = spawnServer(command, args, { env: { ...env, DSH_KLINE_DEFER_BOOTSTRAP: '0' }, stdio: ['pipe', 'pipe', 'pipe'], detached:process.platform !== 'win32', windowsHide: true }) }
     catch {
       lastError = 'backend_spawn_failed'; failures += 1; log('[dsh_kline] backend_spawn_failed; MCP connection retained.\n'); persist()
       retryTimer = setTimeout(() => { retryTimer = undefined; start() }, Math.min(maxRetryDelayMs, retryDelayMs * 2 ** Math.min(failures - 1, 10)))
@@ -126,7 +138,7 @@ export function serve({ input = process.stdin, output = process.stdout, error = 
     clearTimeout(retryTimer); clearTimeout(handshakeTimer)
     for (const id of queued.keys()) cancelQueued(id)
     inFlight.clear()
-    child?.stdin.destroy(); child?.kill()
+    if (child) terminate(child)
     lines?.close(); inputLines.close()
     process.removeListener('SIGTERM', shutdown); process.removeListener('SIGINT', shutdown)
   }

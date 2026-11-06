@@ -3,9 +3,10 @@ import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 import { serve } from '../scripts/dsh-bootstrap.mjs'
 
 function fixture(options = {}) {
@@ -109,4 +110,24 @@ test('host disconnect cancels pending calls and backend recovery', async () => {
   f.close()
   await delay(20)
   assert.equal(f.children.length,1)
+})
+
+
+test('host shutdown terminates an in-progress installer descendant', async () => {
+  const directory=mkdtempSync(join(tmpdir(),'dsh-bootstrap-tree-'))
+  const started=join(directory,'started'), leaked=join(directory,'installer-finished-after-shutdown')
+  const grandchild=`setTimeout(()=>require('node:fs').writeFileSync(${JSON.stringify(leaked)},'leaked'),3000)`
+  const script=`require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(grandchild)}],{stdio:'inherit'});require('node:fs').writeFileSync(${JSON.stringify(started)},'started');setInterval(()=>{},10000)`
+  const input=new PassThrough(),output=new PassThrough(),error=new PassThrough()
+  const server=serve({input,output,error,command:process.execPath,args:['-e',script],spawnServer:spawn,
+    env:{...process.env,DSH_KLINE_CACHE_DIR:directory,DSH_KLINE_HOST_PID:String(process.pid)}})
+  try {
+    input.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2024-11-05'}})+'\n')
+    const deadline=Date.now()+5000
+    while(!existsSync(started) && Date.now()<deadline)await delay(20)
+    assert.ok(existsSync(started),'installer descendant did not start')
+    server.shutdown()
+    await delay(3500)
+    assert.equal(existsSync(leaked),false,'an installer survived its MCP owner')
+  } finally {server.shutdown();rmSync(directory,{recursive:true,force:true})}
 })
