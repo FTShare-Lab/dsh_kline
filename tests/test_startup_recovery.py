@@ -13,8 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_dsh_startup_catalog_matches_real_tools():
-    subprocess.run([sys.executable, str(ROOT / 'scripts/generate-dsh-catalog.py'), '--check'],
-                   cwd=ROOT, check=True, capture_output=True, text=True, timeout=45)
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/generate-dsh-catalog.py'), '--check'],
+                            cwd=ROOT, capture_output=True, text=True, timeout=45)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_locator_failure_retains_mcp_and_recovers_without_restart(tmp_path):
