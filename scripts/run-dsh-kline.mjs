@@ -396,7 +396,10 @@ async function prepareRuntime(venvDirectory, fingerprint, logPath, preferredPyth
   } else {
     const base = await findBootstrapPython(venvDirectory, logPath, preferredPython)
     process.stderr.write('[dsh_kline] Creating or repairing the Python environment…\n')
-    const venvArgs = [...base.args, '-m', 'venv', ...(clearExisting ? ['--clear'] : []), venvDirectory]
+    // Python -m venv does not replace an existing interpreter when upgrading
+    // across Python versions. Clear any unusable venv before creating it again.
+    const replaceExisting = clearExisting || await pathExists(runtimePython)
+    const venvArgs = [...base.args, '-m', 'venv', ...(replaceExisting ? ['--clear'] : []), venvDirectory]
     const venvMs = await bootstrapStep('PYTHON_VENV_UNAVAILABLE', 'Cannot create or repair the virtual environment', base.command, venvArgs, logPath)
     process.stderr.write(`[dsh_kline] Python environment ready in ${Math.ceil(venvMs / 1000)}s.\n`)
   }
