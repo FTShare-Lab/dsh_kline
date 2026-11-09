@@ -12,9 +12,10 @@ import { sanitizePriceSeriesCommand } from './price-series.ts'
 import { sanitizePriceBandCommand } from './price-bands.ts'
 import { candleSequenceHash } from './candle-sequence.ts'
 import { sanitizePriceSticksCommand } from './price-sticks.ts'
+import { sanitizePatternGroupCommand } from './pattern-groups.ts'
 
 const TOKEN = /^[A-Za-z0-9_-]{32}$/
-const AI = new Set(['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION','DRAW_AGENT_SERIES_LINE','DRAW_AGENT_PRICE_BAND','DRAW_AGENT_PRICE_STICKS'])
+const AI = new Set(['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION','DRAW_AGENT_SERIES_LINE','DRAW_AGENT_PRICE_BAND','DRAW_AGENT_PRICE_STICKS','DRAW_AGENT_PRICE_PATTERN','DRAW_AGENT_NINE_COUNT'])
 const INTERVALS = ['minute','day','week','month','quarter','year']
 function finite(value:any, positive=false):number {
   if(typeof value!=='number' || !Number.isFinite(value) || positive && value<=0)throw Error('invalid_source_number')
@@ -104,6 +105,9 @@ export function sanitizeSourcePayload(raw:any,state:any):any {
       if(clean.interval===state.interval && clean.row_hash && clean.row_hash!==candleSequenceHash(state.candles))
         throw Error('source_sequence_rows_mismatch')
       return clean
+    }
+    if(type==='DRAW_AGENT_PRICE_PATTERN' || type==='DRAW_AGENT_NINE_COUNT') {
+      return sanitizePatternGroupCommand(c,state.interval)
     }
     if(type==='TEXT_MARKER')return {type,id:text(c.id??'',256),text:text(c.text??'',256),...point(c),color:color(c.color??'info')}
     if(type==='DRAW_TREND_LINE')return {type,id:text(c.id??'',256),label:text(c.label??'',128),

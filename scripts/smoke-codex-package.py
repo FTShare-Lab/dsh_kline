@@ -85,7 +85,7 @@ def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> 
 
 
 def main() -> int:
-    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.7.zip").resolve()
+    archive = Path(sys.argv[1] if len(sys.argv) > 1 else "release/ft-kline-v0.6.8.zip").resolve()
     if not archive.exists(): raise SystemExit(f"package not found: {archive}")
     temporary = Path(tempfile.mkdtemp(prefix="ft-kline-codex-smoke-"))
     try:

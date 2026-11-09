@@ -238,7 +238,7 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
     const context:any={lastChartPayload:f.payload,currentCandles:f.state.candles,currentSymbol:'TEST.X',currentName:'测试',
       activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
       activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
-      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),patternGroupRegistry:new Map(),
       currentInterval:'day',currentAdjust:'none',currentRangeKey:'custom',sourceCandleInterval:'day',activeSecurityTab:'chart',
       openingSymbol:false,userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,maVisible:false,vwapVisible:false,
       volVisible:true,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,volumeUnit:'wan',chartDataStatus:'delayed',
@@ -362,7 +362,7 @@ test('inline drawing failure restores prior AI state, and a failed restore stays
     const context:any={lastChartPayload:previous,currentCandles:base().candles,currentSymbol:'TEST.X',currentInterval:'day',openingSymbol:false,
       activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
       activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
-      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),patternGroupRegistry:new Map(),
       rememberAnalysisCommands:()=>{},kchart:{removeOverlay:({groupId}:any)=>{for(const [id,o] of overlays)if(o.groupId===groupId)overlays.delete(id)},
         createOverlay:(o:any)=>{
           if(mode==='rollback_failed' || o.extendData.label==='fail') {

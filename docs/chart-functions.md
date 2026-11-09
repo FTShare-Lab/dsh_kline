@@ -26,6 +26,8 @@ TA 结果落图白名单支持 `SMA(close, 2..200)`、`EMA(close, 2..200)` 单�
 | `regression_channel` | start_time、end_time；可选 multiplier | 对明确区间的收盘价做线性回归并计算统计上下轨，只分析不绘图 |
 | `channel_candidates` | 可选 direction、lookback_bars、left_bars、right_bars、min_span_bars、max_candidates | 用已确认拐点提出上升／下降三锚点通道候选，只分析不绘图 |
 | `range_candidates` | 可选 window_sizes、max_candidates | 用最新已加载K线的多个固定窗口提出水平平台区间候选，只分析不绘图 |
+| `price_pattern_candidates` | 可选 pattern_types、lookback_bars、max_candidates | 用已收盘单日线识别双顶底、头肩顶底与冻结平台状态；候选需明确选择后才能保存组对象 |
+| `nine_count` | 可选 display_bars | 逐根给出收盘价相对四根前的1–9计数；结果引用可保存为一组九转快照 |
 | `price_series_line` | value_source；可选 condition | 对当前加载K线计算 OHLC、SMA 或 EMA(close, 2–200) 的主图序列线；条件为价格来源/固定价格的大小比较 |
 | `conditional_annotation` | annotation_kind、anchor_source、condition；对应的一项内容 | 在当前加载K线中找到最近一根符合条件的K线，创建一枚文字、数值或图标标注 |
 | `price_band` | upper_source、lower_source；可选 condition | 在两条当前图价格来源之间按K线填充，空档断开；上边界须始终高于下边界 |
@@ -39,7 +41,7 @@ TA 结果落图白名单支持 `SMA(close, 2..200)`、`EMA(close, 2..200)` 单�
 
 `range_candidates` 是 M3 的只读平台区间原型，区别于按用户给定边界绘图的 `range_box`。默认分别检查截至最新已加载K线的20、30、40、60根窗口；按窗口内最高影线和最低影线确定边界，要求上下边界各至少两次相隔3根以上的触碰，并限制区间宽度、整个窗口和最近10根的收盘价位移及拟合漂移。返回最多3组候选、精确时间／价位、触碰次数与时间、逐窗口拒绝原因；边界和终点完全相同的不同窗口会合并为一组，并报告去重数量。用户可指定1至8个互异的16至120根窗口及最多1至5组候选。没有符合规则的窗口应返回零候选，不强行画平台；这不是突破信号或已确认的专业平台识别，必须人工审查后再单独绘图。`result_ref` 仅供分析，不能直接传给 `prepare_chart_edit`。
 
-上述分析结果 `result_usage=analysis_only`，不能作为普通 `edit.result_ref` 绘图。通道/平台候选另有用户明确确认的专用入口：`candidate_result_ref`、从1开始的 `candidate_number`、`user_confirmed_candidate:true` 必须同时传入 `prepare_chart_edit` 的 `edit`，且只允许创建相应的 `channel` / `rectangle`；插件从引用中读取锚点，不让宿主抄坐标。其他分析结果没有此入口。插件不会因返回候选而自动落图，也不声称候选是专业形态、缠论分型或波浪拐点。
+上述分析结果 `result_usage=analysis_only`，不能作为普通 `edit.result_ref` 绘图。通道、平台和价格形态候选另有用户明确确认的专用入口：`candidate_result_ref`、从1开始的 `candidate_number`、`user_confirmed_candidate:true` 必须同时传入 `prepare_chart_edit` 的 `edit`，并分别创建相应的 `channel`、`rectangle` 或 `price_pattern`；插件从引用中读取锚点，不让宿主抄坐标。九转结果可通过受保护的 `result_ref` 创建或更新单组 `nine_count` 快照。插件不会因返回候选而自动落图，也不声称候选是收益预测、缠论分型或波浪拐点。
 
 ## M4.1 条件序列线
 

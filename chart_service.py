@@ -326,12 +326,12 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
                 return run_ta(**args)
             if name == 'workbench_run_chart_function':
                 if args.get('function') not in {'fibonacci_retracement', 'parallel_channel', 'range_box', 'labeled_polyline',
-                                                'channel_candidates', 'range_candidates'}:
+                                                'channel_candidates', 'range_candidates', 'price_pattern_candidates', 'nine_count'}:
                     return {'ok': False, 'error': 'workbench_function_not_selected'}
                 return run_function(**args)
             if name == 'workbench_prepare_edit':
                 edit = ChartEdit.model_validate(args['edit'])
-                curated = {'horizontal_line', 'trend_line', 'channel', 'rectangle', 'fibonacci_retracement', 'labeled_polyline', 'series_line', 'price_band'}
+                curated = {'horizontal_line', 'trend_line', 'channel', 'rectangle', 'fibonacci_retracement', 'labeled_polyline', 'series_line', 'price_band', 'price_pattern', 'nine_count'}
                 if edit.kind not in curated and not (edit.action == 'delete' and edit.kind in {'text_annotation', 'number_annotation', 'icon_annotation', 'price_sticks', 'all_drawings'}):
                     return {'ok': False, 'error': 'workbench_kind_not_selected'}
                 return prepare_chart_edit(**{k: v for k, v in args.items() if k != 'edit'}, edit=edit)

@@ -1228,6 +1228,8 @@
                   "series_line",
                   "price_band",
                   "price_sticks",
+                  "price_pattern",
+                  "nine_count",
                   "all_drawings"
                 ],
                 "title": "Kind",
@@ -1735,5 +1737,5 @@
       }
     }
   ],
-  "version": "0.6.7"
+  "version": "0.6.8"
 }

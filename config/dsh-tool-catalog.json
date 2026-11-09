@@ -843,7 +843,7 @@
       "annotations": {
         "readOnlyHint": true
       },
-      "description": "Discover implemented deterministic chart functions, parameters, versions and limits.\n\nNo market fetch, chart mutation or arbitrary code execution. Candidate functions propose\nrule-based geometry for review; they do not draw or claim professional pattern confirmation.\nFunctions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,\npivot_candidates, regression_channel, channel_candidates, range_candidates, price_series_line,\nconditional_annotation, price_band, price_sticks.\npivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;\nchannel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current\nrequires a recent end anchor and checks the arithmetic extension through the latest bar; scope=historical\nis for past geometry only, with no current breakout inference. Zero candidates does not prove\na lack of recent confirmed pivots; inspect pivot_scan and rejection_counts. range_candidates proposes\nhorizontal boxes ending at the latest loaded bar, distinct from explicitly drawn range_box.\nAll four analysis functions are read-only and may validly return no candidate.\nlabeled_polyline connects 2..8 explicitly labeled anchors, not automatic Elliott wave recognition.\nprice_series_line uses current loaded OHLC or SMA(close, 2..200) and an optional price comparison.\nIt returns a bounded result_ref; null warmup/false-condition bars break the price-pane line.\nconditional_annotation selects only the latest loaded bar matching a required price condition;\nits result uses the existing guarded text, number or icon annotation kind, not a batch of marks.\nprice_band fills between two OHLC/SMA price sources in the candle pane. Its upper boundary\nmust stay strictly above the lower boundary on every eligible bar; warmup/false conditions break the band.\nprice_sticks draws independent vertical strokes between two OHLC/SMA price sources on matching bars;\nzero-length endpoints are omitted. This is not a full formula interpreter.",
+      "description": "Discover implemented deterministic chart functions, parameters, versions and limits.\n\nNo market fetch, chart mutation or arbitrary code execution. Candidate functions propose\nrule-based geometry for review; they do not draw or claim professional pattern confirmation.\nFunctions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,\npivot_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates, nine_count, price_series_line,\nconditional_annotation, price_band, price_sticks.\npivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;\nchannel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current\nrequires a recent end anchor and checks the arithmetic extension through the latest bar; scope=historical\nis for past geometry only, with no current breakout inference. Zero candidates does not prove\na lack of recent confirmed pivots; inspect pivot_scan and rejection_counts. range_candidates proposes\nhorizontal boxes ending at the latest loaded bar, distinct from explicitly drawn range_box.\nAnalysis functions are read-only and may validly return no candidate. price_pattern_candidates\nuses closed A/HK/US daily bars for double tops/bottoms, head-and-shoulders and frozen ranges;\nnine_count records each close-vs-four-back count without retrospective deletion.\nlabeled_polyline connects 2..8 explicitly labeled anchors, not automatic Elliott wave recognition.\nprice_series_line uses current loaded OHLC or SMA(close, 2..200) and an optional price comparison.\nIt returns a bounded result_ref; null warmup/false-condition bars break the price-pane line.\nconditional_annotation selects only the latest loaded bar matching a required price condition;\nits result uses the existing guarded text, number or icon annotation kind, not a batch of marks.\nprice_band fills between two OHLC/SMA price sources in the candle pane. Its upper boundary\nmust stay strictly above the lower boundary on every eligible bar; warmup/false conditions break the band.\nprice_sticks draws independent vertical strokes between two OHLC/SMA price sources on matching bars;\nzero-length endpoints are omitted. This is not a full formula interpreter.",
       "inputSchema": {
         "properties": {},
         "title": "list_chart_functionsArguments",
@@ -1055,7 +1055,7 @@
       "annotations": {
         "readOnlyHint": true
       },
-      "description": "Calculate on explicitly aligned current loaded candles; return immutable result_ref, NOT a drawing.\n\nRead get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;\nask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,\nregression_channel, channel_candidates and range_candidates return analysis-only results;\nnever pass these refs as edit.result_ref. Channel/range candidates may be selected only after\nexplicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and\nuser_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation\nbefore a separate guarded drawing operation. Default channel scope=current may return no candidate;\nhistorical scope must not be described as a current channel or current breakout signal.\nIf no candidate passes, report only that no anchor triple met every rule; do not infer\nthat recent pivots or real-world channel structure are absent. Inspect pivot_scan for pivots.\nNo market fetch, LLM coordinate arithmetic,\nconfirmed pattern identification, arbitrary formula/code or chart selection.\nFibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.\nFor drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then\napply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;\nonly channel/range candidates have the separate explicit-selection route. Recompute after data/period/adjustment changes.\nprice_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},\noptional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.\nNo host-provided price arrays or executable formulas. Zero matched bars are not drawable.\nconditional_annotation requires annotation_kind, anchor_source and condition, plus exactly one\nmatching annotation_text / annotation_value / annotation_icon. It chooses the latest matching\nloaded bar and returns one guarded annotation result_ref; no match means no drawing.\nprice_band requires upper_source and lower_source, with optional condition. Crossing or equal\nboundaries are rejected; no matched bars are not drawable. Full arrays remain plugin-side.\nprice_sticks requires start_source and end_source, with optional condition. Each matched bar has\none independent stroke; equal endpoints, warmup and false conditions do not draw a stroke.\nStyle edits reuse the existing object ID; calculation alone never means drawn/applied.\nlabeled_polyline creates a group from parameters.points (unique labels, increasing times).\nTo move one labeled point, skip recalculation and use prepare_chart_edit with the current\nobject_id, point_label and point_time/point_price. Do NOT copy/rewrite all points or invent anchors.",
+      "description": "Calculate on explicitly aligned current loaded candles; return immutable result_ref, NOT a drawing.\n\nRead get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;\nask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,\nregression_channel, channel_candidates, range_candidates, price_pattern_candidates and nine_count return analysis-only results;\nnever pass these refs as edit.result_ref. Channel/range candidates may be selected only after\nexplicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and\nuser_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation\nbefore a separate guarded drawing operation. Default channel scope=current may return no candidate;\nhistorical scope must not be described as a current channel or current breakout signal.\nIf no candidate passes, report only that no anchor triple met every rule; do not infer\nthat recent pivots or real-world channel structure are absent. Inspect pivot_scan for pivots.\nNo market fetch, LLM coordinate arithmetic,\nconfirmed pattern identification, arbitrary formula/code or chart selection.\nFibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.\nFor drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then\napply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;\nchannel/range/price-pattern candidates have the separate explicit-selection route. A nine_count\nresult_ref can create or replace one nine_count snapshot group. Recompute after data/period/adjustment changes.\nprice_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},\noptional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.\nNo host-provided price arrays or executable formulas. Zero matched bars are not drawable.\nconditional_annotation requires annotation_kind, anchor_source and condition, plus exactly one\nmatching annotation_text / annotation_value / annotation_icon. It chooses the latest matching\nloaded bar and returns one guarded annotation result_ref; no match means no drawing.\nprice_band requires upper_source and lower_source, with optional condition. Crossing or equal\nboundaries are rejected; no matched bars are not drawable. Full arrays remain plugin-side.\nprice_sticks requires start_source and end_source, with optional condition. Each matched bar has\none independent stroke; equal endpoints, warmup and false conditions do not draw a stroke.\nStyle edits reuse the existing object ID; calculation alone never means drawn/applied.\nlabeled_polyline creates a group from parameters.points (unique labels, increasing times).\nTo move one labeled point, skip recalculation and use prepare_chart_edit with the current\nobject_id, point_label and point_time/point_price. Do NOT copy/rewrite all points or invent anchors.",
       "inputSchema": {
         "$defs": {
           "ChartFunctionParameters": {
@@ -1162,6 +1162,20 @@
                 "default": null,
                 "description": "通道候选方向；默认both",
                 "title": "Direction"
+              },
+              "display_bars": {
+                "anyOf": [
+                  {
+                    "maximum": 240,
+                    "minimum": 30,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Display Bars"
               },
               "end_price": {
                 "anyOf": [
@@ -1357,6 +1371,30 @@
                 ],
                 "default": null,
                 "title": "Parallel Time"
+              },
+              "pattern_types": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "enum": [
+                        "double_top",
+                        "double_bottom",
+                        "head_shoulders_top",
+                        "head_shoulders_bottom",
+                        "platform"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 5,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Pattern Types"
               },
               "points": {
                 "anyOf": [
@@ -1681,6 +1719,8 @@
               "regression_channel",
               "channel_candidates",
               "range_candidates",
+              "price_pattern_candidates",
+              "nine_count",
               "price_series_line",
               "conditional_annotation",
               "price_band",
@@ -1891,6 +1931,8 @@
                   "series_line",
                   "price_band",
                   "price_sticks",
+                  "price_pattern",
+                  "nine_count",
                   "all_drawings"
                 ],
                 "title": "Kind",
@@ -3779,5 +3821,5 @@
       "name": "verify_chart_drawings"
     }
   ],
-  "version": "0.6.7"
+  "version": "0.6.8"
 }

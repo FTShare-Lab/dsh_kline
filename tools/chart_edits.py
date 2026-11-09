@@ -22,16 +22,18 @@ from tools.annotations import ANNOTATION_COMMAND, ANNOTATION_KINDS, edit_annotat
 from tools.price_series import SERIES_COMMAND, edit_price_series
 from tools.price_bands import BAND_COMMAND, edit_price_band
 from tools.price_sticks import STICKS_COMMAND, edit_price_sticks
+from tools.pattern_groups import PATTERN_COMMAND, NINE_COMMAND, edit_pattern_group
 
 KINDS = {LINE_COMMAND: "horizontal_line", TREND_COMMAND: "trend_line",
          CHANNEL_COMMAND: "channel", RECTANGLE_COMMAND: "rectangle", FIBONACCI_COMMAND: "fibonacci_retracement",
          POLYLINE_COMMAND: "labeled_polyline", ANNOTATION_COMMAND: "annotation", SERIES_COMMAND: "series_line",
-         BAND_COMMAND: "price_band", STICKS_COMMAND: "price_sticks"}
+         BAND_COMMAND: "price_band", STICKS_COMMAND: "price_sticks",
+         PATTERN_COMMAND: "price_pattern", NINE_COMMAND: "nine_count"}
 
 
 class ChartEdit(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "all_drawings"]
+    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings"]
     action: Literal["create", "update", "delete"]
     object_id: str | None = Field(default=None, min_length=1, max_length=128,
                                  description="修改/删除使用当前观察中的 AI 稳定 ID；创建不填")
@@ -86,20 +88,22 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
         "series_line": set(),
         "price_band": set(),
         "price_sticks": set(),
+        "price_pattern": set(),
+        "nine_count": set(),
         "all_drawings": set(),
     }[edit.kind]
     if fields.keys() - supported or edit.action == "delete" and fields:
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填类型、action，单对象删除另填 object_id。")
     if edit.kind == "labeled_polyline" and edit.action != "create" and (edit.result_ref is not None or edit.points is not None):
         raise LineError("polyline_replacement_not_supported", "标注折线续改使用 point_label 和 point_time / point_price；名称 / 颜色可另填，不重写整组。")
-    if edit.result_ref is not None and (edit.kind not in {"fibonacci_retracement", "channel", "rectangle", "labeled_polyline", "series_line", "price_band", "price_sticks", *ANNOTATION_KINDS}
+    if edit.result_ref is not None and (edit.kind not in {"fibonacci_retracement", "channel", "rectangle", "labeled_polyline", "series_line", "price_band", "price_sticks", "nine_count", *ANNOTATION_KINDS}
         or fields.keys() - {"result_ref", "name", "color", "show_midline", "show_fill"}):
         raise LineError("conflicting_function_parameters", "结果引用与直接锚点、边界或比例互斥；请修改参数后重新运行函数。")
     if edit.ta_result_ref is not None and (edit.kind not in {"series_line", "price_band"} or edit.action not in {"create", "update"}
         or fields.keys() - {"ta_result_ref", "name", "color"}):
         raise LineError("ta_result_not_drawable", "仅允许把明确选定的 SMA/EMA 单线或 BBANDS 三线结果创建或更新为对应图形。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action != "create" or edit.kind not in {"channel", "rectangle"}
+    if fields.keys() & candidate_fields and (edit.action not in ({"create", "update"} if edit.kind == "price_pattern" else {"create"}) or edit.kind not in {"channel", "rectangle", "price_pattern"}
         or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
         or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
         raise LineError("candidate_confirmation_required", "只有用户明确选定通道/平台候选及序号后才能创建；不能混用直接锚点或其他结果引用。")
@@ -129,6 +133,9 @@ def snapshot_inventory(payload: dict) -> list[dict]:
         elif kind == "series_line": item.update(series_hash=cmd["series_hash"], bar_count=cmd["bar_count"])
         elif kind == "price_band": item.update(band_hash=cmd["band_hash"], bar_count=cmd["bar_count"])
         elif kind == "price_sticks": item.update(sticks_hash=cmd["sticks_hash"], bar_count=cmd["bar_count"])
+        elif kind in {"price_pattern", "nine_count"}:
+            item.update(geometry_hash=cmd["geometry_hash"], bar_count=cmd["bar_count"],
+                        rule_version=cmd["rule_version"], as_of=cmd["as_of"])
         elif kind in ANNOTATION_KINDS:
             item.update(time=cmd["time"], price=cmd["price"])
             if kind == "text_annotation": item["text"] = cmd["text"]
@@ -225,7 +232,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
     # journal/guard bind them by digest so preparation does not echo thousands
     # of prices back into the host conversation.
     guarded_params = {"digest_sha256": _hash(params)} if edit.kind in {
-        "series_line", "price_band", "price_sticks"} else params
+        "series_line", "price_band", "price_sticks", "price_pattern", "nine_count"} else params
     identity = {"context_ref": context_ref, "expected_revision": expected_revision, "chart_session": chart_session,
                 "symbol": symbol.strip().casefold(), "kind": edit.kind, "action": edit.action,
                 "object_id": edit.object_id, "parameters": guarded_params}
@@ -272,7 +279,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         if edit.object_id is not None and not any(obj.get("origin") == "ai" and obj["kind"] == edit.kind
             and obj["id"] == edit.object_id for obj in context["drawings"]):
             raise LineError("drawing_not_editable", "目标不是当前观察中的该类型 AI 图形，手动/自动对象不允许修改。")
-        if edit.object_id is not None and edit.kind in {"channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "series_line", "price_band", "price_sticks", *ANNOTATION_KINDS}:
+        if edit.object_id is not None and edit.kind in {"channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", *ANNOTATION_KINDS}:
             target = next(obj for obj in context["drawings"] if obj.get("origin") == "ai" and obj["id"] == edit.object_id)
             if target.get("interval") != context["interval"]:
                 raise LineError("drawing_interval_mismatch", "目标属于其他周期，当前周期不能改写或删除该对象；请明确切回其适用周期，不自动搬锚点。")
@@ -283,6 +290,8 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
                           "series_line": (edit_price_series, "series_id"),
                           "price_band": (edit_price_band, "band_id"),
                           "price_sticks": (edit_price_sticks, "sticks_id"),
+                          "price_pattern": (edit_pattern_group, "group_id"),
+                          "nine_count": (edit_pattern_group, "group_id"),
                           "text_annotation": (edit_annotation, "annotation_id"),
                           "number_annotation": (edit_annotation, "annotation_id"),
                           "icon_annotation": (edit_annotation, "annotation_id")}
@@ -302,6 +311,8 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
                 arguments["kind"] = edit.kind
                 arguments = {({"annotation_text": "text", "annotation_value": "value", "annotation_icon": "icon"}.get(k, k)): v
                              for k, v in arguments.items()}
+            if edit.kind in {"price_pattern", "nine_count"}:
+                arguments["kind"] = edit.kind
             arguments.pop("result_ref", None)
             arguments.pop("ta_result_ref", None)
             for key in ("candidate_result_ref", "candidate_number", "user_confirmed_candidate"):

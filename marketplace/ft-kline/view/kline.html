@@ -274,6 +274,16 @@
   .toolbar-primary > .btn, .toolbar-indicators .indicator-menu-wrap > .btn, .toolbar-tools > div > .btn { min-height: 34px; padding-inline: 11px; }
   #drawingWorkbenchToggle[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
   #drawingWorkbenchToggle[aria-expanded="true"]:hover { filter: brightness(.93); }
+  #patternWorkbenchToggle[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  #drawingWorkbench.patterns-mode > :not(#patternWorkbench) { display: none !important; }
+  #patternWorkbench[hidden] { display: none !important; }
+  .pattern-workbench { display: grid; gap: 9px; padding: 10px; }
+  .pattern-tabs, .pattern-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .pattern-options { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+  .pattern-options label { display: grid; gap: 3px; font-size: 12px; }
+  .pattern-options input, .pattern-options select { max-width: 160px; }
+  .pattern-result { display: grid; gap: 5px; max-height: 190px; overflow: auto; }
+  .pattern-result button { text-align: left; }
   .toolbar-shortcuts { display: none; }
   .toolbar-tools #clearBtn { color: var(--danger); }
   .toolbar .indicator-menu-wrap, .toolbar .alert-menu-wrap, .toolbar .compare-menu-wrap, .toolbar .drawing-menu-wrap, .toolbar .level-menu-wrap { position: static; }
@@ -1180,6 +1190,7 @@
     </div>
     <div class="toolbar-primary" role="group" aria-label="绘图">
       <button class="btn" id="drawingWorkbenchToggle" type="button" data-i18n="drawingWorkbench" aria-expanded="false" aria-controls="drawingWorkbench">绘图</button>
+      <button class="btn" id="patternWorkbenchToggle" type="button" aria-expanded="false" aria-controls="drawingWorkbench">形态与九转</button>
     </div>
     <div class="toolbar-tools" role="group" aria-label="图表工具">
     <div class="level-menu-wrap">
@@ -1234,6 +1245,16 @@
   </div>
 </div>
 <section class="drawing-workbench" id="drawingWorkbench" aria-label="绘图工具">
+  <section class="pattern-workbench" id="patternWorkbench" hidden aria-label="形态与九转">
+    <div class="pattern-tabs"><button class="btn selected" id="patternPriceTab" type="button">价格形态</button><button class="btn" id="patternNineTab" type="button">九转计数</button></div>
+    <div class="pattern-options"><label>观察日线根数<input id="patternBars" type="number" min="60" max="300" value="240"></label><label id="patternTypeField">形态类型<select id="patternTypeFilter"><option value="all">全部</option><option value="double_top">双顶</option><option value="double_bottom">双底</option><option value="head_shoulders_top">头肩顶</option><option value="head_shoulders_bottom">头肩底</option><option value="platform">平台</option></select></label></div>
+    <div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">分析当前日线</button><span id="patternScope" class="muted">仅分析已加载的 A／港／美股单日线</span></div>
+    <div id="patternResult" class="pattern-result" aria-live="polite"></div>
+    <div class="pattern-options"><label>名称<input id="patternName" type="text" maxlength="48" placeholder="可选"></label><label>颜色<select id="patternColor"><option value="info">蓝</option><option value="warning">橙</option><option value="danger">红</option><option value="success">绿</option></select></label></div>
+    <div class="pattern-actions"><button class="btn primary" id="patternSave" type="button" disabled>确认保存</button><button class="btn" id="patternCancel" type="button">取消预览</button><button class="btn" id="patternStyle" type="button" disabled>改名／改色</button><button class="btn" id="patternDelete" type="button" disabled>删除所选</button></div>
+    <div id="patternSaved" class="pattern-result" aria-label="已保存形态与九转"></div>
+    <div id="patternStatus" class="workbench-status" role="status" aria-live="polite"></div>
+  </section>
   <div class="workbench-primary-row">
   <div class="workbench-grid workbench-main-grid">
     <label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><optgroup label="图形"><option value="horizontal">水平线</option><option value="trend">趋势线</option><option value="channel">平行通道</option><option value="rectangle">平台框</option><option value="fibonacci">斐波那契</option><option value="abc">ABC（手动选点）</option></optgroup><optgroup label="指标" id="workbenchIndicatorOptions" hidden disabled><option value="sma">SMA 均线</option><option value="ema">EMA 均线</option><option value="boll">BOLL 价带</option></optgroup></select></label><span id="workbenchIndicatorTitle" hidden></span>
@@ -1479,6 +1500,9 @@ let lastAgentAnnotations = [];
 let lastAgentSeriesLines = [];
 let lastAgentPriceBands = [];
 let lastAgentPriceSticks = [];
+let lastAgentPricePatterns = [];
+let lastAgentNineCounts = [];
+const patternGroupRegistry = new Map();
 // Legacy sequence objects have no row hash; retain only hashes observed in this live tab.
 const legacySequenceRowHashes = new Map();
 let maVisible = true;
@@ -2037,6 +2061,8 @@ function rememberAnalysisCommands(payload) {
   lastAgentSeriesLines = [];
   lastAgentPriceBands = [];
   lastAgentPriceSticks = [];
+  lastAgentPricePatterns = [];
+  lastAgentNineCounts = [];
   for (const cmd of structured.chartCommands) {
     if (cmd.type === "TEXT_MARKER") lastMarks.push(cmd);
     if (cmd.type === "DRAW_TREND_LINE") lastLines.push(cmd);
@@ -2050,6 +2076,8 @@ function rememberAnalysisCommands(payload) {
     if (cmd.type === "DRAW_AGENT_SERIES_LINE") lastAgentSeriesLines.push(cmd);
     if (cmd.type === "DRAW_AGENT_PRICE_BAND") lastAgentPriceBands.push(cmd);
     if (cmd.type === "DRAW_AGENT_PRICE_STICKS") lastAgentPriceSticks.push(cmd);
+    if (cmd.type === "DRAW_AGENT_PRICE_PATTERN") lastAgentPricePatterns.push(cmd);
+    if (cmd.type === "DRAW_AGENT_NINE_COUNT") lastAgentNineCounts.push(cmd);
   }
 }
 
@@ -2472,7 +2500,8 @@ function captureChartContext(sourceSession) {
     const kinds = { DRAW_HORIZONTAL_LINE: "horizontal_line", DRAW_AGENT_TREND_LINE: "trend_line",
       DRAW_AGENT_CHANNEL: "channel", DRAW_AGENT_RECTANGLE: "rectangle", DRAW_AGENT_FIBONACCI: "fibonacci_retracement",
       DRAW_AGENT_POLYLINE: "labeled_polyline", DRAW_AGENT_ANNOTATION: "annotation", DRAW_AGENT_SERIES_LINE: "series_line",
-      DRAW_AGENT_PRICE_BAND: "price_band", DRAW_AGENT_PRICE_STICKS: "price_sticks" };
+      DRAW_AGENT_PRICE_BAND: "price_band", DRAW_AGENT_PRICE_STICKS: "price_sticks",
+      DRAW_AGENT_PRICE_PATTERN: "price_pattern", DRAW_AGENT_NINE_COUNT: "nine_count" };
     for (const [index, cmd] of (lastChartPayload?.chartCommands || []).entries()) {
       if (kinds[cmd.type]) {
         const item = { id: String(cmd.id), kind: kinds[cmd.type], origin: "ai", name: String(cmd.label || ""),
@@ -2481,6 +2510,10 @@ function captureChartContext(sourceSession) {
         else if (cmd.type === "DRAW_AGENT_SERIES_LINE") { item.series_hash = cmd.series_hash; item.bar_count = cmd.bar_count; }
         else if (cmd.type === "DRAW_AGENT_PRICE_BAND") { item.band_hash = cmd.band_hash; item.bar_count = cmd.bar_count; }
         else if (cmd.type === "DRAW_AGENT_PRICE_STICKS") { item.sticks_hash = cmd.sticks_hash; item.bar_count = cmd.bar_count; }
+        else if (cmd.type === "DRAW_AGENT_PRICE_PATTERN" || cmd.type === "DRAW_AGENT_NINE_COUNT") {
+          item.geometry_hash = cmd.geometry_hash; item.bar_count = cmd.bar_count;
+          item.rule_version = cmd.rule_version; item.as_of = cmd.as_of;
+        }
         else if (cmd.type === "DRAW_AGENT_POLYLINE") item.points = cmd.points;
         else if (cmd.type === "DRAW_AGENT_ANNOTATION") { item.kind = cmd.kind; item.time = cmd.time; item.price = cmd.price;
           if (cmd.kind === "text_annotation") item.text = cmd.text; else if (cmd.kind === "number_annotation") item.value = cmd.value; else item.icon = cmd.icon; }
@@ -4471,6 +4504,56 @@ function registerOverlays() {
       },
     });
     window.klinecharts.registerOverlay({
+      name: "ftvPatternGroup", totalStep: 1,
+      needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+      createPointFigures: ({ overlay, coordinates, bounding }) => {
+        const ex = overlay?.extendData || {}, color = colorFor(ex.colorName || "info");
+        if (!coordinates?.length) return [];
+        const figures = [];
+        if (ex.groupKind === "nine_count") {
+          for (let i = 0; i < coordinates.length; i++) {
+            const p = coordinates[i], mark = ex.marks?.[i];
+            if (!mark || p.x < -12 || p.x > (bounding?.width || Infinity) + 12) continue;
+            figures.push({ type: "text", ignoreEvent: true,
+              attrs: { x: p.x, y: p.y + (mark.direction === "up" ? 10 : -10), text: String(mark.count),
+                align: "center", baseline: mark.direction === "up" ? "top" : "bottom" },
+              styles: { color: "#ffffff", backgroundColor: color, size: mark.count === 9 ? 12 : 10,
+                paddingLeft: 3, paddingRight: 3, paddingTop: 1, paddingBottom: 1, borderRadius: 2 } });
+          }
+          return figures;
+        }
+        if (ex.platform) {
+          if (coordinates.length !== 2) return [];
+          const a = coordinates[0], b = coordinates[1];
+          figures.push({ type: "rect", attrs: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+              width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) },
+            styles: { style: "stroke_fill", color: `${color}12`, borderColor: color, borderSize: 1.6,
+              borderStyle: "solid" } });
+        } else {
+          const anchors = ex.anchorCount || 0;
+          for (let i = 1; i < anchors; i++) figures.push({ type: "line", ignoreEvent: true,
+            attrs: { coordinates: [coordinates[i - 1], coordinates[i]] },
+            styles: { color, size: 1.8 } });
+          if (coordinates.length >= anchors + 2) figures.push({ type: "line", ignoreEvent: true,
+            attrs: { coordinates: [coordinates[anchors], coordinates[anchors + 1]] },
+            styles: { color, size: 1.5, style: "dashed", dashedValue: [4, 3] } });
+          for (let i = 0; i < anchors; i++) {
+            const p = coordinates[i], label = ex.anchorLabels?.[i] || String(i + 1);
+            figures.push({ type: "text", ignoreEvent: true,
+              attrs: { x: p.x, y: p.y - 16, text: label, align: "center", baseline: "bottom" },
+              styles: { color: "#ffffff", backgroundColor: color, size: 10,
+                paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2, borderRadius: 2 } });
+          }
+        }
+        if (ex.status && coordinates[0]) figures.push({ type: "text", ignoreEvent: true,
+          attrs: { x: coordinates[0].x + 8, y: coordinates[0].y + 12,
+            text: `${ex.label || "价格形态"} · ${ex.status}`, align: "left", baseline: "top" },
+          styles: { color: "#ffffff", backgroundColor: color, size: 10,
+            paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2, borderRadius: 2 } });
+        return figures;
+      },
+    });
+    window.klinecharts.registerOverlay({
       name: "ftvAgentFibonacci",
       totalStep: 3,
       needDefaultPointFigure: false,
@@ -6058,6 +6141,185 @@ async function workbenchApplyProposal(proposal) {
   }
   throw new Error(`应用仍待确认（${candidate}）；请等待网页状态更新，勿重复创建。`);
 }
+const patternState = { mode: "price", analysis: null, selected: null, selectedId: null, busy: false };
+const PATTERN_NAMES = { double_top: "双顶", double_bottom: "双底", head_shoulders_top: "头肩顶",
+  head_shoulders_bottom: "头肩底", platform: "平台" };
+const PATTERN_STATUS = { candidate: "候选", pending_confirmation: "待确认", price_confirmed: "价格突破已确认",
+  structurally_invalid: "结构失效", breakout_failed: "突破失效", expired: "候选过期",
+  pending_cancelled: "待确认取消", followup_complete: "观察期结束" };
+const PATTERN_EXPLANATIONS = { candidate: "结构已知，尚未连续两日越界", pending_confirmation: "首日收盘越界，等待第二日",
+  price_confirmed: "连续两根已收盘日线越界", structurally_invalid: "确认前越过外侧极值",
+  breakout_failed: "确认后两日回到边界内侧", expired: "60 根内未确认" };
+const PATTERN_REASONS = { atr_unavailable: "ATR 历史不足", insufficient_prior_trend: "前置历史不足",
+  prior_trend_below_2_atr: "前置趋势不足 2 ATR", double_geometry_rejected: "双顶／底间距、深度或等高条件不符",
+  head_shoulders_geometry_rejected: "头肩间距、高度、对称或颈线条件不符" };
+const PATTERN_NOTES = { rule_based_geometry_not_trading_forecast: "规则识别不预测收益",
+  left_boundary_run_censored_until_interruption: "左侧连续段可能被截断，已等待中断后重新计数",
+  known_gaps_segmented: "已知缺失区间已分段", market_unknown_current_day_excluded: "市场不明，已排除当日 K 线",
+  source_unknown_current_day_excluded: "来源不明，已排除当日 K 线",
+  date_semantics_uncertain_current_day_excluded: "当日日期口径不明，已排除该 K 线",
+  current_day_not_conservatively_closed: "当日尚未到保守收盘时点，已排除",
+  future_daily_bar_excluded: "已排除未来日期的 K 线" };
+function patternNote(value) { return PATTERN_NOTES[value] || value; }
+function patternMessage(message) { document.getElementById("patternStatus").textContent = message; }
+function patternDate(time, zone) {
+  if (!Number.isSafeInteger(time)) return "未知";
+  try { return new Intl.DateTimeFormat("zh-CN", { timeZone: zone || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(time * 1000); }
+  catch { return new Date(time * 1000).toISOString().slice(0, 10); }
+}
+function patternClearPreview(clearAnalysis = false) {
+  patternState.selected = null;
+  if (clearAnalysis) patternState.analysis = null;
+  document.getElementById("workbenchPreview")?.replaceChildren();
+  document.getElementById("patternSave").disabled = true;
+}
+function patternBindingValid() {
+  if (!patternState.analysis) return false;
+  try { return JSON.stringify(patternState.analysis.binding) === JSON.stringify(workbenchCurrentBinding()); }
+  catch { return false; }
+}
+function patternRenderPreview() {
+  const svg = document.getElementById("workbenchPreview"), chart = document.getElementById("klineChart");
+  svg.replaceChildren();
+  if (!chart || !patternState.selected || !patternBindingValid()) return;
+  svg.setAttribute("viewBox", `0 0 ${Math.max(1, chart.clientWidth)} ${Math.max(1, chart.clientHeight)}`);
+  const ns = "http://www.w3.org/2000/svg";
+  const add = (tag, attrs) => { const node = document.createElementNS(ns, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value)); svg.append(node); };
+  const line = (a, b) => { if (a && b) add("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); };
+  const selected = patternState.selected.value;
+  if (patternState.mode === "nine") {
+    for (const mark of selected.marks || []) {
+      const p = workbenchPixel(mark.time, mark.price); if (!p) continue;
+      add("circle", { cx: p.x, cy: p.y, r: mark.count === 9 ? 7 : 4 });
+    }
+  } else if (selected.type === "platform") {
+    const a = workbenchPixel(selected.box.start_time, selected.box.upper_price);
+    const b = workbenchPixel(selected.box.end_time, selected.box.lower_price);
+    if (a && b) add("rect", { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+      width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) });
+  } else {
+    const anchors = selected.anchors.map(a => workbenchPixel(a.time, a.price));
+    for (let i = 1; i < anchors.length; i++) line(anchors[i - 1], anchors[i]);
+    for (const p of anchors) if (p) add("circle", { cx: p.x, cy: p.y, r: 4 });
+    const neck = selected.neckline;
+    if (neck?.type === "horizontal") line(workbenchPixel(selected.anchors[0].time, neck.price),
+      workbenchPixel(selected.anchors.at(-1).time, neck.price));
+    else if (neck?.type === "sloped") line(workbenchPixel(neck.from.time, neck.from.price),
+      workbenchPixel(neck.to.time, neck.to.price));
+  }
+}
+function patternRenderSaved() {
+  const list = document.getElementById("patternSaved"); list.replaceChildren();
+  const commands = (lastChartPayload?.chartCommands || []).filter(c => ["DRAW_AGENT_PRICE_PATTERN", "DRAW_AGENT_NINE_COUNT"].includes(c.type)
+    && c.interval === currentInterval);
+  for (const cmd of commands) {
+    const button = document.createElement("button"); button.type = "button"; button.className = "btn";
+    button.classList.toggle("selected", cmd.id === patternState.selectedId);
+    button.textContent = `${cmd.label || (cmd.type === "DRAW_AGENT_NINE_COUNT" ? "九转计数" : PATTERN_NAMES[cmd.pattern?.type] || "价格形态")} · 截至 ${patternDate(cmd.as_of, exchangeTimezone)}`;
+    button.addEventListener("click", () => { patternState.selectedId = cmd.id;
+      document.getElementById("patternName").value = cmd.label || "";
+      document.getElementById("patternColor").value = cmd.color || "info";
+      patternRenderSaved(); patternMessage("已选择保存快照。重新分析并选择结果后可更新；也可直接改名、改色或删除。"); });
+    list.append(button);
+  }
+  document.getElementById("patternStyle").disabled = !commands.some(c => c.id === patternState.selectedId);
+  document.getElementById("patternDelete").disabled = !commands.some(c => c.id === patternState.selectedId);
+  document.getElementById("patternSave").textContent = patternState.selectedId ? "确认更新快照" : "确认保存";
+}
+function patternRenderResults() {
+  const list = document.getElementById("patternResult"); list.replaceChildren();
+  const analysis = patternState.analysis;
+  if (!analysis) return;
+  const summary = analysis.summary, zone = summary.data_quality?.timezone;
+  document.getElementById("patternScope").textContent = `${analysis.binding.symbol} · ${summary.data_quality?.market || "市场待确认"} · 截至 ${patternDate(summary.as_of, zone)} · ${summary.rule_version} · 仅已收盘日线`;
+  const note = document.createElement("span"); note.className = "muted";
+  note.textContent = `数据说明：${(summary.data_quality?.quality || []).map(patternNote).join("、") || "无额外排除"}${summary.truncated ? "；结果已截断" : ""}${summary.limitations?.length ? `；${summary.limitations.map(patternNote).join("、")}` : ""}`;
+  list.append(note);
+  if (patternState.mode === "nine") {
+    const button = document.createElement("button"); button.type = "button"; button.className = "btn";
+    button.textContent = `预览九转 · ${summary.marks?.length || 0} 个数字 · ${summary.events?.length || 0} 次完成`;
+    button.addEventListener("click", () => { patternState.selected = { value: summary, number: null };
+      patternRenderPreview(); document.getElementById("patternSave").disabled = !(summary.marks?.length > 0);
+      patternMessage("已预览所有逐根计数；9 之后同方向不再重复标数。请核对后确认保存。"); });
+    list.append(button);
+  } else {
+    for (const [index, candidate] of (summary.candidates || []).entries()) {
+      const button = document.createElement("button"); button.type = "button"; button.className = "btn";
+      const anchors = candidate.anchors?.map(a => patternDate(a.time, zone)).join(" / ") ||
+        `${patternDate(candidate.box?.start_time, zone)}–${patternDate(candidate.box?.end_time, zone)}`;
+      button.textContent = `${index + 1}. ${PATTERN_NAMES[candidate.type]} · ${PATTERN_STATUS[candidate.status]} · ${anchors} · 首次可知 ${patternDate(candidate.available_at, zone)}${candidate.confirmed_at ? ` · 确认 ${patternDate(candidate.confirmed_at, zone)}` : ""}`;
+      button.addEventListener("click", () => { patternState.selected = { value: candidate, number: index + 1 };
+        patternRenderPreview(); document.getElementById("patternSave").disabled = false;
+        const evidence = candidate.volume_evidence?.status === "known"
+          ? `量能：确认日为前20根均量的 ${candidate.volume_evidence.relative_to_preceding_20.toFixed(2)} 倍（${candidate.volume_evidence.unit}）`
+          : "量能：未知，未参与价格确认";
+        const events = (candidate.events || []).map(e => `${PATTERN_STATUS[e.type] || e.type} ${patternDate(e.time, zone)}`).join("；");
+        patternMessage(`候选 ${index + 1}。价格状态：${PATTERN_STATUS[candidate.status] || candidate.status}（${PATTERN_EXPLANATIONS[candidate.status] || "按标准规则 v1"}）。${evidence}。状态记录：${events || "无"}。确认保存才会修改图表。`); });
+      list.append(button);
+    }
+    const reasons = Object.entries(summary.rejected_reasons || {}).filter(([, n]) => n).map(([key, n]) => `${PATTERN_REASONS[key] || key} ${n}`);
+    if (reasons.length || !summary.candidates?.length) {
+      const footer = document.createElement("span"); footer.className = "muted";
+      footer.textContent = `未通过条件：${reasons.join("、") || "当前观察范围无符合规则的候选"}`; list.append(footer);
+    }
+  }
+}
+async function patternAnalyze() {
+  if (patternState.busy) return;
+  patternState.busy = true; patternClearPreview(true); patternRenderResults();
+  try {
+    const binding = workbenchCurrentBinding(), bars = Number(document.getElementById("patternBars").value);
+    const nine = patternState.mode === "nine";
+    if (!Number.isInteger(bars) || bars < (nine ? 30 : 60) || bars > (nine ? 240 : 300)) throw new Error("观察范围超出允许根数。");
+    const filter = document.getElementById("patternTypeFilter").value;
+    patternMessage("正在分析当前已加载的已收盘日线…");
+    const result = await workbenchTool("workbench_run_chart_function", { ...binding,
+      function: nine ? "nine_count" : "price_pattern_candidates",
+      parameters: nine ? { display_bars: bars } : { lookback_bars: bars, max_candidates: 5,
+        ...(filter !== "all" ? { pattern_types: [filter] } : {}) } });
+    if (JSON.stringify(binding) !== JSON.stringify(workbenchCurrentBinding())) throw new Error("分析期间图表已变化，请重新分析。");
+    patternState.analysis = { binding, ref: result.result_ref, summary: result.summary, mode: patternState.mode };
+    patternRenderResults(); patternMessage(nine ? "请选择预览计数。" : "请选择候选预览；分析本身不会修改图表。");
+  } catch (error) { patternMessage(String(error?.message || error)); }
+  finally { patternState.busy = false; }
+}
+async function patternApply(action) {
+  if (patternState.busy) return;
+  patternState.busy = true;
+  try {
+    const binding = workbenchCurrentBinding(), command = (lastChartPayload?.chartCommands || []).find(c => c.id === patternState.selectedId);
+    const kind = action === "save" ? patternState.mode === "nine" ? "nine_count" : "price_pattern"
+      : command?.type === "DRAW_AGENT_NINE_COUNT" ? "nine_count" : "price_pattern";
+    if (action !== "save" && !command) throw new Error("所选快照已变化，请重新选择。");
+    if (action === "save" && (!patternState.selected || !patternBindingValid() || patternState.analysis.mode !== patternState.mode))
+      throw new Error("分析或预览已过期，请重新分析并选择。");
+    if (action === "save" && command && command.type !== (kind === "nine_count" ? "DRAW_AGENT_NINE_COUNT" : "DRAW_AGENT_PRICE_PATTERN"))
+      throw new Error("所选快照类型与分析不一致，请重新选择。");
+    const edit = { kind, action: action === "save" ? command ? "update" : "create" : action,
+      ...(command ? { object_id: command.id } : {}),
+      ...(action !== "delete" ? { name: document.getElementById("patternName").value.trim(),
+        color: document.getElementById("patternColor").value } : {}),
+      ...(action === "save" ? kind === "nine_count" ? { result_ref: patternState.analysis.ref }
+        : { candidate_result_ref: patternState.analysis.ref, candidate_number: patternState.selected.number,
+          user_confirmed_candidate: true } : {}) };
+    patternMessage("正在准备、应用并核对回执…");
+    const { prepared, status } = await workbenchApplyProposal({ binding, edit });
+    patternState.selectedId = action === "delete" ? null : prepared.object?.id || patternState.selectedId;
+    patternClearPreview(true); patternRenderResults(); patternRenderSaved();
+    patternMessage(`应用回执：${status.apply_status}。${action === "delete" ? "对象已删除。" : "快照已保存；行情更新后需重新分析才会替换。"}`);
+  } catch (error) { patternMessage(String(error?.message || error)); }
+  finally { patternState.busy = false; }
+}
+function patternSetMode(mode) {
+  patternState.mode = mode; patternClearPreview(true);
+  const bars = document.getElementById("patternBars"); bars.min = mode === "nine" ? "30" : "60";
+  bars.max = mode === "nine" ? "240" : "300"; bars.value = mode === "nine" ? "120" : "240";
+  document.getElementById("patternTypeField").hidden = mode === "nine";
+  document.getElementById("patternPriceTab").classList.toggle("selected", mode === "price");
+  document.getElementById("patternNineTab").classList.toggle("selected", mode === "nine");
+  patternRenderResults(); patternRenderSaved(); patternMessage("");
+}
 async function workbenchConfirm() {
   if (workbenchState.busy) return;
   workbenchState.busy = true;
@@ -6137,6 +6399,10 @@ function renderDrawingWorkbench() {
   document.querySelector(".workbench-legacy").hidden = activeUserDrawings().length === 0;
   document.getElementById("workbenchUpdate").hidden = !workbenchState.selectedId;
   document.getElementById("workbenchDelete").hidden = !workbenchState.selectedId;
+  if (patternState.analysis && !patternBindingValid()) {
+    patternClearPreview(true); patternRenderResults(); patternMessage("图表数据或来源已变化，请重新分析。");
+  }
+  patternRenderSaved();
 }
 function selectWorkbenchObject(id) {
   const object = workbenchManagedObjects().find(item => item.id === id);
@@ -6496,6 +6762,7 @@ function clearBackendIndicators() {
   agentBandRegistry.clear();
   activeAgentStickIndicators.clear();
   agentStickRegistry.clear();
+  patternGroupRegistry.clear();
 }
 
 /* ---------- apply chartCommands ---------- */
@@ -7077,6 +7344,58 @@ function drawAgentPriceStickCommands(commands, strict = false) {
   kchart.__dshPriceSticksRegistry = agentStickRegistry;
 }
 
+function drawAgentPatternGroupCommands(commands, strict = false) {
+  if (!kchart) return;
+  kchart.removeOverlay({ groupId: "agentPatternGroups" });
+  patternGroupRegistry.clear();
+  const times = new Set(currentCandles.map(row => Number(row.time)));
+  const groups = (commands || []).filter(cmd => ["DRAW_AGENT_PRICE_PATTERN", "DRAW_AGENT_NINE_COUNT"].includes(cmd?.type));
+  if (groups.filter(cmd => cmd.type === "DRAW_AGENT_PRICE_PATTERN").length > 20
+    || groups.filter(cmd => cmd.type === "DRAW_AGENT_NINE_COUNT").length > 1) {
+    if (strict) throw new Error("形态与九转对象数量超限");
+    return;
+  }
+  for (const cmd of groups) {
+    if (cmd.interval !== currentInterval) continue;
+    let points = [], ex = { label: cmd.label || "", colorName: cmd.color || "info" };
+    if (cmd.type === "DRAW_AGENT_NINE_COUNT") {
+      const marks = cmd.marks || [];
+      if (!Array.isArray(marks) || marks.length > 240 || marks.some(m => !times.has(m.time) || !Number.isFinite(m.price))) continue;
+      points = marks.map(m => ({ timestamp: Number(m.time) * 1000, value: Number(m.price) }));
+      ex = { ...ex, groupKind: "nine_count", marks };
+    } else {
+      const p = cmd.pattern;
+      if (!p || !Array.isArray(p.anchors) || p.anchors.some(a => !times.has(a.time))) continue;
+      if (p.type === "platform") {
+        if (!times.has(p.box?.start_time) || !times.has(p.box?.end_time)) continue;
+        points = [{ timestamp: p.box.start_time * 1000, value: p.box.upper_price },
+          { timestamp: p.box.end_time * 1000, value: p.box.lower_price }];
+        ex = { ...ex, platform: true };
+      } else {
+        const anchors = p.anchors;
+        points = anchors.map(a => ({ timestamp: a.time * 1000, value: a.price }));
+        if (p.neckline?.type === "horizontal") points.push(
+          { timestamp: anchors[0].time * 1000, value: p.neckline.price },
+          { timestamp: anchors.at(-1).time * 1000, value: p.neckline.price });
+        else if (p.neckline?.type === "sloped") points.push(
+          { timestamp: p.neckline.from.time * 1000, value: p.neckline.from.price },
+          { timestamp: p.neckline.to.time * 1000, value: p.neckline.to.price });
+        ex = { ...ex, anchorCount: anchors.length,
+          anchorLabels: anchors.length === 5 ? ["左肩", "颈1", "头", "颈2", "右肩"] : ["1", "颈", "2"] };
+      }
+      ex.status = ({ candidate: "候选", pending_confirmation: "待确认", price_confirmed: "价格突破已确认",
+        structurally_invalid: "结构失效", breakout_failed: "突破失效", expired: "候选过期" })[p.status] || "";
+    }
+    if (!points.length || !/^[a-f0-9]{64}$/.test(cmd.geometry_hash)) { if (strict) throw new Error("组对象几何无效"); continue; }
+    const created = kchart.createOverlay({ name: "ftvPatternGroup", id: cmd.id,
+      groupId: "agentPatternGroups", paneId: "candle_pane", lock: true,
+      onRightClick: event => { event.preventDefault(); return true; }, points, extendData: ex });
+    if (strict && !created) throw new Error("组对象绘制失败");
+    if (created) patternGroupRegistry.set(cmd.id, cmd.geometry_hash);
+  }
+  kchart.__dshPatternGroupRegistry = patternGroupRegistry;
+}
+
 let pendingLiveDrawingPayload = null;
 let pendingLiveSource = null;
 let liveSourceStatus = null;
@@ -7166,7 +7485,7 @@ function confirmLiveChartSource(token,confirmed) {
   pendingLiveSource=null;
 }
 function applyLiveDrawingCommands(candidate, token) {
-  const ai = new Set(["DRAW_HORIZONTAL_LINE", "DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_RECTANGLE", "DRAW_AGENT_FIBONACCI", "DRAW_AGENT_POLYLINE", "DRAW_AGENT_ANNOTATION", "DRAW_AGENT_SERIES_LINE", "DRAW_AGENT_PRICE_BAND", "DRAW_AGENT_PRICE_STICKS"]);
+  const ai = new Set(["DRAW_HORIZONTAL_LINE", "DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_RECTANGLE", "DRAW_AGENT_FIBONACCI", "DRAW_AGENT_POLYLINE", "DRAW_AGENT_ANNOTATION", "DRAW_AGENT_SERIES_LINE", "DRAW_AGENT_PRICE_BAND", "DRAW_AGENT_PRICE_STICKS", "DRAW_AGENT_PRICE_PATTERN", "DRAW_AGENT_NINE_COUNT"]);
   const previous = lastChartPayload;
   const redraw = (commands) => {
     drawAgentRectangleCommands(commands, true);
@@ -7179,6 +7498,7 @@ function applyLiveDrawingCommands(candidate, token) {
     drawAgentSeriesLineCommands(commands, true);
     drawAgentPriceBandCommands(commands, true);
     drawAgentPriceStickCommands(commands, true);
+    drawAgentPatternGroupCommands(commands, true);
   };
   if (!kchart || !previous || openingSymbol || candidate.symbol !== currentSymbol
     || !Array.isArray(candidate.chartCommands) || candidate.chartCommands.some(c => !ai.has(c.type))) {
@@ -7363,6 +7683,7 @@ async function applyChartCommands(payload) {
   drawAgentSeriesLineCommands(cmds);
   drawAgentPriceBandCommands(cmds);
   drawAgentPriceStickCommands(cmds);
+  drawAgentPatternGroupCommands(cmds);
   recalcChartHeight();
   applyPaneLayouts();
   // Always show the latest values immediately after a chart render. The
@@ -7988,6 +8309,8 @@ function buildLocalChartPayload(rows, overrides = {}, indicatorResult = {}) {
       ...lastAgentSeriesLines.filter(sequenceForView),
       ...lastAgentPriceBands.filter(sequenceForView),
       ...lastAgentPriceSticks.filter(sequenceForView),
+      ...lastAgentPricePatterns,
+      ...lastAgentNineCounts,
     ],
   };
 }
@@ -10017,6 +10340,8 @@ async function openSymbol(symbol, name, options = {}) {
       lastAgentSeriesLines = [];
       lastAgentPriceBands = [];
       lastAgentPriceSticks = [];
+      lastAgentPricePatterns = [];
+      lastAgentNineCounts = [];
     }
     await renderCurrentViewLocally({ fitToData: true });
     clearDataFetchError();
@@ -10675,6 +11000,8 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
 document.getElementById("drawingWorkbenchToggle").addEventListener("click", () => {
   const panel = document.getElementById("drawingWorkbench"), open = !panel.classList.contains("open") || workbenchState.mode !== "drawing";
   workbenchState.mode = "drawing";
+  panel.classList.remove("patterns-mode"); document.getElementById("patternWorkbench").hidden = true;
+  document.getElementById("patternWorkbenchToggle").setAttribute("aria-expanded", "false");
   document.getElementById("workbenchIndicatorOptions").disabled = true;
   document.getElementById("workbenchTypeField").hidden = false;
   document.getElementById("workbenchIndicatorTitle").hidden = true;
@@ -10687,6 +11014,26 @@ document.getElementById("drawingWorkbenchToggle").addEventListener("click", () =
     setDrawingCaptureActive(false); workbenchInvalidate(); renderWorkbenchAnchors();
     workbenchStatus("");
   }
+});
+document.getElementById("patternWorkbenchToggle").addEventListener("click", () => {
+  const panel = document.getElementById("drawingWorkbench"), open = !panel.classList.contains("open") || workbenchState.mode !== "patterns";
+  workbenchState.mode = "patterns"; panel.classList.toggle("open", open);
+  panel.classList.toggle("patterns-mode", open); document.getElementById("patternWorkbench").hidden = !open;
+  document.getElementById("patternWorkbenchToggle").setAttribute("aria-expanded", String(open));
+  document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", "false");
+  workbenchState.picking = false; setDrawingCaptureActive(false); workbenchInvalidate(false);
+  if (open) { patternRenderSaved(); patternMessage("按需分析当前图；保存前先选择并预览。") }
+  else patternClearPreview();
+});
+document.getElementById("patternPriceTab").addEventListener("click", () => patternSetMode("price"));
+document.getElementById("patternNineTab").addEventListener("click", () => patternSetMode("nine"));
+document.getElementById("patternAnalyze").addEventListener("click", () => { void patternAnalyze(); });
+document.getElementById("patternSave").addEventListener("click", () => { void patternApply("save"); });
+document.getElementById("patternStyle").addEventListener("click", () => { void patternApply("update"); });
+document.getElementById("patternDelete").addEventListener("click", () => { void patternApply("delete"); });
+document.getElementById("patternCancel").addEventListener("click", () => { patternClearPreview(); patternMessage("预览已取消，图表未改变。"); });
+for (const id of ["patternBars", "patternTypeFilter"]) document.getElementById(id).addEventListener("input", () => {
+  patternClearPreview(true); patternRenderResults(); patternMessage("参数已变，请重新分析。");
 });
 document.querySelectorAll("[data-workbench-indicator]").forEach(button => button.addEventListener("click", () => {
   workbenchState.mode = "indicator";

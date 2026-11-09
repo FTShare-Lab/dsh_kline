@@ -16,7 +16,7 @@ function fixture() {
     sourceCandles:rows,sourceCandleInterval:'minute',sourceCandleIntervalValue:null,localChartDataMeta:{source:'ftshare'},lastChartPayload:null,
     legacySequenceRowHashes:new Map(),
     sourceRowsForCurrentInterval:()=>c.sourceCandles,cropRowsForRange:(value:any)=>value,buildLocalIndicatorCommands:()=>[],activeIndicators:()=>['vol'],
-    indicatorStateVersion:1,INDICATOR_HISTORY_BUFFER_DAYS:0,lastLines:[],lastMarks:[],lastHorizontalLines:[],lastAgentTrendLines:[],lastAgentChannels:[],lastAgentRectangles:[],lastAgentFibonacci:[],lastAgentPolylines:[],lastAgentAnnotations:[],lastAgentSeriesLines:[],lastAgentPriceBands:[],lastAgentPriceSticks:[],
+    indicatorStateVersion:1,INDICATOR_HISTORY_BUFFER_DAYS:0,lastLines:[],lastMarks:[],lastHorizontalLines:[],lastAgentTrendLines:[],lastAgentChannels:[],lastAgentRectangles:[],lastAgentFibonacci:[],lastAgentPolylines:[],lastAgentAnnotations:[],lastAgentSeriesLines:[],lastAgentPriceBands:[],lastAgentPriceSticks:[],lastAgentPricePatterns:[],lastAgentNineCounts:[],
     activeSecurityTab:'chart',currentCandles:rows,openingSymbol:false,kchart:{getVisibleRange:()=>({from:0,to:2})},
     userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,maVisible:false,vwapVisible:false,volVisible:true,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,chartDataStatus:'delayed',volumeUnit:'wan',exchangeTimezone:'Asia/Shanghai',
     workspaceTabs:[],activeWorkspaceTabId:'',workspaceTabId:(p:any)=>p.symbol,renderWorkspaceTabs(){},saveWorkspacePreferences(){},

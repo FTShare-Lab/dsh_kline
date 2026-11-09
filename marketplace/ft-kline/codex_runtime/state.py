@@ -27,6 +27,7 @@ from tools.polylines import POLYLINE_COMMAND, LabeledPoint, edit_polyline
 from tools.price_bands import BAND_COMMAND, edit_price_band
 from tools.price_series import SERIES_COMMAND, edit_price_series
 from tools.price_sticks import STICKS_COMMAND, edit_price_sticks
+from tools.pattern_groups import PATTERN_COMMAND, NINE_COMMAND, edit_pattern_group
 from tools.rectangles import RECTANGLE_COMMAND, edit_rectangle
 from tools.trend_lines import TREND_COMMAND, edit_trend_line
 
@@ -39,7 +40,7 @@ MAX_STATES = 16
 class CodexChartEdit(BaseModel):
     """The same public guarded-edit fields as DSH, without DSH transport state."""
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "all_drawings"]
+    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings"]
     action: Literal["create", "update", "delete"]
     object_id: str | None = Field(default=None, min_length=1, max_length=128)
     name: str | None = Field(default=None, max_length=48)
@@ -74,12 +75,13 @@ class CodexChartEdit(BaseModel):
 
 _EDITABLE_COMMANDS = {LINE_COMMAND, TREND_COMMAND, CHANNEL_COMMAND, RECTANGLE_COMMAND,
                       FIBONACCI_COMMAND, POLYLINE_COMMAND, ANNOTATION_COMMAND,
-                      SERIES_COMMAND, BAND_COMMAND, STICKS_COMMAND}
+                      SERIES_COMMAND, BAND_COMMAND, STICKS_COMMAND, PATTERN_COMMAND, NINE_COMMAND}
 _KIND_COMMAND = {
     "horizontal_line": LINE_COMMAND, "trend_line": TREND_COMMAND, "channel": CHANNEL_COMMAND,
     "rectangle": RECTANGLE_COMMAND, "fibonacci_retracement": FIBONACCI_COMMAND,
     "labeled_polyline": POLYLINE_COMMAND, "series_line": SERIES_COMMAND,
     "price_band": BAND_COMMAND, "price_sticks": STICKS_COMMAND,
+    "price_pattern": PATTERN_COMMAND, "nine_count": NINE_COMMAND,
 }
 
 
@@ -111,6 +113,8 @@ def _inventory(payload: dict[str, Any]) -> list[dict[str, Any]]:
         elif kind in {"series_line", "price_band", "price_sticks"}:
             digest = {"series_line": "series_hash", "price_band": "band_hash", "price_sticks": "sticks_hash"}[kind]
             item.update({"bar_count": command.get("bar_count"), digest: command.get(digest)})
+        elif kind in {"price_pattern", "nine_count"}:
+            item.update({key: command.get(key) for key in ("geometry_hash", "bar_count", "rule_version", "as_of")})
         elif kind in ANNOTATION_KINDS:
             item.update({key: command.get(key) for key in ("time", "price", "text", "value", "icon") if key in command})
         else:
@@ -137,7 +141,7 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
         "text_annotation": {"anchor_time", "anchor_price", "annotation_text"},
         "number_annotation": {"anchor_time", "anchor_price", "annotation_value"},
         "icon_annotation": {"anchor_time", "anchor_price", "annotation_icon"},
-        "series_line": set(), "price_band": set(), "price_sticks": set(), "all_drawings": set(),
+        "series_line": set(), "price_band": set(), "price_sticks": set(), "price_pattern": set(), "nine_count": set(), "all_drawings": set(),
     }[edit.kind]
     if fields.keys() - allowed or (edit.action == "delete" and fields):
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填写对象标识。")
@@ -146,7 +150,7 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
     if edit.kind != "all_drawings" and ((edit.action == "create") != (edit.object_id is None)):
         raise LineError("invalid_object_identity", "创建不指定 object_id；修改或删除必须使用当前图的稳定对象 ID。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action != "create" or edit.kind not in {"channel", "rectangle"}
+    if fields.keys() & candidate_fields and (edit.action not in ({"create", "update"} if edit.kind == "price_pattern" else {"create"}) or edit.kind not in {"channel", "rectangle", "price_pattern"}
             or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
             or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
         raise LineError(
@@ -383,7 +387,7 @@ class CodexChartStore:
         number = params.pop("candidate_number", None)
         params.pop("user_confirmed_candidate", None)
         if candidate_ref:
-            candidates = self.result(state, candidate_ref, "channel_candidates" if edit.kind == "channel" else "range_candidates").get("candidates")
+            candidates = self.result(state, candidate_ref, "channel_candidates" if edit.kind == "channel" else "range_candidates" if edit.kind == "rectangle" else "price_pattern_candidates").get("candidates")
             if not isinstance(candidates, list) or not isinstance(number, int) or not 1 <= number <= len(candidates):
                 raise LineError("candidate_not_found", "所选候选不存在或不属于当前图。")
             selected = candidates[number - 1]
@@ -395,12 +399,14 @@ class CodexChartStore:
                                    "parallel_time": str(anchors["parallel"]["time"]), "parallel_price": anchors["parallel"]["price"]})
                 except (TypeError, KeyError):
                     raise LineError("candidate_result_invalid", "通道候选锚点不完整。") from None
-            else:
+            elif edit.kind == "rectangle":
                 try:
                     params.update({"start_time": str(selected["start_time"]), "end_time": str(selected["end_time"]),
                                    "lower_price": selected["lower_price"], "upper_price": selected["upper_price"]})
                 except (TypeError, KeyError):
                     raise LineError("candidate_result_invalid", "平台候选边界不完整。") from None
+            else:
+                params.update({"pattern": deepcopy(selected), "rule_version": "price_patterns_v1", "as_of": selected["as_of"]})
         return params
 
     def _edit_payload(self, payload: dict[str, Any], edit: CodexChartEdit, params: dict[str, Any], request_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -416,6 +422,7 @@ class CodexChartStore:
                        "rectangle": "rectangle_id", "fibonacci_retracement": "fibonacci_id",
                        "labeled_polyline": "polyline_id", "series_line": "series_id", "price_band": "band_id",
                        "price_sticks": "sticks_id", "text_annotation": "annotation_id",
+                       "price_pattern": "group_id", "nine_count": "group_id",
                        "number_annotation": "annotation_id", "icon_annotation": "annotation_id"}[edit.kind]
         if edit.object_id is not None: arguments[argument_id] = edit.object_id
         if edit.action == "create": arguments["request_id"] = request_id
@@ -433,6 +440,8 @@ class CodexChartStore:
             return edit_annotation(payload, edit.action, **arguments)
         if edit.kind == "series_line": return edit_price_series(payload, edit.action, **arguments)
         if edit.kind == "price_band": return edit_price_band(payload, edit.action, **arguments)
+        if edit.kind in {"price_pattern", "nine_count"}:
+            return edit_pattern_group(payload, edit.action, kind=edit.kind, **arguments)
         return edit_price_sticks(payload, edit.action, **arguments)
 
     def prepare(self, context_ref: str, expected_revision: int, chart_session: str, symbol: str,

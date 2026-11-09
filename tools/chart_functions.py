@@ -24,6 +24,8 @@ from tools.polylines import LabeledPoint, POLYLINE_COMMAND, edit_polyline
 from tools.pivots import confirmed_pivots
 from tools.channel_candidates import channel_candidates
 from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
+from tools.price_patterns import TYPES as PATTERN_TYPES, price_pattern_candidates
+from tools.nine_count import nine_count
 from tools.regression_channels import regression_channel
 from tools.price_series import PriceCondition, PriceSource, SERIES_COMMAND, calculate_price_series, edit_price_series
 from tools.annotations import edit_annotation, _validate_content
@@ -31,9 +33,9 @@ from tools.price_bands import BAND_COMMAND, calculate_price_band, edit_price_ban
 from tools.price_sticks import STICKS_COMMAND, calculate_price_sticks, edit_price_sticks
 from tools.trend_lines import resolve_anchor_time
 
-FunctionName = Literal["fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "pivot_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_series_line", "conditional_annotation", "price_band", "price_sticks"]
+FunctionName = Literal["fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "pivot_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "conditional_annotation", "price_band", "price_sticks"]
 VERSION = "1"
-ANALYSIS_ONLY = {"pivot_candidates", "regression_channel", "channel_candidates", "range_candidates"}
+ANALYSIS_ONLY = {"pivot_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count"}
 
 
 def _version(function):
@@ -53,6 +55,8 @@ FUNCTIONS = {
     "channel_candidates": ("channel_candidates", None, (),
         ("direction", "scope", "lookback_bars", "left_bars", "right_bars", "min_span_bars", "max_candidates")),
     "range_candidates": ("range_candidates", None, (), ("window_sizes", "max_candidates")),
+    "price_pattern_candidates": ("price_pattern_candidates", None, (), ("pattern_types", "lookback_bars", "max_candidates")),
+    "nine_count": ("nine_count", None, (), ("display_bars",)),
     "price_series_line": ("series_line", edit_price_series, ("value_source",), ("condition",)),
     "conditional_annotation": ("annotation_kind_parameter", edit_annotation,
         ("annotation_kind", "anchor_source", "condition"), ("annotation_text", "annotation_value", "annotation_icon")),
@@ -88,6 +92,8 @@ class ChartFunctionParameters(BaseModel):
     max_candidates: int | None = Field(default=None, strict=True, ge=1, le=5, description="最多返回候选数；默认3")
     window_sizes: list[Annotated[int, Field(strict=True, ge=16, le=120)]] | None = Field(
         default=None, min_length=1, max_length=8, description="平台候选窗口根数；默认20、30、40、60；不得重复")
+    pattern_types: list[Literal["double_top", "double_bottom", "head_shoulders_top", "head_shoulders_bottom", "platform"]] | None = Field(default=None, min_length=1, max_length=5)
+    display_bars: int | None = Field(default=None, strict=True, ge=30, le=240)
     value_source: PriceSource | None = Field(default=None, description="序列线取值：OHLC、SMA 或 EMA(close, 2至200根)")
     condition: PriceCondition | None = Field(default=None, description="可选价格条件；不接受宿主传入行情数组或代码")
     anchor_source: PriceSource | None = Field(default=None, description="条件标注所用价格锚点，取最新一根满足条件的已加载K线")
@@ -114,6 +120,8 @@ def list_functions():
                       {"direction": "both", "scope": "current", "lookback_bars": 120, "left_bars": 2, "right_bars": 2,
                        "min_span_bars": 12, "max_candidates": 3} if name == "channel_candidates" else
                       {"window_sizes": list(DEFAULT_WINDOW_SIZES), "max_candidates": 3} if name == "range_candidates" else
+                      {"pattern_types": list(PATTERN_TYPES), "lookback_bars": 240, "max_candidates": 5} if name == "price_pattern_candidates" else
+                      {"display_bars": 120} if name == "nine_count" else
                       {"condition": None, "price_scale": "linear"} if name == "price_series_line" else
                       {"selection": "latest_match", "price_scale": "linear"} if name == "conditional_annotation" else
                       {"condition": None, "price_scale": "linear"} if name in {"price_band", "price_sticks"} else
@@ -145,6 +153,15 @@ def list_functions():
                         "checks_full_and_recent_close_drift": True,
                         "automatic_anchor_selection": "candidates_only_not_drawing",
                         "requires_human_review": True} if name == "range_candidates" else
+                       {"market": ["CN", "HK", "US"], "interval": "single_daily_only",
+                        "lookback_bars": [60, 300], "candidate_limit": [1, 5],
+                        "pivot_window": [2, 2], "atr_period": 14, "breakout_buffer_atr": 0.25,
+                        "confirmation": "two_consecutive_closed_daily_closes",
+                        "requires_human_review": True} if name == "price_pattern_candidates" else
+                       {"market": ["CN", "HK", "US"], "interval": "single_daily_only",
+                        "display_bars": [30, 240], "comparison_lag": 4,
+                        "completed_count": 9, "repeat_while_same_direction": False,
+                        "requires_human_review": True} if name == "nine_count" else
                        {"maximum_series_objects": 8, "value_sources": ["open", "high", "low", "close", "sma_close", "ema_close"],
                         "sma_period": [2, 200], "ema_period": [2, 200], "conditions": ["gt", "gte", "lt", "lte"],
                         "zero_matches": "do_not_draw", "pane": "candle"} if name == "price_series_line" else
@@ -165,7 +182,7 @@ def list_functions():
                               **({"$defs": schema["$defs"]} if name in {"labeled_polyline", "price_series_line", "conditional_annotation", "price_band", "price_sticks"} else {})}}
         for name, (kind, _, required, optional) in FUNCTIONS.items()],
         "workflow": "get_chart_context -> run_chart_function -> prepare_chart_edit(result_ref) -> apply_chart_edit -> get_chart_edit_status",
-        "analysis_only_workflow": "get_chart_context -> run_chart_function(pivot_candidates, regression_channel, channel_candidates or range_candidates); inspect analysis. Only after explicit user selection, channel/range candidates may use prepare_chart_edit(candidate_result_ref, candidate_number, user_confirmed_candidate=true); historical anchors do not prove a current breakout",
+        "analysis_only_workflow": "get_chart_context -> run_chart_function; inspect analysis. Channel/range/price-pattern candidates require explicit selection via candidate_result_ref, candidate_number and user_confirmed_candidate=true. Nine-count marks require a current result_ref. Both then use prepare/apply/status; historical anchors do not prove a current breakout",
         "pattern_quality_verified": False}
 
 
@@ -188,7 +205,7 @@ def _directory(context):
     return chart_service.RUNTIME_DIR / "functions" / str(chart_service.HOST_PROCESS_ID) / context["context_ref"]
 
 
-def _calculate(payload, function, parameters, *, candles=None):
+def _calculate(payload, function, parameters, *, candles=None, context=None):
     if function not in FUNCTIONS:
         raise LineError("unknown_chart_function", "未知函数，请查询 list_chart_functions；不执行任意公式或代码。")
     kind, editor, required, optional = FUNCTIONS[function]
@@ -198,6 +215,21 @@ def _calculate(payload, function, parameters, *, candles=None):
         raise LineError("invalid_function_parameters", "参数不适用于该函数。")
     if any(k not in values for k in required):
         raise LineError("missing_anchor", "缺少明确锚点或边界；请向用户澄清，不自动选择。")
+    if function in {"price_pattern_candidates", "nine_count"}:
+        if not isinstance(candles, list) or not isinstance(context, dict):
+            raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
+        common = {"symbol": context.get("symbol"), "interval": context.get("interval"),
+                  "source_interval": context.get("source_interval"), "interval_value": context.get("interval_value"),
+                  "provider": context.get("data_provenance", {}).get("provider")}
+        if function == "price_pattern_candidates":
+            result = price_pattern_candidates(candles, **common, volume_unit=context.get("display_volume_unit"),
+                                              pattern_types=values.get("pattern_types"),
+                                              lookback_bars=values.get("lookback_bars", 240),
+                                              max_candidates=values.get("max_candidates", 5))
+        else:
+            result = nine_count(candles, **common, display_bars=values.get("display_bars", 120))
+        return {"function": function, "function_version": _version(function), "kind": kind,
+                "result_usage": "analysis_only", "parameters": values, "price_scale": "linear", "summary": result}
     if function == "pivot_candidates":
         rows = candles
         if not isinstance(rows, list):
@@ -359,9 +391,9 @@ def run_function(context_ref, expected_revision, chart_session, symbol, function
     payload = chart_service.read_chart_snapshot(chart_session)
     if payload is None: raise LineError("chart_session_not_found", "当前命名来源不存在。")
     require_alignment(context, payload, chart_session, symbol)
-    calculation = _calculate(payload, function, parameters, candles=context["candles"])
+    calculation = _calculate(payload, function, parameters, candles=context["candles"], context=context)
     record = {"schema_version": 1, "binding": _binding(context), **calculation}
-    if len(json.dumps(record, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()) > (262144 if function in {"price_series_line", "price_band", "price_sticks"} else 32768):
+    if len(json.dumps(record, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()) > (262144 if function in {"price_series_line", "price_band", "price_sticks", "price_pattern_candidates", "nine_count"} else 32768):
         raise LineError("chart_function_result_too_large", "函数结果超出本阶段容量限制，未保存或绘图。")
     result_ref = _hash(record)
     refreshed = read_chart_context(context_ref, candle_scope="loaded", limit=4000)
@@ -396,7 +428,7 @@ def _read_result_record(result_ref, context, kind):
         if path.stat().st_size > 262144: raise ValueError("size")
         record = json.loads(path.read_text(encoding="utf-8"))
         if _hash(record) != result_ref or record["schema_version"] != 1: raise ValueError("hash")
-        if record.get("function") not in {"price_series_line", "price_band", "price_sticks"} and path.stat().st_size > 32768: raise ValueError("size")
+        if record.get("function") not in {"price_series_line", "price_band", "price_sticks", "price_pattern_candidates", "nine_count"} and path.stat().st_size > 32768: raise ValueError("size")
     except (OSError, ValueError, TypeError, KeyError):
         raise LineError("chart_function_result_unavailable", "结果引用不存在或已失效；不能借用其他视图或宿主的结果。") from None
     if (record["binding"] != _binding(context) or record.get("function_version") != _version(record.get("function"))
@@ -406,7 +438,10 @@ def _read_result_record(result_ref, context, kind):
 
 
 def resolve_result(result_ref, context, kind):
-    record = _read_result_record(result_ref, context, kind)
+    record = _read_result_record(result_ref, context, "nine_count" if kind == "nine_count" else kind)
+    if kind == "nine_count" and record.get("function") == "nine_count":
+        return {"marks": deepcopy(record["summary"]["marks"]), "events": deepcopy(record["summary"]["events"]),
+                "as_of": record["summary"]["as_of"], "rule_version": record["summary"]["rule_version"]}
     if record.get("result_usage") != "guarded_drawing":
         raise LineError("chart_function_result_not_drawable", "该函数结果仅供分析，不能作为绘图几何引用。")
     if kind == "series_line":
@@ -440,9 +475,9 @@ def resolve_result(result_ref, context, kind):
 
 def resolve_selected_candidate(result_ref, context, kind, number):
     """Resolve one reviewed 1-based candidate; never alters a chart by itself."""
-    if type(number) is not int or not 1 <= number <= 5 or kind not in {"channel", "rectangle"}:
+    if type(number) is not int or not 1 <= number <= 5 or kind not in {"channel", "rectangle", "price_pattern"}:
         raise LineError("invalid_candidate_selection", "请指定通道或平台结果中的第1至5个候选。")
-    function = "channel_candidates" if kind == "channel" else "range_candidates"
+    function = "channel_candidates" if kind == "channel" else "range_candidates" if kind == "rectangle" else "price_pattern_candidates"
     record = _read_result_record(result_ref, context, function)
     if record.get("result_usage") != "analysis_only":
         raise LineError("candidate_result_not_analysis", "该引用不是只读候选结果。")
@@ -450,6 +485,9 @@ def resolve_selected_candidate(result_ref, context, kind, number):
     if not isinstance(candidates, list) or number > len(candidates):
         raise LineError("candidate_not_found", "所选候选不存在；请重新核对结果序号。")
     selected = candidates[number - 1]
+    if kind == "price_pattern":
+        return {"pattern": deepcopy(selected), "rule_version": record["summary"]["rule_version"],
+                "as_of": record["summary"]["as_of"]}
     if kind == "channel":
         anchors = selected.get("anchors", {})
         try:

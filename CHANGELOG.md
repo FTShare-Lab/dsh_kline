@@ -2,6 +2,12 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 0.6.8 - 2026-11-09
+
+- Shared closed-daily double-top/bottom, head-and-shoulders, frozen-range status and transparent nine-count analyses.
+- Guarded atomic pattern and nine-count snapshot groups for DSH and Codex, with an on-demand chart workbench.
+- Conservative local-market close filtering, causal state events and rule/data-quality metadata.
+
 ## 0.6.7 - 2026-11-06
 
 - 修复 DSH 首次依赖安装耗尽宿主重连次数后工具无法注册：Node 在准备期间保持 MCP 和完整工具目录，后端退出后在同一连接恢复且不重放结果未知的操作。

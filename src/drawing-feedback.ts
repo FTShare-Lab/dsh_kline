@@ -4,7 +4,7 @@ import { fibonacciOverlayPoints } from './fibonacci.ts'
 import { polylineOverlayPoints } from './labeled-polyline.ts'
 import { chartAnnotationText } from './chart-annotations.ts'
 
-export const FEEDBACK_KINDS=['horizontal_line','trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline','text_annotation','number_annotation','icon_annotation','series_line','price_band','price_sticks']
+export const FEEDBACK_KINDS=['horizontal_line','trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline','text_annotation','number_annotation','icon_annotation','series_line','price_band','price_sticks','price_pattern','nine_count']
 export const FEEDBACK_STATUSES=['created','hidden','removed','failed','unknown']
 export const FEEDBACK_REASONS=['overlay_registered','period_mismatch','anchors_not_loaded','outside_time_viewport',
   'invalid_geometry','overlay_missing','overlay_mismatch','overlay_api_unavailable','overlay_lookup_failed',
@@ -101,6 +101,20 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
     if(phase==='rolled_back' || phase==='rollback_unknown') {
       item.reason=phase==='rolled_back' ? 'application_rolled_back' : 'rollback_unknown';return item
     }
+    if(['price_pattern','nine_count'].includes(drawing.kind)) {
+      if(cmd.interval!==(context.ui_interval || context.interval)) {
+        item.status='hidden';item.reason='period_mismatch';item.visibility='not_applicable';return item
+      }
+      const loaded= drawing.kind==='nine_count' ? (cmd.marks ?? []).every((m:any)=>times.has(m.time))
+        : (cmd.pattern?.anchors ?? []).every((a:any)=>times.has(a.time))
+          && (cmd.pattern?.type!=='platform' || (times.has(cmd.pattern?.box?.start_time) && times.has(cmd.pattern?.box?.end_time)))
+      if(!loaded) {item.status='hidden';item.reason='snapshot_outside_loaded_history';item.visibility='not_applicable';return item}
+      const registry=chart?.__dshPatternGroupRegistry
+      if(!(registry instanceof Map)) {item.reason='overlay_api_unavailable';return item}
+      item.status=registry.get(drawing.id)===cmd.geometry_hash ? 'created' : 'failed'
+      item.reason=item.status==='created' ? 'overlay_registered' : 'overlay_missing'
+      return item
+    }
     if(['series_line','price_band','price_sticks'].includes(drawing.kind)) {
       if(cmd.interval!==(context.ui_interval || context.interval)) {
         item.status='hidden';item.reason='period_mismatch';item.visibility='not_applicable';return item
@@ -154,6 +168,12 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
     }
     if(!ready) {
       items.push({id:drawing.id,kind:drawing.kind,status:'unknown',reason:'context_not_ready',
+        visibility:'not_applicable',outside_loaded_price_envelope:false});continue
+    }
+    if(['price_pattern','nine_count'].includes(drawing.kind)) {
+      const registry=chart?.__dshPatternGroupRegistry
+      items.push({id:drawing.id,kind:drawing.kind,status:!(registry instanceof Map)?'unknown':registry.has(drawing.id)?'failed':'removed',
+        reason:!(registry instanceof Map)?'overlay_api_unavailable':registry.has(drawing.id)?'overlay_still_present':'overlay_removed',
         visibility:'not_applicable',outside_loaded_price_envelope:false});continue
     }
     if(['series_line','price_band','price_sticks'].includes(drawing.kind)) {

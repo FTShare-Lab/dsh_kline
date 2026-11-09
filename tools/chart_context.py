@@ -117,7 +117,7 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
         else: view_range = {"available": False, "reason": "not_reported"}
         objects = state.get("drawings", []) if state["state"] == "ready" else []
         if not isinstance(objects, list) or len(objects) > 512: raise ValueError("drawings")
-        drawing_keys = {"id", "kind", "origin", "name", "color", "interval", "price", "time", "text", "value", "icon", "start_time", "end_time", "lower_price", "upper_price", "show_fill", "show_midline", "series_hash", "band_hash", "sticks_hash", "bar_count"}
+        drawing_keys = {"id", "kind", "origin", "name", "color", "interval", "price", "time", "text", "value", "icon", "start_time", "end_time", "lower_price", "upper_price", "show_fill", "show_midline", "series_hash", "band_hash", "sticks_hash", "geometry_hash", "rule_version", "as_of", "bar_count"}
         drawings = []
         for obj in objects:
             item = {k: deepcopy(obj[k]) for k in drawing_keys if k in obj}

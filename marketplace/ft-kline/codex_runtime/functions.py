@@ -15,6 +15,8 @@ from tools.price_bands import calculate_price_band
 from tools.price_series import PriceCondition, PriceSource, calculate_price_series
 from tools.price_sticks import calculate_price_sticks
 from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
+from tools.price_patterns import price_pattern_candidates
+from tools.nine_count import nine_count
 from tools.rectangles import edit_rectangle
 
 from .state import CodexChartStore
@@ -110,9 +112,9 @@ def read_ta(store: CodexChartStore, context_ref: str, expected_revision: int, ch
 
 
 def list_chart_functions() -> dict[str, Any]:
-    names = ("fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "channel_candidates", "range_candidates", "price_series_line", "price_band", "price_sticks")
+    names = ("fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "price_band", "price_sticks")
     return {"ok": True, "schema_version": 1, "workflow": "get_chart_context -> run_chart_function -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status",
-            "functions": [{"name": name, "result_usage": "analysis_only" if name.endswith("candidates") else "guarded_drawing",
+            "functions": [{"name": name, "result_usage": "analysis_only" if name.endswith("candidates") or name == "nine_count" else "guarded_drawing",
                            "applies_chart": False} for name in names], "pattern_quality_verified": False}
 
 
@@ -127,6 +129,27 @@ def run_chart_function(store: CodexChartStore, context_ref: str, expected_revisi
     context = _bound(store, context_ref, expected_revision, chart_session, symbol)
     payload = store.chart_payload(context_ref)
     values = dict(parameters or {})
+    if function in {"price_pattern_candidates", "nine_count"}:
+        allowed = {"pattern_types", "lookback_bars", "max_candidates"} if function == "price_pattern_candidates" else {"display_bars"}
+        if values.keys() - allowed:
+            raise LineError("invalid_function_parameters", "参数不适用于该分析函数。")
+        common = {"symbol": context["symbol"], "interval": context["interval"],
+                  "source_interval": context["interval"], "interval_value": context.get("interval_value"),
+                  "provider": payload.get("data_meta", {}).get("source")}
+        if function == "price_pattern_candidates":
+            result = price_pattern_candidates(context["candles"], **common,
+                volume_unit=payload.get("display_volume_unit"),
+                pattern_types=values.get("pattern_types"), lookback_bars=values.get("lookback_bars", 240),
+                max_candidates=values.get("max_candidates", 5))
+            stored = {"candidates": result["candidates"]}
+        else:
+            result = nine_count(context["candles"], **common, display_bars=values.get("display_bars", 120))
+            stored = {"marks": result["marks"], "events": result["events"],
+                      "rule_version": result["rule_version"], "as_of": result["as_of"]}
+        ref = store.store_result(context_ref, revision=expected_revision, kind=function, result=stored)
+        return {"ok": True, "result_ref": ref, "function": function, "kind": function,
+                "result_usage": "analysis_only", "summary": result, "chart_modified": False,
+                "function_version": "1"}
     if function == "channel_candidates":
         result = channel_candidates(context["candles"], direction=values.get("direction", "both"), scope=values.get("scope", "current"),
                                     lookback_bars=values.get("lookback_bars", 120), left_bars=values.get("left_bars", 2), right_bars=values.get("right_bars", 2),

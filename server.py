@@ -1194,7 +1194,7 @@ async def list_chart_functions() -> types.CallToolResult:
     No market fetch, chart mutation or arbitrary code execution. Candidate functions propose
     rule-based geometry for review; they do not draw or claim professional pattern confirmation.
     Functions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,
-    pivot_candidates, regression_channel, channel_candidates, range_candidates, price_series_line,
+    pivot_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates, nine_count, price_series_line,
     conditional_annotation, price_band, price_sticks.
     pivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;
     channel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current
@@ -1202,7 +1202,9 @@ async def list_chart_functions() -> types.CallToolResult:
     is for past geometry only, with no current breakout inference. Zero candidates does not prove
     a lack of recent confirmed pivots; inspect pivot_scan and rejection_counts. range_candidates proposes
     horizontal boxes ending at the latest loaded bar, distinct from explicitly drawn range_box.
-    All four analysis functions are read-only and may validly return no candidate.
+    Analysis functions are read-only and may validly return no candidate. price_pattern_candidates
+    uses closed A/HK/US daily bars for double tops/bottoms, head-and-shoulders and frozen ranges;
+    nine_count records each close-vs-four-back count without retrospective deletion.
     labeled_polyline connects 2..8 explicitly labeled anchors, not automatic Elliott wave recognition.
     price_series_line uses current loaded OHLC or SMA(close, 2..200) and an optional price comparison.
     It returns a bounded result_ref; null warmup/false-condition bars break the price-pane line.
@@ -1287,7 +1289,7 @@ async def run_chart_function(
 
     Read get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;
     ask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,
-    regression_channel, channel_candidates and range_candidates return analysis-only results;
+    regression_channel, channel_candidates, range_candidates, price_pattern_candidates and nine_count return analysis-only results;
     never pass these refs as edit.result_ref. Channel/range candidates may be selected only after
     explicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and
     user_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation
@@ -1300,7 +1302,8 @@ async def run_chart_function(
     Fibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.
     For drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then
     apply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;
-    only channel/range candidates have the separate explicit-selection route. Recompute after data/period/adjustment changes.
+    channel/range/price-pattern candidates have the separate explicit-selection route. A nine_count
+    result_ref can create or replace one nine_count snapshot group. Recompute after data/period/adjustment changes.
     price_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},
     optional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.
     No host-provided price arrays or executable formulas. Zero matched bars are not drawable.
@@ -1326,6 +1329,8 @@ async def run_chart_function(
              "回归通道统计完成，未绘图" if function == "regression_channel" else
              "通道候选分析完成，未绘图" if function == "channel_candidates" else
              "平台区间候选分析完成，未绘图" if function == "range_candidates" else
+             "价格形态候选分析完成，未绘图" if function == "price_pattern_candidates" else
+             "九转计数完成，未绘图" if function == "nine_count" else
              "绘图函数计算完成，尚未绘图")
     return _result(data, label + " · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
 

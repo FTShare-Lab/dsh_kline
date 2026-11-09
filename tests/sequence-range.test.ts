@@ -21,7 +21,7 @@ function fixture(kind: string) {
     sourceCandleIntervalValue: 1, sourceCandles: rows, currentCandles: rows, currentRangeKey: 'custom',
     currentAdjust: 'none', customRangeStart: '', customRangeEnd: '',
     localChartDataMeta: { source: 'ftshare' }, lastChartPayload: null,
-    legacySequenceRowHashes: new Map(), lastAgentSeriesLines: [], lastAgentPriceBands: [], lastAgentPriceSticks: [],
+    legacySequenceRowHashes: new Map(), lastAgentSeriesLines: [], lastAgentPriceBands: [], lastAgentPriceSticks: [], lastAgentPricePatterns: [], lastAgentNineCounts: [],
     lastLines: [], lastMarks: [], lastHorizontalLines: [], lastAgentTrendLines: [], lastAgentChannels: [],
     lastAgentRectangles: [], lastAgentFibonacci: [], lastAgentPolylines: [], lastAgentAnnotations: [],
     buildLocalIndicatorCommands: () => [], activeIndicators: () => [], indicatorStateVersion: 1,

@@ -409,7 +409,7 @@ test('real browser source handoff → Python guarded weekly drawing → receipt 
     const context:any={lastChartPayload:current,currentCandles:weekly,currentSymbol:'TEST.X',currentName:'测试',
       activeAgentSeriesIndicators:new Set(),agentSeriesRegistry:new Map(),registeredAgentSeriesIndicators:new Set(),
       activeAgentBandIndicators:new Set(),agentBandRegistry:new Map(),registeredAgentBandIndicators:new Set(),
-      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),
+      activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),patternGroupRegistry:new Map(),
       currentInterval:'week',currentAdjust:'none',currentRangeKey:'custom',sourceCandleInterval:'day',activeSecurityTab:'chart',
       exchangeTimezone:'Asia/Shanghai',openingSymbol:false,userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,
       maVisible:true,vwapVisible:false,volVisible:false,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,

@@ -4,6 +4,7 @@ import { sanitizeChartAnnotation } from './chart-annotations.ts'
 import { seriesObservation } from './price-series.ts'
 import { bandObservation } from './price-bands.ts'
 import { sticksObservation } from './price-sticks.ts'
+import { patternGroupObservation } from './pattern-groups.ts'
 const TOKEN = /^[A-Za-z0-9_-]{32}$/
 export function text(value: unknown, max = 128): string {
   if (typeof value !== 'string' || value.length > max || /[\x00-\x1f]/.test(value)) throw Error('invalid_context_text')
@@ -92,6 +93,12 @@ export function sanitizeChartContext(raw: any): any {
         throw Error('invalid_context_sticks')
       Object.assign(result,sticksObservation(drawing))
     }
+    if (drawing.kind==='price_pattern' || drawing.kind==='nine_count') {
+      if(typeof drawing.geometry_hash!=='string' || !/^[a-f0-9]{64}$/.test(drawing.geometry_hash)
+        || !Number.isSafeInteger(drawing.bar_count) || drawing.bar_count<0 || drawing.bar_count>240
+        || !['price_patterns_v1','nine_count_v1'].includes(drawing.rule_version))throw Error('invalid_context_pattern_group')
+      Object.assign(result,patternGroupObservation(drawing))
+    }
     if (drawing.kind==='labeled_polyline') result.points=sanitizePolylinePoints(drawing.points)
     else if (['text_annotation','number_annotation','icon_annotation'].includes(drawing.kind)) {
       const annotation=sanitizeChartAnnotation({type:'DRAW_AGENT_ANNOTATION',kind:drawing.kind,id:drawing.id,interval:drawing.interval,
@@ -169,13 +176,14 @@ export function drawingInventory(payload: any): any[] {
   const kinds: Record<string,string> = {DRAW_HORIZONTAL_LINE:'horizontal_line', DRAW_AGENT_TREND_LINE:'trend_line',
     DRAW_AGENT_CHANNEL:'channel', DRAW_AGENT_RECTANGLE:'rectangle', DRAW_AGENT_FIBONACCI:'fibonacci_retracement', DRAW_AGENT_POLYLINE:'labeled_polyline',
     DRAW_AGENT_ANNOTATION:'annotation',DRAW_AGENT_SERIES_LINE:'series_line',DRAW_AGENT_PRICE_BAND:'price_band',
-    DRAW_AGENT_PRICE_STICKS:'price_sticks'}
+    DRAW_AGENT_PRICE_STICKS:'price_sticks',DRAW_AGENT_PRICE_PATTERN:'price_pattern',DRAW_AGENT_NINE_COUNT:'nine_count'}
   return (payload.chartCommands ?? []).filter((c: any) => kinds[c.type]).map((c: any) => {
     const d: any = {id:c.id, kind:kinds[c.type], origin:'ai', name:c.label ?? '', color:c.color ?? 'info', interval:c.interval ?? payload.interval}
     if (c.type === 'DRAW_HORIZONTAL_LINE') d.price=c.price
     else if (c.type === 'DRAW_AGENT_SERIES_LINE') Object.assign(d,seriesObservation(c))
     else if (c.type === 'DRAW_AGENT_PRICE_BAND') Object.assign(d,bandObservation(c))
     else if (c.type === 'DRAW_AGENT_PRICE_STICKS') Object.assign(d,sticksObservation(c))
+    else if (c.type === 'DRAW_AGENT_PRICE_PATTERN' || c.type === 'DRAW_AGENT_NINE_COUNT') Object.assign(d,patternGroupObservation(c))
     else if (c.type === 'DRAW_AGENT_ANNOTATION') {
       const annotation=sanitizeChartAnnotation(c);d.kind=annotation.kind;d.time=annotation.time;d.price=annotation.price
       if(annotation.kind==='text_annotation')d.text=annotation.text
