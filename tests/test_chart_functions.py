@@ -76,7 +76,7 @@ class ChartFunctionTests(unittest.TestCase):
         catalog = list_functions()
         self.assertEqual([f['name'] for f in catalog['functions']],
                          ['fibonacci_retracement', 'parallel_channel', 'range_box', 'labeled_polyline',
-                          'pivot_candidates', 'regression_channel', 'channel_candidates', 'range_candidates',
+                          'pivot_candidates', 'recent_drawing_candidates', 'regression_channel', 'channel_candidates', 'range_candidates',
                           'price_pattern_candidates', 'nine_count',
                           'price_series_line', 'conditional_annotation', 'price_band', 'price_sticks'])
         pivot = next(f for f in catalog['functions'] if f['name'] == 'pivot_candidates')

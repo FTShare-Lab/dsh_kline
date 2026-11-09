@@ -250,6 +250,9 @@ def test_dsh_and_codex_share_exact_pattern_and_nine_summaries_and_guarded_nine_r
     context = {"symbol": "600519.XSHG", "interval": "day", "source_interval": "day",
                "interval_value": 1, "data_provenance": {"provider": "ftshare"}}
     for function, params in (("price_pattern_candidates", {"pattern_types": ["double_top"]}),
+                             ("price_pattern_candidates", {"pattern_types": ["double_top"],
+                                                           "anchor_times": [rows[i]["time"] for i in (40, 45, 50)]}),
+                             ("recent_drawing_candidates", {"drawing_type": "horizontal"}),
                              ("nine_count", {"display_bars": 120})):
         codex = run_chart_function(store, state.context_ref, 1, state.chart_session,
                                    "600519.XSHG", function, params)

@@ -7,6 +7,8 @@ from typing import Any
 
 from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION, calculate, catalog
 from tools.channel_candidates import channel_candidates
+from tools.closed_daily import closed_daily
+from tools.recent_drawing_candidates import recent_drawing_candidates
 from tools.channels import edit_channel
 from tools.fibonacci import edit_fibonacci
 from tools.lines import LineError
@@ -112,7 +114,7 @@ def read_ta(store: CodexChartStore, context_ref: str, expected_revision: int, ch
 
 
 def list_chart_functions() -> dict[str, Any]:
-    names = ("fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "price_band", "price_sticks")
+    names = ("fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "recent_drawing_candidates", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "price_band", "price_sticks")
     return {"ok": True, "schema_version": 1, "workflow": "get_chart_context -> run_chart_function -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status",
             "functions": [{"name": name, "result_usage": "analysis_only" if name.endswith("candidates") or name == "nine_count" else "guarded_drawing",
                            "applies_chart": False} for name in names], "pattern_quality_verified": False}
@@ -129,18 +131,26 @@ def run_chart_function(store: CodexChartStore, context_ref: str, expected_revisi
     context = _bound(store, context_ref, expected_revision, chart_session, symbol)
     payload = store.chart_payload(context_ref)
     values = dict(parameters or {})
-    if function in {"price_pattern_candidates", "nine_count"}:
-        allowed = {"pattern_types", "lookback_bars", "max_candidates"} if function == "price_pattern_candidates" else {"display_bars"}
+    if function in {"price_pattern_candidates", "nine_count", "recent_drawing_candidates"}:
+        allowed = ({"pattern_types", "lookback_bars", "max_candidates", "anchor_times"}
+                   if function == "price_pattern_candidates" else {"display_bars"} if function == "nine_count"
+                   else {"drawing_type", "lookback_bars", "max_candidates"})
         if values.keys() - allowed:
             raise LineError("invalid_function_parameters", "参数不适用于该分析函数。")
         common = {"symbol": context["symbol"], "interval": context["interval"],
                   "source_interval": context["interval"], "interval_value": context.get("interval_value"),
                   "provider": payload.get("data_meta", {}).get("source")}
-        if function == "price_pattern_candidates":
+        if function == "recent_drawing_candidates":
+            result = recent_drawing_candidates(context["candles"], **common,
+                drawing_type=values.get("drawing_type"), lookback_bars=values.get("lookback_bars", 120),
+                max_candidates=values.get("max_candidates", 5))
+            stored = {"candidates": result["candidates"]}
+        elif function == "price_pattern_candidates":
             result = price_pattern_candidates(context["candles"], **common,
                 volume_unit=payload.get("display_volume_unit"),
                 pattern_types=values.get("pattern_types"), lookback_bars=values.get("lookback_bars", 240),
-                max_candidates=values.get("max_candidates", 5))
+                max_candidates=values.get("max_candidates", 5),
+                anchor_times=tuple(values["anchor_times"]) if "anchor_times" in values else None)
             stored = {"candidates": result["candidates"]}
         else:
             result = nine_count(context["candles"], **common, display_bars=values.get("display_bars", 120))
@@ -151,13 +161,25 @@ def run_chart_function(store: CodexChartStore, context_ref: str, expected_revisi
                 "result_usage": "analysis_only", "summary": result, "chart_modified": False,
                 "function_version": "1"}
     if function == "channel_candidates":
-        result = channel_candidates(context["candles"], direction=values.get("direction", "both"), scope=values.get("scope", "current"),
+        candles = context["candles"]
+        if values.get("closed_daily_only"):
+            candles, quality = closed_daily(candles, symbol=context["symbol"], interval=context["interval"],
+                source_interval=context["interval"], interval_value=context.get("interval_value"),
+                provider=payload.get("data_meta", {}).get("source"))
+        result = channel_candidates(candles, direction=values.get("direction", "both"), scope=values.get("scope", "current"),
                                     lookback_bars=values.get("lookback_bars", 120), left_bars=values.get("left_bars", 2), right_bars=values.get("right_bars", 2),
                                     min_span_bars=values.get("min_span_bars", 12), limit=values.get("max_candidates", 3))
+        if values.get("closed_daily_only"): result = {**result, "as_of": quality["as_of"], "data_quality": quality}
         ref = store.store_result(context_ref, revision=expected_revision, kind="channel_candidates", result={"candidates": result.get("candidates", [])})
         return {"ok": True, "result_ref": ref, "function": function, "kind": "channel_candidates", "result_usage": "analysis_only", "summary": result, "chart_modified": False}
     if function == "range_candidates":
-        result = range_candidates(context["candles"], window_sizes=values.get("window_sizes", DEFAULT_WINDOW_SIZES), limit=values.get("max_candidates", 3))
+        candles = context["candles"]
+        if values.get("closed_daily_only"):
+            candles, quality = closed_daily(candles, symbol=context["symbol"], interval=context["interval"],
+                source_interval=context["interval"], interval_value=context.get("interval_value"),
+                provider=payload.get("data_meta", {}).get("source"))
+        result = range_candidates(candles, window_sizes=values.get("window_sizes", DEFAULT_WINDOW_SIZES), limit=values.get("max_candidates", 3))
+        if values.get("closed_daily_only"): result = {**result, "as_of": quality["as_of"], "data_quality": quality}
         ref = store.store_result(context_ref, revision=expected_revision, kind="range_candidates", result={"candidates": result.get("candidates", [])})
         return {"ok": True, "result_ref": ref, "function": function, "kind": "range_candidates", "result_usage": "analysis_only", "summary": result, "chart_modified": False}
     if function == "price_series_line":

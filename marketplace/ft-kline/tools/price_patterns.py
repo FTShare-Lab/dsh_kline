@@ -157,7 +157,8 @@ def _volume_evidence(rows, item, provider, volume_unit):
 def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source_interval: str | None = "day",
                              interval_value: int | None = 1, provider: str | None = None,
                              volume_unit: str | None = None, pattern_types=None,
-                             lookback_bars: int = 240, max_candidates: int = 5, now: datetime | None = None):
+                             lookback_bars: int = 240, max_candidates: int = 5,
+                             anchor_times: tuple[int, ...] | None = None, now: datetime | None = None):
     if type(lookback_bars) is not int or not 60 <= lookback_bars <= 300:
         raise LineError("invalid_pattern_lookback", "价格形态观察范围必须为60至300根日线。")
     if type(max_candidates) is not int or not 1 <= max_candidates <= 5:
@@ -165,6 +166,10 @@ def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source
     selected = tuple(pattern_types or TYPES)
     if not selected or len(set(selected)) != len(selected) or any(x not in TYPES for x in selected):
         raise LineError("invalid_pattern_types", "形态类型仅支持双顶、双底、头肩顶、头肩底及平台，且不得重复。")
+    if anchor_times is not None and (len(anchor_times) not in {3, 5}
+                                     or any(type(t) is not int for t in anchor_times)
+                                     or tuple(sorted(set(anchor_times))) != anchor_times):
+        raise LineError("invalid_pattern_anchor_selection", "请按时间顺序选择3个或5个不同的 K 线锚点。")
     candles, metadata = closed_daily(rows, symbol=symbol, interval=interval, source_interval=source_interval,
                                      interval_value=interval_value, provider=provider, now=now)
     candles = candles[-4000:]
@@ -241,6 +246,9 @@ def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source
             results = [r for r in results if r["available_index"] >= index - 300]
     earliest = len(candles) - lookback_bars
     recent = [r for r in results if r["available_index"] >= earliest]
+    if anchor_times is not None:
+        recent = [r for r in recent if tuple(a["time"] for a in r["anchors"]) == anchor_times]
+        if not recent: reasons["manual_selection_not_recognized"] += 1
     recent.sort(key=lambda r: (r["available_index"], r["type"], tuple(a["index"] for a in r["anchors"])), reverse=True)
     for item in recent:
         item["volume_evidence"] = _volume_evidence(candles, item, provider, volume_unit)

@@ -22,7 +22,9 @@ from tools.lines import LineError
 from tools.rectangles import RECTANGLE_COMMAND, edit_rectangle
 from tools.polylines import LabeledPoint, POLYLINE_COMMAND, edit_polyline
 from tools.pivots import confirmed_pivots
+from tools.closed_daily import closed_daily
 from tools.channel_candidates import channel_candidates
+from tools.recent_drawing_candidates import recent_drawing_candidates
 from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
 from tools.price_patterns import TYPES as PATTERN_TYPES, price_pattern_candidates
 from tools.nine_count import nine_count
@@ -33,9 +35,9 @@ from tools.price_bands import BAND_COMMAND, calculate_price_band, edit_price_ban
 from tools.price_sticks import STICKS_COMMAND, calculate_price_sticks, edit_price_sticks
 from tools.trend_lines import resolve_anchor_time
 
-FunctionName = Literal["fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "pivot_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "conditional_annotation", "price_band", "price_sticks"]
+FunctionName = Literal["fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "pivot_candidates", "recent_drawing_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "conditional_annotation", "price_band", "price_sticks"]
 VERSION = "1"
-ANALYSIS_ONLY = {"pivot_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count"}
+ANALYSIS_ONLY = {"pivot_candidates", "recent_drawing_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count"}
 
 
 def _version(function):
@@ -51,11 +53,12 @@ FUNCTIONS = {
         ("start_time", "end_time", "lower_price", "upper_price"), ()),
     "labeled_polyline": ("labeled_polyline", edit_polyline, ("points",), ()),
     "pivot_candidates": ("pivot_candidates", None, (), ("left_bars", "right_bars", "mode", "limit")),
+    "recent_drawing_candidates": ("recent_drawing_candidates", None, ("drawing_type",), ("lookback_bars", "max_candidates")),
     "regression_channel": ("regression_channel", None, ("start_time", "end_time"), ("multiplier",)),
     "channel_candidates": ("channel_candidates", None, (),
-        ("direction", "scope", "lookback_bars", "left_bars", "right_bars", "min_span_bars", "max_candidates")),
-    "range_candidates": ("range_candidates", None, (), ("window_sizes", "max_candidates")),
-    "price_pattern_candidates": ("price_pattern_candidates", None, (), ("pattern_types", "lookback_bars", "max_candidates")),
+        ("direction", "scope", "lookback_bars", "left_bars", "right_bars", "min_span_bars", "max_candidates", "closed_daily_only")),
+    "range_candidates": ("range_candidates", None, (), ("window_sizes", "max_candidates", "closed_daily_only")),
+    "price_pattern_candidates": ("price_pattern_candidates", None, (), ("pattern_types", "lookback_bars", "max_candidates", "anchor_times")),
     "nine_count": ("nine_count", None, (), ("display_bars",)),
     "price_series_line": ("series_line", edit_price_series, ("value_source",), ("condition",)),
     "conditional_annotation": ("annotation_kind_parameter", edit_annotation,
@@ -82,6 +85,9 @@ class ChartFunctionParameters(BaseModel):
     left_bars: int | None = Field(default=None, strict=True, ge=1, le=20, description="左侧比较K线数；默认2")
     right_bars: int | None = Field(default=None, strict=True, ge=1, le=20, description="右侧确认K线数；默认2")
     mode: Literal["high", "low", "both"] | None = Field(default=None, description="返回局部高点、低点或两者；默认both")
+    drawing_type: Literal["horizontal", "trend", "fibonacci", "abc"] | None = None
+    closed_daily_only: bool | None = Field(default=None, strict=True,
+                                          description="只使用可确认收盘的 A／港／美股单日线")
     limit: int | None = Field(default=None, strict=True, ge=1, le=50, description="最多返回最新候选数；默认20")
     multiplier: float | None = Field(default=None, strict=True, ge=0.5, le=5, allow_inf_nan=False,
                                      description="回归上下轨距离倍数；默认2，乘以回归残差总体RMS")
@@ -93,6 +99,8 @@ class ChartFunctionParameters(BaseModel):
     window_sizes: list[Annotated[int, Field(strict=True, ge=16, le=120)]] | None = Field(
         default=None, min_length=1, max_length=8, description="平台候选窗口根数；默认20、30、40、60；不得重复")
     pattern_types: list[Literal["double_top", "double_bottom", "head_shoulders_top", "head_shoulders_bottom", "platform"]] | None = Field(default=None, min_length=1, max_length=5)
+    anchor_times: list[int] | None = Field(default=None, min_length=3, max_length=5,
+                                           description="用户按时间顺序指定的形态锚点，仍须通过标准规则验证")
     display_bars: int | None = Field(default=None, strict=True, ge=30, le=240)
     value_source: PriceSource | None = Field(default=None, description="序列线取值：OHLC、SMA 或 EMA(close, 2至200根)")
     condition: PriceCondition | None = Field(default=None, description="可选价格条件；不接受宿主传入行情数组或代码")
@@ -116,6 +124,7 @@ def list_functions():
          "optional_parameters": list(optional) + ([] if name in ANALYSIS_ONLY else ["price_scale"]),
          "defaults": ({"left_bars": 2, "right_bars": 2, "mode": "both", "limit": 20}
                       if name == "pivot_candidates" else
+                      {"lookback_bars": 120, "max_candidates": 5} if name == "recent_drawing_candidates" else
                       {"multiplier": 2.0} if name == "regression_channel" else
                       {"direction": "both", "scope": "current", "lookback_bars": 120, "left_bars": 2, "right_bars": 2,
                        "min_span_bars": 12, "max_candidates": 3} if name == "channel_candidates" else
@@ -128,7 +137,10 @@ def list_functions():
                       {"price_scale": "linear", **({"ratios": list(DEFAULT_RATIOS)} if name == "fibonacci_retracement" else {})}),
          "limits": {"loaded_bars": 4000, "automatic_anchor_selection": False,
                     "price_scale": "linear", "time": "exact_loaded_bar", "applies_chart": False,
-                    **({"window_bars": [1, 20], "candidate_limit": [1, 50],
+                    **({"closed_daily_only": True, "recent_confirmed_pivots": True,
+                        "automatic_anchor_selection": "candidates_only_not_drawing",
+                        "candidate_limit": [1, 5], "applies_chart": False} if name == "recent_drawing_candidates" else
+                       {"window_bars": [1, 20], "candidate_limit": [1, 50],
                         "rule": "strict_local_extremum", "ties": "equal_neighbor_is_not_a_pivot",
                         "requires_complete_right_window": True} if name == "pivot_candidates" else
                        {"minimum_range_bars": 10, "maximum_range_bars": 4000,
@@ -215,17 +227,22 @@ def _calculate(payload, function, parameters, *, candles=None, context=None):
         raise LineError("invalid_function_parameters", "参数不适用于该函数。")
     if any(k not in values for k in required):
         raise LineError("missing_anchor", "缺少明确锚点或边界；请向用户澄清，不自动选择。")
-    if function in {"price_pattern_candidates", "nine_count"}:
+    if function in {"price_pattern_candidates", "nine_count", "recent_drawing_candidates"}:
         if not isinstance(candles, list) or not isinstance(context, dict):
             raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
         common = {"symbol": context.get("symbol"), "interval": context.get("interval"),
                   "source_interval": context.get("source_interval"), "interval_value": context.get("interval_value"),
                   "provider": context.get("data_provenance", {}).get("provider")}
-        if function == "price_pattern_candidates":
+        if function == "recent_drawing_candidates":
+            result = recent_drawing_candidates(candles, **common, drawing_type=values["drawing_type"],
+                                               lookback_bars=values.get("lookback_bars", 120),
+                                               max_candidates=values.get("max_candidates", 5))
+        elif function == "price_pattern_candidates":
             result = price_pattern_candidates(candles, **common, volume_unit=context.get("display_volume_unit"),
                                               pattern_types=values.get("pattern_types"),
                                               lookback_bars=values.get("lookback_bars", 240),
-                                              max_candidates=values.get("max_candidates", 5))
+                                              max_candidates=values.get("max_candidates", 5),
+                                              anchor_times=tuple(values["anchor_times"]) if "anchor_times" in values else None)
         else:
             result = nine_count(candles, **common, display_bars=values.get("display_bars", 120))
         return {"function": function, "function_version": _version(function), "kind": kind,
@@ -254,6 +271,13 @@ def _calculate(payload, function, parameters, *, candles=None, context=None):
     if function == "channel_candidates":
         if not isinstance(candles, list):
             raise LineError("channel_candidate_data_unavailable", "当前图没有可读取的已加载K线，未补取行情。")
+        quality = None
+        if values.get("closed_daily_only"):
+            if not isinstance(context, dict):
+                raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
+            candles, quality = closed_daily(candles, symbol=context.get("symbol"), interval=context.get("interval"),
+                source_interval=context.get("source_interval"), interval_value=context.get("interval_value"),
+                provider=context.get("data_provenance", {}).get("provider"))
         result = channel_candidates(candles, direction=values.get("direction", "both"),
                                     scope=values.get("scope", "current"),
                                     lookback_bars=values.get("lookback_bars", 120),
@@ -261,20 +285,31 @@ def _calculate(payload, function, parameters, *, candles=None, context=None):
                                     right_bars=values.get("right_bars", 2),
                                     min_span_bars=values.get("min_span_bars", 12),
                                     limit=values.get("max_candidates", 3))
+        if quality is not None: result = {**result, "as_of": quality["as_of"], "data_quality": quality}
         normalized = {"direction": result["direction"], "scope": result["scope"],
                       "lookback_bars": result["lookback_bars"],
                       "left_bars": result["left_bars"], "right_bars": result["right_bars"],
-                      "min_span_bars": result["min_span_bars"], "max_candidates": values.get("max_candidates", 3)}
+                      "min_span_bars": result["min_span_bars"], "max_candidates": values.get("max_candidates", 3),
+                      **({"closed_daily_only": True} if quality is not None else {})}
         return {"function": function, "function_version": _version(function), "kind": kind,
                 "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear",
                 "summary": result}
     if function == "range_candidates":
         if not isinstance(candles, list):
             raise LineError("range_candidate_data_unavailable", "当前图没有可读取的已加载K线，未补取行情。")
+        quality = None
+        if values.get("closed_daily_only"):
+            if not isinstance(context, dict):
+                raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
+            candles, quality = closed_daily(candles, symbol=context.get("symbol"), interval=context.get("interval"),
+                source_interval=context.get("source_interval"), interval_value=context.get("interval_value"),
+                provider=context.get("data_provenance", {}).get("provider"))
         result = range_candidates(candles, window_sizes=values.get("window_sizes", DEFAULT_WINDOW_SIZES),
                                   limit=values.get("max_candidates", 3))
+        if quality is not None: result = {**result, "as_of": quality["as_of"], "data_quality": quality}
         normalized = {"window_sizes": result["window_sizes"],
-                      "max_candidates": values.get("max_candidates", 3)}
+                      "max_candidates": values.get("max_candidates", 3),
+                      **({"closed_daily_only": True} if quality is not None else {})}
         return {"function": function, "function_version": _version(function), "kind": kind,
                 "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear",
                 "summary": result}

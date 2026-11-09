@@ -25,6 +25,7 @@
     "docs/chart-functions.md",
     "docs/price-pattern-rules-v1.md",
     "docs/price-pattern-samples-v1.md",
+    "docs/automatic-drawing.md",
     "docs/fixtures/price-pattern-real-v1.json",
     "!core/**/__pycache__/**",
     "!core/**/*.py[cod]",

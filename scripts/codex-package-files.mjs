@@ -17,6 +17,7 @@ const allowlist = [
   'docs/free-foreign-daily.md', 'docs/release-notes-v0.6.7.md', 'docs/release-acceptance-v0.6.7.md',
   'docs/release-notes-v0.6.8.md', 'docs/release-acceptance-v0.6.8.md',
   'docs/price-pattern-rules-v1.md', 'docs/price-pattern-samples-v1.md',
+  'docs/automatic-drawing.md',
   'docs/fixtures/price-pattern-real-v1.json',
   'codex_server.py', 'codex_runtime', 'core', 'config/basic-symbols.json', 'view',
   // Only provider/indicator/geometry modules shared by the Codex adapter.
@@ -26,7 +27,7 @@ const allowlist = [
   'tools/baostock_source.py', 'tools/draw.py', 'tools/fetch.py', 'tools/fibonacci.py', 'tools/free_sources.py', 'tools/foreign_daily.py', 'tools/lines.py',
   'tools/pivots.py', 'tools/polylines.py', 'tools/price_bands.py', 'tools/price_series.py',
   'tools/price_sticks.py', 'tools/range_candidates.py', 'tools/rectangles.py', 'tools/trend_lines.py',
-  'tools/closed_daily.py', 'tools/price_patterns.py', 'tools/nine_count.py', 'tools/pattern_groups.py',
+  'tools/closed_daily.py', 'tools/price_patterns.py', 'tools/nine_count.py', 'tools/recent_drawing_candidates.py', 'tools/pattern_groups.py',
   'scripts/run-dsh-kline.mjs', 'scripts/codex-bootstrap.mjs', 'scripts/run-ft-kline.mjs', 'scripts/run-ft-kline-cli.mjs',
   'plugins/ft-kline/plugin.json', 'plugins/ft-kline/.codex-plugin/plugin.json',
   'plugins/ft-kline/mcp.json', 'plugins/ft-kline/.mcp.json', 'plugins/ft-kline/assets',

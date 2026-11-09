@@ -25,7 +25,7 @@ test('group commands remain single inventory objects and render as one overlay e
   assert.deepEqual(drawingInventory(payload).map((x:any)=>x.kind),['price_pattern','nine_count'])
   const overlays=new Map<string,any>(), html=readFileSync(new URL('../view/kline.html',import.meta.url),'utf8')
   const source=html.slice(html.indexOf('function drawAgentPatternGroupCommands('),html.indexOf('let pendingLiveDrawingPayload'))
-  const context:any={currentCandles:rows,currentInterval:'day',patternGroupRegistry:new Map(),
+  const context:any={currentCandles:rows,currentInterval:'day',patternGroupRegistry:new Map(),automaticNine:{enabled:false,marks:[]},
     kchart:{removeOverlay:()=>overlays.clear(),createOverlay:(x:any)=>{overlays.set(x.id,x);return x.id},
       getOverlayById:(id:string)=>overlays.get(id)}}
   const draw=runInNewContext(source+';drawAgentPatternGroupCommands',context)
@@ -42,4 +42,36 @@ test('group commands remain single inventory objects and render as one overlay e
   assert.equal(feedback[0].reason,'snapshot_outside_loaded_history')
   draw([{type:'SET_CANDLES',rows}],true)
   assert.equal(overlays.size,0)
+})
+
+test('automatic nine count uses the shared result and refreshes when the chart revision changes', async () => {
+  const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
+  const source = html.slice(html.indexOf('const patternState ='), html.indexOf('function patternDate('))
+  const overlays: any[] = [], calls: any[] = []
+  let revision = 1
+  const binding = () => ({ context_ref: 'current', expected_revision: revision, chart_session: 'chart', symbol: '600519.XSHG' })
+  const button: any = { textContent: '', setAttribute() {}, classList: { toggle() {} } }
+  const context: any = {
+    document: { getElementById: () => button }, kchart: { removeOverlay() { overlays.length = 0 },
+      createOverlay(value: any) { overlays.push(value) } },
+    currentInterval: 'day', currentCandles: [{ time: 10 }, { time: 20 }], lastChartPayload: null,
+    workbenchCurrentBinding: binding,
+    workbenchTool: async (_name: string, args: any) => {
+      calls.push(args)
+      return { result_ref: `ref-${revision}`, summary: { marks: [{ time: 10, price: 100, count: revision, direction: 'up' }] } }
+    },
+    drawAgentPatternGroupCommands() {},
+  }
+  const api = runInNewContext(source + ';({ set: automaticNineSetEnabled, tick: automaticNineTick, state: automaticNine })', context)
+  api.set(true)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].function, 'nine_count')
+  assert.equal(overlays[0].extendData.marks[0].count, 1)
+  revision = 2
+  await api.tick(true)
+  assert.equal(calls.length, 2)
+  assert.equal(overlays[0].extendData.marks[0].count, 2)
+  api.set(false)
+  assert.equal(overlays.length, 0)
 })

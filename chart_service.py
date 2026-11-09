@@ -326,7 +326,8 @@ def _tool_dispatch(name: str, args: dict[str, Any]) -> dict[str, Any]:
                 return run_ta(**args)
             if name == 'workbench_run_chart_function':
                 if args.get('function') not in {'fibonacci_retracement', 'parallel_channel', 'range_box', 'labeled_polyline',
-                                                'channel_candidates', 'range_candidates', 'price_pattern_candidates', 'nine_count'}:
+                                                'recent_drawing_candidates', 'channel_candidates', 'range_candidates',
+                                                'price_pattern_candidates', 'nine_count'}:
                     return {'ok': False, 'error': 'workbench_function_not_selected'}
                 return run_function(**args)
             if name == 'workbench_prepare_edit':

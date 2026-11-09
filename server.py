@@ -1194,7 +1194,7 @@ async def list_chart_functions() -> types.CallToolResult:
     No market fetch, chart mutation or arbitrary code execution. Candidate functions propose
     rule-based geometry for review; they do not draw or claim professional pattern confirmation.
     Functions: fibonacci_retracement, parallel_channel, range_box, labeled_polyline,
-    pivot_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates, nine_count, price_series_line,
+    pivot_candidates, recent_drawing_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates, nine_count, price_series_line,
     conditional_annotation, price_band, price_sticks.
     pivot_candidates reports confirmed strict local extrema; regression_channel computes OLS statistics;
     channel_candidates v3 proposes bounded three-anchor geometry from confirmed pivots. Default scope=current
@@ -1289,7 +1289,7 @@ async def run_chart_function(
 
     Read get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;
     ask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,
-    regression_channel, channel_candidates, range_candidates, price_pattern_candidates and nine_count return analysis-only results;
+    recent_drawing_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates and nine_count return analysis-only results;
     never pass these refs as edit.result_ref. Channel/range candidates may be selected only after
     explicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and
     user_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation
@@ -1329,6 +1329,7 @@ async def run_chart_function(
              "回归通道统计完成，未绘图" if function == "regression_channel" else
              "通道候选分析完成，未绘图" if function == "channel_candidates" else
              "平台区间候选分析完成，未绘图" if function == "range_candidates" else
+             "近期绘图锚点候选分析完成，未绘图" if function == "recent_drawing_candidates" else
              "价格形态候选分析完成，未绘图" if function == "price_pattern_candidates" else
              "九转计数完成，未绘图" if function == "nine_count" else
              "绘图函数计算完成，尚未绘图")

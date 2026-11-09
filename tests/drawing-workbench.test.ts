@@ -101,6 +101,31 @@ test('confirmation uses prepare, apply, then exact candidate status', async () =
   assert.equal(outcome.status.apply_status, 'applied')
 })
 
+test('a reviewed automatic candidate saves in one click; manual input keeps preview and save separate', async () => {
+  const body = html.slice(html.indexOf('async function workbenchConfirm()'), html.indexOf('function workbenchManagedObjects()'))
+  for (const automatic of [true, false]) {
+    const calls: string[] = []
+    const binding = { context_ref: 'a', expected_revision: 1 }
+    const input = { type: 'horizontal', price: 123 }
+    const state: any = { busy: false, pending: null, selectedId: null, autoSelected: automatic, picking: false }
+    const button = { textContent: automatic ? '保存到图表' : '预览图形' }
+    const context: any = {
+      workbenchState: state, document: { getElementById: (id: string) => id === 'workbenchConfirm' ? button : { replaceChildren() {} } },
+      workbenchCurrentBinding: () => binding, workbenchInputs: () => input,
+      workbenchProposal: async () => ({ binding, input, preview: '预览' }),
+      workbenchApplyProposal: async () => { calls.push('apply'); return { prepared: { object: { id: 'line-1' } }, status: { apply_status: 'applied' } } },
+      workbenchParameterSignature: () => 'same', workbenchInvalidate: () => { state.pending = null },
+      workbenchStatus: () => {}, setDrawingCaptureActive: () => {}, syncWorkbenchPickUi: () => {},
+      drawWorkbenchPreview: () => {}, renderDrawingWorkbench: () => {}, window: {},
+      renderWorkbenchAnchors: () => {},
+    }
+    const confirm = runInNewContext(body + ';workbenchConfirm', context)
+    await confirm()
+    assert.equal(calls.length, automatic ? 1 : 0)
+    if (!automatic) { await confirm(); assert.equal(calls.length, 1) }
+  }
+})
+
 test('style update refuses to silently ignore a changed TA period', async () => {
   const { api, calls, fields, context } = fixture('sma', 'series_1')
   context.lastChartPayload.chartCommands = [{ id: 'series_1', source: { kind: 'sma', period: 20 }, condition: null }]
@@ -114,13 +139,16 @@ test('style update refuses to silently ignore a changed TA period', async () => 
 })
 
 test('the workbench keeps curated objects and lists old drawings without a second create tool', () => {
-  for (const label of ['SMA 均线', 'EMA 均线', 'BOLL 价带', '水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（手动选点）'])
+  for (const label of ['SMA 均线', 'EMA 均线', 'BOLL 价带', '水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（三点折线）'])
     assert.ok(html.includes(label), label)
   assert.match(html, /class="workbench-legacy"[\s\S]*id="drawingList"/)
   assert.doesNotMatch(html, /id="drawingPopover"|data-drawing-type=/)
   assert.match(html, /id="drawingWorkbench"/)
   assert.match(html, /id="workbenchPreview"/)
-  assert.match(html, /if \(WORKBENCH_ANCHORS\[workbenchType\(\)\] && workbenchType\(\) !== "horizontal"\) beginWorkbenchPick\(\)/)
+  assert.match(html, /document.getElementById\("workbenchType"\).addEventListener\("change", event => \{[\s\S]*?void findWorkbenchCandidates\(\)/)
+  assert.match(html, /document.getElementById\("workbenchPick"\).addEventListener\("click", beginWorkbenchPick\)/)
+  assert.doesNotMatch(html, /id="patternWorkbenchToggle"/)
+  assert.match(html, /id="workbenchAutoNav"/)
   assert.match(html, /id="workbenchAdvanced"/)
 })
 
