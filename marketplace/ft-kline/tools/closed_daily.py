@@ -45,7 +45,12 @@ def closed_daily(rows, *, symbol: str, interval: str, source_interval: str | Non
     accepted = []
     for row in candles:
         bar = datetime.fromtimestamp(row["time"], zone)
-        if bar.date() < local.date():
+        utc_day = datetime.fromtimestamp(row["time"], timezone.utc).date()
+        if bar.date() < local.date() and utc_day == local.date():
+            # A date-only UTC-midnight stamp for today's US session appears as
+            # yesterday evening in New York. It is not proof of a closed bar.
+            quality.append("date_semantics_uncertain_current_day_excluded")
+        elif bar.date() < local.date():
             accepted.append(row)
         elif bar.date() > local.date():
             quality.append("future_daily_bar_excluded")

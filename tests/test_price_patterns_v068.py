@@ -190,6 +190,14 @@ def test_dst_half_day_future_and_uncertain_current_date():
     assert accepted == [row]
     assert "date_semantics_uncertain_current_day_excluded" in quality["quality"]
     assert "future_daily_bar_excluded" in quality["quality"]
+    ny = ZoneInfo("America/New_York")
+    us_day = datetime(2026, 11, 9, 10, 0, tzinfo=ny)
+    utc_midnight = {"time": int(datetime(2026, 11, 9, tzinfo=timezone.utc).timestamp()),
+                    "open": 100, "high": 101, "low": 99, "close": 100, "volume": 100}
+    selected, quality = closed_daily([utc_midnight], symbol="AAPL.US", interval="day",
+                                     provider="ftshare", now=us_day)
+    assert selected == []
+    assert "date_semantics_uncertain_current_day_excluded" in quality["quality"]
 
 
 def test_group_requires_scoped_analysis_and_updates_atomically():
