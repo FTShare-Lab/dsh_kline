@@ -88,7 +88,10 @@ export function mountKlineView(root, payload, dependencies = {}) {
     return globalThis.fetch(input, init)
   }
   const contextPublisher = createChartContextPublisher({
-    conversationId: dependencies.ownerConversationId,
+    // A market-page chart can exist before a chat session. Its direct
+    // workspace scope still supports the guarded source handoff without
+    // becoming an agent conversation ID.
+    conversationId: dependencies.ownerConversationId ?? dependencies.conversationId,
     capture: () => captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession),
     isActive: () => !controller.signal.aborted && host.isConnected && globalThis.document.visibilityState !== 'hidden'
       && (dependencies.isVisible?.() ?? true),

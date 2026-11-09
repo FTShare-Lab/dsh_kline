@@ -116,6 +116,7 @@ test('a reviewed automatic candidate saves in one click; manual input keeps prev
       workbenchApplyProposal: async () => { calls.push('apply'); return { prepared: { object: { id: 'line-1' } }, status: { apply_status: 'applied' } } },
       workbenchParameterSignature: () => 'same', workbenchInvalidate: () => { state.pending = null },
       workbenchStatus: () => {}, setDrawingCaptureActive: () => {}, syncWorkbenchPickUi: () => {},
+      workbenchCopy: (zh: string) => zh,
       drawWorkbenchPreview: () => {}, renderDrawingWorkbench: () => {}, window: {},
       renderWorkbenchAnchors: () => {},
     }
@@ -145,11 +146,23 @@ test('the workbench keeps curated objects and lists old drawings without a secon
   assert.doesNotMatch(html, /id="drawingPopover"|data-drawing-type=/)
   assert.match(html, /id="drawingWorkbench"/)
   assert.match(html, /id="workbenchPreview"/)
-  assert.match(html, /document.getElementById\("workbenchType"\).addEventListener\("change", event => \{[\s\S]*?void findWorkbenchCandidates\(\)/)
+  assert.match(html, /document.getElementById\("workbenchType"\).addEventListener\("change", event => \{[\s\S]*?openAutomaticDrawing\("nine"\)[\s\S]*?openAutomaticDrawing\("price"\)[\s\S]*?void findWorkbenchCandidates\(\)/)
   assert.match(html, /document.getElementById\("workbenchPick"\).addEventListener\("click", beginWorkbenchPick\)/)
   assert.doesNotMatch(html, /id="patternWorkbenchToggle"/)
-  assert.match(html, /id="workbenchAutoNav"/)
+  assert.match(html, /id="workbenchToolRow"/)
+  assert.doesNotMatch(html, /id="workbenchAutoNav"|id="workbenchAutoPatterns"|id="workbenchAutoNine"/)
+  for (const type of ['pattern_double_top', 'pattern_double_bottom', 'pattern_head_shoulders_top',
+    'pattern_head_shoulders_bottom', 'pattern_platform', 'nine_count']) assert.ok(html.includes(`value="${type}"`))
   assert.match(html, /id="workbenchAdvanced"/)
+})
+
+test('a chart opened before a chat exists still publishes its guarded drawing context', () => {
+  const generator = readFileSync(new URL('../scripts/generate-client-view.mjs', import.meta.url), 'utf8')
+  const generated = readFileSync(new URL('../src/client/generated-view.ts', import.meta.url), 'utf8')
+  for (const source of [generator, generated]) {
+    assert.match(source, /conversationId: dependencies\.ownerConversationId \?\? dependencies\.conversationId/)
+    assert.match(source, /onPublished: publication => \{ window\.__DSH_KLINE_OBSERVATION__ = publication/)
+  }
 })
 
 test('workbench waits for a publication of the current chart before using a stale source', async () => {
@@ -245,11 +258,12 @@ test('channel preview draws both edges and optional midline without an endpoint-
     currentCandles: [{ time: 10 }, { time: 20 }, { time: 30 }],
     kchart: { convertToPixel: ([point]: any[]) => [{ x: point.timestamp / 1000, y: point.value }] },
   }
-  const api = runInNewContext(source + ';({ state: workbenchState, preview: drawWorkbenchPreview })', context)
+  const api = runInNewContext(source + ';({ state: workbenchState, patterns: patternState, preview: drawWorkbenchPreview })', context)
   api.state.anchors = [{ time: 10, price: 100 }, { time: 30, price: 120 }, { time: 20, price: 90 }]
   let midline = 'yes'
+  let type = 'channel'
   context.document.getElementById = (id: string) => id === 'workbenchPreview' ? svg
-    : id === 'klineChart' ? chart : id === 'workbenchType' ? { value: 'channel' }
+    : id === 'klineChart' ? chart : id === 'workbenchType' ? { value: type }
     : id === 'workbenchMidline' ? { value: midline } : null
   api.preview()
   const lines = elements.filter(element => element.tag === 'line').map(element => element.attrs)
@@ -262,4 +276,11 @@ test('channel preview draws both edges and optional midline without an endpoint-
   api.state.previewSuppressed = true
   api.preview()
   assert.equal(elements.length, 0, 'a saved object must not be covered by the unsaved ghost on redraw')
+  type = 'pattern_double_top'
+  api.patterns.selected = { value: { type: 'double_top' }, number: 1 }
+  api.patterns.analysis = { binding: {} }
+  let patternRedraws = 0
+  context.patternRenderPreview = () => { patternRedraws++ }
+  api.preview()
+  assert.equal(patternRedraws, 1, 'chart redraw must preserve the automatic pattern preview')
 })
