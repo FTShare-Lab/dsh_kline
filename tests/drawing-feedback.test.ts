@@ -24,6 +24,21 @@ const band={type:'DRAW_AGENT_PRICE_BAND',id:'band_'+'a'.repeat(24),label:'价带
 const sticks={type:'DRAW_AGENT_PRICE_STICKS',id:'sticks_'+'a'.repeat(24),label:'柱线',color:'info',interval:'day',
   bar_count:4,start_source:{kind:'high'},end_source:{kind:'low'},condition:null,
   start_values:[33,null,33,33],end_values:[30,null,30,30],sticks_hash:'d'.repeat(64)}
+test('pattern snapshots report registered and unloaded status without claiming pixels',()=>{
+  const pattern={type:'DRAW_AGENT_PRICE_PATTERN',id:'pattern_'+'a'.repeat(24),interval:'day',label:'平台',color:'info',
+    geometry_hash:'a'.repeat(64),bar_count:0,rule_version:'price_patterns_v1',as_of:4,
+    pattern:{type:'platform',anchors:[],box:{start_time:1,end_time:4}}}
+  const nine={type:'DRAW_AGENT_NINE_COUNT',id:'nine_'+'b'.repeat(24),interval:'day',label:'九转',color:'info',
+    geometry_hash:'b'.repeat(64),bar_count:1,rule_version:'nine_count_v1',as_of:4,marks:[{time:1}]}
+  const chart:any={__dshPatternGroupRegistry:new Map([[pattern.id,pattern.geometry_hash],[nine.id,nine.geometry_hash]])}
+  const accepted=collectDrawingFeedback(payload([pattern,nine]),context(),chart,[],'applied')
+  assert.equal(sanitizeDrawingFeedback(accepted,drawingInventory(payload([pattern,nine]))).report_status,'reported')
+  assert.ok(accepted.items.every((item:any)=>item.status==='created'))
+  const unloaded=collectDrawingFeedback(payload([pattern,nine]),context({candles:rows.slice(1)}),chart,[],'applied')
+  assert.ok(unloaded.items.every((item:any)=>item.reason==='snapshot_outside_loaded_history'))
+  assert.equal(sanitizeDrawingFeedback(unloaded,drawingInventory(payload([pattern,nine]))).report_status,'reported')
+  assert.equal(unloaded.pixel_verified,false)
+})
 function context(extra:any={}):any {return {state:'ready',candles:rows,interval:'day',ui_interval:'day',
   visible_range:{available:true,index_from:1,index_to_exclusive:3},...extra}}
 function payload(commands:any[]=[horizontal,trend,channel,rectangle]):any {return {interval:'day',chartCommands:commands}}

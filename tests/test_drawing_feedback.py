@@ -49,6 +49,18 @@ class DrawingFeedbackTests(unittest.TestCase):
         self.assertEqual(result["report_status"], "not_reported"); self.assertEqual(result["items"], [])
         self.assertFalse(result["render_verified"])
 
+    def test_pattern_and_nine_count_feedback_accepts_registered_or_unloaded_snapshots(self):
+        allowed = [{"id": "pattern_1", "kind": "price_pattern"}, {"id": "nine_1", "kind": "nine_count"}]
+        created = feedback(allowed, "applied")
+        self.assertEqual(sanitize_drawing_feedback(created, allowed)["report_status"], "reported")
+        hidden = deepcopy(created)
+        hidden["items"][1].update(status="hidden", reason="snapshot_outside_loaded_history",
+                                  visibility="not_applicable")
+        result = sanitize_drawing_feedback(hidden, allowed)
+        self.assertEqual(result["report_status"], "reported")
+        self.assertEqual(result["items"][1]["status"], "hidden")
+        self.assertFalse(result["render_verified"])
+
     def test_current_context_reads_feedback_without_mutating_view_or_revision(self):
         fixture = context_fixtures.ChartContextTests("test_loaded_and_viewport_ranges_sampling_and_read_only")
         fixture.setUp(); self.addCleanup(fixture.doCleanups)

@@ -1,10 +1,10 @@
 """Whitelisted browser object observations; never upgrade them to pixel verification."""
 from __future__ import annotations
 
-KINDS = {"horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks"}
+KINDS = {"horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count"}
 REASONS = {
     "created": {"overlay_registered", "outside_time_viewport", "indicator_registered"},
-    "hidden": {"period_mismatch", "anchors_not_loaded"},
+    "hidden": {"period_mismatch", "anchors_not_loaded", "snapshot_outside_loaded_history"},
     "removed": {"overlay_removed", "indicator_removed"},
     "failed": {"invalid_geometry", "overlay_missing", "overlay_mismatch", "overlay_still_present", "creation_failed", "indicator_missing", "indicator_still_present"},
     "unknown": {"overlay_api_unavailable", "overlay_lookup_failed", "overlay_mismatch", "context_not_ready", "application_rolled_back", "rollback_unknown", "indicator_api_unavailable"},

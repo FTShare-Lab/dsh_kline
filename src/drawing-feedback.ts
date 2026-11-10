@@ -7,11 +7,11 @@ import { chartAnnotationText } from './chart-annotations.ts'
 export const FEEDBACK_KINDS=['horizontal_line','trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline','text_annotation','number_annotation','icon_annotation','series_line','price_band','price_sticks','price_pattern','nine_count']
 export const FEEDBACK_STATUSES=['created','hidden','removed','failed','unknown']
 export const FEEDBACK_REASONS=['overlay_registered','period_mismatch','anchors_not_loaded','outside_time_viewport',
-  'invalid_geometry','overlay_missing','overlay_mismatch','overlay_api_unavailable','overlay_lookup_failed',
+  'invalid_geometry','overlay_missing','overlay_mismatch','overlay_api_unavailable','overlay_lookup_failed','snapshot_outside_loaded_history',
   'overlay_removed','overlay_still_present','context_not_ready','application_rolled_back','rollback_unknown','creation_failed',
   'indicator_registered','indicator_removed','indicator_missing','indicator_still_present','indicator_api_unavailable']
 const PHASES=['current','applied','rolled_back','rollback_unknown']
-const STATUS_REASONS:any={created:['overlay_registered','outside_time_viewport','indicator_registered'],hidden:['period_mismatch','anchors_not_loaded'],
+const STATUS_REASONS:any={created:['overlay_registered','outside_time_viewport','indicator_registered'],hidden:['period_mismatch','anchors_not_loaded','snapshot_outside_loaded_history'],
   removed:['overlay_removed','indicator_removed'],failed:['invalid_geometry','overlay_missing','overlay_mismatch','overlay_still_present','creation_failed','indicator_missing','indicator_still_present'],
   unknown:['overlay_api_unavailable','overlay_lookup_failed','overlay_mismatch','context_not_ready','application_rolled_back','rollback_unknown','indicator_api_unavailable']}
 function empty(status:string) {return {schema_version:1,report_status:status,evidence_scope:'chart_object_api',render_verified:false,pixel_verified:false,items:[]}}
