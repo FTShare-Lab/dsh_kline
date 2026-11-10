@@ -126,7 +126,15 @@ mcp = FastMCP(
         "-> get_chart_edit_status, never legacy snapshot mutations. "
         "For Fibonacci, labeled paths or reusable geometry, discover list_chart_functions and run_chart_function "
         "against fresh context, then pass edit.result_ref into that same guarded workflow. "
-        "Functions calculate; they do not apply drawings or automatically discover pivots. "
+        "Functions calculate; candidate functions find recent rule-based geometry but never apply it. "
+        "A direct request to DRAW a named tool or automatic shape authorizes the host to select "
+        "the newest valid candidate and finish prepare/apply/status in the same turn, without "
+        "another save or confirmation step. Check its type, dates, status and data quality; "
+        "if none fits, report that rather than invent geometry. Requests to analyze or propose "
+        "only remain read-only. User-specified anchors or candidate numbers take precedence. "
+        "Use price_pattern_candidates for reversal shapes, nine_count for Nine Count, "
+        "recent_drawing_candidates for ordinary horizontal/trend/Fibonacci/ABC, and "
+        "channel_candidates/range_candidates for automatic channel/range drawings. "
         "For standard technical indicators on the current loaded chart, discover list_ta_functions, "
         "then run_ta_function and optionally read_ta_result. These TA-Lib results are analysis_only, "
         "may have null/no-finite outputs, and do not draw by themselves. Only when the user explicitly "
@@ -158,17 +166,20 @@ mcp = FastMCP(
         "unavailable explain that state instead of re-fetching market data to guess it. "
         "The create/update/delete_horizontal_line and create/update/delete_trend_line tools "
         "are LEGACY SNAPSHOT ONLY, for explicitly requested snapshot editing, not charts on screen. "
-        "get_horizontal_lines/get_trend_lines read named snapshots only. No tool auto-selects "
+        "get_horizontal_lines/get_trend_lines read named snapshots only. Execution tools do not choose "
         "anchors. Two-point segments require two explicit "
         "times and prices; date-only anchors use Asia/Shanghai and must match existing "
         "bars. Intraday anchors require exact bar-close ISO times with timezone or Unix "
         "seconds. Never fabricate unavailable anchors, snap dates, or substitute automatic levels. "
         "Distinguish literal drawing from analysis-assisted drawing. For literal requests, "
         "preserve the original USER-requested fields and ask about missing or ambiguous coordinates. "
+        "For a direct automatic drawing request with no coordinates, use the appropriate candidate "
+        "function on this current chart and apply its newest suitable result without another prompt. "
+        "The host reviews the result first; a candidate on another symbol, period or source is unusable. "
         "When the user explicitly asks you to find/analyze a region or propose a drawing, "
         "YOU, the host, may derive a candidate from this conversation's actual chart candles; "
         "read fresh current context before making the proposal, not just old conversation rows. "
-        "the plugin does not choose anchors or assess pattern quality. Do not ask the user "
+        "execution tools do not choose anchors or assess pattern quality. Do not ask the user "
         "to supply every coordinate merely because the execution tool needs explicit parameters. "
         "If the user asks for a proposal first, do not prepare, queue or mutate drawings before "
         "their confirmation. Give one preferred candidate with exact existing-bar dates, prices, "
@@ -191,7 +202,7 @@ mcp = FastMCP(
         "do NOT classify the region as a platform. Check chosen bounds with this before asking approval. "
         "If the data do not support a consolidation region, say so; do not force a platform, "
         "invent prices or imply a profitable prediction. Keep ordinary replies concise: proposal "
-        "or changed object, reason/limitation, and one useful confirmation; omit internal IDs, "
+        "or changed object, reason/limitation, and one useful next action; omit internal IDs, "
         "revisions and protocol fields unless the user requests them or they explain a failure. "
         "For current-view parallel channels use prepare_chart_edit with kind=channel; "
         "create/update/delete_channel are LEGACY SNAPSHOT ONLY. Geometry requires "
@@ -1095,11 +1106,12 @@ async def get_chart_context(
 ) -> types.CallToolResult:
     """Read the current conversation's live browser observation without fetching or changing charts.
 
-    Read fresh context before analysis proposals and again after user confirmation before edits.
+    Read fresh context before analysis and again before edits if the view may have changed.
     When the user asks to find a drawing region, the HOST may choose a candidate from actual
     candles; the plugin does not choose/classify it. Before asking approval for that chosen
     region, call this with paired region_start_time/region_end_time to check numeric claims.
-    A proposal-first request must not prepare/apply drawings before confirmation. Keep ordinary
+    A proposal-first request must not prepare/apply drawings before confirmation. A direct
+    drawing request may select and apply the newest suitable candidate without another prompt. Keep ordinary
     proposals concise; avoid arbitrary universal pattern thresholds and internal IDs.
     An inactive initial reference during mounting requires a newly injected current-view
     reference, NOT another market fetch or analyze call.
@@ -1287,13 +1299,14 @@ async def run_chart_function(
 ) -> types.CallToolResult:
     """Calculate on explicitly aligned current loaded candles; return immutable result_ref, NOT a drawing.
 
-    Read get_chart_context first. Supply user-specified or explicitly proposed anchors/bounds;
-    ask when missing, never assume latest pivots for a user-specified drawing. pivot_candidates,
+    Read get_chart_context first. Preserve user-specified anchors/bounds. For a direct automatic
+    drawing request select the newest suitable result after checking type and data quality; ask
+    when a literal coordinate request is incomplete. pivot_candidates,
     recent_drawing_candidates, regression_channel, channel_candidates, range_candidates, price_pattern_candidates and nine_count return analysis-only results;
-    never pass these refs as edit.result_ref. Channel/range candidates may be selected only after
-    explicit user confirmation via edit.candidate_result_ref, candidate_number (1-based) and
-    user_confirmed_candidate=true. Geometry proposals require human review and explicit confirmation
-    before a separate guarded drawing operation. Default channel scope=current may return no candidate;
+    never pass these refs as edit.result_ref. A direct request to draw authorizes the host to
+    choose a suitable candidate; an analysis-only or proposal-first request does not. For channel,
+    range and price-pattern candidates pass edit.candidate_result_ref, candidate_number (1-based)
+    and user_confirmed_candidate=true after selection. Default channel scope=current may return no candidate;
     historical scope must not be described as a current channel or current breakout signal.
     If no candidate passes, report only that no anchor triple met every rule; do not infer
     that recent pivots or real-world channel structure are absent. Inspect pivot_scan for pivots.
@@ -1302,7 +1315,7 @@ async def run_chart_function(
     Fibonacci levels are B-r*(B-A), ratios 0..1, linear price, exact loaded-bar times.
     For drawing functions, pass result_ref into prepare_chart_edit's edit (no duplicate anchors/bounds/ratios), then
     apply_chart_edit and get_chart_edit_status. For analysis-only functions, inspect the result first;
-    channel/range/price-pattern candidates have the separate explicit-selection route. A nine_count
+    channel/range/price-pattern candidates have the selected-candidate route. A nine_count
     result_ref can create or replace one nine_count snapshot group. Recompute after data/period/adjustment changes.
     price_series_line takes value_source={kind:open/high/low/close} or {kind:sma,period:2..200},
     optional condition={left:PriceSource,op:gt/gte/lt/lte,right:{source:PriceSource}|{constant:positive_price}}.
@@ -1351,14 +1364,15 @@ async def prepare_chart_edit(
     Includes literal requests; legacy create/update/delete_* tools edit snapshots, NOT the current view.
     Prepare, NOT APPLY, one current-view drawing candidate with revision/alignment guards.
 
-    For proposal-first requests, call only AFTER the user approves the host's stated candidate;
+    For proposal-first requests, call only AFTER the user approves the host's stated candidate.
+    For direct drawing requests, select the newest suitable result and continue without another prompt;
     read fresh current context first, and preserve independently saved approved coordinates
     and user overrides. If relevant state changed, reassess before preparing. The host reasons,
     the executor does not choose points or validate pattern quality.
     Accept edit.result_ref from run_chart_function instead of direct anchors/bounds/ratios;
     name/color and applicable display switches may accompany a result reference.
-    For confirmed channel/range candidates use edit.candidate_result_ref, candidate_number
-    (1-based) and user_confirmed_candidate=true with action=create; do not copy candidate coordinates.
+    For selected channel/range/price-pattern candidates use edit.candidate_result_ref, candidate_number
+    (1-based) and user_confirmed_candidate=true with action=create or update; do not copy candidate coordinates.
     An unconfirmed or stale candidate remains analysis only and cannot create a drawing.
     For series_line, create or change source/condition using the price_series_line result_ref;
     style-only updates and delete use the stable object_id. Calculation and indicator registration

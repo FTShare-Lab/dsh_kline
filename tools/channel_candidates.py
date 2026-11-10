@@ -254,7 +254,7 @@ def channel_candidates(
                        "max_current_end_age_bars": MAX_CURRENT_END_AGE_BARS,
                        "same_family_slope_tolerance": SAME_FAMILY_SLOPE_TOLERANCE,
                        "same_family_width_tolerance": SAME_FAMILY_WIDTH_TOLERANCE},
-        "limitations": ["geometry_only_requires_human_review", "confirmed_pivots_lag_right_bars",
+        "limitations": ["geometry_only_requires_result_review", "confirmed_pivots_lag_right_bars",
                         "arithmetic_extension_not_breakout_confirmation", "no_drawing_created"],
         "drawing_created": False,
     }

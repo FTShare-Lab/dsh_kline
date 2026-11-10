@@ -65,11 +65,11 @@ class ChartEdit(BaseModel):
     ta_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$",
                                       description="明确选择同一当前图的 SMA/EMA(close) 到 series_line，或 BBANDS(close) 三线到 price_band；不自动绘图。")
     candidate_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$",
-        description="通道/平台候选函数返回的只读引用；只有用户明确选定候选后才能用来创建图形")
+        description="通道/平台/形态候选的只读引用；用户直接要求自动绘图时可选择最新合格候选")
     candidate_number: int | None = Field(default=None, strict=True, ge=1, le=5,
-        description="用户选择的候选序号，从1开始；必须与 candidate_result_ref 同时提供")
+        description="用户指定或宿主从最新合格结果中选择的候选序号，从1开始")
     user_confirmed_candidate: bool | None = Field(default=None, strict=True,
-        description="仅当用户明确确认该候选才填 true；候选函数不会自动绘图")
+        description="用户明确要求直接绘图或选定候选时填 true；仅分析/提案请求不可填")
 
 
 def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
@@ -109,7 +109,7 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
     if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in {"channel", "rectangle", "price_pattern"}
         or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
         or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
-        raise LineError("candidate_confirmation_required", "只有用户明确选定通道/平台候选及序号后才能创建；不能混用直接锚点或其他结果引用。")
+        raise LineError("candidate_confirmation_required", "候选绘图需要用户直接绘图请求或明确选定候选，并填写原结果引用、序号及授权标记。")
     if edit.kind == "all_drawings" and (edit.action != "delete" or edit.object_id is not None):
         raise LineError("invalid_object_identity", "清空当前图只使用 all_drawings/delete，不指定单个对象 ID。")
     if edit.kind != "all_drawings" and (edit.action == "create" and edit.object_id is not None or edit.action != "create" and edit.object_id is None):

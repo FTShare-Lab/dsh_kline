@@ -68,9 +68,12 @@ class CodexChartEdit(BaseModel):
     ratios: list[float] | None = Field(default=None, min_length=1, max_length=16)
     result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     ta_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    candidate_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    candidate_number: int | None = Field(default=None, ge=1, le=5)
-    user_confirmed_candidate: bool | None = None
+    candidate_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$",
+        description="Candidate reference from current-chart analysis; direct draw requests may use the newest suitable result")
+    candidate_number: int | None = Field(default=None, ge=1, le=5,
+        description="User-selected or host-selected suitable candidate number, starting at 1")
+    user_confirmed_candidate: bool | None = Field(default=None,
+        description="True only for a direct drawing request or an explicit candidate selection, never analysis-only")
 
 
 _EDITABLE_COMMANDS = {LINE_COMMAND, TREND_COMMAND, CHANNEL_COMMAND, RECTANGLE_COMMAND,
@@ -158,8 +161,7 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
             or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
         raise LineError(
             "candidate_confirmation_required",
-            "候选必须由用户明确选定后才可创建图形。若用户已明确确认，必须保留原候选引用和序号，并同时填写 "
-            "candidate_result_ref、candidate_number 与 user_confirmed_candidate=true；否则先展示候选并请求确认。",
+            "候选绘图需要用户直接绘图请求或明确选定候选，并保留当前结果引用、序号及授权标记。",
         )
     return fields
 

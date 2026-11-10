@@ -10,7 +10,9 @@ class DrawingIntentContractTests(unittest.TestCase):
         instructions = server.mcp.instructions
         self.assertIn("literal drawing from analysis-assisted drawing", instructions)
         self.assertIn("YOU, the host, may derive a candidate", instructions)
-        self.assertIn("the plugin does not choose anchors or assess pattern quality", instructions)
+        self.assertIn("execution tools do not choose anchors or assess pattern quality", instructions)
+        self.assertIn("A direct request to DRAW a named tool or automatic shape", instructions)
+        self.assertIn("without another save or confirmation step", instructions)
         self.assertIn("do not prepare, queue or mutate drawings before", instructions)
         self.assertIn("their confirmation", instructions)
         self.assertNotIn("without explicit user anchors", instructions)

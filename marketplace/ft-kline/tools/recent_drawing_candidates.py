@@ -1,7 +1,8 @@
 """Recent, confirmed daily anchors for ordinary drawing tools.
 
-These are geometric suggestions, not wave labels or trading signals. The
-caller still selects a candidate and confirms the guarded chart edit.
+These are geometric suggestions, not wave labels or trading signals. A direct
+drawing request permits the host to choose the newest suitable result and
+continue through the guarded chart edit; analysis-only requests do not.
 """
 from __future__ import annotations
 

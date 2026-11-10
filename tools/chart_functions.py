@@ -139,7 +139,8 @@ def list_functions():
                     "price_scale": "linear", "time": "exact_loaded_bar", "applies_chart": False,
                     **({"closed_daily_only": True, "recent_confirmed_pivots": True,
                         "automatic_anchor_selection": "candidates_only_not_drawing",
-                        "candidate_limit": [1, 5], "applies_chart": False} if name == "recent_drawing_candidates" else
+                        "candidate_limit": [1, 5], "applies_chart": False,
+                        "direct_request_may_select_latest": True} if name == "recent_drawing_candidates" else
                        {"window_bars": [1, 20], "candidate_limit": [1, 50],
                         "rule": "strict_local_extremum", "ties": "equal_neighbor_is_not_a_pivot",
                         "requires_complete_right_window": True} if name == "pivot_candidates" else
@@ -157,23 +158,23 @@ def list_functions():
                         "same_family_slope_tolerance": 0.10,
                         "same_family_width_tolerance": 0.10,
                         "current_post_end_check": "arithmetic_extension_to_latest_not_breakout_confirmation",
-                        "requires_human_review": True} if name == "channel_candidates" else
+                        "requires_result_review": True, "direct_request_may_select_latest": True} if name == "channel_candidates" else
                        {"window_size_bars": [16, 120], "candidate_limit": [1, 5],
                         "end_policy": "latest_loaded_bar_only",
                         "boundary_rule": "full_window_max_high_min_low",
                         "requires_separated_touches_on_both_edges": True,
                         "checks_full_and_recent_close_drift": True,
                         "automatic_anchor_selection": "candidates_only_not_drawing",
-                        "requires_human_review": True} if name == "range_candidates" else
+                        "requires_result_review": True, "direct_request_may_select_latest": True} if name == "range_candidates" else
                        {"market": ["CN", "HK", "US"], "interval": "single_daily_only",
                         "lookback_bars": [60, 300], "candidate_limit": [1, 5],
                         "pivot_window": [2, 2], "atr_period": 14, "breakout_buffer_atr": 0.25,
                         "confirmation": "two_consecutive_closed_daily_closes",
-                        "requires_human_review": True} if name == "price_pattern_candidates" else
+                        "requires_result_review": True, "direct_request_may_select_latest": True} if name == "price_pattern_candidates" else
                        {"market": ["CN", "HK", "US"], "interval": "single_daily_only",
                         "display_bars": [30, 240], "comparison_lag": 4,
                         "completed_count": 9, "repeat_while_same_direction": False,
-                        "requires_human_review": True} if name == "nine_count" else
+                        "requires_result_review": True, "direct_request_may_apply": True} if name == "nine_count" else
                        {"maximum_series_objects": 8, "value_sources": ["open", "high", "low", "close", "sma_close", "ema_close"],
                         "sma_period": [2, 200], "ema_period": [2, 200], "conditions": ["gt", "gte", "lt", "lte"],
                         "zero_matches": "do_not_draw", "pane": "candle"} if name == "price_series_line" else
@@ -194,7 +195,7 @@ def list_functions():
                               **({"$defs": schema["$defs"]} if name in {"labeled_polyline", "price_series_line", "conditional_annotation", "price_band", "price_sticks"} else {})}}
         for name, (kind, _, required, optional) in FUNCTIONS.items()],
         "workflow": "get_chart_context -> run_chart_function -> prepare_chart_edit(result_ref) -> apply_chart_edit -> get_chart_edit_status",
-        "analysis_only_workflow": "get_chart_context -> run_chart_function; inspect analysis. Channel/range/price-pattern candidates require explicit selection via candidate_result_ref, candidate_number and user_confirmed_candidate=true. Nine-count marks require a current result_ref. Both then use prepare/apply/status; historical anchors do not prove a current breakout",
+        "analysis_only_workflow": "get_chart_context -> run_chart_function; inspect analysis. A direct drawing request authorizes the newest suitable candidate without another confirmation; analysis-only or proposal-first requests do not. Channel/range/price-pattern candidates use candidate_result_ref, candidate_number and user_confirmed_candidate=true after selection. Nine-count marks use a current result_ref. Both then use prepare/apply/status; historical anchors do not prove a current breakout",
         "pattern_quality_verified": False}
 
 

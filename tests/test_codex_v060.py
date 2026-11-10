@@ -179,6 +179,8 @@ def test_desktop_instructions_preserve_explicit_candidate_confirmation_binding()
     assert "candidate_number" in codex_server.INSTRUCTIONS
     assert "user_confirmed_candidate=true" in codex_server.INSTRUCTIONS
     assert "separate guarded edits" in codex_server.INSTRUCTIONS
+    assert "A direct user request to draw" in codex_server.INSTRUCTIONS
+    assert "Do not ask for an extra preview, save, or confirmation" in codex_server.INSTRUCTIONS
 
 
 def test_codex_desktop_mcp_resource_app_visibility_and_cli_degradation():

@@ -164,7 +164,7 @@ def range_candidates(rows, *, window_sizes=DEFAULT_WINDOW_SIZES, limit=3):
             "recent_bars": RECENT_BARS,
             "maximum_recent_drift_to_width": MAX_RECENT_DRIFT_TO_WIDTH,
         },
-        "limitations": ["current_window_only", "geometry_only_requires_human_review",
+        "limitations": ["current_window_only", "geometry_only_requires_result_review",
                         "no_breakout_signal", "no_drawing_created"],
         "drawing_created": False,
     }
