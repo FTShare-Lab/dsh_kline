@@ -37,7 +37,7 @@ function fixture(type: string, selectedId: string | null = null) {
     },
     crypto: { randomUUID: () => 'request-1' }, sleep: async () => {},
   }
-  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, style: workbenchStyleOrDelete, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint })', context)
+  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, style: workbenchStyleOrDelete, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint, dataKey: workbenchDataKey, bindingMatches: workbenchBindingMatches })', context)
   api.state.selectedId = selectedId
   return { api, calls, fields, context }
 }
@@ -193,6 +193,19 @@ test('workbench waits for a publication of the current chart before using a stal
   assert.equal((await api.proposal('create')).binding.chart_session, 'b'.repeat(32))
   context.window.__DSH_KLINE_OBSERVATION__.source_status = { phase: 'blocked' }
   await assert.rejects(() => api.proposal('create'), /当前图已变化，正在重新核对/)
+})
+
+test('viewport revision preserves an analyzed source while a new candle source expires it', () => {
+  const { api, context } = fixture('pattern_head_shoulders_bottom')
+  let sourceKey = 'candles-v1'
+  context.window.__DSH_KLINE_SOURCE_KEY__ = () => sourceKey
+  const binding = { context_ref: 'a'.repeat(32), expected_revision: 7,
+    chart_session: 'b'.repeat(32), symbol: 'TEST.X' }
+  const dataKey = api.dataKey()
+  context.window.__DSH_KLINE_OBSERVATION__.revision = 8
+  assert.equal(api.bindingMatches(binding, dataKey), true)
+  sourceKey = 'candles-v2'
+  assert.equal(api.bindingMatches(binding, dataKey), false)
 })
 
 test('channel picking accepts three distinct bars while ordinary range selection remains separate', () => {

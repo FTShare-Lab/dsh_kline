@@ -14,7 +14,7 @@ from tools.closed_daily import closed_daily
 from tools.lines import LineError
 from tools.pivots import confirmed_pivots
 
-RULE_VERSION = "recent_drawing_v1"
+RULE_VERSION = "recent_drawing_v2"
 TYPES = {"horizontal", "trend", "fibonacci", "abc"}
 
 
@@ -66,19 +66,57 @@ def recent_drawing_candidates(rows, *, symbol: str, provider: str | None,
             same = [p for p in pivots if p["side"] == side]
             for first, second in zip(same, same[1:]):
                 add([first, second], side)
+    elif drawing_type == "abc":
+        # Three labelled endpoints only describe two legs. Require the prior
+        # origin as well so A, B and C end three completed, alternating legs.
+        for start in range(len(pivots) - 3):
+            origin, a, b, c = pivots[start:start + 4]
+            points = (origin, a, b, c)
+            if any(left["side"] == right["side"] for left, right in zip(points, points[1:])):
+                continue
+            indexes = [index_by_time.get(p["time"]) for p in points]
+            if any(index is None for index in indexes) or any(y - x < 3 for x, y in zip(indexes, indexes[1:])):
+                continue
+            if indexes[-1] - indexes[0] > 120:
+                continue
+            known_at = indexes[-1] + 2
+            if known_at >= len(atr_values):
+                continue
+            reference_atr = float(atr_values[known_at])
+            if not math.isfinite(reference_atr) or reference_atr <= 0:
+                continue
+            first_leg = abs(a["price"] - origin["price"])
+            retrace = abs(b["price"] - a["price"])
+            final_leg = abs(c["price"] - b["price"])
+            if first_leg < 2 * reference_atr or not .3 <= retrace / first_leg <= .8:
+                continue
+            if not .8 <= final_leg / first_leg <= 2.5:
+                continue
+            if origin["side"] == "high":
+                if b["price"] >= origin["price"] or c["price"] >= a["price"] - .25 * reference_atr:
+                    continue
+                side = "abc_down"
+            else:
+                if b["price"] <= origin["price"] or c["price"] <= a["price"] + .25 * reference_atr:
+                    continue
+                side = "abc_up"
+            before = len(candidates)
+            add((a, b, c), side)
+            if len(candidates) > before:
+                candidates[-1]["origin"] = {"time": int(origin["time"]), "price": origin["price"]}
     else:
-        width = 2 if drawing_type == "fibonacci" else 3
+        width = 2
         for start in range(len(pivots) - width + 1):
             points = pivots[start:start + width]
             if any(a["side"] == b["side"] for a, b in zip(points, points[1:])):
                 continue
             if any(abs(a["price"] - b["price"]) < atr for a, b in zip(points, points[1:])):
                 continue
-            add(points, "swing" if width == 2 else "alternating_pivots")
+            add(points, "swing")
     candidates.sort(key=lambda item: (item["latest_anchor_time"],
                                       abs(item["anchors"][-1]["price"] - item["anchors"][0]["price"])), reverse=True)
     candidates = candidates[:max_candidates]
     return {"rule_version": RULE_VERSION, "drawing_type": drawing_type, "as_of": quality["as_of"],
             "data_quality": quality, "lookback_bars": lookback_bars, "candidate_count": len(candidates),
-            "candidates": candidates, "limitations": ["confirmed_pivots_only", "not_wave_recognition"]
+            "candidates": candidates, "limitations": ["confirmed_pivots_only", "abc_price_geometry_not_elliott_validation"]
             if drawing_type == "abc" else ["confirmed_pivots_only"]}

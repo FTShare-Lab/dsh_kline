@@ -21,7 +21,7 @@ def oscillating_rows(origin, count):
 
 
 @pytest.mark.parametrize("kind,count", [("horizontal", 1), ("trend", 2),
-                                         ("fibonacci", 2), ("abc", 3)])
+                                         ("fibonacci", 2)])
 def test_recent_tools_select_confirmed_anchors_from_closed_daily_rows(kind, count):
     rows = oscillating_rows(datetime(2025, 1, 1, 15, tzinfo=ZoneInfo("Asia/Shanghai")), 130)
     now = datetime(2026, 11, 9, tzinfo=timezone.utc)
@@ -37,6 +37,34 @@ def test_recent_tools_select_confirmed_anchors_from_closed_daily_rows(kind, coun
     shared = _calculate(None, "recent_drawing_candidates",
                         ChartFunctionParameters(drawing_type=kind), candles=rows, context=context)
     assert shared["summary"]["candidates"] == result["candidates"]
+
+
+def abc_rows(c_price=105):
+    origin = datetime(2025, 1, 1, 15, tzinfo=ZoneInfo("Asia/Shanghai"))
+    knots = {0: 80, 30: 120, 40: 110, 47: 114, 55: c_price, 79: 115}
+    rows = []
+    for index in range(80):
+        left = max(key for key in knots if key <= index)
+        right = min(key for key in knots if key >= index)
+        close = knots[left] if left == right else knots[left] + (knots[right] - knots[left]) * (index-left)/(right-left)
+        rows.append({"time": int((origin + timedelta(days=index)).timestamp()),
+                     "open": close, "high": close + .5, "low": close - .5,
+                     "close": close, "volume": 1000})
+    return rows
+
+
+def test_abc_requires_origin_and_completed_third_leg_beyond_a():
+    now = datetime(2026, 11, 10, tzinfo=timezone.utc)
+    valid = recent_drawing_candidates(abc_rows(), symbol="600519.XSHG", provider="ftshare",
+                                      drawing_type="abc", now=now)
+    assert valid["rule_version"] == "recent_drawing_v2"
+    assert valid["candidate_count"] == 1
+    assert valid["candidates"][0]["side"] == "abc_down"
+    assert [point["time"] for point in valid["candidates"][0]["anchors"]] == [abc_rows()[i]["time"] for i in (40, 47, 55)]
+    assert valid["candidates"][0]["origin"]["time"] == abc_rows()[30]["time"]
+    incomplete = recent_drawing_candidates(abc_rows(111), symbol="600519.XSHG", provider="ftshare",
+                                           drawing_type="abc", now=now)
+    assert incomplete["candidate_count"] == 0
 
 
 def test_open_current_day_does_not_change_automatic_anchors():

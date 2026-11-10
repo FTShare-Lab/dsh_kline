@@ -44,11 +44,12 @@ test('group commands remain single inventory objects and render as one overlay e
   assert.equal(overlays.size,0)
 })
 
-test('automatic nine count uses the shared result and refreshes when the chart revision changes', async () => {
+test('automatic nine count keeps a viewport revision and refreshes when candles change', async () => {
   const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
   const source = html.slice(html.indexOf('const patternState ='), html.indexOf('function patternDate('))
   const overlays: any[] = [], calls: any[] = []
   let revision = 1
+  let sourceKey = 'candles-v1'
   const binding = () => ({ context_ref: 'current', expected_revision: revision, chart_session: 'chart', symbol: '600519.XSHG' })
   const button: any = { textContent: '', setAttribute() {}, classList: { toggle() {} } }
   const context: any = {
@@ -56,6 +57,7 @@ test('automatic nine count uses the shared result and refreshes when the chart r
       createOverlay(value: any) { overlays.push(value) } },
     currentInterval: 'day', currentCandles: [{ time: 10 }, { time: 20 }], lastChartPayload: null,
     workbenchCurrentBinding: binding,
+    workbenchDataKey: () => sourceKey,
     workbenchTool: async (_name: string, args: any) => {
       calls.push(args)
       return { result_ref: `ref-${revision}`, summary: { marks: [{ time: 10, price: 100, count: revision, direction: 'up' }] } }
@@ -69,9 +71,13 @@ test('automatic nine count uses the shared result and refreshes when the chart r
   assert.equal(calls[0].function, 'nine_count')
   assert.equal(overlays[0].extendData.marks[0].count, 1)
   revision = 2
+  await api.tick(false)
+  assert.equal(calls.length, 1)
+  sourceKey = 'candles-v2'
+  revision = 3
   await api.tick(true)
   assert.equal(calls.length, 2)
-  assert.equal(overlays[0].extendData.marks[0].count, 2)
+  assert.equal(overlays[0].extendData.marks[0].count, 3)
   api.set(false)
   assert.equal(overlays.length, 0)
 })

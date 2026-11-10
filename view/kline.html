@@ -2882,6 +2882,7 @@ function scheduleChartOverlayRender() {
   if (chartOverlayFrame) return;
   chartOverlayFrame = window.requestAnimationFrame(() => {
     chartOverlayFrame = 0;
+    maintainAutoPreviewFocus();
     drawMaLayer();
     drawComparisonLayer();
     drawUserDrawings();
@@ -5803,6 +5804,7 @@ function clearCurrentUserDrawings(silent = false) {
 const workbenchState = { anchors: [], picking: false, replaceIndex: null, pending: null, selectedId: null,
   selectedParameters: null, busy: false, scope: null, mode: "drawing", candidate: null, candidateResults: null,
   previewSuppressed: false, autoSelected: false, indicatorType: null };
+let previewFocusBarSpace = null;
 const WORKBENCH_KINDS = { sma: "series_line", ema: "series_line", boll: "price_band", horizontal: "horizontal_line",
   trend: "trend_line", channel: "channel", rectangle: "rectangle", fibonacci: "fibonacci_retracement", abc: "labeled_polyline" };
 const WORKBENCH_ANCHORS = { horizontal: 1, trend: 2, channel: 3, rectangle: 2, fibonacci: 2, abc: 3 };
@@ -5954,9 +5956,10 @@ async function findWorkbenchCandidates(scope = "current") {
     const candidates = result.summary?.candidates || [];
     const list = document.getElementById("workbenchCandidateList");
     list.hidden = false;
-    workbenchState.candidateResults = { binding, ref: result.result_ref, candidates, type, scope };
+    workbenchState.candidateResults = { binding, dataKey: workbenchDataKey(), ref: result.result_ref, candidates, type, scope };
     if (!candidates.length) {
-      list.textContent = scope === "historical" ? workbenchCopy("历史区间也没有符合规则的通道，可手动选点。", "No historical channel meets the rules. You can select anchors manually.")
+      list.textContent = type === "abc" ? workbenchCopy("近期没有完成的 ABC 三段修正候选；可手动选点。", "No completed three-leg ABC candidate was found recently. You can pick anchors manually.")
+        : scope === "historical" ? workbenchCopy("历史区间也没有符合规则的通道，可手动选点。", "No historical channel meets the rules. You can select anchors manually.")
         : workbenchCopy("当前区间没有符合规则的候选，可手动选点。", "No candidate meets the rules for the current range. You can select anchors manually.");
       if (type === "channel" && scope === "current") {
         const historyButton = document.createElement("button");
@@ -5970,11 +5973,15 @@ async function findWorkbenchCandidates(scope = "current") {
       return;
     }
     const caption = document.createElement("span");
-    caption.textContent = `${scope === "historical" ? workbenchCopy("历史候选（不代表当前有效）", "Historical candidates (may be stale)") : workbenchCopy("近期已收盘日线候选", "Recent closed daily candidates")} · ${currentSymbol} · ${currentInterval}`;
+    caption.textContent = type === "abc"
+      ? `${workbenchCopy("ABC 三段价格修正候选（非完整波浪验证）", "ABC three-leg price candidates (not full wave validation)")} · ${currentSymbol}`
+      : `${scope === "historical" ? workbenchCopy("历史候选（不代表当前有效）", "Historical candidates (may be stale)") : workbenchCopy("近期已收盘日线候选", "Recent closed daily candidates")} · ${currentSymbol} · ${currentInterval}`;
     list.append(caption);
     candidates.forEach((candidate, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "btn";
-      button.textContent = recent
+      button.textContent = type === "abc"
+        ? `${workbenchCopy("候选", "Candidate")} ${index + 1} · ${candidate.side === "abc_down" ? workbenchCopy("向下修正", "downward correction") : workbenchCopy("向上修正", "upward correction")} · ${candidate.anchors.map(a => fmtCandleTimestamp({ time: a.time })).join(" → ")}`
+        : recent
         ? `${workbenchCopy("候选", "Candidate")} ${index + 1} · ${candidate.side === "high" ? workbenchCopy("近期高点", "recent high") : candidate.side === "low" ? workbenchCopy("近期低点", "recent low") : workbenchCopy("近期拐点", "recent pivot")} · ${candidate.anchors.map(a => fmtCandleTimestamp({ time: a.time })).join(" → ")}`
         : type === "channel"
         ? `${workbenchCopy("候选", "Candidate")} ${index + 1} · ${candidate.direction === "ascending" ? workbenchCopy("上升通道", "rising channel") : workbenchCopy("下降通道", "falling channel")} · ${workbenchCopy("宽", "width ")}${formatPrice(candidate.width)}`
@@ -5994,7 +6001,7 @@ async function findWorkbenchCandidates(scope = "current") {
 function selectWorkbenchCandidate(index) {
   const result = workbenchState.candidateResults;
   if (!result || result.type !== workbenchType() || !result.candidates[index]) return;
-  if (JSON.stringify(result.binding) !== JSON.stringify(workbenchCurrentBinding())) {
+  if (!workbenchBindingMatches(result.binding, result.dataKey)) {
     clearWorkbenchCandidate(); workbenchStatus("图表数据已变化，请重新查找候选。"); return;
   }
   const entry = result.candidates[index];
@@ -6008,14 +6015,18 @@ function selectWorkbenchCandidate(index) {
   workbenchState.anchors = anchors.map(anchor => ({ time: Number(anchor.time), price: Number(anchor.price) }));
   workbenchState.selectedId = null; workbenchState.selectedParameters = null;
   workbenchState.candidate = ["channel", "rectangle"].includes(result.type)
-    ? { ref: result.ref, number: index + 1, binding: result.binding, type: result.type } : null;
+    ? { ref: result.ref, number: index + 1, binding: result.binding, dataKey: result.dataKey, type: result.type } : null;
   if (result.type === "horizontal") document.getElementById("workbenchPrice").value = String(anchors[0].price);
   workbenchState.picking = false; workbenchState.replaceIndex = null; setDrawingCaptureActive(false);
   workbenchInvalidate(); renderWorkbenchAnchors(); renderDrawingWorkbench();
   workbenchState.autoSelected = true;
   document.getElementById("workbenchConfirm").textContent = workbenchCopy("保存到图表", "Save to chart");
-  workbenchStatus(workbenchCopy(`候选 ${index + 1} 已自动画出预览；核对后可一键保存，或手动改点。`,
-    `Candidate ${index + 1} is previewed. Save it or adjust its anchors manually.`));
+  if (result.type === "abc") { focusAutoPreview(anchors.map(anchor => anchor.time)); drawWorkbenchPreview(); }
+  workbenchStatus(result.type === "abc"
+    ? workbenchCopy(`候选 ${index + 1} 是已完成的三段价格修正，不代表完整艾略特波浪判定；请核对后保存。`,
+      `Candidate ${index + 1} is completed three-leg price geometry, not full Elliott wave validation. Review before saving.`)
+    : workbenchCopy(`候选 ${index + 1} 已自动画出预览；核对后可一键保存，或手动改点。`,
+      `Candidate ${index + 1} is previewed. Save it or adjust its anchors manually.`));
 }
 function workbenchPixel(time, price) {
   try {
@@ -6024,6 +6035,47 @@ function workbenchPixel(time, price) {
     const p = Array.isArray(result) ? result[0] : result;
     return Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)) ? { x: Number(p.x), y: Number(p.y) } : null;
   } catch { return null; }
+}
+function activeAutoPreviewTimes() {
+  const type = workbenchType();
+  if (type.startsWith("pattern_") && patternState.mode === "price" && patternState.selected && patternBindingValid()) {
+    const selected = patternState.selected.value;
+    return selected.type === "platform" ? [selected.box?.start_time, selected.box?.end_time]
+      : selected.anchors?.map(anchor => anchor.time);
+  }
+  if (type === "abc" && workbenchState.autoSelected && workbenchState.anchors.length === 3)
+    return workbenchState.anchors.map(anchor => anchor.time);
+  return null;
+}
+function focusAutoPreview(times, { adjustZoom = true } = {}) {
+  if (!kchart || !Array.isArray(times) || !times.length) return false;
+  const chart = document.getElementById("klineChart");
+  const width = Number(chart?.clientWidth) || 0;
+  if (width < MIN_CHART_RENDER_WIDTH) return false;
+  const indexes = times.map(time => currentCandles.findIndex(row => Number(row.time) === Number(time)));
+  if (indexes.some(index => index < 0)) return false;
+  const first = Math.min(...indexes), last = Math.max(...indexes);
+  const center = currentCandles[Math.round((first + last) / 2)];
+  try {
+    if (adjustZoom) {
+      const barSpace = Math.max(8, Math.min(38, Math.floor((width - 140) / (last - first + 16))));
+      kchart.setBarSpace?.(barSpace);
+    }
+    kchart.scrollToTimestamp?.(Number(center.time) * 1000);
+    kchart.scrollByDistance?.(-Math.max(120, (width - 100) / 2));
+    previewFocusBarSpace = Number(kchart.getBarSpace?.()) || null;
+    scheduleChartOverlayRender();
+    return true;
+  } catch { return false; }
+}
+function maintainAutoPreviewFocus() {
+  const times = activeAutoPreviewTimes();
+  if (!times) { previewFocusBarSpace = null; return; }
+  const current = Number(kchart?.getBarSpace?.());
+  if (!Number.isFinite(current) || current <= 0) return;
+  if (previewFocusBarSpace != null && Math.abs(current - previewFocusBarSpace) > .01)
+    focusAutoPreview(times, { adjustZoom: false });
+  previewFocusBarSpace = Number(kchart?.getBarSpace?.()) || current;
 }
 function drawWorkbenchPreview() {
   const svg = document.getElementById("workbenchPreview");
@@ -6098,6 +6150,20 @@ function workbenchCurrentBinding() {
   return { context_ref: observation.context_ref, expected_revision: observation.revision,
     chart_session: state.source_chart_session, symbol: currentSymbol };
 }
+function workbenchDataKey() {
+  if (typeof window.__DSH_KLINE_SOURCE_KEY__ !== "function") return null;
+  try {
+    const state = captureChartContext(lastChartPayload?._live_chart_session || window.__DSH_KLINE_INITIAL_CHART_SESSION__);
+    const contextRef = window.__DSH_KLINE_OBSERVATION__?.context_ref;
+    if (!contextRef || state.state !== "ready" || !state.source_chart_session || !currentSymbol) return null;
+    return JSON.stringify([contextRef, state.source_chart_session, currentSymbol, window.__DSH_KLINE_SOURCE_KEY__(state)]);
+  } catch { return null; }
+}
+function workbenchBindingMatches(binding, dataKey) {
+  if (dataKey != null) return dataKey === workbenchDataKey();
+  try { return JSON.stringify(binding) === JSON.stringify(workbenchCurrentBinding()); }
+  catch { return false; }
+}
 async function workbenchTool(name, args) {
   const response = await callTool(name, args);
   const result = response?.structuredContent || response;
@@ -6165,7 +6231,7 @@ async function workbenchProposal(action) {
     if (changed.length) direct = { point_label: "ABC"[changed[0].index], point_time: String(changed[0].point.time), point_price: changed[0].point.price };
   } else if (workbenchState.candidate && ["channel", "rectangle"].includes(input.type)) {
     const chosen = workbenchState.candidate;
-    if (action !== "create" || chosen.type !== input.type || JSON.stringify(chosen.binding) !== JSON.stringify(binding))
+    if (action !== "create" || chosen.type !== input.type || !workbenchBindingMatches(chosen.binding, chosen.dataKey))
       throw new Error("候选与当前图不匹配，请重新查找；已选坐标不会自动作为手动图形保存。");
     ref = chosen.ref; refKey = "candidate_result_ref";
     preview = `只读候选 ${chosen.number} 已选定；请核对画布预览，保存后才会创建对象。`;
@@ -6249,7 +6315,7 @@ const PATTERN_NOTES_EN = { rule_based_geometry_not_trading_forecast: "Rule-based
 function patternLabel(zh, en, value) { return (viewLanguage === "en" ? en : zh)[value] || value; }
 function patternNote(value) { return patternLabel(PATTERN_NOTES, PATTERN_NOTES_EN, value); }
 function patternMessage(message) { document.getElementById("patternStatus").textContent = message; }
-function automaticNineKey(binding) { return `${JSON.stringify(binding)}|${automaticNine.displayBars}`; }
+function automaticNineKey(binding) { return `${workbenchDataKey() ?? JSON.stringify(binding)}|${automaticNine.displayBars}`; }
 function renderAutomaticNineOverlay() {
   if (!kchart) return;
   kchart.removeOverlay({ groupId: "automaticNineCount" });
@@ -6305,7 +6371,7 @@ async function automaticNineTick(force = false) {
     if (!automaticNine.enabled || automaticNineKey(workbenchCurrentBinding()) !== key) return;
     automaticNine.binding = binding; automaticNine.result = result; automaticNine.marks = result.summary?.marks || [];
     if (patternState.mode === "nine") {
-      patternState.analysis = { binding, ref: result.result_ref, summary: result.summary, mode: "nine" };
+      patternState.analysis = { binding, dataKey: workbenchDataKey(), ref: result.result_ref, summary: result.summary, mode: "nine" };
       patternState.selected = { value: result.summary, number: null };
       patternRenderResults();
       document.getElementById("patternSave").disabled = !automaticNine.marks.length;
@@ -6334,8 +6400,7 @@ function patternClearPreview(clearAnalysis = false) {
 }
 function patternBindingValid() {
   if (!patternState.analysis) return false;
-  try { return JSON.stringify(patternState.analysis.binding) === JSON.stringify(workbenchCurrentBinding()); }
-  catch { return false; }
+  return workbenchBindingMatches(patternState.analysis.binding, patternState.analysis.dataKey);
 }
 function patternRenderPreview() {
   const svg = document.getElementById("workbenchPreview"), chart = document.getElementById("klineChart");
@@ -6410,6 +6475,8 @@ function patternRenderResults() {
         `${patternDate(candidate.box?.start_time, zone)}–${patternDate(candidate.box?.end_time, zone)}`;
       button.textContent = `${index + 1}. ${patternLabel(PATTERN_NAMES, PATTERN_NAMES_EN, candidate.type)} · ${patternLabel(PATTERN_STATUS, PATTERN_STATUS_EN, candidate.status)} · ${anchors} · ${workbenchCopy("首次可知", "known from")} ${patternDate(candidate.available_at, zone)}${candidate.confirmed_at ? ` · ${workbenchCopy("确认", "confirmed")} ${patternDate(candidate.confirmed_at, zone)}` : ""}`;
       button.addEventListener("click", () => { patternState.selected = { value: candidate, number: index + 1 };
+        focusAutoPreview(candidate.type === "platform" ? [candidate.box?.start_time, candidate.box?.end_time]
+          : candidate.anchors?.map(anchor => anchor.time));
         patternRenderPreview(); document.getElementById("patternSave").disabled = false;
         const evidence = candidate.volume_evidence?.status === "known"
           ? workbenchCopy(`量能：确认日为前20根均量的 ${candidate.volume_evidence.relative_to_preceding_20.toFixed(2)} 倍（${candidate.volume_evidence.unit}）`,
@@ -6449,10 +6516,13 @@ async function patternAnalyze(anchorTimes = null) {
         pattern_types: [filter] } });
     if (workbenchType() !== selectedTool) return;
     if (JSON.stringify(binding) !== JSON.stringify(workbenchCurrentBinding())) throw new Error("分析期间图表已变化，请重新分析。");
-    patternState.analysis = { binding, ref: result.result_ref, summary: result.summary, mode: "price" };
+    patternState.analysis = { binding, dataKey: workbenchDataKey(), ref: result.result_ref, summary: result.summary, mode: "price" };
     patternRenderResults();
     if (result.summary?.candidates?.length) {
       patternState.selected = { value: result.summary.candidates[0], number: 1 };
+      const selected = patternState.selected.value;
+      focusAutoPreview(selected.type === "platform" ? [selected.box?.start_time, selected.box?.end_time]
+        : selected.anchors?.map(anchor => anchor.time));
       patternRenderPreview(); document.getElementById("patternSave").disabled = false;
       patternMessage(workbenchCopy("已自动预览最近的形态候选；可选择其他候选或手动选点。确认保存才会修改图表。",
         "The latest candidate is previewed. Choose another or pick anchors manually. Saving changes the chart."));
@@ -6514,7 +6584,7 @@ function patternSetMode(mode) {
   document.getElementById("patternScope").textContent = workbenchCopy("仅分析已加载的 A／港／美股单日线", "Uses loaded closed daily bars for A/HK/US stocks only");
   patternRenderResults(); patternRenderSaved(); patternMessage("");
   if (mode === "nine" && automaticNine.result && automaticNine.binding) {
-    patternState.analysis = { binding: automaticNine.binding, ref: automaticNine.result.result_ref,
+    patternState.analysis = { binding: automaticNine.binding, dataKey: workbenchDataKey(), ref: automaticNine.result.result_ref,
       summary: automaticNine.result.summary, mode: "nine" };
     patternState.selected = { value: automaticNine.result.summary, number: null };
     patternRenderResults(); document.getElementById("patternSave").disabled = !automaticNine.marks.length;
@@ -6599,7 +6669,7 @@ function renderDrawingWorkbench() {
   const objects = workbenchManagedObjects();
   if (workbenchState.candidate) {
     try {
-      if (JSON.stringify(workbenchState.candidate.binding) !== JSON.stringify(workbenchCurrentBinding())) {
+      if (!workbenchBindingMatches(workbenchState.candidate.binding, workbenchState.candidate.dataKey)) {
         clearWorkbenchCandidate(); workbenchInvalidate(); workbenchStatus("图表已更新，请重新查找候选。");
       }
     } catch { clearWorkbenchCandidate(); workbenchInvalidate(); }
