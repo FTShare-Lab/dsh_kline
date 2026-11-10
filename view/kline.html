@@ -601,8 +601,12 @@
   .chart-context-menu button:hover { background: var(--bg-soft); }
   .compare-menu-wrap, .drawing-menu-wrap { position: relative; }
   .compare-popover, .drawing-popover { display: none; position: absolute; z-index: 22; top: calc(100% + 5px); right: 0; width: 270px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); }
-  .drawing-workbench { display: none; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 14px 20px; padding: 15px 18px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 13px; }
+  .drawing-workbench { display: none; position: absolute; z-index: 45; top: calc(100% + 6px); left: 12px;
+    width: min(440px, calc(100% - 24px)); max-height: min(68dvh, 650px); overflow-y: auto; overscroll-behavior: contain;
+    grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); box-shadow: 0 14px 36px rgba(20, 28, 44, .18); font-size: 13px; }
   .drawing-workbench.open { display: grid; }
+  .workbench-close { margin-left: auto; width: 30px; min-width: 30px; height: 30px; padding: 0; font-size: 19px; line-height: 1; }
   .workbench-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 210px)); gap: 7px; }
   .workbench-primary-row { display: grid; align-content: start; gap: 12px; min-width: 0; }
   .workbench-main-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
@@ -633,7 +637,7 @@
   .workbench-candidate-list > button.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
   .workbench-candidate-list .candidate-title { color: var(--text); font-weight: 650; }
   .workbench-candidate-list .candidate-meta { overflow: hidden; color: var(--text-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .workbench-saved, .workbench-legacy { grid-column: 1 / -1; }
+  .workbench-saved, .workbench-legacy { grid-column: 1; }
   .workbench-object-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; max-height: 100px; overflow: auto; }
   .workbench-object-list button { overflow: hidden; max-width: 210px; text-overflow: ellipsis; }
   .workbench-object-list button.selected { border-color: var(--accent); color: var(--accent); }
@@ -971,7 +975,7 @@
     .toolbar { padding-inline: 8px; }
   }
   @container (max-width: 720px) {
-    .drawing-workbench { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 12px; }
+    .drawing-workbench { left: 8px; width: calc(100% - 16px); max-height: min(62dvh, 560px); padding: 12px; }
     .workbench-tool-row, .workbench-saved, .workbench-legacy, .pattern-workbench { grid-column: 1; }
     .workbench-tool-row #workbenchTypeField { width: 100%; }
     .workbench-result-column { padding-top: 10px; border-top: 1px solid var(--border); }
@@ -1287,9 +1291,8 @@
     </div>
     </div>
   </div>
-</div>
 <section class="drawing-workbench" id="drawingWorkbench" aria-label="绘图工具">
-  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span></div>
+  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span><button class="btn workbench-close" id="workbenchClose" type="button" aria-label="关闭绘图面板" title="关闭绘图面板">×</button></div>
   <section class="pattern-workbench" id="patternWorkbench" hidden aria-label="形态与九转">
     <div id="patternModeTitle"><strong hidden>自动识别</strong><span class="muted">自动查找近期候选；可手动选点</span></div>
     <div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">重新识别</button><button class="btn" id="patternManual" type="button" hidden>手动选点</button><span id="patternScope" class="muted">仅分析已加载的 A／港／美股单日线</span></div>
@@ -1325,6 +1328,7 @@
   <details class="workbench-saved"><summary data-i18n="savedShapes">已绘图形</summary><div class="workbench-object-list" id="workbenchObjects" aria-label="当前图可编辑对象"></div></details>
   <details class="workbench-legacy" hidden><summary data-i18n="legacyShapes">旧版图形（可查看、删除）</summary><div class="drawing-list" id="drawingList"></div></details>
 </section>
+</div>
 <section class="comparison-performance" id="comparisonPerformance" hidden aria-label="标的对比走势">
   <div class="comparison-performance-head"><span class="comparison-performance-title" id="comparisonPerformanceTitle">区间涨跌</span><span class="comparison-performance-subtitle" id="comparisonPerformanceSubtitle">以首个共同交易点为 0%</span><div class="comparison-performance-legend" id="comparisonPerformanceLegend"></div></div>
   <div class="comparison-performance-canvas"><svg class="comparison-performance-svg" id="comparisonPerformanceSvg" aria-hidden="true"></svg></div>
@@ -11347,6 +11351,14 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-remove-drawing-id]") : null;
   if (button) removeUserDrawing(button.getAttribute("data-remove-drawing-id"));
 });
+function closeDrawingWorkbench() {
+  document.getElementById("drawingWorkbench").classList.remove("open");
+  document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", "false");
+  workbenchState.picking = false; workbenchState.anchors = [];
+  setDrawingCaptureActive(false); workbenchInvalidate(); renderWorkbenchAnchors(); patternClearPreview();
+  workbenchStatus("");
+}
+document.getElementById("workbenchClose").addEventListener("click", closeDrawingWorkbench);
 document.getElementById("drawingWorkbenchToggle").addEventListener("click", () => {
   const panel = document.getElementById("drawingWorkbench"), fromIndicator = workbenchState.mode === "indicator";
   if (fromIndicator) {
@@ -11364,11 +11376,7 @@ document.getElementById("drawingWorkbenchToggle").addEventListener("click", () =
   document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", String(open));
   if (open) { drawingMode = ""; drawingDraft = null; setDrawingCaptureActive(workbenchState.picking); renderDrawingWorkbench(); syncWorkbenchPickUi();
     if (workbenchState.mode === "drawing" && !workbenchState.selectedId) void findWorkbenchCandidates(); }
-  else {
-    workbenchState.picking = false; workbenchState.anchors = [];
-    setDrawingCaptureActive(false); workbenchInvalidate(); renderWorkbenchAnchors(); patternClearPreview();
-    workbenchStatus("");
-  }
+  else closeDrawingWorkbench();
 });
 function openStandardDrawing() {
   const fromIndicator = workbenchState.mode === "indicator";
