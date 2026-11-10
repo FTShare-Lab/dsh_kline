@@ -61,7 +61,8 @@ def resolve_points(payload, points):
 
 
 def edit_polyline(payload, action, *, polyline_id=None, points=None, point_label=None,
-                  point_time=None, point_price=None, name=None, color=None, request_id=None):
+                  point_time=None, point_price=None, name=None, color=None, request_id=None,
+                  replace_from_result=False):
     result = deepcopy(payload)
     commands = result.get("chartCommands", [])
     matches = [c for c in commands if c.get("type") == POLYLINE_COMMAND and c.get("id") == polyline_id]
@@ -85,10 +86,15 @@ def edit_polyline(payload, action, *, polyline_id=None, points=None, point_label
     else:
         # Updating one point must not require the LLM to copy/reconstruct its
         # neighbours. Full replacement/point insertion/removal are out of scope.
-        if points is not None:
+        if points is not None and not replace_from_result:
             raise LineError("polyline_replacement_not_supported", "续改请用 point_label 及 point_time / point_price，仅改目标点；不接受整组重写。")
-        path = validate_stored_points(previous["points"])
-        if point_label is not None:
+        if replace_from_result:
+            if points is None or any(v is not None for v in (point_label, point_time, point_price)):
+                raise LineError("invalid_edit_fields", "结果引用替换整组时不能混用单点修改字段。")
+            path = resolve_points(payload, points)
+        else:
+            path = validate_stored_points(previous["points"])
+        if not replace_from_result and point_label is not None:
             label = normalize_point_label(point_label)
             if point_time is None and point_price is None:
                 raise LineError("empty_point_update", "请明确目标点的新时间或价格，不能猜移动幅度。")
@@ -97,9 +103,9 @@ def edit_polyline(payload, action, *, polyline_id=None, points=None, point_label
                 raise LineError("point_not_found", "当前组内不存在该点名；请核对点名，不按位置或近似名称猜点。")
             if point_time is not None: target["time"] = resolve_anchor_time(payload, point_time)
             if point_price is not None: target["price"] = validate_line_fields(price=point_price)[0]
-        elif point_time is not None or point_price is not None:
+        elif not replace_from_result and (point_time is not None or point_price is not None):
             raise LineError("point_label_required", "修改单点必须明确组内 point_label。")
-        elif name is None and color is None:
+        elif not replace_from_result and name is None and color is None:
             raise LineError("empty_update", "请指定点名及新时间 / 价格，或整组名称 / 颜色。")
         path = validate_stored_points(path)
         for point in path: resolve_anchor_time(payload, str(point["time"]))

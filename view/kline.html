@@ -302,7 +302,6 @@
   .pattern-quality-details[hidden] { display: none; }
   .pattern-quality-details summary { width: fit-content; cursor: pointer; }
   .pattern-quality-details .pattern-result { margin-top: 6px; max-height: 90px; }
-  .pattern-actions #patternStyle[disabled], .pattern-actions #patternDelete[disabled], .pattern-actions #patternCancel[hidden] { display: none; }
   .pattern-style-details { color: var(--text-soft); font-size: 12px; }
   .pattern-style-details summary { width: fit-content; cursor: pointer; }
   .pattern-style-details .pattern-options { margin-top: 8px; }
@@ -312,7 +311,6 @@
   .pattern-settings-details summary { width: fit-content; cursor: pointer; }
   .pattern-settings-details .pattern-options { margin-top: 6px; }
   .toolbar-shortcuts { display: none; }
-  .toolbar-tools #clearBtn { color: var(--danger); }
   .toolbar .indicator-menu-wrap, .toolbar .alert-menu-wrap, .toolbar .compare-menu-wrap, .toolbar .drawing-menu-wrap, .toolbar .level-menu-wrap { position: static; }
   .toolbar .indicator-popover, .toolbar .alert-popover, .toolbar .compare-popover, .toolbar .drawing-popover, .toolbar .level-popover {
     top: calc(100% + 5px); left: 8px; right: auto; width: min(336px, calc(100% - 16px)); max-height: min(70vh, 500px); overflow-y: auto;
@@ -606,7 +604,8 @@
     grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px;
     background: var(--bg); box-shadow: 0 14px 36px rgba(20, 28, 44, .18); font-size: 13px; }
   .drawing-workbench.open { display: grid; }
-  .workbench-close { margin-left: auto; width: 30px; min-width: 30px; height: 30px; padding: 0; font-size: 19px; line-height: 1; }
+  .workbench-close { width: 30px; min-width: 30px; height: 30px; padding: 0; font-size: 19px; line-height: 1; }
+  .drawing-workbench #clearBtn { margin-left: auto; color: var(--danger); }
   .workbench-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 210px)); gap: 7px; }
   .workbench-primary-row { display: grid; align-content: start; gap: 12px; min-width: 0; }
   .workbench-main-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
@@ -641,10 +640,6 @@
   .workbench-object-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; max-height: 100px; overflow: auto; }
   .workbench-object-list button { overflow: hidden; max-width: 210px; text-overflow: ellipsis; }
   .workbench-object-list button.selected { border-color: var(--accent); color: var(--accent); }
-  .workbench-preview { position: absolute; z-index: 9; inset: 0 0 auto; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-  .workbench-preview line, .workbench-preview rect, .workbench-preview polyline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 4; fill: none; }
-  .workbench-preview circle { fill: var(--accent); stroke: var(--bg); stroke-width: 1.5; }
-  .workbench-preview rect { fill: color-mix(in srgb, var(--accent) 8%, transparent); }
   .compare-popover.open, .drawing-popover.open { display: block; }
   .compare-fields, .drawing-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }
   .drawing-fields { grid-template-columns: minmax(0, 1fr); }
@@ -1279,20 +1274,11 @@
         <div class="compare-list" id="compareList"></div>
       </div>
     </div>
-    <div class="clear-menu-wrap">
-      <button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除图形与标注</button>
-      <div class="clear-popover" id="clearPopover" role="dialog" aria-label="清除当前图形与标注">
-        <p class="clear-scope" id="clearConfirmText"></p>
-        <div class="clear-popover-actions">
-          <button class="btn" id="cancelClearBtn" type="button" data-i18n="clearCancel">取消</button>
-          <button class="btn primary" id="confirmClearBtn" type="button" data-i18n="clearConfirmAction">清空</button>
-        </div>
-      </div>
-    </div>
     </div>
   </div>
 <section class="drawing-workbench" id="drawingWorkbench" aria-label="绘图工具">
-  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span><button class="btn workbench-close" id="workbenchClose" type="button" aria-label="关闭绘图面板" title="关闭绘图面板">×</button></div>
+  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span><button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除绘图</button><button class="btn workbench-close" id="workbenchClose" type="button" aria-label="关闭绘图面板" title="关闭绘图面板">×</button></div>
+  <div class="clear-popover" id="clearPopover" role="dialog" aria-label="清除当前绘图"><p class="clear-scope" id="clearConfirmText"></p><div class="clear-popover-actions"><button class="btn" id="cancelClearBtn" type="button" data-i18n="clearCancel">取消</button><button class="btn primary" id="confirmClearBtn" type="button" data-i18n="clearConfirmAction">清空</button></div></div>
   <section class="pattern-workbench" id="patternWorkbench" hidden aria-label="形态与九转">
     <div id="patternModeTitle"><strong hidden>自动识别</strong><span class="muted">自动查找近期候选；可手动选点</span></div>
     <div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">重新识别</button><button class="btn" id="patternManual" type="button" hidden>手动选点</button><span id="patternScope" class="muted">仅分析已加载的 A／港／美股单日线</span></div>
@@ -1302,8 +1288,6 @@
     <div class="pattern-details-row"><details class="pattern-settings-details"><summary data-i18n="drawingMoreSettings">更多设置</summary><div class="pattern-options"><label><span id="patternBarsLabel" data-i18n="observedDailyBars">观察日线根数</span><input id="patternBars" type="number" min="60" max="300" value="240"></label></div></details>
     <details class="pattern-quality-details" id="patternQualityDetails" hidden><summary data-i18n="patternQualityTitle">规则与数据说明</summary><div id="patternQuality" class="pattern-result"></div></details>
     <details class="pattern-style-details"><summary data-i18n="drawingStyleOptional">名称与颜色（可选）</summary><div class="pattern-options"><label><span data-i18n="drawingName">名称</span><input id="patternName" type="text" maxlength="48" placeholder="可选"></label><label><span data-i18n="drawingColor">颜色</span><select id="patternColor"><option value="info" data-i18n="colorBlue">蓝</option><option value="warning" data-i18n="colorOrange">橙</option><option value="danger" data-i18n="colorRed">红</option><option value="success" data-i18n="colorGreen">绿</option></select></label></div></details></div>
-    <div class="pattern-actions"><button class="btn primary" id="patternSave" type="button" disabled>确认保存</button><button class="btn" id="patternCancel" type="button">取消预览</button><button class="btn" id="patternStyle" type="button" disabled>改名／改色</button><button class="btn" id="patternDelete" type="button" disabled>删除所选</button></div>
-    <div id="patternSaved" class="pattern-result" aria-label="已保存形态与九转"></div>
   </section>
   <div class="workbench-primary-row">
   <div class="workbench-grid workbench-main-grid">
@@ -1319,7 +1303,7 @@
     <label class="workbench-field"><span data-i18n="drawingName">名称</span><input id="workbenchName" type="text" maxlength="48" placeholder="可选" /></label>
     <label class="workbench-field"><span data-i18n="drawingColor">颜色</span><select id="workbenchColor"><option value="info" data-i18n="colorBlue">蓝</option><option value="warning" data-i18n="colorOrange">橙</option><option value="danger" data-i18n="colorRed">红</option><option value="success" data-i18n="colorGreen">绿</option></select></label>
   </div></details>
-  <div class="workbench-actions"><button class="btn" id="workbenchCandidateBtn" type="button" data-i18n="findCandidates" hidden>帮我找候选</button><button class="btn" id="workbenchPick" type="button" data-i18n="repickAll">全部重选</button><button class="btn primary" id="workbenchConfirm" type="button">预览图形</button><button class="btn" id="workbenchUpdate" type="button" data-i18n="drawingUpdate" hidden>更新</button><button class="btn" id="workbenchDelete" type="button" data-i18n="drawingDelete" hidden>删除</button><button class="btn" id="workbenchCancel" type="button" data-i18n="cancel">取消</button></div>
+  <div class="workbench-actions"><button class="btn" id="workbenchCandidateBtn" type="button" data-i18n="findCandidates" hidden>帮我找候选</button><button class="btn" id="workbenchPick" type="button" data-i18n="repickAll">全部重选</button></div>
   </div>
   </div>
   <div class="workbench-result-column"><div id="workbenchCandidateList" class="workbench-candidate-list" hidden></div>
@@ -1341,7 +1325,6 @@
 </div>
 <div class="chart-wrap">
   <div id="klineChart"></div>
-  <svg class="workbench-preview" id="workbenchPreview" aria-hidden="true"></svg>
   <div class="session-guide-layer" id="sessionGuideLayer" aria-hidden="true"></div>
   <svg class="ma-layer" id="maLayer" aria-hidden="true"></svg>
   <div class="crosshair-time-label" id="crosshairTimeLabel" hidden aria-hidden="true"></div>
@@ -1813,8 +1796,8 @@ Object.assign(UI_COPY.zh, {
   workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
   workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
-  clearAnnotations: "清除图形与标注", clearCancel: "取消", clearConfirmAction: "清除",
-  clearConfirmMessage: "清空 {symbol} 当前图：已上图对象/标注 {drawn} 项（含 AI 绘图），未上图自动候选 {candidates} 项？指标显示设置、预警和对比保留；独立指标对象属于已上图对象。此操作无法撤销。",
+  clearAnnotations: "清除绘图", clearCancel: "取消", clearConfirmAction: "清除",
+  clearConfirmMessage: "清除 {symbol} 当前图上的 {drawn} 个图形或标注？此操作无法撤销。",
   clearNone: "当前图没有可清空的绘图或标注。", clearNotReady: "图表尚未就绪，请加载后再清空。", clearChanged: "图表内容已变化，请重新打开清空确认。", clearAllDone: "当前图绘图与标注已清空",
   clearInProgress: "正在清空并核对绘图…",
   keyLevelsInsufficient: "关键点位分析至少需要 5 根有效 K 线，请扩大时间范围。", keyLevelsEmpty: "分析完成：当前数据未识别出有效支撑或压力点位。",
@@ -1845,8 +1828,8 @@ Object.assign(UI_COPY.en, {
   workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
   workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
-  clearAnnotations: "Clear drawings and marks", clearCancel: "Cancel", clearConfirmAction: "Clear",
-  clearConfirmMessage: "Clear {drawn} plotted objects or marks (including AI drawings) and {candidates} unplotted candidates from {symbol}? Indicator display settings, alerts and comparisons stay; saved indicator objects are included. This cannot be undone.",
+  clearAnnotations: "Clear drawings", clearCancel: "Cancel", clearConfirmAction: "Clear",
+  clearConfirmMessage: "Clear {drawn} drawings or marks from {symbol}? This cannot be undone.",
   clearNone: "No drawings or annotations to clear on this chart.", clearNotReady: "Chart is not ready. Load it before clearing.", clearChanged: "Chart content changed. Reopen the clear confirmation.", clearAllDone: "Drawings and annotations cleared from this chart",
   clearInProgress: "Clearing and checking drawings…",
   keyLevelsInsufficient: "At least 5 valid candles are needed. Expand the date range.", keyLevelsEmpty: "Analysis complete: no valid support or resistance levels found.",
@@ -2358,14 +2341,10 @@ function syncLanguageControls() {
     renderWorkbenchAnchors();
     document.getElementById("workbenchPick").textContent = workbenchCopy("手动选点", "Pick anchors manually");
     document.getElementById("workbenchCandidateBtn").textContent = workbenchCopy("自动查找近期候选", "Find recent candidates");
-    document.getElementById("workbenchConfirm").textContent = workbenchState.pending || workbenchState.autoSelected
-      ? workbenchCopy("保存到图表", "Save to chart") : workbenchCopy("预览图形", "Preview drawing");
     document.getElementById("workbenchPrice").placeholder = workbenchCopy("输入价位或点选 K 线", "Enter a price or select a candle");
     document.getElementById("workbenchName").placeholder = workbenchCopy("可选", "Optional");
     document.getElementById("patternName").placeholder = workbenchCopy("可选", "Optional");
     document.getElementById("patternManual").textContent = workbenchCopy("手动选点", "Pick anchors manually");
-    document.getElementById("patternStyle").textContent = workbenchCopy("改名／改色", "Rename / recolor");
-    document.getElementById("patternDelete").textContent = workbenchCopy("删除所选", "Delete selected");
     if (workbenchState.mode === "patterns") {
       document.getElementById("patternBarsLabel").textContent = t(patternState.mode === "nine" ? "displayedDailyBars" : "observedDailyBars");
       document.getElementById("patternModeTitle").lastElementChild.textContent = patternState.mode === "nine"
@@ -2373,9 +2352,7 @@ function syncLanguageControls() {
         : workbenchCopy("自动查找近期候选；可手动选点", "Recent candidates are found automatically; manual anchors are available");
       document.getElementById("patternAnalyze").textContent = patternState.mode === "nine"
         ? workbenchCopy("重新计算并显示", "Recalculate and show") : workbenchCopy("重新识别", "Find again");
-      document.getElementById("patternCancel").textContent = patternState.mode === "nine"
-        ? workbenchCopy("关闭图上九转", "Hide Nine Count") : workbenchCopy("取消预览", "Cancel preview");
-      patternRenderResults(); patternRenderSaved();
+      patternRenderResults();
     }
   }
 }
@@ -2903,7 +2880,6 @@ function scheduleChartResize() {
     drawMaLayer();
     drawComparisonLayer();
     drawUserDrawings();
-    drawWorkbenchPreview();
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
     positionRangeStatsCard();
@@ -2919,7 +2895,6 @@ function scheduleChartOverlayRender() {
     drawMaLayer();
     drawComparisonLayer();
     drawUserDrawings();
-    drawWorkbenchPreview();
     drawLevelOverlays();
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
@@ -5405,6 +5380,7 @@ function chartClearInventory() {
     ...lastMarks.map((item, index) => `mark:${item.id || index}`),
     ...lastLines.map((item, index) => `line:${item.id || index}`),
     ...(rangePickStart || currentSelection ? ["selection"] : []),
+    ...(automaticNine.enabled ? ["automatic-nine-count"] : []),
   ].sort();
   const unplottedCandidates = analysisLevels.filter(item => item.symbol === currentSymbol && !item.visible).length;
   return { ready: state.state === "ready", ai, legacyIds, unplottedCandidates,
@@ -5486,10 +5462,15 @@ async function clearCurrentChartAnnotations() {
     clearCurrentUserDrawings(true);
     cancelLevelPlace();
     clearCurrentCustomLevels(true);
+    automaticNineSetEnabled(false);
+    autoDrawingIds.clear();
     keyLevelPlanExpanded = false;
     renderKeyLevelPlan();
     workbenchState.selectedId = null; workbenchState.selectedParameters = null;
     workbenchState.anchors = []; workbenchInvalidate(); renderDrawingWorkbench();
+    patternClearPreview(true); patternRenderResults();
+    patternMessage(workbenchCopy("已清除绘图。", "Drawings cleared."));
+    workbenchStatus(workbenchCopy("已清除绘图。", "Drawings cleared."));
     closeClearPopover();
     setChartStatus(t("clearAllDone"));
     window.__DSH_KLINE_REPORT_CONTEXT__?.();
@@ -5838,8 +5819,33 @@ const workbenchState = { anchors: [], picking: false, replaceIndex: null, pendin
   selectedParameters: null, busy: false, scope: null, mode: "drawing", candidate: null, candidateResults: null,
   previewSuppressed: false, autoSelected: false, indicatorType: null };
 let previewFocusBarSpace = null;
+const autoDrawingIds = new Map();
+function autoDrawingKey(type) { return `${currentSymbol}|${currentInterval}|${type}`; }
+let workbenchEditTimer = null;
+function scheduleWorkbenchEdit() {
+  window.clearTimeout(workbenchEditTimer);
+  workbenchEditTimer = window.setTimeout(() => {
+    const type = workbenchType(), count = WORKBENCH_ANCHORS[type];
+    if (!WORKBENCH_KINDS[type] || workbenchState.picking) return;
+    if (workbenchState.busy) { scheduleWorkbenchEdit(); return; }
+    if (count && type !== "horizontal" && workbenchState.anchors.length !== count) return;
+    if (type === "horizontal" && !(Number(document.getElementById("workbenchPrice").value) > 0)) return;
+    void workbenchConfirm();
+  }, 550);
+}
 const WORKBENCH_KINDS = { sma: "series_line", ema: "series_line", boll: "price_band", horizontal: "horizontal_line",
   trend: "trend_line", channel: "channel", rectangle: "rectangle", fibonacci: "fibonacci_retracement", abc: "labeled_polyline" };
+const WORKBENCH_COMMAND_TYPES = { sma: "DRAW_AGENT_SERIES_LINE", ema: "DRAW_AGENT_SERIES_LINE", boll: "DRAW_AGENT_PRICE_BAND",
+  horizontal: "DRAW_HORIZONTAL_LINE", trend: "DRAW_AGENT_TREND_LINE", channel: "DRAW_AGENT_CHANNEL",
+  rectangle: "DRAW_AGENT_RECTANGLE", fibonacci: "DRAW_AGENT_FIBONACCI", abc: "DRAW_AGENT_POLYLINE" };
+function existingAutoDrawingId(type) {
+  const commands = lastChartPayload?.chartCommands || [];
+  const remembered = autoDrawingIds.get(autoDrawingKey(type));
+  if (commands.some(command => command.id === remembered)) return remembered;
+  return commands.find(command => command.interval === currentInterval && command.type === WORKBENCH_COMMAND_TYPES[type]
+    && command.create_request_id?.startsWith("workbench-draw-")
+    && (!["sma", "ema"].includes(type) || command.source?.kind === type))?.id || null;
+}
 const WORKBENCH_ANCHORS = { horizontal: 1, trend: 2, channel: 3, rectangle: 2, fibonacci: 2, abc: 3 };
 function workbenchType() { return workbenchState.mode === "indicator" ? workbenchState.indicatorType || "sma"
   : document.getElementById("workbenchType")?.value || "horizontal"; }
@@ -5855,9 +5861,6 @@ function workbenchInvalidate(showPreview = true) {
   workbenchState.pending = null;
   workbenchState.autoSelected = false;
   workbenchState.previewSuppressed = !showPreview;
-  const button = document.getElementById("workbenchConfirm");
-  if (button) button.textContent = workbenchCopy("预览图形", "Preview drawing");
-  drawWorkbenchPreview();
 }
 function clearWorkbenchCandidate() {
   workbenchState.candidate = null;
@@ -5877,9 +5880,6 @@ function workbenchPickInstruction() {
 }
 function syncWorkbenchPickUi() {
   const type = workbenchType(), count = WORKBENCH_ANCHORS[type] || 0;
-  const ready = !count || workbenchState.anchors.length === count || type === "horizontal" && Number(document.getElementById("workbenchPrice")?.value) > 0;
-  const confirm = document.getElementById("workbenchConfirm");
-  if (confirm) confirm.disabled = !ready;
   const hint = document.getElementById("toolbarHint");
   if (hint) hint.textContent = document.getElementById("drawingWorkbench")?.classList.contains("open") && workbenchState.picking
     ? workbenchPickInstruction() : t("toolbarHint");
@@ -5906,7 +5906,7 @@ function renderWorkbenchAnchors() {
         if (!workbenchState.anchors[index]) return;
         workbenchState.anchors[index].price = Number(input.value);
         clearWorkbenchCandidate();
-        workbenchInvalidate();
+        workbenchInvalidate(false); scheduleWorkbenchEdit();
       });
       label.append(input);
     }
@@ -5975,10 +5975,11 @@ function workbenchPoint(candle) {
   if (workbenchState.anchors.length >= count) {
     workbenchState.picking = false; setDrawingCaptureActive(false);
     syncWorkbenchPickUi();
-    workbenchStatus("选点完成。点“预览图形”查看，再确认保存。");
+    workbenchStatus("选点完成，正在绘图…");
+    queueMicrotask(() => { void workbenchConfirm(); });
   } else workbenchStatus(workbenchPickInstruction());
 }
-async function findWorkbenchCandidates(scope = "current") {
+async function findWorkbenchCandidates(scope = "current", preferredIndex = 0) {
   const type = workbenchType();
   if (!["horizontal", "trend", "channel", "rectangle", "fibonacci", "abc"].includes(type) || workbenchState.busy) return;
   workbenchState.busy = true;
@@ -6035,8 +6036,7 @@ async function findWorkbenchCandidates(scope = "current") {
       button.addEventListener("click", () => selectWorkbenchCandidate(index));
       list.append(button);
     });
-    selectWorkbenchCandidate(0);
-    workbenchStatus(workbenchCopy("已预览最近候选。", "Showing the newest candidate."));
+    selectWorkbenchCandidate(Math.min(preferredIndex, candidates.length - 1));
   } catch (error) {
     const message = error?.code === "workbench_function_not_selected"
       ? "当前绘图服务尚未加载候选功能，请重新启动本地插件后重试。"
@@ -6048,7 +6048,7 @@ function selectWorkbenchCandidate(index) {
   const result = workbenchState.candidateResults;
   if (!result || result.type !== workbenchType() || !result.candidates[index]) return;
   if (!workbenchBindingMatches(result.binding, result.dataKey)) {
-    clearWorkbenchCandidate(); workbenchStatus("图表数据已变化，请重新查找候选。"); return;
+    void findWorkbenchCandidates(result.scope, index); return;
   }
   const entry = result.candidates[index];
   const anchors = ["horizontal", "trend", "fibonacci", "abc"].includes(result.type) ? entry.anchors
@@ -6059,30 +6059,20 @@ function selectWorkbenchCandidate(index) {
     workbenchStatus("候选锚点不完整，请重新计算。"); return;
   }
   workbenchState.anchors = anchors.map(anchor => ({ time: Number(anchor.time), price: Number(anchor.price) }));
-  workbenchState.selectedId = null; workbenchState.selectedParameters = null;
+  workbenchState.selectedId = existingAutoDrawingId(result.type);
+  workbenchState.selectedParameters = null;
   workbenchState.candidate = ["channel", "rectangle"].includes(result.type)
     ? { ref: result.ref, number: index + 1, binding: result.binding, dataKey: result.dataKey, type: result.type } : null;
   if (result.type === "horizontal") document.getElementById("workbenchPrice").value = String(anchors[0].price);
   workbenchState.picking = false; workbenchState.replaceIndex = null; setDrawingCaptureActive(false);
-  workbenchInvalidate(); renderWorkbenchAnchors(); renderDrawingWorkbench();
+  workbenchInvalidate(false); renderWorkbenchAnchors(); renderDrawingWorkbench();
   workbenchState.autoSelected = true;
   document.querySelectorAll("#workbenchCandidateList > button").forEach((button, number) => {
     button.classList.toggle("selected", number === index);
     button.setAttribute("aria-pressed", String(number === index));
   });
-  document.getElementById("workbenchConfirm").textContent = workbenchCopy("保存到图表", "Save to chart");
-  if (result.type === "abc") { focusAutoPreview(anchors.map(anchor => anchor.time)); drawWorkbenchPreview(); }
-  workbenchStatus(result.type === "abc"
-    ? workbenchCopy("已预览三段走势；请核对图形后保存。", "Three-leg geometry is previewed. Review the chart before saving.")
-    : workbenchCopy("已在图上预览；确认后保存。", "Previewed on the chart. Save when ready."));
-}
-function workbenchPixel(time, price) {
-  try {
-    const result = kchart?.convertToPixel?.([{ timestamp: Number(time) * 1000, value: Number(price) }],
-      { paneId: "candle_pane", absolute: true });
-    const p = Array.isArray(result) ? result[0] : result;
-    return Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)) ? { x: Number(p.x), y: Number(p.y) } : null;
-  } catch { return null; }
+  workbenchStatus(workbenchCopy("正在显示所选图形…", "Displaying the selected drawing…"));
+  queueMicrotask(() => { void workbenchConfirm(); });
 }
 function activeAutoPreviewTimes() {
   const type = workbenchType();
@@ -6124,64 +6114,6 @@ function maintainAutoPreviewFocus() {
   if (previewFocusBarSpace != null && Math.abs(current - previewFocusBarSpace) > .01)
     focusAutoPreview(times, { adjustZoom: false });
   previewFocusBarSpace = Number(kchart?.getBarSpace?.()) || current;
-}
-function drawWorkbenchPreview() {
-  const svg = document.getElementById("workbenchPreview");
-  if (!svg) return;
-  if (workbenchType().startsWith("pattern_") && patternState.selected && patternState.analysis) {
-    patternRenderPreview();
-    return;
-  }
-  svg.replaceChildren();
-  if (workbenchState.previewSuppressed) return;
-  const type = workbenchType(), points = workbenchState.anchors;
-  const chart = document.getElementById("klineChart");
-  if (!chart || !currentCandles.length || (!points.length && type !== "horizontal")
-    || !["trend", "channel", "rectangle", "fibonacci", "abc", "horizontal"].includes(type)) return;
-  svg.setAttribute("viewBox", `0 0 ${Math.max(1, chart.clientWidth)} ${Math.max(1, chart.clientHeight)}`);
-  const ns = "http://www.w3.org/2000/svg";
-  const addLine = (a, b) => {
-    if (!a || !b) return;
-    const line = document.createElementNS(ns, "line");
-    for (const [key, value] of Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })) line.setAttribute(key, String(value));
-    svg.append(line);
-  };
-  const px = points.map(p => workbenchPixel(p.time, p.price));
-  for (const p of px) if (p) { const dot = document.createElementNS(ns, "circle"); dot.setAttribute("cx", String(p.x)); dot.setAttribute("cy", String(p.y)); dot.setAttribute("r", "4"); svg.append(dot); }
-  if (type === "horizontal") {
-    const price = Number(document.getElementById("workbenchPrice")?.value || points[0]?.price);
-    const position = Number.isFinite(price) && price > 0 ? workbenchPixel(currentCandles.at(-1).time, price) : null;
-    if (position) addLine({ x: 0, y: position.y }, { x: chart.clientWidth, y: position.y });
-  }
-  else if (type === "rectangle" && px.length === 2 && px.every(Boolean)) {
-    const rect = document.createElementNS(ns, "rect");
-    rect.setAttribute("x", String(Math.min(px[0].x, px[1].x))); rect.setAttribute("y", String(Math.min(px[0].y, px[1].y)));
-    rect.setAttribute("width", String(Math.abs(px[1].x - px[0].x))); rect.setAttribute("height", String(Math.abs(px[1].y - px[0].y)));
-    svg.append(rect);
-  } else {
-    if (type === "channel" && points.length === 3) {
-      // The third anchor sets the parallel offset, not a third vertex of a
-      // polyline. Connecting endpoint to it creates a false diagonal.
-      addLine(px[0], px[1]);
-      const first = currentCandles.findIndex(row => row.time === points[0].time), second = currentCandles.findIndex(row => row.time === points[1].time);
-      const third = currentCandles.findIndex(row => row.time === points[2].time);
-      if (first >= 0 && second > first && third >= first && third <= second) {
-        const slope = (points[1].price - points[0].price) / (second - first);
-        const offset = points[2].price - (points[0].price + slope * (third - first));
-        addLine(workbenchPixel(points[0].time, points[0].price + offset),
-          workbenchPixel(points[1].time, points[1].price + offset));
-        if (document.getElementById("workbenchMidline")?.value !== "no") {
-          addLine(workbenchPixel(points[0].time, points[0].price + offset / 2),
-            workbenchPixel(points[1].time, points[1].price + offset / 2));
-        }
-      }
-    } else for (let index = 1; index < px.length; index++) addLine(px[index - 1], px[index]);
-    if (type === "fibonacci" && points.length === 2) for (const ratio of String(document.getElementById("workbenchRatios")?.value || "")
-      .split(",").map(part => Number(part.trim())).filter(value => Number.isFinite(value) && value >= 0 && value <= 1)) {
-      const price = points[1].price - ratio * (points[1].price - points[0].price);
-      addLine(workbenchPixel(points[0].time, price), workbenchPixel(points[1].time, price));
-    }
-  }
 }
 function workbenchCurrentBinding() {
   const observation = window.__DSH_KLINE_OBSERVATION__;
@@ -6271,18 +6203,12 @@ async function workbenchProposal(action) {
     });
     const valid = result.summary?.[names[0]]?.valid_count;
     preview = `${input.type.toUpperCase()}(${input.period})：${latest.join(" / ")}；有效 ${valid ?? "?"}/${result.loaded_bars ?? currentCandles.length} 根。`;
-  } else if (input.type === "abc" && workbenchState.selectedId) {
-    const current = workbenchManagedObjects().find(item => item.id === workbenchState.selectedId);
-    const changed = input.anchors.map((point, index) => ({ point, index })).filter(({ point, index }) =>
-      point.time !== current?.points?.[index]?.time || point.price !== current?.points?.[index]?.price);
-    if (changed.length > 1) throw new Error("ABC 一次只移动一个点；请先完成并核对这次修改。");
-    if (changed.length) direct = { point_label: "ABC"[changed[0].index], point_time: String(changed[0].point.time), point_price: changed[0].point.price };
   } else if (workbenchState.candidate && ["channel", "rectangle"].includes(input.type)) {
     const chosen = workbenchState.candidate;
-    if (action !== "create" || chosen.type !== input.type || !workbenchBindingMatches(chosen.binding, chosen.dataKey))
+    if (chosen.type !== input.type || !workbenchBindingMatches(chosen.binding, chosen.dataKey))
       throw new Error("候选与当前图不匹配，请重新查找；已选坐标不会自动作为手动图形保存。");
     ref = chosen.ref; refKey = "candidate_result_ref";
-    preview = `只读候选 ${chosen.number} 已选定；请核对画布预览，保存后才会创建对象。`;
+    preview = `候选 ${chosen.number} 已选定。`;
   } else if (["channel", "rectangle", "fibonacci", "abc"].includes(input.type)) {
     const [a, b, c] = input.anchors;
     const parameters = input.type === "channel" ? { start_time: String(a.time), start_price: a.price,
@@ -6294,13 +6220,13 @@ async function workbenchProposal(action) {
     const functionName = { channel: "parallel_channel", rectangle: "range_box", fibonacci: "fibonacci_retracement", abc: "labeled_polyline" }[input.type];
     const result = await workbenchTool("workbench_run_chart_function", { ...binding, function: functionName, parameters });
     ref = result.result_ref; refKey = "result_ref";
-    preview = `${input.anchors.length} 个手动选定锚点；函数已计算，尚未保存。`;
+    preview = `${input.anchors.length} 个手动选定锚点。`;
   } else if (input.type === "trend") {
     const [a, b] = input.anchors;
     direct = { start_time: String(a.time), start_price: a.price, end_time: String(b.time), end_price: b.price };
   } else if (input.type === "horizontal") direct = { price: input.price };
-  if (input.type === "trend") preview = "2 个手动选定锚点；尚未保存。";
-  if (input.type === "horizontal") preview = `水平价位 ${input.price.toFixed(2)}；尚未保存。`;
+  if (input.type === "trend") preview = "2 个手动选定锚点。";
+  if (input.type === "horizontal") preview = `水平价位 ${input.price.toFixed(2)}。`;
   return { binding, input, preview, edit: { kind, action, ...(workbenchState.selectedId ? { object_id: workbenchState.selectedId } : {}),
     name: input.name, color: input.color, ...direct, ...(ref ? { [refKey]: ref } : {}),
     ...(workbenchState.candidate ? { candidate_number: workbenchState.candidate.number, user_confirmed_candidate: true } : {}),
@@ -6309,7 +6235,8 @@ async function workbenchProposal(action) {
 }
 async function workbenchApplyProposal(proposal) {
   const { binding, edit } = proposal;
-  const prepared = await workbenchTool("workbench_prepare_edit", { ...binding, request_id: crypto.randomUUID(), edit });
+  const prepared = await workbenchTool("workbench_prepare_edit", { ...binding,
+    request_id: `workbench-draw-${crypto.randomUUID()}`, edit });
   const candidate = prepared.chart_session;
   const applied = await workbenchTool("workbench_apply_edit", { context_ref: binding.context_ref, candidate_chart_session: candidate });
   if (applied.apply_status === "rejected" || applied.apply_status === "failed") throw new Error(applied.reason || "图形应用被拒绝");
@@ -6324,7 +6251,7 @@ async function workbenchApplyProposal(proposal) {
 const patternState = { mode: "price", analysis: null, selected: null, selectedId: null, busy: false,
   picking: false, manualTimes: [], manualBinding: null };
 const automaticNine = { enabled: false, displayBars: 30, key: null, binding: null, result: null,
-  loading: false, lastAttempt: 0, marks: [] };
+  loading: false, lastAttempt: 0, marks: [], savedId: null };
 const PATTERN_NAMES = { double_top: "双顶", double_bottom: "双底", head_shoulders_top: "头肩顶",
   head_shoulders_bottom: "头肩底", platform: "平台" };
 const PATTERN_STATUS = { candidate: "候选", pending_confirmation: "待确认", price_confirmed: "价格突破已确认",
@@ -6365,22 +6292,7 @@ function patternNote(value) { return patternLabel(PATTERN_NOTES, PATTERN_NOTES_E
 function patternMessage(message) { document.getElementById("patternStatus").textContent = message; }
 function automaticNineKey(binding) { return `${workbenchDataKey() ?? JSON.stringify(binding)}|${automaticNine.displayBars}`; }
 function renderAutomaticNineOverlay() {
-  if (!kchart) return;
-  kchart.removeOverlay({ groupId: "automaticNineCount" });
-  if (!automaticNine.enabled || !automaticNine.marks.length || currentInterval !== "day") return;
-  let binding;
-  try { binding = workbenchCurrentBinding(); }
-  catch (error) {
-    if (patternState.mode === "nine") patternMessage(String(error?.message || error));
-    return;
-  }
-  if (automaticNine.key !== automaticNineKey(binding)) return;
-  const times = new Set(currentCandles.map(row => Number(row.time)));
-  const marks = automaticNine.marks.filter(mark => times.has(Number(mark.time)) && Number.isFinite(Number(mark.price)));
-  if (!marks.length) return;
-  kchart.createOverlay({ name: "ftvPatternGroup", id: "automatic-nine-count", groupId: "automaticNineCount",
-    paneId: "candle_pane", lock: true, points: marks.map(mark => ({ timestamp: Number(mark.time) * 1000,
-      value: Number(mark.price) })), extendData: { groupKind: "nine_count", marks, colorName: "warning" } });
+  kchart?.removeOverlay({ groupId: "automaticNineCount" });
 }
 function automaticNineSetEnabled(enabled) {
   automaticNine.enabled = enabled;
@@ -6388,8 +6300,6 @@ function automaticNineSetEnabled(enabled) {
   automaticNine.binding = null;
   automaticNine.result = null;
   automaticNine.marks = [];
-  const button = document.getElementById("patternCancel");
-  if (button && patternState.mode === "nine") button.hidden = !enabled;
   renderAutomaticNineOverlay();
   if (lastChartPayload) drawAgentPatternGroupCommands(lastChartPayload.chartCommands || []);
   if (enabled) void automaticNineTick(true);
@@ -6418,16 +6328,27 @@ async function automaticNineTick(force = false) {
       function: "nine_count", parameters: { display_bars: automaticNine.displayBars } });
     if (!automaticNine.enabled || automaticNineKey(workbenchCurrentBinding()) !== key) return;
     automaticNine.binding = binding; automaticNine.result = result; automaticNine.marks = result.summary?.marks || [];
+    if (!automaticNine.marks.length) {
+      if (patternState.mode === "nine") patternMessage(workbenchCopy("当前范围没有可显示的九转数字。", "No Nine Count numbers are available in this range."));
+      return;
+    }
     if (patternState.mode === "nine") {
       patternState.analysis = { binding, dataKey: workbenchDataKey(), ref: result.result_ref, summary: result.summary, mode: "nine" };
       patternState.selected = { value: result.summary, number: null };
       patternRenderResults();
-      document.getElementById("patternSave").disabled = !automaticNine.marks.length;
-      patternMessage(workbenchCopy(`已自动显示 ${automaticNine.marks.length} 个计数；行情变化后自动更新。保存则固定为当前快照。`,
-        `${automaticNine.marks.length} counts shown. They update with the chart; saving fixes this snapshot.`));
+      patternMessage(workbenchCopy("正在显示九转计数…", "Displaying Nine Count…"));
     }
-    drawAgentPatternGroupCommands(lastChartPayload?.chartCommands || []);
-    renderAutomaticNineOverlay();
+    const commands = lastChartPayload?.chartCommands || [];
+    const command = commands.find(item => item.id === automaticNine.savedId)
+      || commands.find(item => item.type === "DRAW_AGENT_NINE_COUNT" && item.interval === currentInterval);
+    const { prepared } = await workbenchApplyProposal({ binding, edit: { kind: "nine_count", action: command ? "update" : "create",
+      ...(command ? { object_id: command.id } : {}), result_ref: result.result_ref,
+      name: command?.label || "", color: command?.color || "warning" } });
+    automaticNine.savedId = prepared.object?.id || command?.id || null;
+    if (patternState.mode === "nine") patternState.selectedId = automaticNine.savedId;
+    if (patternState.mode === "nine") patternMessage(workbenchCopy(
+      `已显示 ${automaticNine.marks.length} 个计数；行情变化后自动更新。`,
+      `${automaticNine.marks.length} counts shown. They update with the chart.`));
   } catch (error) {
     automaticNine.key = null;
     if (patternState.mode === "nine") patternMessage(String(error?.message || error));
@@ -6443,61 +6364,10 @@ function patternClearPreview(clearAnalysis = false) {
   patternState.manualTimes = []; patternState.manualBinding = null;
   patternState.selected = null;
   if (clearAnalysis) patternState.analysis = null;
-  document.getElementById("workbenchPreview")?.replaceChildren();
-  document.getElementById("patternSave").disabled = true;
 }
 function patternBindingValid() {
   if (!patternState.analysis) return false;
   return workbenchBindingMatches(patternState.analysis.binding, patternState.analysis.dataKey);
-}
-function patternRenderPreview() {
-  const svg = document.getElementById("workbenchPreview"), chart = document.getElementById("klineChart");
-  svg.replaceChildren();
-  if (!chart || !patternState.selected || !patternBindingValid()) return;
-  svg.setAttribute("viewBox", `0 0 ${Math.max(1, chart.clientWidth)} ${Math.max(1, chart.clientHeight)}`);
-  const ns = "http://www.w3.org/2000/svg";
-  const add = (tag, attrs) => { const node = document.createElementNS(ns, tag);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value)); svg.append(node); };
-  const line = (a, b) => { if (a && b) add("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); };
-  const selected = patternState.selected.value;
-  if (patternState.mode === "nine") return;
-  if (selected.type === "platform") {
-    const a = workbenchPixel(selected.box.start_time, selected.box.upper_price);
-    const b = workbenchPixel(selected.box.end_time, selected.box.lower_price);
-    if (a && b) add("rect", { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
-      width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) });
-  } else {
-    const anchors = selected.anchors.map(a => workbenchPixel(a.time, a.price));
-    for (let i = 1; i < anchors.length; i++) line(anchors[i - 1], anchors[i]);
-    for (const p of anchors) if (p) add("circle", { cx: p.x, cy: p.y, r: 4 });
-    const neck = selected.neckline;
-    if (neck?.type === "horizontal") line(workbenchPixel(selected.anchors[0].time, neck.price),
-      workbenchPixel(selected.anchors.at(-1).time, neck.price));
-    else if (neck?.type === "sloped") line(workbenchPixel(neck.from.time, neck.from.price),
-      workbenchPixel(neck.to.time, neck.to.price));
-  }
-}
-function patternRenderSaved() {
-  const list = document.getElementById("patternSaved"); list.replaceChildren();
-  const commands = (lastChartPayload?.chartCommands || []).filter(c => ["DRAW_AGENT_PRICE_PATTERN", "DRAW_AGENT_NINE_COUNT"].includes(c.type)
-    && c.interval === currentInterval);
-  for (const cmd of commands) {
-    const button = document.createElement("button"); button.type = "button"; button.className = "btn";
-    button.classList.toggle("selected", cmd.id === patternState.selectedId);
-    button.textContent = `${cmd.label || (cmd.type === "DRAW_AGENT_NINE_COUNT" ? workbenchCopy("九转计数", "Nine Count") : patternLabel(PATTERN_NAMES, PATTERN_NAMES_EN, cmd.pattern?.type))} · ${workbenchCopy("截至", "as of")} ${patternDate(cmd.as_of, exchangeTimezone)}`;
-    button.addEventListener("click", () => {
-      patternState.selectedId = patternState.selectedId === cmd.id ? null : cmd.id;
-      document.getElementById("patternName").value = patternState.selectedId ? cmd.label || "" : "";
-      document.getElementById("patternColor").value = patternState.selectedId ? cmd.color || "info" : "info";
-      patternRenderSaved(); patternMessage(patternState.selectedId
-        ? workbenchCopy("已选择保存快照。重新分析并选择结果后可更新；也可直接改名、改色或删除。", "Saved snapshot selected. Analyze again to replace it, or change its name, color, or delete it.")
-        : workbenchCopy("已取消快照选择；分析并预览后可新建形态。", "Snapshot selection cleared. Analyze and preview to create a new one.")); });
-    list.append(button);
-  }
-  document.getElementById("patternStyle").disabled = !commands.some(c => c.id === patternState.selectedId);
-  document.getElementById("patternDelete").disabled = !commands.some(c => c.id === patternState.selectedId);
-  document.getElementById("patternSave").textContent = commands.some(c => c.id === patternState.selectedId)
-    ? workbenchCopy("确认更新快照", "Update snapshot") : workbenchCopy("确认保存", "Save to chart");
 }
 function patternRenderResults() {
   const list = document.getElementById("patternResult"); list.replaceChildren();
@@ -6526,12 +6396,7 @@ function patternRenderResults() {
         `${patternDate(start, zone).slice(5)}—${patternDate(end, zone).slice(5)} · ${workbenchCopy("发现于", "Found")} ${patternDate(candidate.available_at, zone).slice(5)}`);
       const selected = patternState.selected?.number === index + 1;
       button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected));
-      button.addEventListener("click", () => { patternState.selected = { value: candidate, number: index + 1 };
-        patternRenderResults();
-        focusAutoPreview(candidate.type === "platform" ? [candidate.box?.start_time, candidate.box?.end_time]
-          : candidate.anchors?.map(anchor => anchor.time));
-        patternRenderPreview(); document.getElementById("patternSave").disabled = false;
-        patternMessage(workbenchCopy("已在图上预览；确认后保存。", "Previewed on the chart. Save when ready.")); });
+      button.addEventListener("click", () => { void patternAnalyze(null, index + 1); });
       list.append(button);
     }
     if (patternState.selected) {
@@ -6554,13 +6419,13 @@ function patternRenderResults() {
   }
   document.getElementById("patternQualityDetails").hidden = quality.childElementCount === 0;
 }
-async function patternAnalyze(anchorTimes = null) {
+async function patternAnalyze(anchorTimes = null, preferredIndex = 1) {
   if (patternState.mode === "nine") {
     if (!automaticNine.enabled) automaticNineSetEnabled(true);
     else { automaticNine.key = null; await automaticNineTick(true); }
     return;
   }
-  if (patternState.busy) { patternState.rerun = !anchorTimes; return; }
+  if (patternState.busy) { patternState.rerun = !anchorTimes; patternState.pendingIndex = preferredIndex; return; }
   patternState.busy = true; patternClearPreview(true); patternRenderResults();
   try {
     const binding = workbenchCurrentBinding(), bars = Number(document.getElementById("patternBars").value);
@@ -6576,13 +6441,11 @@ async function patternAnalyze(anchorTimes = null) {
     if (JSON.stringify(binding) !== JSON.stringify(workbenchCurrentBinding())) throw new Error("分析期间图表已变化，请重新分析。");
     patternState.analysis = { binding, dataKey: workbenchDataKey(), ref: result.result_ref, summary: result.summary, mode: "price" };
     if (result.summary?.candidates?.length) {
-      patternState.selected = { value: result.summary.candidates[0], number: 1 };
+      const number = Math.min(preferredIndex, result.summary.candidates.length);
+      patternState.selected = { value: result.summary.candidates[number - 1], number };
       patternRenderResults();
-      const selected = patternState.selected.value;
-      focusAutoPreview(selected.type === "platform" ? [selected.box?.start_time, selected.box?.end_time]
-        : selected.anchors?.map(anchor => anchor.time));
-      patternRenderPreview(); document.getElementById("patternSave").disabled = false;
-      patternMessage(workbenchCopy("已在图上预览；确认后保存。", "Previewed on the chart. Save when ready."));
+      patternMessage(workbenchCopy("正在显示所选图形…", "Displaying the selected drawing…"));
+      queueMicrotask(() => { void patternApply("save"); });
     } else { patternRenderResults(); patternMessage(anchorTimes
       ? workbenchCopy("所选锚点未通过标准形态规则；可重新选点或查看自动候选。", "Selected anchors did not pass the standard rules. Pick again or review automatic candidates.")
       : workbenchCopy("近期没有符合规则的形态；可换一种图形或手动选点。", "No recent pattern meets the rules. Choose another tool or pick anchors manually.")); }
@@ -6591,7 +6454,7 @@ async function patternAnalyze(anchorTimes = null) {
     patternState.busy = false;
     if (patternState.rerun) {
       patternState.rerun = false;
-      if (workbenchState.mode === "patterns" && patternState.mode === "price") void patternAnalyze();
+      if (workbenchState.mode === "patterns" && patternState.mode === "price") void patternAnalyze(null, patternState.pendingIndex || 1);
     }
   }
 }
@@ -6599,14 +6462,19 @@ async function patternApply(action) {
   if (patternState.busy) return;
   patternState.busy = true;
   try {
-    const binding = workbenchCurrentBinding(), command = (lastChartPayload?.chartCommands || []).find(c => c.id === patternState.selectedId);
+    const binding = workbenchCurrentBinding();
+    const commands = lastChartPayload?.chartCommands || [];
+    const selectedType = patternState.selected?.value?.type;
+    const command = commands.find(c => c.id === patternState.selectedId)
+      || (action === "save" && patternState.mode === "price" ? commands.find(c => c.type === "DRAW_AGENT_PRICE_PATTERN"
+        && c.interval === currentInterval && c.pattern?.type === selectedType) : null);
     const kind = action === "save" ? patternState.mode === "nine" ? "nine_count" : "price_pattern"
       : command?.type === "DRAW_AGENT_NINE_COUNT" ? "nine_count" : "price_pattern";
-    if (action !== "save" && !command) throw new Error("所选快照已变化，请重新选择。");
+    if (action !== "save" && !command) throw new Error("图形已变化，请重新识别。");
     if (action === "save" && (!patternState.selected || !patternBindingValid() || patternState.analysis.mode !== patternState.mode))
-      throw new Error("分析或预览已过期，请重新分析并选择。");
+      throw new Error("行情已变化，请重新识别。");
     if (action === "save" && command && command.type !== (kind === "nine_count" ? "DRAW_AGENT_NINE_COUNT" : "DRAW_AGENT_PRICE_PATTERN"))
-      throw new Error("所选快照类型与分析不一致，请重新选择。");
+      throw new Error("图形类型已变化，请重新识别。");
     const edit = { kind, action: action === "save" ? command ? "update" : "create" : action,
       ...(command ? { object_id: command.id } : {}),
       ...(action !== "delete" ? { name: document.getElementById("patternName").value.trim(),
@@ -6614,13 +6482,16 @@ async function patternApply(action) {
       ...(action === "save" ? kind === "nine_count" ? { result_ref: patternState.analysis.ref }
         : { candidate_result_ref: patternState.analysis.ref, candidate_number: patternState.selected.number,
           user_confirmed_candidate: true } : {}) };
-    patternMessage(workbenchCopy("正在准备、应用并核对回执…", "Preparing, applying, and checking the edit…"));
+    patternMessage(workbenchCopy("正在绘图…", "Drawing…"));
     const { prepared, status } = await workbenchApplyProposal({ binding, edit });
     patternState.selectedId = action === "delete" ? null : prepared.object?.id || patternState.selectedId;
-    if (kind === "nine_count" && action === "save") automaticNineSetEnabled(false);
-    patternClearPreview(true); patternRenderResults(); patternRenderSaved();
-    patternMessage(workbenchCopy(`应用回执：${status.apply_status}。${action === "delete" ? "对象已删除。" : "快照已保存；行情更新后需重新分析才会替换。"}`,
-      `Edit status: ${status.apply_status}. ${action === "delete" ? "Object deleted." : "Snapshot saved. Analyze again before replacing it after market data changes."}`));
+    if (action === "save" && patternState.mode === "price") {
+      const selected = patternState.selected.value;
+      focusAutoPreview(selected.type === "platform" ? [selected.box?.start_time, selected.box?.end_time]
+        : selected.anchors?.map(anchor => anchor.time));
+    }
+    patternRenderResults();
+    patternMessage(workbenchCopy("图形已显示。可切换候选或使用“清除绘图”。", "Drawing is shown. Choose another candidate or clear drawings."));
   } catch (error) { patternMessage(String(error?.message || error)); }
   finally { patternState.busy = false; }
 }
@@ -6636,15 +6507,13 @@ function patternSetMode(mode) {
     ? workbenchCopy("已收盘日线自动计数；行情变化后重算", "Counts closed daily bars; updates with the chart")
     : workbenchCopy("自动查找近期候选；可手动选点", "Recent candidates are found automatically; manual anchors are available");
   document.getElementById("patternAnalyze").textContent = mode === "nine" ? workbenchCopy("重新计算并显示", "Recalculate and show") : workbenchCopy("重新识别", "Find again");
-  document.getElementById("patternCancel").textContent = mode === "nine" ? workbenchCopy("关闭图上九转", "Hide Nine Count") : workbenchCopy("取消预览", "Cancel preview");
-  document.getElementById("patternCancel").hidden = mode === "nine" && !automaticNine.enabled;
   document.getElementById("patternScope").textContent = workbenchCopy("分析当前日线", "Analyzing this daily chart");
-  patternRenderResults(); patternRenderSaved(); patternMessage("");
+  patternRenderResults(); patternMessage("");
   if (mode === "nine" && automaticNine.result && automaticNine.binding) {
     patternState.analysis = { binding: automaticNine.binding, dataKey: workbenchDataKey(), ref: automaticNine.result.result_ref,
       summary: automaticNine.result.summary, mode: "nine" };
     patternState.selected = { value: automaticNine.result.summary, number: null };
-    patternRenderResults(); document.getElementById("patternSave").disabled = !automaticNine.marks.length;
+    patternRenderResults();
   }
 }
 function patternPickPoint(candle) {
@@ -6667,37 +6536,25 @@ async function workbenchConfirm() {
   if (workbenchState.busy) return;
   workbenchState.busy = true;
   try {
-    let saveNow = Boolean(workbenchState.pending);
-    if (!workbenchState.pending) {
-      saveNow = workbenchState.autoSelected;
-      workbenchState.picking = false; setDrawingCaptureActive(false); syncWorkbenchPickUi();
-      workbenchStatus(workbenchCopy("正在生成预览…", "Preparing preview…"));
-      workbenchState.pending = await workbenchProposal(workbenchState.selectedId ? "update" : "create");
-      if (!saveNow) {
-        document.getElementById("workbenchConfirm").textContent = workbenchCopy("保存到图表", "Save to chart");
-        workbenchStatus(`${workbenchState.pending.preview} 确认无误后保存。`);
-        drawWorkbenchPreview();
-      }
-    }
-    if (saveNow) {
-      // A reviewed automatic candidate is already visible on the chart. One
-      // explicit save click is enough; manual proposals keep their two steps.
-      const proposal = workbenchState.pending, current = workbenchCurrentBinding();
-      if (JSON.stringify(proposal.binding) !== JSON.stringify(current)) throw new Error("图表或观察版本已变化，提案过期；请重新预览。");
-      if (JSON.stringify(proposal.input) !== JSON.stringify(workbenchInputs())) throw new Error("参数已变化，提案过期；请重新预览。");
-      workbenchStatus("正在准备、应用并核对对象状态…");
-      const result = await workbenchApplyProposal(proposal);
-      workbenchState.selectedId = result.prepared.object?.id || workbenchState.selectedId;
-      workbenchState.selectedParameters = workbenchParameterSignature(proposal.input);
-      workbenchInvalidate(false);
-      // The stored overlay is now authoritative; do not leave the orange
-      // unsaved ghost over the confirmed drawing.
-      document.getElementById("workbenchPreview")?.replaceChildren();
-      workbenchStatus("已保存到图表。");
-      window.__DSH_KLINE_REPORT_CONTEXT__?.(); renderDrawingWorkbench();
-    }
+    workbenchState.picking = false; setDrawingCaptureActive(false); syncWorkbenchPickUi();
+    const proposal = await workbenchProposal(workbenchState.selectedId ? "update" : "create");
+    const current = workbenchCurrentBinding();
+    if (JSON.stringify(proposal.binding) !== JSON.stringify(current)
+      || JSON.stringify(proposal.input) !== JSON.stringify(workbenchInputs())) throw new Error("图表已变化，请重新识别或选点。");
+    workbenchStatus(workbenchCopy("正在绘图…", "Drawing…"));
+    const result = await workbenchApplyProposal(proposal);
+    workbenchState.selectedId = result.prepared.object?.id || workbenchState.selectedId;
+    autoDrawingIds.set(autoDrawingKey(proposal.input.type), workbenchState.selectedId);
+    workbenchState.candidate = null;
+    workbenchState.selectedParameters = workbenchParameterSignature(proposal.input);
+    const wasAutoSelected = workbenchState.autoSelected;
+    workbenchInvalidate(false);
+    workbenchState.autoSelected = wasAutoSelected;
+    if (proposal.input.anchors.length) focusAutoPreview(proposal.input.anchors.map(anchor => anchor.time));
+    workbenchStatus(workbenchCopy("图形已显示。可切换候选或使用“清除绘图”。", "Drawing is shown. Choose another candidate or clear drawings."));
+    window.__DSH_KLINE_REPORT_CONTEXT__?.(); renderDrawingWorkbench();
   } catch (error) {
-    workbenchInvalidate(); workbenchStatus(String(error?.message || error));
+    workbenchInvalidate(false); workbenchStatus(String(error?.message || error));
   } finally { workbenchState.busy = false; }
 }
 function workbenchManagedObjects() {
@@ -6747,12 +6604,9 @@ function renderDrawingWorkbench() {
   }
   document.querySelector(".workbench-saved").hidden = list.childElementCount === 0;
   document.querySelector(".workbench-legacy").hidden = activeUserDrawings().length === 0;
-  document.getElementById("workbenchUpdate").hidden = !workbenchState.selectedId;
-  document.getElementById("workbenchDelete").hidden = !workbenchState.selectedId;
-  if (patternState.analysis && !patternBindingValid()) {
-    patternClearPreview(true); patternRenderResults(); patternMessage("图表数据或来源已变化，请重新分析。");
+  if (patternState.analysis && patternState.analysis.binding.symbol !== currentSymbol) {
+    patternClearPreview(true); patternRenderResults();
   }
-  patternRenderSaved();
 }
 function selectWorkbenchObject(id) {
   const object = workbenchManagedObjects().find(item => item.id === id);
@@ -6785,43 +6639,8 @@ function selectWorkbenchObject(id) {
   if (type === "rectangle") workbenchState.anchors = [{ time: object.start_time, price: object.upper_price }, { time: object.end_time, price: object.lower_price }];
   if (type === "abc") workbenchState.anchors = (object.points || []).map(p => ({ time: p.time, price: p.price }));
   workbenchState.selectedParameters = workbenchParameterSignature(workbenchInputs());
-  renderWorkbenchAnchors(); drawWorkbenchPreview(); renderDrawingWorkbench();
-  workbenchStatus(`正在编辑“${object.name || object.kind}”。改点位或参数后请预览；改颜色可直接更新。`);
-}
-async function workbenchStyleOrDelete(action) {
-  if (workbenchState.busy || !workbenchState.selectedId) return;
-  workbenchState.busy = true;
-  try {
-    const object = workbenchManagedObjects().find(item => item.id === workbenchState.selectedId);
-    if (!object) throw new Error("当前图找不到所选对象，请重新选择。");
-    const binding = workbenchCurrentBinding();
-    const edit = { kind: object.kind, action, object_id: object.id };
-    if (action === "update") {
-      if (workbenchState.selectedParameters !== workbenchParameterSignature(workbenchInputs()))
-        throw new Error("周期、比例、通道参数或锚点已变更；请先预览提案并确认，避免忽略修改。");
-      edit.name = document.getElementById("workbenchName").value.trim();
-      edit.color = document.getElementById("workbenchColor").value;
-      if (object.kind === "horizontal_line") edit.price = Number(document.getElementById("workbenchPrice").value);
-      if (object.kind === "labeled_polyline" && workbenchState.anchors.length === 3) {
-        const changed = workbenchState.anchors.map((point, index) => ({ point, index })).filter(({ point, index }) =>
-          point.time !== object.points?.[index]?.time || point.price !== object.points?.[index]?.price);
-        if (changed.length > 1) throw new Error("ABC 一次只移动一个点。");
-        if (changed.length) { edit.point_label = "ABC"[changed[0].index]; edit.point_time = String(changed[0].point.time); edit.point_price = changed[0].point.price; }
-      }
-    }
-    workbenchStatus(action === "delete" ? "正在删除并核对…" : "正在更新并核对…");
-    await workbenchApplyProposal({ binding, edit });
-    if (action === "delete") {
-      workbenchState.selectedId = null; workbenchState.selectedParameters = null;
-      workbenchState.anchors = []; renderWorkbenchAnchors();
-    }
-    workbenchInvalidate();
-    document.getElementById("workbenchPreview")?.replaceChildren();
-    renderDrawingWorkbench();
-    workbenchStatus(action === "delete" ? "删除已应用，画布请目视核对。" : "更新已应用，画布请目视核对。");
-    window.__DSH_KLINE_REPORT_CONTEXT__?.();
-  } catch (error) { workbenchStatus(String(error?.message || error)); }
-  finally { workbenchState.busy = false; }
+  renderWorkbenchAnchors(); renderDrawingWorkbench();
+  workbenchStatus(`正在编辑“${object.name || object.kind}”；修改后会直接更新图形。`);
 }
 function resetChartViewport() {
   fitChartToData();
@@ -7707,7 +7526,6 @@ function drawAgentPatternGroupCommands(commands, strict = false) {
   }
   for (const cmd of groups) {
     if (cmd.interval !== currentInterval) continue;
-    if (cmd.type === "DRAW_AGENT_NINE_COUNT" && automaticNine.enabled && automaticNine.marks.length) continue;
     let points = [], ex = { label: cmd.label || "", colorName: cmd.color || "info" };
     if (cmd.type === "DRAW_AGENT_NINE_COUNT") {
       const marks = cmd.marks || [];
@@ -11354,9 +11172,9 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
 function closeDrawingWorkbench() {
   document.getElementById("drawingWorkbench").classList.remove("open");
   document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", "false");
-  workbenchState.picking = false; workbenchState.anchors = [];
-  setDrawingCaptureActive(false); workbenchInvalidate(); renderWorkbenchAnchors(); patternClearPreview();
-  workbenchStatus("");
+  workbenchState.picking = false; patternState.picking = false;
+  setDrawingCaptureActive(false);
+  // Closing the controls must not remove an applied chart object.
 }
 document.getElementById("workbenchClose").addEventListener("click", closeDrawingWorkbench);
 document.getElementById("drawingWorkbenchToggle").addEventListener("click", () => {
@@ -11383,7 +11201,6 @@ function openStandardDrawing() {
   workbenchState.mode = "drawing";
   document.getElementById("drawingWorkbench").classList.remove("patterns-mode");
   document.getElementById("patternWorkbench").hidden = true;
-  patternClearPreview();
   document.getElementById("workbenchTypeField").hidden = false;
   document.getElementById("workbenchIndicatorTitle").hidden = true;
   if (fromIndicator) setWorkbenchType(workbenchType());
@@ -11410,12 +11227,12 @@ document.getElementById("patternManual").addEventListener("click", () => {
     patternMessage(`请从左到右点选 ${kind.startsWith("head_shoulders") ? 5 : 3} 根 K 线；价格由规则引擎读取，不使用手填坐标。`);
   } catch (error) { patternMessage(String(error?.message || error)); }
 });
-document.getElementById("patternSave").addEventListener("click", () => { void patternApply("save"); });
-document.getElementById("patternStyle").addEventListener("click", () => { void patternApply("update"); });
-document.getElementById("patternDelete").addEventListener("click", () => { void patternApply("delete"); });
-document.getElementById("patternCancel").addEventListener("click", () => {
-  if (patternState.mode === "nine") { automaticNineSetEnabled(false); patternClearPreview(true); patternRenderResults(); patternMessage("已关闭九转自动显示。"); }
-  else { patternClearPreview(); patternMessage("预览已取消，图表未改变。"); }
+let patternStyleTimer = null;
+for (const id of ["patternName", "patternColor"]) document.getElementById(id).addEventListener("input", () => {
+  window.clearTimeout(patternStyleTimer);
+  patternStyleTimer = window.setTimeout(() => {
+    if (patternState.selectedId && !patternState.busy) void patternApply("update");
+  }, 550);
 });
 document.getElementById("patternBars").addEventListener("input", () => {
   if (patternState.mode === "nine") {
@@ -11440,10 +11257,10 @@ document.querySelectorAll("[data-workbench-indicator]").forEach(button => button
   document.getElementById("indicatorPopover").classList.remove("open");
   document.getElementById("indicatorMenuBtn").setAttribute("aria-expanded", "false");
   renderDrawingWorkbench();
+  scheduleWorkbenchEdit();
 }));
 document.getElementById("workbenchType").addEventListener("change", event => {
   const type = event.currentTarget.value;
-  if (type !== "nine_count" && automaticNine.enabled) automaticNineSetEnabled(false);
   if (type === "nine_count") {
     openAutomaticDrawing("nine");
     if (!automaticNine.enabled) automaticNineSetEnabled(true);
@@ -11458,16 +11275,9 @@ document.getElementById("workbenchType").addEventListener("change", event => {
   }
 });
 for (const id of ["workbenchName", "workbenchColor", "workbenchPeriod", "workbenchDeviation", "workbenchPrice", "workbenchRatios", "workbenchMidline", "workbenchFill"])
-  document.getElementById(id).addEventListener("input", () => { workbenchInvalidate(); syncWorkbenchPickUi(); });
+  document.getElementById(id).addEventListener("input", () => { workbenchInvalidate(false); syncWorkbenchPickUi(); scheduleWorkbenchEdit(); });
 document.getElementById("workbenchPick").addEventListener("click", beginWorkbenchPick);
 document.getElementById("workbenchCandidateBtn").addEventListener("click", () => { void findWorkbenchCandidates(); });
-document.getElementById("workbenchConfirm").addEventListener("click", () => { void workbenchConfirm(); });
-document.getElementById("workbenchUpdate").addEventListener("click", () => { void workbenchStyleOrDelete("update"); });
-document.getElementById("workbenchDelete").addEventListener("click", () => { void workbenchStyleOrDelete("delete"); });
-document.getElementById("workbenchCancel").addEventListener("click", () => {
-  workbenchState.picking = false; workbenchState.anchors = []; setDrawingCaptureActive(false);
-  workbenchInvalidate(); renderWorkbenchAnchors(); workbenchStatus("已取消。");
-});
 setWorkbenchType("horizontal");
 window.setInterval(() => { if (!window.__DSH_KLINE_DISPOSED__ && automaticNine.enabled) void automaticNineTick(); }, 1500);
 document.getElementById("contextAddWatchBtn").addEventListener("click", () => {

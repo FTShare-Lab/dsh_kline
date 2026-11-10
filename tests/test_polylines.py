@@ -130,15 +130,32 @@ class PolylineTests(unittest.TestCase):
             self.f.assert_code(code, lambda: edit_polyline(payload, 'update', polyline_id=obj['id'], **params))
             self.assertEqual(payload, original)
 
-    def test_guarded_schema_disallows_reference_mixed_geometry_or_whole_replacement(self):
+    def test_guarded_schema_allows_bound_replacement_but_rejects_copied_points(self):
         ref = self.calculate()['result_ref']
         self.f.assert_code('conflicting_function_parameters', lambda: self.prepare(
             ChartEdit(kind='labeled_polyline', action='create', result_ref=ref, points=points()), 'mixed'))
         self.f.assert_code('polyline_replacement_not_supported', lambda: self.prepare(
-            ChartEdit(kind='labeled_polyline', action='update', object_id='existing', result_ref=ref), 'replace'))
+            ChartEdit(kind='labeled_polyline', action='update', object_id='existing', points=points()), 'copied'))
+        self.f.assert_code('conflicting_function_parameters', lambda: self.prepare(
+            ChartEdit(kind='labeled_polyline', action='update', object_id='existing', result_ref=ref,
+                      point_label='C', point_price=32), 'mixed-update'))
         self.f.assert_code('invalid_edit_fields', lambda: self.prepare(
             ChartEdit(kind='labeled_polyline', action='delete', object_id='existing', point_label='C'), 'delete-extra'))
         self.assertEqual(self.f.published, [])
+
+    def test_bound_result_replaces_abc_group_atomically_under_same_id(self):
+        first = self.calculate()
+        created = self.prepare(ChartEdit(kind='labeled_polyline', action='create', result_ref=first['result_ref']), 'create-abc')
+        self.adopt(created)
+        replacement = [dict(label='A', time='2026-09-10', price=31),
+                       dict(label='B', time='2026-09-11', price=35),
+                       dict(label='C', time='2026-09-14', price=32)]
+        second = self.calculate(replacement)
+        changed = self.prepare(ChartEdit(kind='labeled_polyline', action='update', object_id=created['object']['id'],
+                                         result_ref=second['result_ref']), 'replace-abc')
+        self.assertEqual(changed['object']['id'], created['object']['id'])
+        self.assertEqual([p['price'] for p in changed['object']['points']], [31, 35, 32])
+        self.assertEqual(sum(c['type'] == POLYLINE_COMMAND for c in chart_service.read_chart_snapshot(changed['chart_session'])['chartCommands']), 1)
 
     def test_retry_is_idempotent_and_geometry_conflicts_do_not_overwrite(self):
         payload, obj = edit_polyline(self.f.payload, 'create', points=points(), request_id='fixed')

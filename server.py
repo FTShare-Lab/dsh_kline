@@ -1375,9 +1375,10 @@ async def prepare_chart_edit(
     For price_sticks, use its result_ref with edit.kind=price_sticks; its independent strokes share
     one stable object_id. Style-only updates and deletion do not recompute the price series.
     For Fibonacci geometry use the function result; style-only edits/delete need no recalculation.
-    For labeled_polyline creation use run_chart_function and edit.result_ref. For updates pass
-    current object_id + point_label + point_time/point_price, or name/color. Never reserialize
-    the entire point array or use a create result_ref to overwrite an existing path.
+    For labeled_polyline creation use run_chart_function and edit.result_ref. To move one point,
+    pass current object_id + point_label + point_time/point_price. A new current-chart
+    labeled_polyline result_ref may replace the whole group under the same object_id;
+    direct copied point arrays remain disallowed for updates.
     Point labels are group-local; ambiguous group names require clarification. ABC/1..5 labels
     are user/host-specified annotations, not algorithmically recognized or validated waves.
     For explicit point labels, text_annotation uses anchor_time + anchor_price + annotation_text;

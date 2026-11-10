@@ -145,12 +145,15 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
     }[edit.kind]
     if fields.keys() - allowed or (edit.action == "delete" and fields):
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填写对象标识。")
+    if edit.kind == "labeled_polyline" and edit.action == "update" and edit.result_ref is not None and (
+            edit.points is not None or edit.point_label is not None or edit.point_time is not None or edit.point_price is not None):
+        raise LineError("conflicting_function_parameters", "整组结果引用不能与直接锚点或单点修改混用。")
     if edit.kind == "all_drawings" and (edit.action != "delete" or edit.object_id is not None):
         raise LineError("invalid_object_identity", "清空当前图只使用 all_drawings/delete，不指定对象 ID。")
     if edit.kind != "all_drawings" and ((edit.action == "create") != (edit.object_id is None)):
         raise LineError("invalid_object_identity", "创建不指定 object_id；修改或删除必须使用当前图的稳定对象 ID。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action not in ({"create", "update"} if edit.kind == "price_pattern" else {"create"}) or edit.kind not in {"channel", "rectangle", "price_pattern"}
+    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in {"channel", "rectangle", "price_pattern"}
             or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
             or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
         raise LineError(
@@ -431,7 +434,9 @@ class CodexChartStore:
         if edit.kind == "channel": return edit_channel(payload, edit.action, **arguments)
         if edit.kind == "rectangle": return edit_rectangle(payload, edit.action, **arguments)
         if edit.kind == "fibonacci_retracement": return edit_fibonacci(payload, edit.action, **arguments)
-        if edit.kind == "labeled_polyline": return edit_polyline(payload, edit.action, **arguments)
+        if edit.kind == "labeled_polyline":
+            if edit.action == "update" and edit.result_ref is not None: arguments["replace_from_result"] = True
+            return edit_polyline(payload, edit.action, **arguments)
         if edit.kind in ANNOTATION_KINDS:
             arguments["kind"] = edit.kind
             arguments["text"] = arguments.pop("annotation_text", None)

@@ -23,6 +23,9 @@ function fixture() {
     lastChartPayload: { _live_chart_session: 'b'.repeat(32) },
     WORKBENCH_KINDS: { channel: 'channel', fibonacci: 'fibonacci_retracement' },
     workbenchState: { selectedId: null, selectedParameters: null, anchors: [] },
+    automaticNine: { enabled: false }, automaticNineSetEnabled() {}, autoDrawingIds: new Map(),
+    patternClearPreview() {}, patternRenderResults() {}, patternMessage() {}, workbenchCopy: (zh: string) => zh,
+    workbenchStatus() {},
     workbenchInvalidate() {}, renderDrawingWorkbench() {},
     workbenchCurrentBinding() { return { context_ref: 'a'.repeat(32), expected_revision: state.window.__DSH_KLINE_OBSERVATION__.revision, chart_session: 'b'.repeat(32), symbol: state.currentSymbol } },
     async workbenchApplyProposal({edit}: any) {
@@ -194,7 +197,7 @@ test('global clear refuses a loading chart instead of silently leaving AI drawin
   assert.equal(state.drawingClears, 0)
 })
 
-test('Chinese and English clear copy describes one action including AI drawings', () => {
+test('Chinese and English clear copy describes one clear action in plain language', () => {
   const copy = html.slice(html.indexOf('Object.assign(UI_COPY.zh,'), html.indexOf('function restoreCanvasHeight('))
   const vm: any = {UI_COPY:{zh:{},en:{}}}
   // Read only the two copy blocks, without running any browser initialization.
@@ -203,10 +206,10 @@ test('Chinese and English clear copy describes one action including AI drawings'
     const end=copy.indexOf('\n});',start)+4
     runInContext(copy.slice(start,end),createContext(vm))
     const labels=vm.UI_COPY[language]
-    assert.match(labels.clearConfirmMessage,/AI/)
+    assert.match(labels.clearConfirmMessage,language==='zh'?/图形或标注/:/drawings or marks/)
     assert.match(labels.clearAllDone,language==='zh'?/已清空/:/cleared/)
   }
   assert.doesNotMatch(html, /data-clear-kind=/)
   assert.doesNotMatch(html, /id="clearDrawingsBtn"|id="clearLevelsBtn"/)
-  assert.match(html, /id="clearBtn"[^>]*>清除图形与标注/)
+  assert.match(html, /id="drawingWorkbench"[\s\S]*id="clearBtn"[^>]*>清除绘图/)
 })

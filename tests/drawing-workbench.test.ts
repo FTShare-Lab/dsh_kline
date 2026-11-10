@@ -36,13 +36,14 @@ function fixture(type: string, selectedId: string | null = null) {
       throw Error(name)
     },
     crypto: { randomUUID: () => 'request-1' }, sleep: async () => {},
+    queueMicrotask: () => {},
   }
-  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, style: workbenchStyleOrDelete, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint, dataKey: workbenchDataKey, bindingMatches: workbenchBindingMatches })', context)
+  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint, dataKey: workbenchDataKey, bindingMatches: workbenchBindingMatches })', context)
   api.state.selectedId = selectedId
   return { api, calls, fields, context }
 }
 
-test('curated TA proposal is read-only until confirmation and carries only a bound result reference', async () => {
+test('curated TA proposal is read-only until direct application and carries a bound result reference', async () => {
   const { api, calls } = fixture('sma')
   const proposal = await api.proposal('create')
   assert.deepEqual(calls.map(call => call.name), ['workbench_run_ta'])
@@ -75,7 +76,7 @@ test('channel proposal sends explicit three anchors to deterministic function, n
   assert.equal(proposal.edit.result_ref, 'd'.repeat(64))
 })
 
-test('ABC update is one named-point mutation, not a replacement of the group', async () => {
+test('ABC candidate switches use a bound function result for atomic group replacement', async () => {
   const { api, calls, context } = fixture('abc', 'poly_1')
   const original = [10, 20, 30].map((time, index) => ({ label: 'ABC'[index], time, price: 100 + index }))
   context.captureChartContext = () => ({ state: 'ready', source_chart_session: 'b'.repeat(32),
@@ -83,14 +84,15 @@ test('ABC update is one named-point mutation, not a replacement of the group', a
   api.state.anchors = original.map(point => ({ time: point.time, price: point.price }))
   api.state.anchors[2].price = 108
   const proposal = await api.proposal('update')
-  assert.equal(calls.length, 0)
-  assert.equal(proposal.edit.point_label, 'C')
-  assert.equal(proposal.edit.point_price, 108)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].args.function, 'labeled_polyline')
+  assert.equal(proposal.edit.result_ref, 'd'.repeat(64))
+  assert.equal(proposal.edit.object_id, 'poly_1')
   assert.ok(!('points' in proposal.edit))
-  assert.ok(!('result_ref' in proposal.edit))
+  assert.ok(!('point_label' in proposal.edit))
 })
 
-test('confirmation uses prepare, apply, then exact candidate status', async () => {
+test('direct drawing uses prepare, apply, then exact candidate status', async () => {
   const { api, calls } = fixture('horizontal')
   const proposal = await api.proposal('create')
   assert.equal(calls.length, 0)
@@ -101,42 +103,31 @@ test('confirmation uses prepare, apply, then exact candidate status', async () =
   assert.equal(outcome.status.apply_status, 'applied')
 })
 
-test('a reviewed automatic candidate saves in one click; manual input keeps preview and save separate', async () => {
+test('automatic and manual selections apply directly without a preview save step', async () => {
   const body = html.slice(html.indexOf('async function workbenchConfirm()'), html.indexOf('function workbenchManagedObjects()'))
   for (const automatic of [true, false]) {
     const calls: string[] = []
     const binding = { context_ref: 'a', expected_revision: 1 }
     const input = { type: 'horizontal', price: 123 }
     const state: any = { busy: false, pending: null, selectedId: null, autoSelected: automatic, picking: false }
-    const button = { textContent: automatic ? '保存到图表' : '预览图形' }
+    const ids = new Map()
     const context: any = {
-      workbenchState: state, document: { getElementById: (id: string) => id === 'workbenchConfirm' ? button : { replaceChildren() {} } },
+      workbenchState: state, document: { getElementById: () => ({ replaceChildren() {} }) },
       workbenchCurrentBinding: () => binding, workbenchInputs: () => input,
-      workbenchProposal: async () => ({ binding, input, preview: '预览' }),
+      workbenchProposal: async () => ({ binding, input }),
       workbenchApplyProposal: async () => { calls.push('apply'); return { prepared: { object: { id: 'line-1' } }, status: { apply_status: 'applied' } } },
       workbenchParameterSignature: () => 'same', workbenchInvalidate: () => { state.pending = null },
       workbenchStatus: () => {}, setDrawingCaptureActive: () => {}, syncWorkbenchPickUi: () => {},
       workbenchCopy: (zh: string) => zh,
-      drawWorkbenchPreview: () => {}, renderDrawingWorkbench: () => {}, window: {},
+      autoDrawingIds: ids, autoDrawingKey: () => 'TEST.X|day|horizontal',
+      renderDrawingWorkbench: () => {}, window: {},
       renderWorkbenchAnchors: () => {},
     }
     const confirm = runInNewContext(body + ';workbenchConfirm', context)
     await confirm()
-    assert.equal(calls.length, automatic ? 1 : 0)
-    if (!automatic) { await confirm(); assert.equal(calls.length, 1) }
+    assert.equal(calls.length, 1)
+    assert.equal(ids.get('TEST.X|day|horizontal'), 'line-1')
   }
-})
-
-test('style update refuses to silently ignore a changed TA period', async () => {
-  const { api, calls, fields, context } = fixture('sma', 'series_1')
-  context.lastChartPayload.chartCommands = [{ id: 'series_1', source: { kind: 'sma', period: 20 }, condition: null }]
-  context.captureChartContext = () => ({ state: 'ready', source_chart_session: 'b'.repeat(32),
-    drawings: [{ id: 'series_1', kind: 'series_line', origin: 'ai', interval: 'day' }] })
-  api.state.selectedParameters = api.signature({ type: 'sma', period: 20 })
-  fields.workbenchPeriod.value = '21'
-  await api.style('update')
-  assert.equal(calls.length, 0)
-  assert.match(fields.workbenchStatus.textContent, /请先预览提案/)
 })
 
 test('the workbench keeps curated objects and lists old drawings without a second create tool', () => {
@@ -150,7 +141,9 @@ test('the workbench keeps curated objects and lists old drawings without a secon
   assert.match(html, /class="workbench-legacy"[\s\S]*id="drawingList"/)
   assert.doesNotMatch(html, /id="drawingPopover"|data-drawing-type=/)
   assert.match(html, /id="drawingWorkbench"/)
-  assert.match(html, /id="workbenchPreview"/)
+  assert.doesNotMatch(html, /id="workbenchPreview"/)
+  assert.match(html, /id="drawingWorkbench"[\s\S]*id="clearBtn"/)
+  assert.doesNotMatch(html, /class="toolbar-tools"[\s\S]*id="clearBtn"[\s\S]*id="drawingWorkbench"/)
   assert.match(html, /document.getElementById\("workbenchType"\).addEventListener\("change", event => \{[\s\S]*?openAutomaticDrawing\("nine"\)[\s\S]*?openAutomaticDrawing\("price"\)[\s\S]*?void findWorkbenchCandidates\(\)/)
   assert.match(html, /document.getElementById\("workbenchPick"\).addEventListener\("click", beginWorkbenchPick\)/)
   assert.doesNotMatch(html, /id="patternWorkbenchToggle"/)
@@ -210,7 +203,6 @@ test('viewport revision preserves an analyzed source while a new candle source e
 
 test('channel picking accepts three distinct bars while ordinary range selection remains separate', () => {
   const { api, context, fields } = fixture('channel')
-  fields.workbenchConfirm = { disabled: false }
   fields.toolbarHint = { textContent: '' }
   fields.drawingWorkbench = { classList: { contains: () => true } }
   context.currentCandles = [{ time: 10, close: 100 }, { time: 20, close: 90 }, { time: 30, close: 120 }]
@@ -218,7 +210,6 @@ test('channel picking accepts three distinct bars while ordinary range selection
   context.t = () => '普通区间选择'
   context.renderWorkbenchAnchors = () => context.syncWorkbenchPickUi()
   api.begin()
-  assert.equal(fields.workbenchConfirm.disabled, true)
   api.point({ time: 10, close: 100 })
   assert.match(fields.workbenchStatus.textContent, /1\/3/)
   api.point({ time: 30, close: 120 })
@@ -228,13 +219,11 @@ test('channel picking accepts three distinct bars while ordinary range selection
   assert.equal(api.state.anchors.length, 2)
   api.point({ time: 20, close: 90 })
   assert.equal(api.state.anchors.length, 3)
-  assert.equal(fields.workbenchConfirm.disabled, false)
   assert.equal(api.state.picking, false)
 })
 
-test('reselecting a single channel anchor preserves its peers and invalidates an old preview', () => {
+test('reselecting a single channel anchor preserves its peers', () => {
   const { api, context, fields } = fixture('channel')
-  fields.workbenchConfirm = { disabled: false, textContent: '保存到图表' }
   fields.toolbarHint = { textContent: '' }
   fields.drawingWorkbench = { classList: { contains: () => true } }
   context.setDrawingCaptureActive = () => {}
@@ -254,7 +243,6 @@ test('reselecting a single channel anchor preserves its peers and invalidates an
   assert.equal(api.state.anchors[1].time, 35)
   assert.equal(api.state.anchors[2].time, 20)
   assert.equal(api.state.picking, false)
-  assert.equal(fields.workbenchConfirm.textContent, '预览图形')
 })
 
 test('reviewed channel candidate uses only its bound result reference and selection number', async () => {
@@ -272,43 +260,9 @@ test('reviewed channel candidate uses only its bound result reference and select
   await assert.rejects(() => api.proposal('create'), /候选与当前图不匹配/)
 })
 
-test('channel preview draws both edges and optional midline without an endpoint-to-offset diagonal', () => {
-  const elements: Array<{ tag: string; attrs: Record<string, string> }> = []
-  const svg = { replaceChildren: () => { elements.length = 0 }, setAttribute: () => {},
-    append: (element: any) => elements.push(element) }
-  const chart = { clientWidth: 300, clientHeight: 200 }
-  const context: any = {
-    document: {
-      getElementById: (id: string) => id === 'workbenchPreview' ? svg : id === 'klineChart' ? chart : null,
-      createElementNS: (_: string, tag: string) => ({ tag, attrs: {} as Record<string, string>,
-        setAttribute(key: string, value: string) { this.attrs[key] = value } }),
-    },
-    currentCandles: [{ time: 10 }, { time: 20 }, { time: 30 }],
-    kchart: { convertToPixel: ([point]: any[]) => [{ x: point.timestamp / 1000, y: point.value }] },
-  }
-  const api = runInNewContext(source + ';({ state: workbenchState, patterns: patternState, preview: drawWorkbenchPreview })', context)
-  api.state.anchors = [{ time: 10, price: 100 }, { time: 30, price: 120 }, { time: 20, price: 90 }]
-  let midline = 'yes'
-  let type = 'channel'
-  context.document.getElementById = (id: string) => id === 'workbenchPreview' ? svg
-    : id === 'klineChart' ? chart : id === 'workbenchType' ? { value: type }
-    : id === 'workbenchMidline' ? { value: midline } : null
-  api.preview()
-  const lines = elements.filter(element => element.tag === 'line').map(element => element.attrs)
-  assert.deepEqual(lines.map(line => [line.x1, line.y1, line.x2, line.y2]), [
-    ['10', '100', '30', '120'], ['10', '80', '30', '100'], ['10', '90', '30', '110'],
-  ])
-  midline = 'no'
-  api.preview()
-  assert.equal(elements.filter(element => element.tag === 'line').length, 2)
-  api.state.previewSuppressed = true
-  api.preview()
-  assert.equal(elements.length, 0, 'a saved object must not be covered by the unsaved ghost on redraw')
-  type = 'pattern_double_top'
-  api.patterns.selected = { value: { type: 'double_top' }, number: 1 }
-  api.patterns.analysis = { binding: {} }
-  let patternRedraws = 0
-  context.patternRenderPreview = () => { patternRedraws++ }
-  api.preview()
-  assert.equal(patternRedraws, 1, 'chart redraw must preserve the automatic pattern preview')
+test('there is only one chart drawing renderer and no temporary SVG layer', () => {
+  assert.doesNotMatch(html, /class="workbench-preview"/)
+  assert.match(html, /function drawAgentPatternGroupCommands\(commands, strict = false\)/)
+  assert.match(html, /await workbenchApplyProposal\(proposal\)/)
+  assert.match(html, /patternMessage\(workbenchCopy\("图形已显示/)
 })

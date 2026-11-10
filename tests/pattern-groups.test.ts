@@ -44,10 +44,10 @@ test('group commands remain single inventory objects and render as one overlay e
   assert.equal(overlays.size,0)
 })
 
-test('automatic nine count keeps a viewport revision and refreshes when candles change', async () => {
+test('automatic nine count updates one chart object when candles change', async () => {
   const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
   const source = html.slice(html.indexOf('const patternState ='), html.indexOf('function patternDate('))
-  const overlays: any[] = [], calls: any[] = []
+  const overlays: any[] = [], calls: any[] = [], edits: any[] = []
   let revision = 1
   let sourceKey = 'candles-v1'
   const binding = () => ({ context_ref: 'current', expected_revision: revision, chart_session: 'chart', symbol: '600519.XSHG' })
@@ -62,6 +62,11 @@ test('automatic nine count keeps a viewport revision and refreshes when candles 
       calls.push(args)
       return { result_ref: `ref-${revision}`, summary: { marks: [{ time: 10, price: 100, count: revision, direction: 'up' }] } }
     },
+    workbenchApplyProposal: async (proposal: any) => {
+      edits.push(proposal.edit)
+      context.lastChartPayload = { chartCommands: [{ type: 'DRAW_AGENT_NINE_COUNT', id: 'nine-1', interval: 'day', color: 'warning' }] }
+      return { prepared: { object: { id: 'nine-1' } }, status: { apply_status: 'applied' } }
+    },
     drawAgentPatternGroupCommands() {},
   }
   const api = runInNewContext(source + ';({ set: automaticNineSetEnabled, tick: automaticNineTick, state: automaticNine })', context)
@@ -69,7 +74,9 @@ test('automatic nine count keeps a viewport revision and refreshes when candles 
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(calls.length, 1)
   assert.equal(calls[0].function, 'nine_count')
-  assert.equal(overlays[0].extendData.marks[0].count, 1)
+  assert.equal(edits[0].action, 'create')
+  assert.equal(edits[0].result_ref, 'ref-1')
+  assert.equal(overlays.length, 0)
   revision = 2
   await api.tick(false)
   assert.equal(calls.length, 1)
@@ -77,7 +84,9 @@ test('automatic nine count keeps a viewport revision and refreshes when candles 
   revision = 3
   await api.tick(true)
   assert.equal(calls.length, 2)
-  assert.equal(overlays[0].extendData.marks[0].count, 3)
+  assert.equal(edits[1].action, 'update')
+  assert.equal(edits[1].object_id, 'nine-1')
+  assert.equal(edits[1].result_ref, 'ref-3')
   api.set(false)
   assert.equal(overlays.length, 0)
 })

@@ -94,8 +94,11 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
     }[edit.kind]
     if fields.keys() - supported or edit.action == "delete" and fields:
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填类型、action，单对象删除另填 object_id。")
-    if edit.kind == "labeled_polyline" and edit.action != "create" and (edit.result_ref is not None or edit.points is not None):
+    if edit.kind == "labeled_polyline" and edit.action != "create" and (edit.points is not None or edit.result_ref is not None and edit.action != "update"):
         raise LineError("polyline_replacement_not_supported", "标注折线续改使用 point_label 和 point_time / point_price；名称 / 颜色可另填，不重写整组。")
+    if edit.kind == "labeled_polyline" and edit.action == "update" and edit.result_ref is not None and any(
+        value is not None for value in (edit.point_label, edit.point_time, edit.point_price)):
+        raise LineError("conflicting_function_parameters", "整组结果引用不能与单点修改混用。")
     if edit.result_ref is not None and (edit.kind not in {"fibonacci_retracement", "channel", "rectangle", "labeled_polyline", "series_line", "price_band", "price_sticks", "nine_count", *ANNOTATION_KINDS}
         or fields.keys() - {"result_ref", "name", "color", "show_midline", "show_fill"}):
         raise LineError("conflicting_function_parameters", "结果引用与直接锚点、边界或比例互斥；请修改参数后重新运行函数。")
@@ -103,7 +106,7 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
         or fields.keys() - {"ta_result_ref", "name", "color"}):
         raise LineError("ta_result_not_drawable", "仅允许把明确选定的 SMA/EMA 单线或 BBANDS 三线结果创建或更新为对应图形。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action not in ({"create", "update"} if edit.kind == "price_pattern" else {"create"}) or edit.kind not in {"channel", "rectangle", "price_pattern"}
+    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in {"channel", "rectangle", "price_pattern"}
         or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
         or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
         raise LineError("candidate_confirmation_required", "只有用户明确选定通道/平台候选及序号后才能创建；不能混用直接锚点或其他结果引用。")
@@ -307,6 +310,8 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         else:
             editor, id_key = editors[edit.kind]
             arguments = dict(params)
+            if edit.kind == "labeled_polyline" and edit.action == "update" and edit.result_ref is not None:
+                arguments["replace_from_result"] = True
             if edit.kind in ANNOTATION_KINDS:
                 arguments["kind"] = edit.kind
                 arguments = {({"annotation_text": "text", "annotation_value": "value", "annotation_icon": "icon"}.get(k, k)): v
