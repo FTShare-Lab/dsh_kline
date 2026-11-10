@@ -37,7 +37,7 @@ function fixture(type: string, selectedId: string | null = null) {
     },
     crypto: { randomUUID: () => 'request-1' }, sleep: async () => {},
   }
-  const api = runInNewContext(source + ';({ state: workbenchState, proposal: workbenchProposal, apply: workbenchApplyProposal, style: workbenchStyleOrDelete, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint })', context)
+  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, style: workbenchStyleOrDelete, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint })', context)
   api.state.selectedId = selectedId
   return { api, calls, fields, context }
 }
@@ -140,8 +140,13 @@ test('style update refuses to silently ignore a changed TA period', async () => 
 })
 
 test('the workbench keeps curated objects and lists old drawings without a second create tool', () => {
-  for (const label of ['SMA 均线', 'EMA 均线', 'BOLL 价带', '水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（三点折线）'])
+  for (const label of ['水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（三点折线）'])
     assert.ok(html.includes(label), label)
+  const drawingOptions = html.match(/<select id="workbenchType">([\s\S]*?)<\/select>/)?.[1] || ''
+  for (const type of ['sma', 'ema', 'boll']) {
+    assert.doesNotMatch(drawingOptions, new RegExp(`value="${type}"`))
+    assert.match(html, new RegExp(`data-workbench-indicator="${type}"`))
+  }
   assert.match(html, /class="workbench-legacy"[\s\S]*id="drawingList"/)
   assert.doesNotMatch(html, /id="drawingPopover"|data-drawing-type=/)
   assert.match(html, /id="drawingWorkbench"/)
@@ -154,6 +159,16 @@ test('the workbench keeps curated objects and lists old drawings without a secon
   for (const type of ['pattern_double_top', 'pattern_double_bottom', 'pattern_head_shoulders_top',
     'pattern_head_shoulders_bottom', 'pattern_platform', 'nine_count']) assert.ok(html.includes(`value="${type}"`))
   assert.match(html, /id="workbenchAdvanced"/)
+})
+
+test('indicator editing keeps its type without adding it to the drawing selector', () => {
+  const { api, fields } = fixture('horizontal')
+  api.state.mode = 'indicator'
+  api.state.indicatorType = 'ema'
+  assert.equal(api.type(), 'ema')
+  assert.equal(fields.workbenchType.value, 'horizontal')
+  api.state.mode = 'drawing'
+  assert.equal(api.type(), 'horizontal')
 })
 
 test('a chart opened before a chat exists still publishes its guarded drawing context', () => {

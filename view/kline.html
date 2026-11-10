@@ -1261,7 +1261,7 @@
   </div>
 </div>
 <section class="drawing-workbench" id="drawingWorkbench" aria-label="绘图工具">
-  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option><optgroup label="指标" id="workbenchIndicatorOptions" hidden disabled><option value="sma">SMA 均线</option><option value="ema">EMA 均线</option><option value="boll">BOLL 价带</option></optgroup></select></label><span id="workbenchIndicatorTitle" hidden></span></div>
+  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span></div>
   <section class="pattern-workbench" id="patternWorkbench" hidden aria-label="形态与九转">
     <div id="patternModeTitle"><strong hidden>自动识别</strong><span class="muted">自动查找近期候选；可手动选点</span></div>
     <div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">重新识别</button><button class="btn" id="patternManual" type="button" hidden>手动选点</button><span id="patternScope" class="muted">仅分析已加载的 A／港／美股单日线</span></div>
@@ -5802,11 +5802,12 @@ function clearCurrentUserDrawings(silent = false) {
 /* Curated workbench: UI and host both use the same guarded chart edit protocol. */
 const workbenchState = { anchors: [], picking: false, replaceIndex: null, pending: null, selectedId: null,
   selectedParameters: null, busy: false, scope: null, mode: "drawing", candidate: null, candidateResults: null,
-  previewSuppressed: false, autoSelected: false };
+  previewSuppressed: false, autoSelected: false, indicatorType: null };
 const WORKBENCH_KINDS = { sma: "series_line", ema: "series_line", boll: "price_band", horizontal: "horizontal_line",
   trend: "trend_line", channel: "channel", rectangle: "rectangle", fibonacci: "fibonacci_retracement", abc: "labeled_polyline" };
 const WORKBENCH_ANCHORS = { horizontal: 1, trend: 2, channel: 3, rectangle: 2, fibonacci: 2, abc: 3 };
-function workbenchType() { return document.getElementById("workbenchType")?.value || "sma"; }
+function workbenchType() { return workbenchState.mode === "indicator" ? workbenchState.indicatorType || "sma"
+  : document.getElementById("workbenchType")?.value || "horizontal"; }
 function workbenchStatus(message) { const node = document.getElementById("workbenchStatus"); if (node) node.textContent = message; }
 function workbenchCopy(zh, en) { return viewLanguage === "en" ? en : zh; }
 function workbenchInvalidate(showPreview = true) {
@@ -5874,7 +5875,8 @@ function renderWorkbenchAnchors() {
 }
 function setWorkbenchType(type, preserve = false) {
   if (!WORKBENCH_KINDS[type]) return;
-  document.getElementById("workbenchType").value = type;
+  if (["sma", "ema", "boll"].includes(type) && workbenchState.mode === "indicator") workbenchState.indicatorType = type;
+  else document.getElementById("workbenchType").value = type;
   document.getElementById("workbenchPeriodField").hidden = !["sma", "ema", "boll"].includes(type);
   document.getElementById("workbenchDeviationField").hidden = type !== "boll";
   document.getElementById("workbenchPriceField").hidden = type !== "horizontal";
@@ -6633,7 +6635,6 @@ function selectWorkbenchObject(id) {
     fibonacci_retracement: "fibonacci", labeled_polyline: "abc", price_band: "boll" }[object.kind] || "sma";
   if (object.kind === "series_line" && cmd?.source?.kind === "ema") type = "ema";
   workbenchState.mode = ["sma", "ema", "boll"].includes(type) ? "indicator" : "drawing";
-  document.getElementById("workbenchIndicatorOptions").disabled = workbenchState.mode !== "indicator";
   document.getElementById("drawingWorkbench").classList.add("open");
   document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", String(workbenchState.mode === "drawing"));
   document.getElementById("workbenchTypeField").hidden = workbenchState.mode === "indicator";
@@ -11224,7 +11225,18 @@ document.getElementById("drawingList").addEventListener("click", (event) => {
   if (button) removeUserDrawing(button.getAttribute("data-remove-drawing-id"));
 });
 document.getElementById("drawingWorkbenchToggle").addEventListener("click", () => {
-  const panel = document.getElementById("drawingWorkbench"), open = !panel.classList.contains("open");
+  const panel = document.getElementById("drawingWorkbench"), fromIndicator = workbenchState.mode === "indicator";
+  if (fromIndicator) {
+    const selected = document.getElementById("workbenchType").value;
+    if (selected === "nine_count") {
+      openAutomaticDrawing("nine");
+      if (!automaticNine.enabled) automaticNineSetEnabled(true);
+    } else if (selected.startsWith("pattern_")) {
+      openAutomaticDrawing("price");
+      void patternAnalyze();
+    } else openStandardDrawing();
+  }
+  const open = fromIndicator || !panel.classList.contains("open");
   panel.classList.toggle("open", open);
   document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", String(open));
   if (open) { drawingMode = ""; drawingDraft = null; setDrawingCaptureActive(workbenchState.picking); renderDrawingWorkbench(); syncWorkbenchPickUi();
@@ -11236,18 +11248,21 @@ document.getElementById("drawingWorkbenchToggle").addEventListener("click", () =
   }
 });
 function openStandardDrawing() {
+  const fromIndicator = workbenchState.mode === "indicator";
   workbenchState.mode = "drawing";
   document.getElementById("drawingWorkbench").classList.remove("patterns-mode");
   document.getElementById("patternWorkbench").hidden = true;
   patternClearPreview();
-  document.getElementById("workbenchIndicatorOptions").disabled = true;
   document.getElementById("workbenchTypeField").hidden = false;
   document.getElementById("workbenchIndicatorTitle").hidden = true;
+  if (fromIndicator) setWorkbenchType(workbenchType());
 }
 function openAutomaticDrawing(mode) {
   workbenchState.mode = "patterns";
   document.getElementById("drawingWorkbench").classList.add("open", "patterns-mode");
   document.getElementById("drawingWorkbenchToggle").setAttribute("aria-expanded", "true");
+  document.getElementById("workbenchTypeField").hidden = false;
+  document.getElementById("workbenchIndicatorTitle").hidden = true;
   document.getElementById("patternWorkbench").hidden = false;
   workbenchState.picking = false; setDrawingCaptureActive(false); workbenchInvalidate(false);
   patternSetMode(mode);
@@ -11285,7 +11300,6 @@ document.querySelectorAll("[data-workbench-indicator]").forEach(button => button
   workbenchState.mode = "indicator";
   document.getElementById("drawingWorkbench").classList.remove("patterns-mode");
   document.getElementById("patternWorkbench").hidden = true;
-  document.getElementById("workbenchIndicatorOptions").disabled = false;
   document.getElementById("workbenchTypeField").hidden = true;
   const title = document.getElementById("workbenchIndicatorTitle");
   title.hidden = false; title.textContent = `${button.dataset.workbenchIndicator.toUpperCase()} 独立对象`;
