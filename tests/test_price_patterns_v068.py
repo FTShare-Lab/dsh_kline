@@ -13,7 +13,20 @@ from tools.chart_functions import ChartFunctionParameters, _calculate
 from tools.lines import LineError
 from tools.nine_count import nine_count
 from tools.pattern_groups import edit_pattern_group
-from tools.price_patterns import price_pattern_candidates
+from tools.price_patterns import _same_platform_family, price_pattern_candidates
+
+
+def test_nearby_platform_cards_share_one_recent_family_but_distinct_breakouts_remain():
+    newest = {"type": "platform", "atr": 80, "status": "price_confirmed", "confirmed_at": 100,
+              "break_direction": "down", "available_index": 180,
+              "box": {"upper_price": 3995, "lower_price": 3806}}
+    adjacent = {**newest, "available_index": 178,
+                "box": {"upper_price": 3995, "lower_price": 3798}}
+    older_breakout = {**adjacent, "confirmed_at": 90}
+    wider_box = {**adjacent, "box": {"upper_price": 3995, "lower_price": 3675}}
+    assert _same_platform_family(newest, adjacent)
+    assert not _same_platform_family(newest, older_breakout)
+    assert not _same_platform_family(newest, wider_box)
 
 NOW = datetime(2026, 11, 9, tzinfo=timezone.utc)
 

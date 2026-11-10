@@ -44,6 +44,22 @@ test('group commands remain single inventory objects and render as one overlay e
   assert.equal(overlays.size,0)
 })
 
+test('platform drawing anchors its breakout and failure marks to actual closed bars', () => {
+  const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
+  const source = html.slice(html.indexOf('function drawAgentPatternGroupCommands('), html.indexOf('let pendingLiveDrawingPayload'))
+  let overlay: any
+  const context: any = { currentCandles: rows, currentInterval: 'day', patternGroupRegistry: new Map(),
+    kchart: { removeOverlay() {}, createOverlay(value: any) { overlay = value; return value.id } } }
+  const draw = runInNewContext(source + ';drawAgentPatternGroupCommands', context)
+  draw([{ ...pattern, pattern: { type: 'platform', anchors: [], status: 'breakout_failed',
+    box: { start_time: 1, end_time: 2, upper_price: 40, lower_price: 29 },
+    confirmed_at: 3, invalidated_at: 4, break_direction: 'down' } }], true)
+  assert.deepEqual(Array.from(overlay.points, (point: any) => [point.timestamp, point.value]),
+    [[1000, 40], [2000, 29], [3000, 32], [4000, 32]])
+  assert.equal(overlay.extendData.confirmedAt, 3)
+  assert.equal(overlay.extendData.invalidatedAt, 4)
+})
+
 test('automatic nine count updates one chart object when candles change', async () => {
   const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
   const source = html.slice(html.indexOf('const patternState ='), html.indexOf('function patternDate('))

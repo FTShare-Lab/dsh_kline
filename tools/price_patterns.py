@@ -154,6 +154,18 @@ def _volume_evidence(rows, item, provider, volume_unit):
             "unit": volume_unit}
 
 
+def _same_platform_family(a, b):
+    """Coalesce near-identical displayed boxes without changing their lifecycle."""
+    if a["type"] != "platform" or b["type"] != "platform":
+        return False
+    tolerance = .25 * min(a["atr"], b["atr"])
+    return (a["status"] == b["status"] and a["confirmed_at"] == b["confirmed_at"]
+            and a["break_direction"] == b["break_direction"]
+            and abs(a["available_index"] - b["available_index"]) <= 3
+            and abs(a["box"]["upper_price"] - b["box"]["upper_price"]) <= tolerance
+            and abs(a["box"]["lower_price"] - b["box"]["lower_price"]) <= tolerance)
+
+
 def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source_interval: str | None = "day",
                              interval_value: int | None = 1, provider: str | None = None,
                              volume_unit: str | None = None, pattern_types=None,
@@ -250,6 +262,14 @@ def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source
         recent = [r for r in recent if tuple(a["time"] for a in r["anchors"]) == anchor_times]
         if not recent: reasons["manual_selection_not_recognized"] += 1
     recent.sort(key=lambda r: (r["available_index"], r["type"], tuple(a["index"] for a in r["anchors"])), reverse=True)
+    distinct = []
+    nearby_suppressed = 0
+    for item in recent:
+        if any(_same_platform_family(item, prior) for prior in distinct):
+            nearby_suppressed += 1
+        else:
+            distinct.append(item)
+    recent = distinct
     for item in recent:
         item["volume_evidence"] = _volume_evidence(candles, item, provider, volume_unit)
         item.pop("pending_direction", None); item.pop("reclaim_count", None)
@@ -258,6 +278,7 @@ def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source
     return {"rule_version": RULE_VERSION, "as_of": metadata["as_of"], "data_quality": metadata,
             "lookback_bars": lookback_bars, "loaded_bars": len(candles),
             "candidate_count": len(recent), "returned": min(len(recent), max_candidates),
-            "truncated": len(recent) > max_candidates, "rejected_reasons": dict(reasons),
+            "truncated": len(recent) > max_candidates, "nearby_platforms_suppressed": nearby_suppressed,
+            "rejected_reasons": dict(reasons),
             "candidates": recent[:max_candidates], "drawing_created": False,
             "limitations": ["rule_based_geometry_not_trading_forecast"]}

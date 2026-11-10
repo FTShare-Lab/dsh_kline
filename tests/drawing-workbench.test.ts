@@ -103,6 +103,27 @@ test('direct drawing uses prepare, apply, then exact candidate status', async ()
   assert.equal(outcome.status.apply_status, 'applied')
 })
 
+test('a pending drawing blocks a parallel prepare and releases the tool selector after acknowledgment', async () => {
+  const { api, context, fields } = fixture('horizontal')
+  let completePrepare!: (value: any) => void
+  const pendingPrepare = new Promise(resolve => { completePrepare = resolve })
+  let prepares = 0
+  context.callTool = async (name: string) => {
+    if (name === 'workbench_prepare_edit') { prepares++; return pendingPrepare }
+    if (name === 'workbench_apply_edit') return { structuredContent: { ok: true, apply_status: 'queued' } }
+    if (name === 'workbench_edit_status') return { structuredContent: { ok: true, apply_status: 'applied' } }
+    throw Error(name)
+  }
+  const proposal = await api.proposal('create')
+  const first = api.apply(proposal)
+  assert.equal(fields.workbenchType.disabled, true)
+  await assert.rejects(() => api.apply(proposal), /图表正在更新/)
+  assert.equal(prepares, 1)
+  completePrepare({ structuredContent: { ok: true, chart_session: 'e'.repeat(32), object: { id: 'line_1' } } })
+  await first
+  assert.equal(fields.workbenchType.disabled, false)
+})
+
 test('automatic and manual selections apply directly without a preview save step', async () => {
   const body = html.slice(html.indexOf('async function workbenchConfirm()'), html.indexOf('function workbenchManagedObjects()'))
   for (const automatic of [true, false]) {
@@ -264,5 +285,5 @@ test('there is only one chart drawing renderer and no temporary SVG layer', () =
   assert.doesNotMatch(html, /class="workbench-preview"/)
   assert.match(html, /function drawAgentPatternGroupCommands\(commands, strict = false\)/)
   assert.match(html, /await workbenchApplyProposal\(proposal\)/)
-  assert.match(html, /patternMessage\(workbenchCopy\("图形已显示/)
+  assert.match(html, /await workbenchApplyProposal\(\{ binding, edit \}\)/)
 })
