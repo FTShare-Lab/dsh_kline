@@ -198,7 +198,7 @@ test('publisher serializes samples, sends metadata-only heartbeat and closes wit
   } finally { unblock(); publisher.dispose() }
 })
 
-test('page reload queues a small inactive report before a new view becomes active',async()=>{
+test('page reload queues a small inactive report before a new view becomes active',{timeout:5000},async()=>{
   const directory=await mkdtemp(join(tmpdir(),'kline-pagehide-'))
   const broker=new ChartContextBroker(directory)
   const listeners=new Map<string,()=>void>(), beacons:Promise<any>[]=[], beaconBodies:any[]=[]
@@ -214,8 +214,15 @@ test('page reload queues a small inactive report before a new view becomes activ
   }
   let initialPublished:()=>void=()=>{}
   const published=new Promise<void>(resolve=>{initialPublished=resolve})
+  let closedPublished:()=>void=()=>{}
+  let disposing=false
+  const closed=new Promise<void>(resolve=>{closedPublished=resolve})
   const publisher=createChartContextPublisher({conversationId:'A',viewId:'a'.repeat(32),capture:state,
-    isActive:()=>true,transport:body=>broker.publish(body),onPublished:()=>initialPublished()})
+    isActive:()=>true,transport:async body=>{
+      const result=await broker.publish(body)
+      if(disposing && !body.active)closedPublished()
+      return result
+    },onPublished:()=>initialPublished()})
   try {
     await published
     assert.match(broker.prompt(assembly('A')),/browser observation/)
@@ -228,7 +235,11 @@ test('page reload queues a small inactive report before a new view becomes activ
     await broker.publish(publication('b'.repeat(32),'A'))
     assert.doesNotMatch(broker.prompt(assembly('A')),/ambiguous_views/)
   } finally {
+    disposing=true
     publisher.dispose()
+    // dispose publishes the final inactive state asynchronously. Wait before
+    // deleting its directory, or a late write races recursive removal on CI.
+    await closed
     ;(globalThis as any).window=previousWindow
     await rm(directory,{recursive:true,force:true})
   }

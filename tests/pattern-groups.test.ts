@@ -170,7 +170,7 @@ test('head-and-shoulders neckline reaches the observed cutoff using bar-index sl
 })
 
 test('pattern labels sit outside their high or low pivots', () => {
-  const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8')
+  const html = readFileSync(new URL('../view/kline.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
   const start = html.indexOf('window.klinecharts.registerOverlay({\n      name: "ftvPatternGroup"')
   const end = html.indexOf('window.klinecharts.registerOverlay({\n      name: "ftvAgentFibonacci"', start)
   assert.ok(start > 0 && end > start)
