@@ -121,7 +121,7 @@ Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspac
 
 ### Sidebar compatibility
 
-DeepSeek Harness provides its own right sidebar, so **Better Sidebar is not required** to open the K-line sidebar. When a compatible Better Sidebar is installed, the plugin can also open the chart as a workspace Tab. This is an optional UI integration, not a requirement for quotes, indicators, or drawing. Use **UI** to choose Automatic, sidebar, or Tab; Automatic selects from the interface capabilities exposed by the current host. Installing Better Sidebar alone does not mean every version and layout has been validated.
+Newer DeepSeek Harness versions provide native right-sidebar tabs: **Better Sidebar is not required**. Choose **Workspace tab** under **UI**; the classic K sidebar remains the default. Older hosts may use a compatible Better Sidebar integration, sharing the same chart content. Native auto-open was tested on DSH 0.2.1-rc.5, a prerelease host; this does not establish compatibility with every host version.
 
 ## Quotes and data sources
 

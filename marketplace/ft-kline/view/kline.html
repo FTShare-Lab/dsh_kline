@@ -1203,7 +1203,7 @@
     <span class="quote-meta" id="qMeta"></span>
   </div>
 </header>
-<div id="interfaceFallbackBanner" class="settings-info muted" role="status" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</div>
+<div id="interfaceFallbackBanner" class="settings-info muted" role="status" hidden data-i18n="interfaceFallback">当前宿主没有可用的标签接口，暂时使用经典侧栏。</div>
 <div class="market-data-status" id="marketDataStatus" aria-live="polite"></div>
 <nav class="security-nav" id="securityNav" role="tablist" aria-label="标的内容">
   <button class="security-nav-tab active" id="securityTabMarket" type="button" role="tab" aria-selected="true" aria-controls="marketWorkspacePanel" data-security-tab="market">市场</button>
@@ -1445,8 +1445,8 @@
   <p id="interfaceStatus" class="muted"></p>
   <label class="interface-option"><input type="radio" name="interfaceMode" value="auto"><span><b data-i18n="interfaceAuto">自动（经典侧栏）</b><small data-i18n="interfaceAutoHelp">兼容旧设置；默认保留随时可用的经典 K 按钮。</small></span></label>
   <label class="interface-option"><input type="radio" name="interfaceMode" value="classic"><span><b data-i18n="interfaceClassic">经典独立侧栏</b><small data-i18n="interfaceClassicHelp">保留右侧 K 按钮和宽度拖动体验。</small></span></label>
-  <label class="interface-option"><input type="radio" name="interfaceMode" value="better-sidebar"><span><b>Better Sidebar Tab</b><small data-i18n="interfaceTabHelp">在新版工作台中以原生 Tab 打开 K 线助手。</small></span></label>
-  <p id="interfaceFallback" class="muted" hidden data-i18n="interfaceFallback">未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。</p>
+  <label class="interface-option"><input type="radio" name="interfaceMode" value="better-sidebar"><span><b data-i18n="interfaceTab">工作台标签</b><small data-i18n="interfaceTabHelp">在新版工作台中以原生 Tab 打开 K 线助手。</small></span></label>
+  <p id="interfaceFallback" class="muted" hidden data-i18n="interfaceFallback">当前宿主没有可用的标签接口，暂时使用经典侧栏。</p>
   <label class="interface-option"><input id="interfaceAutoOpen" type="checkbox"><span data-i18n="interfaceAutoOpen">分析完成后自动打开 K 线 Tab（保持面板的展开状态）</span></label>
   <p id="interfaceSaveStatus" role="status"></p>
   <div class="welcome-actions"><button class="btn" id="interfaceCancel" type="button" data-i18n="cancel">取消</button><button class="btn primary" id="interfaceSave" type="button" data-i18n="interfaceSave">保存并刷新</button></div>
@@ -1800,7 +1800,7 @@ const RANGE_PRESETS = {
 };
 const UI_COPY = {
   zh: {
-    interfaceLabel: "UI", interfaceTitle: "图表界面", interfaceAuto: "自动（经典侧栏）", interfaceClassic: "经典独立侧栏（推荐）", interfaceAutoHelp: "兼容旧设置；默认保留随时可用的经典 K 按钮。", interfaceClassicHelp: "新对话即可使用 K 按钮，保留右侧展开和宽度拖动体验。", interfaceTabHelp: "在新版工作台中以原生 Tab 打开 K 线助手。", interfaceFallback: "未检测到可用的 Better Sidebar，暂时使用经典界面。安装或启用后刷新即可。", interfaceAutoOpen: "分析完成后自动打开 K 线界面", interfaceSave: "保存并刷新", interfaceSaveFailed: "无法保存偏好，请允许浏览器本地存储后重试。", interfaceUpgrade: "K 线界面", interfaceUpgradeHelp: "默认使用经典独立侧栏；需要多 Tab 工作流时可手动选择 Better Sidebar。", interfaceWelcomeHint: "随时通过右上角“UI”按钮切换显示方式。", interfaceKeep: "保持当前界面", interfaceChoose: "查看并选择界面", interfaceCurrent: "当前：{preference} · 正在使用 {mode}",
+    interfaceLabel: "UI", interfaceTab: "工作台标签", interfaceTitle: "图表界面", interfaceAuto: "自动（经典侧栏）", interfaceClassic: "经典独立侧栏（推荐）", interfaceAutoHelp: "兼容旧设置；默认保留随时可用的经典 K 按钮。", interfaceClassicHelp: "新对话即可使用 K 按钮，保留右侧展开和宽度拖动体验。", interfaceTabHelp: "在新版工作台中以原生 Tab 打开 K 线助手。", interfaceFallback: "当前宿主没有可用的标签接口，暂时使用经典侧栏。", interfaceAutoOpen: "分析完成后自动打开 K 线界面", interfaceSave: "保存并刷新", interfaceSaveFailed: "无法保存偏好，请允许浏览器本地存储后重试。", interfaceUpgrade: "K 线界面", interfaceUpgradeHelp: "默认使用经典独立侧栏，也可选择工作台标签。", interfaceWelcomeHint: "随时通过右上角“UI”按钮切换显示方式。", interfaceKeep: "保持当前界面", interfaceChoose: "查看并选择界面", interfaceCurrent: "当前：{preference} · 正在使用 {mode}",
     toolbarHint: "单击 K 线 · 再点终点选择区间 · 可查看区间统计",
     capDaily: "日 K", capIndicators: "技术指标", capMinute: "分钟 K", capNews: "新闻", capMarket: "大盘", capCompany: "公司资料", capAvailable: "当前可用", capSourceDependent: "取决于数据源", capLocked: "当前套餐未提供", capNotTested: "尚未测试",
     range1d: "1D", range5d: "5D", range10d: "10日", range30d: "30日", rangeYtd: "今年", range1y: "1年", range5y: "5年",
@@ -1820,7 +1820,7 @@ const UI_COPY = {
     day: "日线", week: "周线", month: "月线", quarter: "季线", year: "年线", productName: "非凸 K 线助手",
   },
   en: {
-    interfaceLabel: "UI", interfaceTitle: "Chart interface", interfaceAuto: "Automatic (classic sidebar)", interfaceClassic: "Classic sidebar (recommended)", interfaceAutoHelp: "For legacy settings; the always-available classic K button remains the default.", interfaceClassicHelp: "Use the K button from a new conversation, with the familiar draggable right sidebar.", interfaceTabHelp: "Open K-line Assistant as a native tab in the updated workbench.", interfaceFallback: "Better Sidebar is unavailable. Using the classic interface until it is installed or enabled and the page is refreshed.", interfaceAutoOpen: "Open the K-line interface after analysis", interfaceSave: "Save and reload", interfaceSaveFailed: "Could not save preferences. Allow browser local storage and try again.", interfaceUpgrade: "K-line interface", interfaceUpgradeHelp: "Classic sidebar is the default; choose Better Sidebar manually when a multi-tab workflow helps.", interfaceWelcomeHint: "Change your display mode anytime using UI in the top-right corner.", interfaceKeep: "Keep this interface", interfaceChoose: "Choose an interface", interfaceCurrent: "Current: {preference} · Using {mode}",
+    interfaceLabel: "UI", interfaceTab: "Workspace tab", interfaceTitle: "Chart interface", interfaceAuto: "Automatic (classic sidebar)", interfaceClassic: "Classic sidebar (recommended)", interfaceAutoHelp: "For legacy settings; the always-available classic K button remains the default.", interfaceClassicHelp: "Use the K button from a new conversation, with the familiar draggable right sidebar.", interfaceTabHelp: "Open K-line Assistant as a native tab in the updated workbench.", interfaceFallback: "Workspace tabs are unavailable in this host. Using the classic sidebar.", interfaceAutoOpen: "Open the K-line interface after analysis", interfaceSave: "Save and reload", interfaceSaveFailed: "Could not save preferences. Allow browser local storage and try again.", interfaceUpgrade: "K-line interface", interfaceUpgradeHelp: "Classic sidebar is the default; choose a workspace tab for a tabbed workflow.", interfaceWelcomeHint: "Change your display mode anytime using UI in the top-right corner.", interfaceKeep: "Keep this interface", interfaceChoose: "Choose an interface", interfaceCurrent: "Current: {preference} · Using {mode}",
     toolbarHint: "Click a candle, then another one for a range. Click annotations to cite them.",
     capDaily: "Daily K-lines", capIndicators: "Technical indicators", capMinute: "Minute K-lines", capNews: "News", capMarket: "Market data", capCompany: "Company data", capAvailable: "Available now", capSourceDependent: "Source dependent", capLocked: "Not included in current plan", capNotTested: "Not tested",
     range1d: "1D", range5d: "5D", range10d: "10D", range30d: "30D", rangeYtd: "YTD", range1y: "1Y", range5y: "5Y",
@@ -10053,7 +10053,7 @@ function openSettingsFromWelcome() {
 }
 function interfaceCurrentText() {
   const state = window.__DSH_KLINE_INTERFACE__ || { preference: "auto", mode: "classic" };
-  const label = value => value === "auto" ? t("interfaceAuto") : value === "classic" ? t("interfaceClassic") : "Better Sidebar Tab";
+  const label = value => value === "auto" ? t("interfaceAuto") : value === "classic" ? t("interfaceClassic") : t("interfaceTab");
   return t("interfaceCurrent").replace("{preference}", label(state.preference)).replace("{mode}", label(state.mode));
 }
 function acknowledgeInterface() {

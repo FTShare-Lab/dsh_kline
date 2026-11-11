@@ -125,7 +125,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 
 ### 界面兼容
 
-DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线侧栏**。如果安装了可用的 Better Sidebar，插件还可以把 K 线作为工作台 Tab 打开；它是可选的界面增强，不是行情、指标或绘图的前提。右上角 **UI** 可在自动、侧栏与 Tab 模式间切换；自动模式会按当前宿主提供的界面能力选择。不同 Better Sidebar 版本的适配情况可能不同，不能仅凭安装了它就保证所有布局都已验收。
+新版 DeepSeek Harness 提供原生右侧标签，**无需安装 Better Sidebar**。在右上角 **UI** 选择“工作台标签”即可使用；经典 K 侧栏仍为默认。旧宿主也可通过兼容的 Better Sidebar 提供标签接口，两者共用图表内容。已在 DSH 0.2.1-rc.5 中验证原生自动开图；这是预发布宿主，不代表其他版本均已验收。
 
 ## 绘图：对话与工作台共用一个对象流程
 
