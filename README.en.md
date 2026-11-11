@@ -1,49 +1,136 @@
 # FT K-Line · 非凸 K 线助手
 
-Explore markets, analyze price action, and draw directly on charts through **DeepSeek Harness** or **Codex**.
+Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and revise charts through natural language, or pick anchors on the chart yourself.
 
 [简体中文](README.md) · English
 
-[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![Release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-[Explore](#explore) · [Install](#install) · [Get started](#get-started) · [Data and scope](#data-and-scope) · [Documentation](#documentation)
+[Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Historical gallery](#historical-interface-and-original-screenshots) · [Documentation](#documentation)
 
-> This page describes **v0.6.10**. Published packages are listed in [Releases](https://github.com/FTShare-Lab/dsh_kline/releases); see the [npm guide](docs/npm-release.md) for publication and installation details.
+Current release: **v0.6.10**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
-## Explore
+## Supported drawing tools
 
-### Compare performance on the main chart
+Chat and the chart panel use the same drawing capabilities. Automatic drawing uses the **latest closed daily bars already loaded in the current chart** and selects the newest qualifying candidate by default. You can also choose a candidate or specify dates and prices.
 
-Overlay stocks, indices, or ETFs as background lines while retaining the main symbol's candles and indicators. Search for symbols or choose an index shortcut; hide or remove each comparison independently.
+| Drawing tool | Automatic drawing | Manual anchors and natural-language control |
+| --- | --- | --- |
+| **Horizontal line** | Find recent high/low pivot price candidates | Specify a price or select a candle; use it as support, resistance, or a custom level |
+| **Trend line** | Find a qualifying recent two-anchor move | Specify two times and prices; create or adjust the segment |
+| **Parallel channel** | Find recent channel candidates | Select three anchors; adjust boundaries and the optional midpoint |
+| **Range box** | Find recent ranges meeting boundary-contact and drift rules | Select the interval and upper/lower boundaries; edit the name, color, and fill |
+| **Fibonacci retracement** | Find anchors from recent swings | Specify endpoints and ratios; edit or remove the group together |
+| **ABC swing / wave labels** | Find 0/A/B/C swing candidates meeting geometric rules | Pick anchors or have the host verify them before drawing; revise a named point |
+| **Double top** | Identify the structure and its subsequent state | Supply structural anchors, subject to the same recognition rules |
+| **Double bottom** | Identify the structure and its subsequent state | Supply structural anchors, subject to the same recognition rules |
+| **Head and shoulders top** | Identify shoulders, head, and neckline | Supply five structural anchors and validate the pattern |
+| **Head and shoulders bottom** | Identify the inverse structure and neckline | Supply five structural anchors and validate the pattern |
+| **Platform breakout / failure** | Freeze range boundaries and mark pending, confirmed, or failed breakouts | Use a range box for a manually chosen interval; states come from price analysis |
+| **Nine Count** | Display upward/downward 1–9 counts and update with chart data | Counts are calculated from prices; adjust the display range and style |
 
-[![Shanghai Composite candles with CSI 300 and ChiNext overlays](docs/images/main-chart-comparison-v0.6.9.png)](docs/images/main-chart-comparison-v0.6.9.png)
+**ABC candidates and labels are not a complete Elliott-wave recognizer.** Price patterns and Nine Count currently support closed daily bars for A-share, Hong Kong, and US stocks. When no candidate qualifies, the tool explains that instead of forcing a drawing.
 
-*Shanghai Composite daily candles with CSI 300 and ChiNext. Lines are normalized to the shared baseline shown in the legend to compare cumulative returns, rather than raw prices. Comparison lines have no additional indicators. Click an image for the original.*
+### Indicators and additional annotations
 
-### Start with the wider market
+- **Indicator panel:** SMA, EMA, VOL, MACD, KDJ, RSI, BOLL, ATR, and VWAP. Selected SMA/EMA/BOLL results can also be added as independent objects through the host.
+- **Chat-driven annotations:** text, numbers, arrows, diamonds, and labeled polylines. Continue editing by object name or named point.
+- **Advanced tool interfaces:** conditional price series, price bands, and conditional sticks. See [function and drawing coverage](docs/chart-functions.md) for inputs, display behavior, and limits.
+- **Object management:** create, rename, recolor, update anchors, and delete; multiple objects can coexist on one chart. The 201 TA-Lib functions support queries and calculations; only implemented drawing and indicator families can be put on the chart.
 
-Browse major mainland China, Hong Kong, and US indices alongside sector rankings and unusual-trading lists. Open a symbol to continue with its chart, news, and company information.
+## Natural-language drawing in action
 
-[![Major indices, sector rankings, and unusual-trading lists](docs/images/market-overview-v0.6.9.png)](docs/images/market-overview-v0.6.9.png)
+### Verify an ABC candidate, then draw its anchors
 
-### Draw automatically or choose your own anchors
+DeepSeek checks Wolong Electric's four 0/A/B/C anchors against daily candles before drawing through the plugin. The full capture preserves both the conversation and the visible result.
 
-**Draw** brings together horizontal levels, trend lines, parallel channels, range boxes, Fibonacci retracements, ABC annotations, double tops/bottoms, head-and-shoulders patterns, platform breakout/failure states, and basic nine-counts. Draw the latest eligible result, choose another candidate, or pick anchors manually. Closing the controls preserves drawings; **Clear** removes them.
+[![Natural-language ABC drawing: the conversation verifies four anchors while the daily chart displays the 0/A/B/C polyline and labels](docs/images/natural-language-abc-wolong-2026-10-27.png)](docs/images/natural-language-abc-wolong-2026-10-27.png)
 
-[![MSFT daily platform box with its upward breakout confirmation](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
+### Continue by adding a descending channel
 
-*MSFT daily chart: the platform spans August 28–September 25, with an upward breakout confirmed on October 6. Subsequent candles do not expand the frozen box. This is a rule-based finding, not a return forecast.*
+A follow-up request adds parallel channel boundaries after the host checks their anchors. The existing ABC labels remain on the same chart.
 
-These are actual **DSH Web captures from November 11, 2026**, saved as lossless PNGs at native Retina resolution. Prices are snapshots. Codex Desktop shares the calculations and displays charts in an App card; appearance depends on the host.
+[![Natural-language descending channel: the daily chart retains its ABC labels and adds the channel boundaries](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
-| Capability | What you can do |
-| --- | --- |
-| Indicators | SMA, EMA, VOL, MACD, KDJ, RSI, BOLL, ATR, VWAP |
-| Natural-language drawing | Create, edit, recolor, rename, or delete specific drawings on the same chart as the workbench |
-| Levels and review | Analyze support/resistance, add custom levels, review interval returns and drawdown |
-| Market research | Indices, sectors, news, company information, unusual trading; subject to coverage and permissions |
-| Watchlists | Favorites, groups, sorting, importing, batch opening; DSH retains them across conversations |
-| Technical functions | Query and calculate 201 TA-Lib functions; selected SMA/EMA/BBANDS results support guarded drawing |
+Example requests:
+
+```text
+Open Wolong Electric's daily chart. Verify a recent ABC swing candidate and draw it if it qualifies.
+Add a descending channel to the same chart, keeping the ABC labels.
+Draw the newest qualifying double bottom and explain its current state.
+Show Nine Count for the latest 30 closed daily bars.
+Make “Key support” blue and move it to 30.8.
+```
+
+An analysis request returns analysis. An explicit drawing request puts the result on the chart. Specified anchors and candidate choices take priority.
+
+## Drawing workbench and price patterns
+
+Open **Draw** → select a tool → **Draw now**. Use **Pick anchors manually** to select your own points and **Settings** to adjust parameters. Drawings appear directly, without a separate save step. Closing or collapsing the controls preserves them; **Clear** is inside the drawing panel.
+
+### ABC labels and anchor selection
+
+[![ABC drawing example with selected anchors, polyline, and labels](docs/images/abc-drawing-v0.5.0.jpg)](docs/images/abc-drawing-v0.5.0.jpg)
+
+### Parallel channel
+
+[![Parallel channel example with upper/lower boundaries and midpoint on the main chart](docs/images/channel-drawing-v0.5.0.jpg)](docs/images/channel-drawing-v0.5.0.jpg)
+
+### Drawing workbench
+
+[![Drawing workbench with tool selection, parameters, and chart objects](docs/images/drawing-workbench-v0.5.0.jpg)](docs/images/drawing-workbench-v0.5.0.jpg)
+
+### Range formation, breakout, and failure states
+
+MSFT daily example: the range forms from August 28 to September 25, with an upward breakout confirmed on October 6. The chart shows its boundaries and actual confirmation date; subsequent prices do not enlarge the frozen range.
+
+[![MSFT daily platform range with its upward breakout confirmation date](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
+
+Double tops/bottoms and head-and-shoulders patterns likewise show necklines and candidate, confirmation, or failure states. Nine Count displays individual counts; it does not include a full DeMARK 13 Countdown. See [pattern rules](docs/price-pattern-rules-v1.md).
+
+### Workspace and chart entry points
+
+[![K-line workspace and chart tabs with symbol search, indicators, drawing, and chart controls](docs/images/dsh-kline-tab-workspace.png)](docs/images/dsh-kline-tab-workspace.png)
+
+These real captures preserve different stages of the project. The ABC, channel, and earlier workbench images show historical interfaces; current button names and direct drawing behavior are described above. Click an image for its original dimensions.
+
+## Market overview and chart comparison
+
+### Put comparison lines in the main candlestick chart
+
+Search for stocks, indices, or ETFs and overlay their price-performance lines behind the main chart. The primary symbol retains its candles and indicators. Hide or remove comparison lines independently.
+
+[![Shanghai Composite candles with CSI 300 and ChiNext comparison lines](docs/images/main-chart-comparison-v0.6.9.png)](docs/images/main-chart-comparison-v0.6.9.png)
+
+*Lines use a common normalization baseline to compare cumulative percentage changes. They do not compare raw prices across symbols or calculate technical indicators for the comparison lines.*
+
+### Market overview
+
+Browse major A-share, Hong Kong, and US indices, sector rankings, and unusual-trading lists. Select a symbol to continue in its chart and research panels.
+
+[![Market overview with major indices, sector rankings, and unusual trading](docs/images/market-overview-v0.6.9.png)](docs/images/market-overview-v0.6.9.png)
+
+The market, comparison, and MSFT platform captures preserve native Retina pixels as lossless PNGs. Prices are snapshots from capture time.
+
+## Levels, review, and research
+
+### Support and resistance
+
+Use **Levels** to analyze reference prices, add custom levels, and draw them on the current chart.
+
+[![Support, resistance, and reference-price annotations on the chart](docs/images/kline-support.png)](docs/images/kline-support.png)
+
+### Interval review
+
+Inspect interval returns and drawdown alongside the chart.
+
+[![Interval review and market statistics](docs/images/kline-range-stats.png)](docs/images/kline-range-stats.png)
+
+### News and company information
+
+Read symbol news, company information, and research panels next to the chart. Coverage depends on the source and permissions.
+
+[![Symbol news and research panel](docs/images/kline-news.png)](docs/images/kline-news.png)
 
 ## Install
 
@@ -51,13 +138,23 @@ Supports macOS, Linux, and native Windows. First launch downloads dependencies a
 
 ### DeepSeek Harness
 
-Install a working DSH Web host and **Python 3.11+**, then find `dsh_kline` in the plugin marketplace or run:
+Install a working DSH Web host and **Python 3.11+**, then run:
+
+```bash
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.10
+```
+
+GitHub installation is also available:
 
 ```bash
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 ```
 
-Enable it, then click **K** on the right or request analysis in chat. Better Sidebar is optional; the regular sidebar works without it.
+You can also find `dsh_kline` in the plugin marketplace. Its version and download information depend on catalog synchronization. See the [npm package](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) for the published version; downloads are not unique installations.
+
+[![dsh_kline installation and update entry in the plugin marketplace](docs/images/dsh-market.png)](docs/images/dsh-market.png)
+
+After enabling it, click **K** or request analysis in chat. Newer DSH versions provide native right-sidebar tabs without Better Sidebar. Choose **UI → Workspace tab**, or continue using the classic K sidebar. v0.6.10's native auto-open was tested on DSH 0.2.1-rc.5, a prerelease host.
 
 ### Codex
 
@@ -68,49 +165,75 @@ codex plugin marketplace add FTShare-Lab/dsh_kline --ref main
 codex plugin add ft-kline@ftshare
 ```
 
-Reopen Codex and ask “Open China Merchants Bank's daily chart.” FTShare is this project's public GitHub plugin source; it is not listed in the official public plugin directory.
+Reopen Codex and ask “Open China Merchants Bank's daily chart.” FTShare is this project's public GitHub plugin source.
 
 | Host | Interactive chart and manual drawing | Chat-driven drawing | Quotes and structured analysis |
 | --- | --- | --- | --- |
 | DSH Web | Yes | Yes | Yes |
 | Codex Desktop | Inside an App card | Yes | Yes |
-| Codex CLI | Unavailable | No chart writes | Yes |
+| Codex CLI | No canvas | No chart writes | Yes |
 
-For updates, fixed-release ZIPs, migration, credentials, and troubleshooting, see the [complete guide](docs/guide.en.md).
-
-## Get started
-
-**Ask in chat:**
-
-```text
-Open Tencent's daily chart and analyze its volume, MACD, and RSI over the last month.
-Draw a blue horizontal line at 31.2 called “Key support”.
-Move Key support to 30.8; leave the other drawings unchanged.
-Find and draw the latest eligible double bottom; explain its current state.
-```
-
-**Use the workbench:** Search a symbol → choose a range and timeframe → enable indicators → choose a tool under **Draw** and click **Draw now**. Use **Pick anchors manually** for your own points and **Settings** for parameters. Drawings appear directly without a separate save step.
-
-**Levels** analyzes support/resistance; **Compare** adds background lines. Controls that do not fit move into the row's overflow menu. Closing a panel does not delete drawings. See [chat-driven drawing examples](docs/drawing-examples.en.md).
+See the [complete guide](docs/guide.en.md) for pinned archives, updates, migration, and startup troubleshooting.
 
 ## Data and scope
 
-- **Sources:** Configure and test an FTShare key under **Settings → Data source**. Without a key, supported A-share, HK/US daily-history and index fallbacks can be tried; public-source coverage varies. Intraday data, news, and company information depend on the corresponding permissions.
-- **Patterns and nine-counts:** Currently use loaded, closed daily bars for mainland China, HK, and US equities. ABC provides annotations and candidate assistance, not professional Elliott-wave recognition. Basic nine-counts do not include the full DeMARK 13 Countdown.
-- **Drawings and state:** Anchors must match actual loaded candles. Unverified sources, expired results, or ambiguous active views stop edits. Drawing restoration across service restarts, mouse dragging, and undo are not supported.
-- **Host differences:** DSH watchlists persist at user level. Codex charts, watchlists, and App-entered keys remain in connection memory and do not inherit DSH configuration.
+- **Sources:** FTShare can be configured and tested under Settings → Data source. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
+- **Permissions and periods:** minute bars, news, and company information depend on the source and permissions. Automatic drawing, patterns, and Nine Count currently use loaded, closed daily bars for A-share, Hong Kong, and US stocks.
+- **Editing:** drawings use real candles in the current chart. Unknown sources, expired results, or ambiguous active views stop edits with an explanation. Dragging anchors and undo are not currently supported.
+- **Retention:** DSH watchlists and groups persist across conversations. Codex charts, watchlists, and temporary App keys remain in the current connection's memory and do not inherit DSH settings. Drawing recovery across service restarts is not guaranteed.
 
-Quotes may be delayed; technical analysis is for research and learning. See [keyless coverage](docs/anonymous-market-support.md) and the [HK/US daily-data contract](docs/free-foreign-daily.md).
+Market data may be delayed. Patterns and counts support research and review, without guaranteed trading returns. See [key-less coverage](docs/anonymous-market-support.md) and [free Hong Kong/US daily sources](docs/free-foreign-daily.md).
+
+## Historical interface and original screenshots
+
+<details>
+<summary>Expand all early screenshots and original first captures</summary>
+
+These images appeared in earlier READMEs and retain their original files and dimensions. They document the project's history; current interfaces and workflows are described above.
+
+### Early desktop chart
+
+[![Early desktop candlestick chart](docs/images/chart-desktop.jpg)](docs/images/chart-desktop.jpg)
+
+### Early mobile layout
+
+[![Early mobile candlestick layout](docs/images/chart-mobile.jpg)](docs/images/chart-mobile.jpg)
+
+### Early support and resistance chart
+
+[![Early support and resistance presentation](docs/images/chart-support-resistance.jpg)](docs/images/chart-support-resistance.jpg)
+
+### Host conversation and analysis entry
+
+[![Early Harness conversation calling K-line analysis](docs/images/harness-analyze-kline.jpg)](docs/images/harness-analyze-kline.jpg)
+
+### Early sidebar
+
+[![Early DSH K-line sidebar](docs/images/dsh-sidebar.png)](docs/images/dsh-sidebar.png)
+
+### Original market capture
+
+[![Original first market capture; a lossless version of this scene appears above](docs/images/market-overview-v0.6.9.jpg)](docs/images/market-overview-v0.6.9.jpg)
+
+### Original comparison capture
+
+[![Original first comparison capture; a lossless version of this scene appears above](docs/images/main-chart-comparison-v0.6.9.jpg)](docs/images/main-chart-comparison-v0.6.9.jpg)
+
+### Original platform breakout capture
+
+[![Original first MSFT platform capture; a lossless version of this scene appears above](docs/images/platform-breakout-msft-v0.6.9.jpg)](docs/images/platform-breakout-msft-v0.6.9.jpg)
+
+</details>
 
 ## Documentation
 
-| Topic | Guide |
+| Topic | Link |
 | --- | --- |
-| Installation, updates, credentials, troubleshooting | [Complete guide](docs/guide.en.md) |
-| Automatic drawing and extensions | [Shared drawing architecture](docs/automatic-drawing.md) |
+| Install, updates, keys, troubleshooting | [Complete guide](docs/guide.en.md) |
+| Automatic drawing and extension | [Shared drawing architecture](docs/automatic-drawing.md) |
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
-| Technical functions | [Read-only and drawable functions](docs/chart-functions.md) |
-| Host and data integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and verification | [Changelog](CHANGELOG.md) · [v0.6.9 release notes](docs/release-notes-v0.6.9.md) · [Acceptance](docs/release-acceptance-v0.6.9.md) |
+| Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
+| Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.10 release notes](docs/release-notes-v0.6.10.md) · [Acceptance](docs/release-acceptance-v0.6.10.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

@@ -1,49 +1,136 @@
 # 非凸 K 线助手 · FT K-Line
 
-在 **DeepSeek Harness** 与 **Codex** 中看行情、分析走势，用自然语言或绘图工具直接操作图表。
+在 **DeepSeek Harness** 与 **Codex** 中查看行情，用自然语言分析、绘图和继续修改，也可以亲自在图上选点。
 
 简体中文 · [English](README.en.md)
 
-[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-[功能展示](#功能展示) · [安装](#安装) · [开始使用](#开始使用) · [数据与适用范围](#数据与适用范围) · [文档](#文档)
+[绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [历史图集](#历史界面与原版截图) · [文档](#文档)
 
-> 本页对应 **v0.6.10**。正式安装包以 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) 为准；npm 发布与安装说明见[发布指南](docs/npm-release.md)。
+当前发布版本 **v0.6.10**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
-## 功能展示
+## 支持哪些绘图
 
-### 在主图中比较走势
+对话和图表面板使用同一套绘图能力。自动绘图以**当前已加载的最近已收盘日线**为准，默认显示最新合格候选；也可以指定候选、日期和点位。
 
-把个股、指数或 ETF 的折线叠加在 K 线背景中，保留主标的的蜡烛图与指标。搜索添加、快捷选择常用指数，也可单独隐藏或移除对比线。
+| 绘图工具 | 自动绘图 | 手动选点与自然语言操作 |
+| --- | --- | --- |
+| **水平线** | 查找近期高点／低点作为价位候选 | 指定价格，或点选 K 线；可作为支撑、压力或自定义价位 |
+| **趋势线** | 查找近期符合条件的两点走势 | 指定两个时间与价位，创建或调整线段 |
+| **平行通道** | 查找近期通道候选 | 选择三个锚点，调整边界及中线样式 |
+| **平台框／箱体** | 查找符合边界接触与漂移条件的近期区间 | 框定时间和上下边界，调整名称、颜色及填充 |
+| **斐波那契回撤** | 从近期波段寻找锚点 | 指定波段起终点及回撤比例，整组修改或删除 |
+| **ABC 波段／ABC 浪标注** | 查找符合几何条件的 0／A／B／C 波段候选 | 自选锚点，或让宿主核对后落图；可单独修改指定点 |
+| **双顶** | 识别顶部结构及后续状态 | 手动指定结构锚点，仍需满足识别规则 |
+| **双底** | 识别底部结构及后续状态 | 手动指定结构锚点，仍需满足识别规则 |
+| **头肩顶** | 识别双肩、头部与颈线 | 手动指定五个结构锚点，并校验形态 |
+| **头肩底** | 识别反向头肩结构与颈线 | 手动指定五个结构锚点，并校验形态 |
+| **平台突破／失效** | 冻结平台边界，标示待确认、突破确认及失效状态 | 自选区间使用普通平台框；状态由行情分析得出 |
+| **九转计数** | 逐根显示上涨／下跌 1–9；行情变化后更新 | 由行情自动计数，可调整显示范围与样式 |
 
-[![上证指数主图与沪深300、创业板指对比](docs/images/main-chart-comparison-v0.6.9.png)](docs/images/main-chart-comparison-v0.6.9.png)
+**ABC 是波段几何候选与折线标注，不等于完整艾略特波浪识别。** 价格形态与九转当前支持 A／港／美股已收盘日线；找不到合格候选时会说明原因，不强行绘制。
 
-*上证指数日 K，叠加沪深300与创业板指。对比线按图例中的共同基准归一化，比较累计涨跌幅，不直接比较价格，也不计算对比标的的指标。点击图片查看原图。*
+### 指标与更多标注
 
-### 从大盘进入个股
+- **指标面板：** SMA、EMA、VOL、MACD、KDJ、RSI、BOLL、ATR、VWAP。SMA／EMA／BOLL 也支持由宿主计算并添加为独立指标对象。
+- **自然语言标注：** 文字、数值、箭头与菱形图标、带标签折线；支持按名称或指定点继续修改。
+- **进阶工具接口：** 条件价格序列、价带与条件柱线。具体输入、显示范围及限制见[函数与绘图说明](docs/chart-functions.md)。
+- **图形管理：** 创建、改名、改色、更新锚点、删除；同一张图可叠加多个对象。201 个 TA-Lib 函数可查询计算，只有已接入的图形与指标支持落图。
 
-一页浏览 A／港／美主要指数、板块排行与龙虎榜，点击标的进入图表，继续研究行情、资讯和公司资料。
+## 自然语言绘图实测
+
+### ABC 候选：核对锚点后画到图上
+
+DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插件绘制。完整截图同时保留了左侧对话与右侧实际图形。
+
+[![自然语言绘制卧龙电驱 ABC：对话核对四个锚点，日 K 图显示 0、A、B、C 折线和标签](docs/images/natural-language-abc-wolong-2026-10-27.png)](docs/images/natural-language-abc-wolong-2026-10-27.png)
+
+### 在同一张图上继续添加下降通道
+
+继续提出绘图请求，宿主核对通道锚点后添加平行边界，原有 ABC 标注保留。
+
+[![自然语言追加下降通道：日 K 主图同时保留 ABC 标注与通道边界](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
+
+可以这样提出需求：
+
+```text
+打开卧龙电驱日 K，核对最近一个 ABC 波段候选，符合条件就画出来。
+在同一张图上添加下降通道，保留已有 ABC 标注。
+找最近一个符合规则的双底并画出来，说明现在处于什么状态。
+显示最近 30 根已收盘日线的九转计数。
+把“关键支撑”改成蓝色，并移到 30.8 元。
+```
+
+请求“分析”时返回分析；明确请求“画出来”时直接绘制。用户指定点位或候选时，优先使用其选择。
+
+## 绘图工作台与价格形态
+
+点击 **绘图** → 选择工具 → **绘图**。需要自行指定锚点时使用 **手动选点**，通过 **设置** 调整参数；图形直接展示，无需另行保存。关闭或收起面板不会删除图形，**清除** 位于绘图面板内。
+
+### ABC 标注与选点
+
+[![ABC 绘图演示：选择锚点并显示折线与标签](docs/images/abc-drawing-v0.5.0.jpg)](docs/images/abc-drawing-v0.5.0.jpg)
+
+### 平行通道
+
+[![平行通道绘图演示：主图上的上下边界与中线](docs/images/channel-drawing-v0.5.0.jpg)](docs/images/channel-drawing-v0.5.0.jpg)
+
+### 绘图工具台
+
+[![绘图工作台演示：工具选择、参数与图上的绘图对象](docs/images/drawing-workbench-v0.5.0.jpg)](docs/images/drawing-workbench-v0.5.0.jpg)
+
+### 箱体形成、突破与失效状态
+
+微软日 K 实例：08/28—09/25 形成平台，10/06 确认上破。图上展示箱体边界与实际确认日期；后续行情不会扩大已经冻结的箱体。
+
+[![微软日 K 的平台箱体与上破确认日](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
+
+双顶／底、头肩顶／底同样显示颈线及候选、确认、失效等状态。九转显示逐根计数，基础九转不包含完整 DeMARK 13 Countdown。定义与适用范围见[形态规则](docs/price-pattern-rules-v1.md)。
+
+### 工作台与图表入口
+
+[![K 线工作台与多图标签：标的搜索、指标、绘图和图表操作](docs/images/dsh-kline-tab-workspace.png)](docs/images/dsh-kline-tab-workspace.png)
+
+以上保留了不同时期的真实截图。ABC、通道和旧工具台展示的是历史界面；当前按钮名称与直接绘图行为以上文为准。点击图片可查看原始尺寸。
+
+## 大盘与主图对比
+
+### 把对比折线放进 K 线主图
+
+搜索添加个股、指数或 ETF，将其走势作为背景折线叠加在主图中。主标的继续显示蜡烛图与指标，对比线可以分别隐藏或移除。
+
+[![上证指数主图叠加沪深300、创业板指对比折线](docs/images/main-chart-comparison-v0.6.9.png)](docs/images/main-chart-comparison-v0.6.9.png)
+
+*对比线按共同基准归一化，比较累计涨跌幅；不直接比较不同标的的绝对价格，也不为对比线计算技术指标。*
+
+### 大盘概览
+
+浏览 A／港／美主要指数、板块排行和龙虎榜，点击标的进入图表，继续查看行情与资料。
 
 [![大盘概览：主要指数、板块排行与龙虎榜](docs/images/market-overview-v0.6.9.png)](docs/images/market-overview-v0.6.9.png)
 
-### 自动绘图，也支持自己选点
+大盘、主图对比与微软平台三张新图保留原生 Retina 像素，以无损 PNG 展示。行情是截图时的快照。
 
-「绘图」统一提供水平线、趋势线、平行通道、平台框、斐波那契、ABC 标注、双顶／底、头肩顶／底、平台突破／失效和基础九转。选择工具后绘制最近合格结果，也可切换候选或手动选点。关闭工具栏保留图形，通过「清除」移除。
+## 点位、复盘与资讯
 
-[![微软日 K 平台箱体与上破确认日](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
+### 支撑与压力
 
-*微软日 K：08/28—09/25 形成平台，10/06 确认上破。平台边界冻结后不被后续行情扩大。截图展示规则识别结果，不代表收益预测。*
+在 **点位** 中分析参考价位、手动添加价位，并直接画在当前图上。
 
-以上为 **2026-11-11 的 DSH Web 实页截图**，保留原生 Retina 像素，以无损 PNG 保存；行情为当时快照。Codex 桌面版以应用卡片展示图表，计算规则共用，外观以实际宿主为准。
+[![点位分析：K 线图上的支撑、压力与参考价位](docs/images/kline-support.png)](docs/images/kline-support.png)
 
-| 能力 | 使用方式 |
-| --- | --- |
-| 常用指标 | SMA、EMA、VOL、MACD、KDJ、RSI、BOLL、ATR、VWAP |
-| 自然语言绘图 | 创建、修改、改色、改名或删除指定图形；与工具栏操作同一张图 |
-| 点位与复盘 | 支撑／压力分析、自定义价位、区间涨跌与回撤统计 |
-| 市场研究 | 大盘、板块、资讯、公司资料、龙虎榜；受来源和权限限制 |
-| 自选管理 | 收藏、分组、排序、导入、批量打开；DSH 支持跨对话保留 |
-| 技术函数 | 201 个 TA-Lib 函数可查询计算；其中 SMA／EMA／BBANDS 支持受控落图 |
+### 区间复盘
+
+查看指定区间的涨跌、回撤等统计，结合图表检查走势。
+
+[![区间复盘与行情统计](docs/images/kline-range-stats.png)](docs/images/kline-range-stats.png)
+
+### 资讯与公司资料
+
+在行情旁查看新闻、公司资料与研究入口；覆盖范围由数据源及权限决定。
+
+[![标的资讯与新闻面板](docs/images/kline-news.png)](docs/images/kline-news.png)
 
 ## 安装
 
@@ -51,13 +138,23 @@
 
 ### DeepSeek Harness
 
-先安装可用的 DSH Web 和 **Python 3.11+**，在插件市场搜索 `dsh_kline`，或执行：
+先安装可用的 DSH Web 和 **Python 3.11+**，然后执行：
+
+```bash
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.10
+```
+
+也可使用 GitHub 安装：
 
 ```bash
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 ```
 
-启用后点击右侧 **K** 打开工作台，或直接在对话中请求分析。Better Sidebar 是可选增强，普通侧栏不依赖它。
+插件市场中搜索 `dsh_kline` 也可安装；市场的版本与下载数据随其目录同步。npm 当前版本见[包页面](https://www.npmjs.com/package/@ftshare-lab/dsh-kline)，下载量不代表独立安装人数。
+
+[![插件市场中的 dsh_kline 安装与更新入口](docs/images/dsh-market.png)](docs/images/dsh-market.png)
+
+启用后点击右侧 **K**，或直接在对话中请求分析。新版 DSH 自带原生右侧标签，无需安装 Better Sidebar；在 **UI → 工作台标签** 中切换，经典 K 侧栏仍可使用。v0.6.10 已验证 DSH 0.2.1-rc.5 的原生自动开图；该宿主属于预发布版本。
 
 ### Codex
 
@@ -68,39 +165,65 @@ codex plugin marketplace add FTShare-Lab/dsh_kline --ref main
 codex plugin add ft-kline@ftshare
 ```
 
-重新打开 Codex，请求「打开招商银行日 K」。FTShare 是本项目维护的公开 GitHub 插件源，尚未上架官方公共插件目录。
+重新打开 Codex，请求「打开招商银行日 K」。FTShare 是本项目维护的公开 GitHub 插件源。
 
 | 宿主 | 交互图表与手动绘图 | 自然语言绘图 | 行情与结构化分析 |
 | --- | --- | --- | --- |
 | DSH Web | 支持 | 支持 | 支持 |
-| Codex 桌面版 | 应用卡片内使用 | 支持 | 支持 |
-| Codex CLI | 不提供 | 不落图 | 支持 |
+| Codex 桌面版 | 在应用卡片内使用 | 支持 | 支持 |
+| Codex CLI | 不提供画布 | 不落图 | 支持 |
 
-更新、固定版本 ZIP、旧安装迁移、Key 配置与启动排障见[完整指南](docs/guide.md)。
-
-## 开始使用
-
-**用对话提出需求：**
-
-```text
-打开腾讯控股日 K，分析最近一个月的成交量、MACD 和 RSI。
-在当前图画一条 31.2 元的蓝色支撑线，命名为“关键支撑”。
-把关键支撑移到 30.8 元，其他图形不动。
-找最近一个符合规则的双底并画出来，说明当前状态。
-```
-
-**在工作台操作：** 搜索标的 → 选择范围与周期 → 开启指标 → 在「绘图」选择工具并点击「绘图」。需要自行指定锚点时切换「手动选点」；「设置」调整参数。图形直接展示，无需另行保存。
-
-「点位」分析支撑与压力；「对比」添加背景折线。窄画布放不下的工具进入行末菜单，收起面板不会删除图形。更多对话实例见[自然语言绘图演示](docs/drawing-examples.md)。
+固定版本归档、更新、旧安装迁移与启动排障见[完整指南](docs/guide.md)。
 
 ## 数据与适用范围
 
-- **数据来源：** 默认可接入 FTShare，在「设置 → 数据源」配置并测试 Key。不配置 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源；分钟线、新闻和公司资料取决于相应权限。
-- **形态与九转：** 当前仅支持已加载的 A／港／美股已收盘日线。ABC 是折线标注与候选辅助，不自动判定专业波浪；基础九转不包含完整 DeMARK 13 Countdown。
-- **图形与状态：** 绘图使用当前图真实 K 线；数据来源不明、结果过期或活动视图有歧义时停止修改。绘图不保证跨服务重启恢复，鼠标拖拽与撤销暂不支持。
-- **宿主差异：** DSH 自选为用户级持久化数据；Codex 图表、自选和应用内临时 Key 仅保存在当前连接内存中，不继承 DSH 配置。
+- **行情来源：** 可接入 FTShare；在「设置 → 数据源」配置并测试 Key。无 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源。
+- **权限与周期：** 分钟线、新闻和公司资料取决于来源与权限。自动绘图、价格形态与九转当前使用已加载的 A／港／美股已收盘日线。
+- **修改边界：** 绘图使用当前图真实 K 线。数据来源不明、结果过期或活动视图存在歧义时，会停止修改并说明原因；鼠标拖拽改点与撤销暂不支持。
+- **保存范围：** DSH 自选与分组跨对话保留。Codex 图表、自选及应用内临时 Key 保存在当前连接内存中，不继承 DSH 配置；绘图不保证跨服务重启恢复。
 
-行情可能延迟，技术分析用于研究和学习。数据口径见[无 Key 支持范围](docs/anonymous-market-support.md)和[港美股免费日线](docs/free-foreign-daily.md)。
+行情可能延迟。形态与计数用于研究和复盘，不保证交易收益。数据覆盖见[无 Key 支持范围](docs/anonymous-market-support.md)与[港美股免费日线](docs/free-foreign-daily.md)。
+
+## 历史界面与原版截图
+
+<details>
+<summary>展开全部早期截图与首轮原版图片</summary>
+
+以下图片来自早期 README，保留原文件和原始尺寸。它们用于记录功能演进，当前界面与操作流程以前文为准。
+
+### 早期桌面图表
+
+[![早期桌面 K 线图表](docs/images/chart-desktop.jpg)](docs/images/chart-desktop.jpg)
+
+### 早期移动布局
+
+[![早期移动端 K 线布局](docs/images/chart-mobile.jpg)](docs/images/chart-mobile.jpg)
+
+### 早期支撑与压力图
+
+[![早期支撑与压力展示](docs/images/chart-support-resistance.jpg)](docs/images/chart-support-resistance.jpg)
+
+### 宿主对话分析入口
+
+[![早期 Harness 对话调用 K 线分析](docs/images/harness-analyze-kline.jpg)](docs/images/harness-analyze-kline.jpg)
+
+### 早期侧栏
+
+[![早期 DSH K 线侧栏](docs/images/dsh-sidebar.png)](docs/images/dsh-sidebar.png)
+
+### 首轮大盘截图
+
+[![首轮大盘概览截图，正文提供同场景高清版本](docs/images/market-overview-v0.6.9.jpg)](docs/images/market-overview-v0.6.9.jpg)
+
+### 首轮主图对比截图
+
+[![首轮主图对比截图，正文提供同场景高清版本](docs/images/main-chart-comparison-v0.6.9.jpg)](docs/images/main-chart-comparison-v0.6.9.jpg)
+
+### 首轮平台突破截图
+
+[![首轮微软平台突破截图，正文提供同场景高清版本](docs/images/platform-breakout-msft-v0.6.9.jpg)](docs/images/platform-breakout-msft-v0.6.9.jpg)
+
+</details>
 
 ## 文档
 
@@ -109,8 +232,8 @@ codex plugin add ft-kline@ftshare
 | 安装、更新、Key、故障排查 | [完整指南](docs/guide.md) |
 | 自动绘图流程与扩展 | [共享绘图骨架](docs/automatic-drawing.md) |
 | 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
-| 技术函数 | [查询与绘图范围](docs/chart-functions.md) |
+| 技术函数与进阶标注 | [函数与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.9 发布说明](docs/release-notes-v0.6.9.md) · [验收记录](docs/release-acceptance-v0.6.9.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.10 发布说明](docs/release-notes-v0.6.10.md) · [验收记录](docs/release-acceptance-v0.6.10.md) |
 
 [MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)
