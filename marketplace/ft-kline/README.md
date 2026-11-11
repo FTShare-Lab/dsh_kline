@@ -1,311 +1,116 @@
-# 非凸 K 线助手 / FT K-Line
+# 非凸 K 线助手 · FT K-Line
 
-简体中文 | [English](README.en.md)
+在 **DeepSeek Harness** 与 **Codex** 中看行情、分析走势，用自然语言或绘图工具直接操作图表。
 
-[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#开始使用-dsh-版) [![MIT License](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+简体中文 · [English](README.en.md)
 
-**支持 DeepSeek Harness 和 Codex。** DSH 插件名为 `dsh_kline`；Codex 插件名为 `ft-kline`。两者都能用自然语言分析 K 线，并在桌面图表中创建和修改受控绘图。Codex 桌面版提供交互图表；Codex CLI 提供行情、指标和结构化分析，不显示交互图表。
+[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-> 行情与技术分析用于研究和学习，不构成投资建议。
+[功能展示](#功能展示) · [安装](#安装) · [开始使用](#开始使用) · [数据与适用范围](#数据与适用范围) · [文档](#文档)
 
-[功能](#它能帮你做什么) · [Codex 使用与安装](#在-codex-中使用) · [DSH 安装与入口](#开始使用-dsh-版) · [功能截图](#功能截图) · [绘图能力](#绘图对话与工作台共用一个对象流程) · [数据源](#行情与数据源)
+> 本页对应 **v0.6.9**。正式安装包以 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) 为准；npm 发布与安装说明见[发布指南](docs/npm-release.md)。
 
-| 运行环境 | 图表与手动绘图 | 自然语言绘图 | 行情、指标与分析 |
-| --- | --- | --- | --- |
-| DeepSeek Harness Web | 支持 | 支持 | 支持 |
-| Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
-| Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
+## 功能展示
 
-当前开发候选为 **v0.6.9**（未发布），正式版为 **v0.6.8**。Codex 版可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+### 在主图中比较走势
 
-## 它能帮你做什么
+把个股、指数或 ETF 的折线叠加在 K 线背景中，保留主标的的蜡烛图与指标。搜索添加、快捷选择常用指数，也可单独隐藏或移除对比线。
 
-- **一句话开始分析**：直接说“看看紫金矿业最近一个月趋势”或“分析英伟达的 MACD 和 RSI”。
-- **自己动手看图**：打开 K 线工作台，搜索名称或代码，随时切换日、周、月、季、年和可用的分钟周期。
-- **看清趋势与信号**：支持 SMA、EMA、成交量、MACD、KDJ、RSI、BOLL、ATR、VWAP 等常用指标。
-- **把分析画在图上**：用对话或图上选点创建水平线、趋势线、平行通道、平台框、斐波那契和 ABC 折线标注；也可自动查找近期合格候选，直接显示在图上。关闭面板保留图形，通过「清除」移除。
-- **让 AI 继续修改**：宿主可按自然语言调用同一绘图链，按稳定 ID 改价、改色、修改锚点或删除；绘图计算和应用结果分开核对。
-- **查询标准技术函数**：TA-Lib 0.8.2 的 201 个函数可在当前图只读查询和计算；并非 201 个都能绘图。第一期只有 SMA、EMA、BBANDS 的受控结果可直接落图。详见[函数说明](docs/chart-functions.md)。
-- **寻找价格区域**：一键分析支撑位和压力位；也可以自己画水平价位线、添加备注，并在本机保存。
-- **比较与复盘**：在 K 线主图叠加多个个股、指数或 ETF 的背景折线，比较同一基准下的累计涨跌幅；也可框选区间查看涨跌、振幅、回撤和成交统计。
-- **识别形态与计数**：双顶／底、头肩顶／底、平台突破／失效与基础九转共用「绘图」入口，默认展示最近合格结果。形态与九转首版仅分析已加载的 A／港／美股已收盘日线。
-- **补充研究信息**：在“市场、板块、资讯、公司、龙虎榜”中浏览指数、板块排行、资金异动、新闻、公司画像、财务与股东信息。
-- **建立自己的关注列表**：收藏标的、建立或重命名分组、排序、导入或批量打开；自选会作为你的用户级数据跨对话保留。
+[![上证指数主图与沪深300、创业板指对比](docs/images/main-chart-comparison-v0.6.9.png)](docs/images/main-chart-comparison-v0.6.9.png)
 
-## 功能截图
+*上证指数日 K，叠加沪深300与创业板指。对比线按图例中的共同基准归一化，比较累计涨跌幅，不直接比较价格，也不计算对比标的的指标。点击图片查看原图。*
 
-以下三张截图采自 **2026-11-11 的 DSH Web 本地候选版**，仅裁切应用区域、压缩图片，未重画图形。行情数值是截图时的快照；Codex 桌面图表使用相同计算规则，界面外观以其应用卡片为准。
+### 从大盘进入个股
 
-### 大盘概览：先看市场，再进入个股
+一页浏览 A／港／美主要指数、板块排行与龙虎榜，点击标的进入图表，继续研究行情、资讯和公司资料。
 
-在「市场」查看 A／港／美主要指数、板块排行和龙虎榜；点击指数可直接进入对应图表。各类数据的可用性取决于当前来源与权限。
+[![大盘概览：主要指数、板块排行与龙虎榜](docs/images/market-overview-v0.6.9.png)](docs/images/market-overview-v0.6.9.png)
 
-![大盘概览：主要指数、板块排行和龙虎榜](docs/images/market-overview-v0.6.9.jpg)
+### 自动绘图，也支持自己选点
 
-### 主图对比：K 线与多条指数走势放在一起
+「绘图」统一提供水平线、趋势线、平行通道、平台框、斐波那契、ABC 标注、双顶／底、头肩顶／底、平台突破／失效和基础九转。选择工具后绘制最近合格结果，也可切换候选或手动选点。关闭工具栏保留图形，通过「清除」移除。
 
-在「对比」搜索标的或点击常用指数，将背景折线加入当前 K 线主图。图例显示共同基准日期和累计涨跌幅，可单独隐藏或移除。截图以上证指数为主图，叠加沪深300和创业板指；走势按共同基准归一化，不直接比较不同标的的价格数值，也不为对比线计算指标。
+[![微软日 K 平台箱体与上破确认日](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
 
-![上证指数日 K 主图叠加沪深300和创业板指对比折线，图例显示基准日期与累计涨跌幅](docs/images/main-chart-comparison-v0.6.9.jpg)
+*微软日 K：08/28—09/25 形成平台，10/06 确认上破。平台边界冻结后不被后续行情扩大。截图展示规则识别结果，不代表收益预测。*
 
-### 箱体突破：冻结平台边界，标出实际确认日
+以上为 **2026-11-11 的 DSH Web 实页截图**，保留原生 Retina 像素，以无损 PNG 保存；行情为当时快照。Codex 桌面版以应用卡片展示图表，计算规则共用，外观以实际宿主为准。
 
-在「绘图」选择「平台突破／失效」即可显示最近合格的平台。截图为微软 `MSFT.US` 日线：箱体形成区间为 **08/28—09/25**，图中标记 **10/06 上破**。突破采用连续两根已收盘日线确认，箱体边界不因后续突破扩大；下方候选可切换查看其他区间或失效状态。
+| 能力 | 使用方式 |
+| --- | --- |
+| 常用指标 | SMA、EMA、VOL、MACD、KDJ、RSI、BOLL、ATR、VWAP |
+| 自然语言绘图 | 创建、修改、改色、改名或删除指定图形；与工具栏操作同一张图 |
+| 点位与复盘 | 支撑／压力分析、自定义价位、区间涨跌与回撤统计 |
+| 市场研究 | 大盘、板块、资讯、公司资料、龙虎榜；受来源和权限限制 |
+| 自选管理 | 收藏、分组、排序、导入、批量打开；DSH 支持跨对话保留 |
+| 技术函数 | 201 个 TA-Lib 函数可查询计算；其中 SMA／EMA／BBANDS 支持受控落图 |
 
-![微软日 K 的平台箱体及10月6日上破确认标记，绘图栏列出候选和状态](docs/images/platform-breakout-msft-v0.6.9.jpg)
+## 安装
 
-<details>
-<summary>自然语言绘图实测：ABC 与下降通道（历史界面）</summary>
+支持 macOS、Linux 和原生 Windows。首次启动需要联网准备依赖，可能耗时数分钟。
 
-自然语言实测：DeepSeek 从自选中筛出卧龙电驱的 ABC **候选**，逐根核对 0、A、B、C 四个锚点，再通过插件落图。同一张完整网页截图展示了对话、应用回执和右侧画布；画布上的折线与标签已实际可见。形态判断由宿主完成，规则筛查不等于专业波浪结论。
+### DeepSeek Harness
 
-![完整 DSH Web 页面：左侧 DeepSeek 核对卧龙电驱 ABC 候选及四个锚点，右侧日 K 图显示对应折线和标签](docs/images/natural-language-abc-wolong-2026-10-27.png)
+先安装可用的 DSH Web 和 **Python 3.11+**，在插件市场搜索 `dsh_kline`，或执行：
 
-继续用自然语言在同一张图上添加下降通道：DeepSeek 核对三点几何与区间内的价格偏离，插件将通道作为独立对象落图；原有 ABC 标注仍保留。图上的线条可见，但通道是否具有交易参考价值仍需自行判断。
+```bash
+dsh plugin --profile web add github:FTShare-Lab/dsh_kline
+```
 
-![完整 DSH Web 页面：左侧 DeepSeek 说明卧龙电驱下降通道的锚点和偏离，右侧日 K 图同时显示下降通道与 ABC 标注](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
+启用后点击右侧 **K** 打开工作台，或直接在对话中请求分析。Better Sidebar 是可选增强，普通侧栏不依赖它。
 
-</details>
+### Codex
 
-## 在 Codex 中使用
-
-Codex 插件名为 `ft-kline`，公开源名称为 **FTShare**（标识 `ftshare`）。添加一次 GitHub 源后即可安装，后续从同一个源更新，无需下载 ZIP 或构建源码。该源由本项目维护，尚未上架 OpenAI 官方公共插件目录。
-
-### 安装、启动与验证
-
-1. 先安装 Git、Node.js **22.19+**、Python **3.11+** 和支持插件的 Codex。Windows 推荐启用 Python Launcher；不要求 Git Bash 或 WSL。
-2. 在终端执行下面两条命令。第一条添加公开源并跟随经过 CI 验证的 `main`；第二条安装并启用插件：
+先安装支持插件的 Codex、Git、**Node.js 22.19+** 和 **Python 3.11+**：
 
 ```bash
 codex plugin marketplace add FTShare-Lab/dsh_kline --ref main
 codex plugin add ft-kline@ftshare
 ```
 
-3. 重新打开 Codex，然后说“打开招商银行日 K，显示数据来源”。首次准备期间可先查询“检查 FT K-Line 运行状态”。桌面端可展开图表卡片，搜索、切换标的并使用绘图工作台；CLI 只返回数据和分析。
+重新打开 Codex，请求「打开招商银行日 K」。FTShare 是本项目维护的公开 GitHub 插件源，尚未上架官方公共插件目录。
 
-添加源后，也可以重新打开桌面应用，在插件页面选择 **FTShare → FT K-Line** 安装。可用下面的命令检查源和插件列表：
+| 宿主 | 交互图表与手动绘图 | 自然语言绘图 | 行情与结构化分析 |
+| --- | --- | --- | --- |
+| DSH Web | 支持 | 支持 | 支持 |
+| Codex 桌面版 | 应用卡片内使用 | 支持 | 支持 |
+| Codex CLI | 不提供 | 不落图 | 支持 |
 
-```bash
-codex plugin marketplace list
-codex plugin list --marketplace ftshare --available --json
+更新、固定版本 ZIP、旧安装迁移、Key 配置与启动排障见[完整指南](docs/guide.md)。
+
+## 开始使用
+
+**用对话提出需求：**
+
+```text
+打开腾讯控股日 K，分析最近一个月的成交量、MACD 和 RSI。
+在当前图画一条 31.2 元的蓝色支撑线，命名为“关键支撑”。
+把关键支撑移到 30.8 元，其他图形不动。
+找最近一个符合规则的双底并画出来，说明当前状态。
 ```
 
-### 更新与旧安装迁移
+**在工作台操作：** 搜索标的 → 选择范围与周期 → 开启指标 → 在「绘图」选择工具并点击「绘图」。需要自行指定锚点时切换「手动选点」；「设置」调整参数。图形直接展示，无需另行保存。
 
-以后更新时刷新已添加的源，再安装该源的当前版本，最后重新打开 Codex：
+「点位」分析支撑与压力；「对比」添加背景折线。窄画布放不下的工具进入行末菜单，收起面板不会删除图形。更多对话实例见[自然语言绘图演示](docs/drawing-examples.md)。
 
-```bash
-codex plugin marketplace upgrade ftshare
-codex plugin add ft-kline@ftshare
-```
+## 数据与适用范围
 
-如果此前从 ZIP 安装了 `ft-kline@ftshare-local`，请在插件页面停用旧安装，再启用 `ft-kline@ftshare`，避免同时加载两个来源的同名工具。GitHub 源需要访问 GitHub；首次启动还需要联网下载 Python 依赖。
+- **数据来源：** 默认可接入 FTShare，在「设置 → 数据源」配置并测试 Key。不配置 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源；分钟线、新闻和公司资料取决于相应权限。
+- **形态与九转：** 当前仅支持已加载的 A／港／美股已收盘日线。ABC 是折线标注与候选辅助，不自动判定专业波浪；基础九转不包含完整 DeMARK 13 Countdown。
+- **图形与状态：** 绘图使用当前图真实 K 线；数据来源不明、结果过期或活动视图有歧义时停止修改。绘图不保证跨服务重启恢复，鼠标拖拽与撤销暂不支持。
+- **宿主差异：** DSH 自选为用户级持久化数据；Codex 图表、自选和应用内临时 Key 仅保存在当前连接内存中，不继承 DSH 配置。
 
-### 固定版本 ZIP 安装
+行情可能延迟，技术分析用于研究和学习。数据口径见[无 Key 支持范围](docs/anonymous-market-support.md)和[港美股免费日线](docs/free-foreign-daily.md)。
 
-如需固定在发布版本，也可从 [v0.6.8 发布页](https://github.com/FTShare-Lab/dsh_kline/releases/tag/v0.6.8) 下载 `ft-kline-v0.6.8.zip` 和同名 SHA-256 文件，核对后解压到长期保留的目录。将下面路径换成实际解压目录；含空格时保留引号：
+## 文档
 
-```bash
-codex plugin marketplace add "/absolute/path/ft-kline-v0.6.8"
-codex plugin add ft-kline@ftshare-local
-```
-
-重新打开 Codex 后即可使用。ZIP 源标识为 `ftshare-local`，与公开 GitHub 源 `ftshare` 分开维护。DSH 沿用 `dsh-kline-v0.6.8.tgz` 安装包及下文的 DSH 安装方式。
-
-### 首次准备与运行模式
-
-首次连接会自动寻找可用 Python 并准备依赖，可能需要数分钟。Node 入口先完成握手，并从**第一次工具查询**就提供该宿主模式的完整工具目录和图表资源，不依赖工具列表变更通知。准备期间可查询 `ft_kline_runtime_status`；普通调用会短暂等待，仍未就绪则明确返回 `runtime_preparing`，不会延迟执行已退回的绘图操作。准备完成后直接重试原请求，无需刷新目录或重开对话。失败详情见 `~/.cache/ft-kline/bootstrap.log`，Windows 为 `%LOCALAPPDATA%\ft-kline\bootstrap.log`。
-
-从 v0.6.1 升级后重启一次 Codex，以替换此前只包含状态工具的启动快照；然后直接请求“打开招商银行日 K”。已就绪、数据返回和原生画布实际可见分别验证，备用绘图不计为插件原生验收。
-
-Codex 入口默认按宿主声明的 MCP Apps HTML 能力选择模式：具备图表能力时提供交互图表和受控绘图；其他宿主（包括 CLI）只提供行情、指标与结构化分析。未声明图表能力的宿主不会收到无法使用的绘图工具。高级接入可显式设置 `FT_KLINE_CLIENT=desktop` 或 `cli`；普通安装保持默认 `auto` 即可。
-
-自然语言修改当前图使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`；服务端提交、应用界面回执和实际画布观察分别核对。CLI 不提供交互图表。
-
-### 已有 FTShare Key 如何复用
-
-无 Key 不等于所有市场都不可用，搜索目录与行情权限也相互独立。v0.6.7 新增腾讯港美股免费日 K 备用源：港股支持三种复权，美股支持不复权和前复权；成交量为历史当日股数。仅接入日 K，历史覆盖受公开源限制，详见[数据口径](docs/free-foreign-daily.md)。搜索与其他能力见[无 Key 说明](docs/anonymous-market-support.md)。固定版本安装包以对应发行版为准。
-
-Codex 依次使用：
-
-1. **启动插件的进程环境**中的 `FTSHARE_API_KEY`；仅在另一个终端执行过 `export`，不代表桌面应用也能继承。
-2. 用户明确指定的 `FTSHARE_API_KEY_FILE`，每次取数前重新读取；文件由用户管理，插件不修改、不清除。JSON 格式为 `{"version":1,"api_key":"你的 Key"}`；macOS/Linux 必须限制为仅当前用户可读写（`chmod 600`），不接受符号链接。
-3. 图表“设置 → 数据源”输入的临时 Key，仅当前 App 会话使用。
-
-没有 Key 仍可尝试 A 股、港股、美股历史日 K 和免费指数备用源；公开源失败不代表 Key 无效。Codex **不自动扫描** DSH、`.env`、shell、钥匙串或其他应用的配置；如需共享已有文件，必须明确设置上述文件路径。状态只显示 `environment`、`external_file`、`session` 或 `none`，不回显 Key 或路径。
-
-图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
-
-v0.6.9 候选见[发布说明](docs/release-notes-v0.6.9.md)、[验收记录](docs/release-acceptance-v0.6.9.md)与[npm 发布准备](docs/npm-release.md)。
-
-已发布版本内容、自动化验证和桌面验收见 [v0.6.8 发布说明](docs/release-notes-v0.6.8.md) 与 [验收说明](docs/release-acceptance-v0.6.8.md)。
-
-## 开始使用 DSH 版
-
-v0.6.5 为宿主开发者提供可选的图表面板挂载接口，支持外部标的与主题联动。画布、模拟盘等场景需要宿主接入；接口与布局约定见[嵌入说明](docs/embedding.md)。
-
-### 1. 安装并启用
-
-在 DeepSeek Harness 的插件市场搜索 `dsh_kline`。如果市场目录还没有刷新，可以直接从 GitHub 安装：
-
-```bash
-dsh plugin --profile web add github:FTShare-Lab/dsh_kline
-```
-
-首次启动会自动准备所需运行环境。以后有新版本时，在插件市场或设置页更新即可。
-
-插件支持 macOS、Linux 和原生 Windows。用户需要先安装可运行的 DSH Web，以及 Python 3.11 或更高版本；Windows 推荐使用 [python.org](https://www.python.org/downloads/windows/) 安装包并启用 Python Launcher。插件不要求 Git Bash 或 WSL。首次启动的依赖安装日志位于用户缓存目录下的 `dsh_kline/bootstrap.log`；Windows 默认为 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。
-
-![在插件市场安装和更新 dsh_kline](docs/images/dsh-market.png)
-
-### 2. 任选一种入口
-
-**和 AI 对话**：在对话中提出需求，例如：
-
-- `调取紫金矿业的 K 线，看看最近一个月走势`
-- `分析腾讯控股日 K，标注支撑位和压力位`
-- `查看英伟达最近一个月的成交量、MACD 和 RSI`
-- `这只股票最近有什么新闻和基本面变化？`
-- `在当前图画1300元的蓝色支撑线，叫关键支撑；之后把它改成绿色`
-- `请先给出下降通道的三个锚点和偏离，再等我确认是否落图`
-- `从我的自选中筛选 ABC 候选；选一只核对 0、A、B、C 四个拐点后画到日 K 图上，并说明 C 点是否已经确认`
-
-**直接打开工作台**：点击右侧 K 按钮，或在支持工作台 Tab 的界面从 `+` 菜单选择 **非凸 K 线助手 / dsh_kline**。输入股票名称或代码即可开始，不需要记住交易所后缀。
-
-两种入口可操作同一张当前图中的新绘图对象；也可以在图表工具栏打开 **绘图**，选择工具后自动绘制最近合格候选，或手动点选 K 线锚点。每个对话各自保存图表状态，避免串图；自选与分组属于用户级数据，跨对话保留。
-
-## 图表怎么用
-
-1. 用顶部搜索框输入标的名称或代码。
-2. 选择时间范围和 K 线周期；分钟线是否可用取决于数据权限和市场。
-3. 开启需要的指标，拖动、缩放或使用十字线查看细节。
-4. 点击 **点位** 查看支撑和压力；点击 **绘图** 选择工具，自动绘制最近合格候选，或用 **手动选点** 指定锚点。图形直接显示，关闭面板保留；通过面板内的 **清除** 移除。
-5. 依次点击两根 K 线，查看这段区间的涨跌、振幅、回撤与成交统计。
-6. 点击名称旁的星标，把标的放进自选。
-7. 点击 **对比** 搜索个股、指数或 ETF，或选择常用指数快捷项，在主图叠加走势。
-
-如果界面提供 **UI** 入口，可按习惯选择自动、独立侧栏或工作台 Tab。自动模式会使用当前 Harness 能提供的最佳界面；没有工作台 Tab 框架时，仍可正常使用右侧 K 线侧栏。
-
-### 界面兼容
-
-DeepSeek Harness 自带右侧栏，**不安装 Better Sidebar 也能打开 K 线侧栏**。如果安装了可用的 Better Sidebar，插件还可以把 K 线作为工作台 Tab 打开；它是可选的界面增强，不是行情、指标或绘图的前提。右上角 **UI** 可在自动、侧栏与 Tab 模式间切换；自动模式会按当前宿主提供的界面能力选择。不同 Better Sidebar 版本的适配情况可能不同，不能仅凭安装了它就保证所有布局都已验收。
-
-## 绘图：对话与工作台共用一个对象流程
-
-在当前已核对来源的图表中，宿主可根据自然语言调用插件的计算、准备、应用和状态核对；工作台提供自动候选、手动选点和直接绘图。精选范围包括：
-
-- 水平线：指定价位、名称、颜色。
-- 两点趋势线：连接已有 K 线的两个时间 / 价格锚点。
-- 平行通道：三点确定上升、下降或水平通道，可开关中线。
-- 平台矩形框：指定时间和上下价格边界，可开关淡色填充。
-- 斐波那契回撤：两点及比例作为一个对象管理；价位由插件按价格公式计算。
-- ABC 折线标注：连接用户指定、或由宿主基于行情提议并核对的 0/A/B/C 锚点，可按点名续改；**插件不自动识浪，候选并非定论**。
-- 价格形态与九转：双顶／底、头肩顶／底、平台状态与基础九转，支持自动分析和整体绘制。
-- SMA、EMA 单线与 BOLL 三轨：TA-Lib 结果可在明确要求后作为独立主图对象落图，不等于切换现有指标开关。
-
-例如：
-
-- `在31.2元画蓝色水平线，叫基础支撑`
-- `把基础支撑移到30.8元，其他图形不动`
-- `把这两天的最低价连成绿色趋势线`
-- `找一段下降通道，先告诉我三个锚点和明显偏离，确认后再画`
-- `框出这段整理区间；把框的上沿改到31.2；只删除这个框`
-
-宿主 AI 负责理解、分析和选点；插件负责读取当前图、确定性测量、执行与反馈，
-不内置另一套 AI，也不靠预置绘图 skill 回放。明确参数可直接执行；要求先提方案时，
-确认前不绘制。宿主分析和解释可能出错，专业画线质量仍需使用者核对。
-
-### 当前范围与限制
-
-- 重点验收日线 / 周线。锚点必须对应当前已加载的真实 K 线，不会猜日期、吸附端点或自动取新行情补点。
-- 支持蓝、绿、橙、红四种颜色。两点线和通道为有限区间，不自动延伸，不支持对数通道。
-- 修改按稳定对象 ID 定位，绘图不重置行情、指标或可见范围；通道和平台框按创建周期隔离。
-- 当前宿主运行期间，同一对话已确认图形可在网页刷新后恢复并继续修改；不同对话不共用绘图对象。
-  返回对话恢复最后确认的绘图检查点，**不保证恢复离开前最后一次手动选择的周期、范围或视口**。
-- 工作台支持表单与图上点选，已确认的新对象可由对话或工作台按 ID 续改；鼠标拖拽和撤销暂不支持。旧手动画线、自动标注与受保护对象分开管理。
-- 绘图面板内的 **清除** 会先确认，再清除当前标的、当前周期的 AI 图形、分析标注、手动画线和自定义点位；指标与预警保留。只想删除一个 AI 图形时，可在对话中指定目标。
-- 图形可能超出当前时间 / 价格可见区。对象核对和应用回执不等于屏幕像素核验，也不证明供应商行情真值。
-- 来源过期、周期 / 复权不明、多个活动视图或结果未知时停止修改；不要自动重做未知操作。
-  完整服务重启后的旧图编辑和完整异常自动恢复尚不支持。
-- 分钟功能取决于来源与权限，本版不承诺全部分钟 / 市场 / 操作组合。通道、平台、ABC 均不代表自动专业形态识别；缠论未接入。201 个 TA-Lib 函数大多只读，不承诺全部可绘制。
-
-### 给宿主与开发者
-
-当前图修改使用 `get_chart_context → prepare_chart_edit → apply_chart_edit → get_chart_edit_status`。
-确认后重新读取当前观察，以原批准参数核对；`context_ref` 不是 `chart_session`。
-只读 `preview_chart_channel` 提供几何 / 偏差核对，`verify_chart_drawings` 核对指定对象参数；
-二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
-
-运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-DSH 绘图范围见[v0.5.0 验收说明](docs/release-acceptance-v0.5.0.md)，当前候选安装与 Codex 验证见[v0.6.9 验收说明](docs/release-acceptance-v0.6.9.md)。
-首次自动准备依赖需要网络，耗时取决于网络和本机环境。
-
-## 行情与数据源
-
-默认可接入 FTShare。配置 API Key 后，插件会根据你的账户权限提供相应的行情、分钟线、新闻和公司资料能力；不同市场和套餐的可用范围可能不同。
-
-普通 A 股当日1分钟、none不复权请求优先使用 FTShare 的实时一分钟数据；前 / 后复权请求（含qfq / hfq）使用携带匹配adjust_kind的历史接口，失败时不混入原始实时数据。指数、ETF 与多日分钟历史继续使用各自适用的历史接口；完整交易时段与缓存复权隔离规则不变。此分流不等于对供应商复权价格正确性的独立验证。
-分钟粒度随明确来源、重绘及工作区状态保留；元数据缺失或非法时仍为未知，不按K线时间间隔 / 界面标签猜测，也不继承上一标的粒度。来源未确认时继续禁止受保护绘图。
-
-DSH 版会按以下顺序复用 FTShare 凭据：当前 DSH 服务已注入的 `FTSHARE_API_KEY`、用户显式指定的 `FTSHARE_API_KEY_FILE`、DSH 的 FTShare 设置所保存的 Key，以及此前由本插件保存的本机凭据。也就是说，若你已把 Key 配给启动 DSH 的环境，插件会直接使用；仅安装 FTShare SDK、或把 Key 留在其他应用的私有配置中，并不会被自动读取。
-
-DSH 中安装了 FTShare 设置插件时，宿主会把设置里的 Key 发布给 MCP 服务，插件在每次取数前重新读取，因此在设置页新增、更换或清除 Key 后无需重启 dsh；该 Key 由设置页管理，插件不会显示或清除它。
-
-出于安全考虑，插件不会扫描 `.env`、shell 配置、钥匙串或其他应用的配置文件，也不会显示 Key 或文件路径。**设置 → 数据源** 会清楚标出当前来源；需要更换时，在“管理 FTShare 配置”中粘贴 Key 并测试连接，DSH 版可选择仅本次使用，或保存到本机供下次启动加载；Codex 版仅提供会话临时输入，或读取用户明确指定的外部文件。
-
-主题和语言默认跟随 dsh 宿主，可在 **设置 → 主题/语言** 中改为手动选择；随时可切回“跟随宿主（默认）”。
-
-[FTShare 的“免费版”接口](https://market.ft.tech/gateway/doc/p/pb8eizu3)仍需注册并配置 API Key。完全不配置 Key 时，部分 A 股历史日 K 可尝试 BaoStock 备用源，港美股日 K 可尝试腾讯，部分大盘指数也有独立免费备用行情；分钟线、新闻等能力仍取决于来源与权限。已有的合规 K 线数据（包括宿主提供的标准 OHLCV）仍可用于本地指标计算与绘图。遇到限流、权限不足或上游暂不可用，界面会说明实际原因和数据来源。
-
-## 常见问题
-
-**为什么找不到分钟线？**
-分钟行情是否可用取决于标的市场、账户套餐和数据源当前支持范围。请先在“数据源”中测试连接；日、周、月等周期不受分钟权限限制，但个股 K 线仍需可用的数据源，FTShare 免费套餐也需要 API Key。
-
-**Windows 首次启动失败怎么办？**
-
-先查看 `%LOCALAPPDATA%\dsh_kline\bootstrap.log`。v0.6.4 起，依赖更新优先复用现有 venv；重建时会尝试已记录的基础解释器和 Desktop 随附的标准 Python。裁剪版 Python 缺少 venv/ensurepip 时仍需另装 Python 3.11+。可执行 `py -3.11 --version`（更高版本也可以），或在启动 DSH 前将 `DSH_KLINE_PYTHON` 设为 `python.exe` 的完整路径；修正后无需等旧失败记录冷却。嵌套 bundle 安装不再要求 profile 根存在 K 线包，但固定旧版依赖的 bundle 仍需更新。DSH 自身安装或 Windows sandbox 问题请参考 DSH 文档。
-
-**为什么两个对话显示不同的图？**
-这是刻意设计：图表会绑定各自对话，避免 A 对话的分析覆盖 B 对话。需要在另一个对话查看时，直接搜索或重新发起分析即可。
-
-**为什么同一标的的数据与其他平台略有不同？**
-行情可能延迟，也会受复权方式、交易所口径、收盘状态和上游服务影响。商业、高频或对时效有严格要求的场景，请使用有相应授权与服务等级的数据源。
-
-## 给 AI 与开发者
-
-大多数场景只需调用 `analyze_kline`。插件还提供 `fetch_candles`、`search_symbols`、`calc_metrics`、`analyze_kline_rows`、`data_source_status`、`configure_ftshare`、`test_ftshare_connection` 和 `health`，用于原始数据、外部 OHLCV、配置与诊断；`market_pulse`、`market_board_detail` 和 `security_intelligence` 提供市场与标的情报；`get_watchlist`、`save_watchlist` 用于读取和保存自选分组。
-
-FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把自己的标准 OHLCV 数据交给 `analyze_kline_rows`，继续使用指标、关键点位、图表和工作台。接入说明见 [数据源适配指南](docs/provider-adaptation.md)。
-
-### 由宿主提供 Python 运行环境
-
-普通安装默认使用 `DSH_KLINE_RUNTIME_MODE=auto`，沿用现有的 Python/venv 选择和依赖准备流程。桌面应用、容器等宿主可在启动 DSH 前设置：
-
-| 环境变量 | 含义 |
+| 主题 | 入口 |
 | --- | --- |
-| `DSH_KLINE_PACKAGE_ROOT` | 可选的插件包根目录绝对路径；未设置时从插件模块自身定位，支持嵌套安装。 |
-| `DSH_KLINE_PYTHON` | 宿主提供的 Python 解释器路径。 |
-| `DSH_KLINE_RUNTIME_MODE` | `auto`（默认）或 `external`。 |
+| 安装、更新、Key、故障排查 | [完整指南](docs/guide.md) |
+| 自动绘图流程与扩展 | [共享绘图骨架](docs/automatic-drawing.md) |
+| 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
+| 技术函数 | [查询与绘图范围](docs/chart-functions.md) |
+| 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.9 候选说明](docs/release-notes-v0.6.9.md) · [验收记录](docs/release-acceptance-v0.6.9.md) |
 
-`external` 模式要求 Python 3.11+ 和所需依赖已经可用，只校验并启动服务，不创建 venv、不安装依赖、不回退到其他解释器；失败应由宿主修复。该模式不能与 `DSH_KLINE_VENV`、`--prepare-project` 或 `--bootstrap-runtime` 同时使用。`DSH_KLINE_DEFER_BOOTSTRAP` 在该模式下不触发后台安装。
-
-`DSH_KLINE_PYTHON` 必须指向解释器文件本身（Windows 为 `python.exe`），不能填目录。自动准备失败时，日志会区分 `PYTHON_NOT_FOUND`、`PYTHON_VERSION_TOO_OLD`、`PYTHON_EXECUTION_FAILED`、`PYTHON_VENV_UNAVAILABLE`、`PYTHON_DEPENDENCY_INSTALL_FAILED` 和 `PYTHON_IMPORT_CHECK_FAILED`；不可用的 Windows Store 重定向入口标为 `PYTHON_STORE_ALIAS`。候选路径与结果仅用于本机诊断，不记录密钥或完整环境变量。
-
-`external` 模式由宿主负责解释器、依赖搜索路径及隔离配置（例如 `PYTHONPATH`、`PYTHONNOUSERSITE` 或 Windows 嵌入式 Python 的 `._pth`），不自动探测其他解释器。`auto` 模式的补装和有限解释器探测如上所述。需要动态端口时设置 `DSH_KLINE_CHART_PORT=0`。环境变量在 MCP patch 中显式转交，无需修改 DSH 核心。
-
-## 更新与许可
-
-更新记录见 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases)。本项目采用 [MIT License](LICENSE)，前端来源说明见 [PROVENANCE.md](PROVENANCE.md)。
-
-维护者修改工具参数、注解、资源或 App 桥接代码后，运行 `python scripts/generate-codex-catalog.py` 更新随包目录；`--check` 与回归测试会阻止过期目录进入发布包。
-
-公开 GitHub 源中的 `marketplace/ft-kline/` 由同一 Codex 打包清单生成。修改源码、插件声明或 README 后，运行 `pnpm sync:codex-marketplace` 并提交生成结果；CI 通过 `pnpm verify:codex-marketplace` 检查文件一致性，并独立验证该目录的桌面及 CLI 启动。不要直接修改生成目录，维护说明见 [marketplace/README.md](marketplace/README.md)。
-
-### DSH 启动诊断
-
-首次启动时，MCP 工具目录会立即注册，Python 环境在同一连接内准备。`dsh_kline_runtime_status` 返回 `preparing` / `recovering` / `ready`；未就绪的调用会明确说明是否已经发送。结果未知的操作必须先核对状态，不能自动重放。图表定位文件写失败时其他 MCP 工具仍可用，目录恢复后自动注册。
-
-在当前 DSH Web 地址请求 `/dsh-kline/healthz`：200 表示定位记录与实际 HTTP 后端实例一致；503 返回故障原因。这个检查不验证行情供应商权限或 MCP 工具调用。`/dsh-kline/session?session=…` 读取历史快照，不能代替健康检查。后端实际端口由定位文件决定，不能假定固定为 8765。
-
-安装日志为缓存目录下的 `bootstrap.log`，后端 stderr 为 `logs/backend-<宿主PID>.log`，超过约 1 MiB 时保留一份 `.previous`。默认缓存目录为 macOS/Linux 的 `~/.cache/dsh_kline`（支持 `XDG_CACHE_HOME`）或 Windows 的 `%LOCALAPPDATA%\dsh_kline`，可用 `DSH_KLINE_CACHE_DIR` 覆盖；`DSH_KLINE_RUNTIME_DIR` 可独立覆盖运行目录。健康响应不会返回服务令牌。
+[MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

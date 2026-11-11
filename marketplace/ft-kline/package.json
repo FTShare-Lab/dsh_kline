@@ -62,7 +62,12 @@
     "scripts/dsh-bootstrap.mjs",
     "docs/release-notes-v0.6.9.md",
     "docs/release-acceptance-v0.6.9.md",
-    "docs/npm-release.md"
+    "docs/npm-release.md",
+    "docs/guide.md",
+    "docs/guide.en.md",
+    "docs/drawing-examples.md",
+    "docs/drawing-examples.en.md",
+    "docs/provider-adaptation.md"
   ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

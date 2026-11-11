@@ -2,7 +2,7 @@
 
 候选：`@ftshare-lab/dsh-kline@0.6.9`，公共 npm registry，公开访问。
 
-npm 安装包与 DSH GitHub 发行资产使用同一份已验证的 TGZ，避免发布时重新取到不同内容。`package.json` 已移除 `private` 并设置 `publishConfig.access=public`。此次准备不执行上传。
+npm 安装包与 DSH GitHub 发行资产使用同一份已验证的 TGZ，避免发布时重新取到不同内容。`package.json` 已移除 `private` 并设置 `publishConfig.access=public`。上传需在跨平台 CI、发行资产核对及 npm 登录验证后执行。
 
 ## 发布前
 
