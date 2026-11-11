@@ -111,6 +111,6 @@ codex plugin add ft-kline@ftshare
 | 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
 | 技术函数 | [查询与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.9 候选说明](docs/release-notes-v0.6.9.md) · [验收记录](docs/release-acceptance-v0.6.9.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.9 发布说明](docs/release-notes-v0.6.9.md) · [验收记录](docs/release-acceptance-v0.6.9.md) |
 
 [MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

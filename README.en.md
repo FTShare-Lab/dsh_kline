@@ -111,6 +111,6 @@ Quotes may be delayed; technical analysis is for research and learning. See [key
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
 | Technical functions | [Read-only and drawable functions](docs/chart-functions.md) |
 | Host and data integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and verification | [Changelog](CHANGELOG.md) · [v0.6.9 candidate](docs/release-notes-v0.6.9.md) · [Acceptance](docs/release-acceptance-v0.6.9.md) |
+| Releases and verification | [Changelog](CHANGELOG.md) · [v0.6.9 release notes](docs/release-notes-v0.6.9.md) · [Acceptance](docs/release-acceptance-v0.6.9.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)
