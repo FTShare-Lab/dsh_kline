@@ -19,6 +19,12 @@ const allowlist = [
   'docs/release-notes-v0.6.9.md', 'docs/release-acceptance-v0.6.9.md',
   'docs/price-pattern-rules-v1.md', 'docs/price-pattern-samples-v1.md',
   'docs/automatic-drawing.md', 'docs/npm-release.md',
+  'docs/images/market-overview-v0.6.9.jpg',
+  'docs/images/main-chart-comparison-v0.6.9.jpg',
+  'docs/images/platform-breakout-msft-v0.6.9.jpg',
+  'docs/images/natural-language-abc-wolong-2026-10-27.png',
+  'docs/images/natural-language-descending-channel-wolong-2026-10-27.png',
+  'docs/images/dsh-market.png',
   'docs/fixtures/price-pattern-real-v1.json',
   'codex_server.py', 'codex_runtime', 'core', 'config/basic-symbols.json', 'view',
   // Only provider/indicator/geometry modules shared by the Codex adapter.

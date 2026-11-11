@@ -8,7 +8,7 @@
 
 > Quotes and technical analysis are for research and education only, not investment advice.
 
-[Features](#what-it-helps-you-do) · [Use with Codex](#use-with-codex) · [Install DSH](#get-started-with-dsh) · [Drawing preview](#preview) · [Drawing tools](#drawing-through-chat-and-the-workbench) · [Data sources](#quotes-and-data-sources)
+[Features](#what-it-helps-you-do) · [Use with Codex](#use-with-codex) · [Install DSH](#get-started-with-dsh) · [Screenshots](#screenshots) · [Drawing tools](#drawing-through-chat-and-the-workbench) · [Data sources](#quotes-and-data-sources)
 
 | Environment | Chart and manual drawing | Natural-language drawing | Market data, indicators, analysis |
 | --- | --- | --- | --- |
@@ -22,15 +22,39 @@ The development candidate is **v0.6.9** (unreleased); the current published Code
 
 - **Start with a sentence**: ask for a chart, a trend read, or an indicator analysis in natural language.
 - **Explore on your own**: open the K-line workspace, search a name or ticker, and switch among daily, weekly, monthly, quarterly, yearly, and available intraday views.
-- **Read trend and momentum**: use MA, volume, MACD, KDJ, RSI, BOLL, ATR, and VWAP.
-- **Put your analysis on the chart**: create horizontal/trend lines, parallel channels, range boxes, Fibonacci retracements, and ABC polylines by chat or point selection. Preview first; save only when the result looks right.
+- **Read trend and momentum**: use SMA, EMA, volume, MACD, KDJ, RSI, BOLL, ATR, and VWAP.
+- **Put your analysis on the chart**: create horizontal/trend lines, parallel channels, range boxes, Fibonacci retracements, and ABC polylines by chat or point selection. Find a recent eligible candidate automatically or pick anchors manually. Drawings appear directly and remain when you close the controls; use Clear to remove them.
 - **Explore TA-Lib**: search and run all 201 TA-Lib 0.8.2 functions read-only on the loaded chart. Only selected SMA, EMA, and BBANDS results are directly drawable in this release; the other functions are not advertised as chart objects.
 - **Find price areas**: identify support and resistance, or draw and save your own levels and notes.
-- **Compare and review**: overlay indices or symbols, then select a period to inspect return, range, drawdown, and activity.
+- **Compare and review**: overlay stocks, indices, or ETFs as background lines on the main candle chart, using cumulative returns from a shared baseline. Select a period to inspect return, range, drawdown, and activity.
+- **Inspect patterns and counts**: double tops/bottoms, head-and-shoulders tops/bottoms, platform breakout/failure states, and basic nine-count share the Draw entrance. Pattern and nine-count analysis currently uses loaded, closed daily bars for A-share, Hong Kong, and US symbols.
 - **Add context**: use Market, Sectors, News, Company, and Dragon & Tiger List views for indices, sector rankings, capital-flow events, news, company profiles, fundamentals, and ownership data.
 - **Build a watchlist**: save symbols, create or rename groups, sort, import, and open several at once. Watchlists stay in your current browser.
 
-## Preview
+## Screenshots
+
+These screenshots were captured from the **DSH Web local candidate on 2026-11-11**. They are cropped to the application and compressed; chart geometry has not been redrawn. Quotes are snapshots. Codex Desktop shares the calculations, with its own app-card presentation.
+
+### Market overview
+
+Browse major A-share, Hong Kong, and US indices, sector rankings, and unusual-trading lists. Select an index to open its chart. Coverage depends on the connected source and permissions.
+
+![Market overview showing major indices, sector rankings, and unusual-trading lists](docs/images/market-overview-v0.6.9.jpg)
+
+### Multiple comparisons on the main chart
+
+Search a symbol or select a common index under Compare to add a background line. Each legend item shows cumulative return from the shared baseline and can be hidden or removed independently. This example overlays CSI 300 and ChiNext on Shanghai Composite candles. Prices are normalized to a common return baseline; comparison lines do not receive additional indicator calculations.
+
+![Shanghai Composite daily candles with CSI 300 and ChiNext comparison lines and a shared baseline legend](docs/images/main-chart-comparison-v0.6.9.jpg)
+
+### Platform box and breakout confirmation
+
+Choose Platform breakout/failure under Draw to show the latest eligible platform. This MSFT daily example freezes the **August 28–September 25** box and marks the **October 6 upward confirmation**. Confirmation requires two consecutive closed daily bars beyond the buffered boundary; later breakout bars cannot enlarge the original box. Other candidates and failure states remain selectable.
+
+![MSFT daily platform box with the October 6 upward confirmation and selectable pattern candidates](docs/images/platform-breakout-msft-v0.6.9.jpg)
+
+<details>
+<summary>Natural-language drawing examples: ABC and descending channel (earlier interface)</summary>
 
 Live natural-language example: DeepSeek screened the watchlist for an ABC **candidate** in Wolong Electric, checked the four 0/A/B/C anchors against candles, and used the plugin to draw them. This unedited full-page capture shows the conversation, application result, and visible chart together. The host interprets the pattern; a rules-based candidate is not a verified Elliott-wave conclusion.
 
@@ -39,6 +63,8 @@ Live natural-language example: DeepSeek screened the watchlist for an ABC **cand
 In the same chart, a follow-up natural-language request adds a descending channel. DeepSeek checks its three-anchor geometry and price deviations; the plugin applies it as a separate object while preserving the ABC labels. The lines are visible, but their trading relevance still requires independent judgment.
 
 ![Full DSH Web page: DeepSeek explains the descending channel's anchors and deviations while the daily chart shows both the channel and ABC labels](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
+
+</details>
 
 ## Use with Codex
 
@@ -141,16 +167,17 @@ The plugin supports macOS, Linux, and native Windows. Install a working DSH Web 
 
 **Open the workspace directly**: click the K button on the right, or choose **非凸 K 线助手 / dsh_kline** from the `+` menu where workspace Tabs are available. Search by name or ticker; exchange suffixes are not required.
 
-Both entry points can operate on the same new drawing objects in the active chart. In the chart toolbar, **Draw** opens the drawing workbench: choose a tool, click candles or enter parameters, preview, then confirm. Conversations retain separate chart states; watchlists remain user-level data.
+Both entry points can operate on the same new drawing objects in the active chart. In the chart toolbar, **Draw** opens the drawing workbench: choose a tool to draw the latest eligible candidate, or pick candles and enter parameters manually. Drawings appear directly and remain when the controls close. Conversations retain separate chart states; watchlists remain user-level data.
 
 ## Using the chart
 
 1. Search for a company or ticker at the top.
 2. Pick a time range and candle timeframe. Intraday availability depends on the market and data entitlement.
 3. Enable the indicators you need, then pan, zoom, or use the crosshair for detail.
-4. Select **Key levels** for support and resistance, or **Draw** to choose a drawing tool, pick anchors or enter parameters, and save the preview. Manage your own price lines under **Levels**.
+4. Select **Levels** for support and resistance. Under **Draw**, choose a tool for an automatic recent candidate or use **Pick anchors manually**. Drawings appear directly; closing the panel preserves them. Use **Clear** inside Draw to remove them.
 5. Click two candles in sequence to review return, range, drawdown, and trading activity for that interval.
 6. Select the star beside a symbol to add it to a watchlist.
+7. Under **Compare**, search for stocks, indices, or ETFs, or use an index shortcut to add lines to the main chart.
 
 Where a **UI** menu is available, choose Automatic, Classic sidebar, or workspace Tab. Automatic uses the best interface your current Harness supports; when Tabs are unavailable, the regular K-line sidebar continues to work.
 
@@ -194,7 +221,7 @@ Quotes can be delayed and may differ with adjustment policy, exchange convention
 
 ### Drawing through chat and the workbench
 
-On a source-checked current chart, the host can interpret a request and use the plugin's calculate → prepare → apply → verify flow. The workbench exposes the same protected objects for manual selection, preview, and editing. Selected families are horizontal levels, two-anchor trend segments, three-anchor finite parallel channels, rectangular ranges, two-anchor Fibonacci retracements, manually supplied or host-proposed-and-checked ABC anchors, and standalone SMA/EMA lines or BOLL three-line bands. Names, four colors, channel midlines, and rectangle fills are supported. The plugin draws ABC labels; **it does not automatically recognize Elliott waves**, and candidates are not definitive conclusions.
+On a source-checked current chart, the host can interpret a request and use the plugin's calculate → prepare → apply → verify flow. The workbench exposes the same protected objects for automatic candidates, manual anchors, direct drawing, and editing. Selected families are horizontal levels, two-anchor trend segments, three-anchor finite parallel channels, rectangular ranges, two-anchor Fibonacci retracements, manually supplied or host-proposed-and-checked ABC anchors, double tops/bottoms, head-and-shoulders patterns, platform states, basic nine-count groups, and standalone SMA/EMA lines or BOLL three-line bands. Names, four colors, channel midlines, and rectangle fills are supported. The plugin draws ABC labels; **it does not automatically recognize Elliott waves**, and candidates are not definitive conclusions.
 
 Try “draw a blue level at 31.2 called support”, “move support to 30.8; leave everything else”,
 or “propose a descending channel with three anchors and explain deviations; wait for approval”.
