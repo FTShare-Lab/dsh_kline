@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { currentConversationId, latestChart, latestChartFromEvents, type ChartReference, type Sessions } from './conversation'
+import { currentConversationId, latestChart, latestChartFromEvents, type ChartReference, type Sessions, type SessionEventWindow } from './conversation'
+import { handoffLiveChart, observeLiveCharts } from './chart-handoff'
 const EMPTY_CONVERSATION = { nodes: [] }
-const EMPTY_EVENTS = { entries: [] }
+const EMPTY_EVENTS: SessionEventWindow = { entries: [] }
 export function useChartReference(sessions: Sessions, conversationId?: string, onNewChart?: (reference: ChartReference) => void) {
   const readyForNewCharts = useRef(false)
   const binding = conversationId ? sessions.binding(conversationId) : undefined
@@ -11,8 +12,14 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
     () => face?.getSnapshot() ?? EMPTY_CONVERSATION,
   )
   const eventSource = binding?.eventSource
+  const liveEvent = useRef<ChartReference | undefined>()
+  const observe = useMemo(() => observeLiveCharts(eventSource?.getSnapshot() ?? EMPTY_EVENTS), [eventSource])
   const events = useSyncExternalStore(
-    listener => eventSource?.subscribe(listener) ?? (() => {}),
+    listener => eventSource?.subscribe(() => {
+      const next = observe(eventSource.getSnapshot())
+      if (next) liveEvent.current = next
+      listener()
+    }) ?? (() => {}),
     () => eventSource?.getSnapshot() ?? EMPTY_EVENTS,
   )
   const discovered = useMemo(() => eventSource
@@ -43,9 +50,9 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
     return ()=>controller.abort()
   },[conversationId,sessions])
   useEffect(() => {
-    // DSH's event window can arrive one subscription tick after this hook
-    // mounts. Treat that short hydration window as historical state, not as a
-    // new analysis that should replace the Market launcher.
+    // Older hosts have no event-delta metadata. Preserve their hydration
+    // grace period; modern hosts distinguish history replacements from live
+    // appends explicitly and do not discard fast results in this window.
     const timer = window.setTimeout(() => { readyForNewCharts.current = true }, 350)
     return () => { window.clearTimeout(timer) }
   }, [conversationId])
@@ -55,7 +62,13 @@ export function useChartReference(sessions: Sessions, conversationId?: string, o
     setReference(discovered)
     // Reveal only a result that appeared after this hook mounted. Merely
     // reopening historical messages must not override the Market launcher.
-    if (readyForNewCharts.current && discovered.session !== initialChartSession.current) onNewChart?.(discovered)
+    const explicitLive = liveEvent.current?.session === discovered.session && liveEvent.current?.order === discovered.order
+    const legacyLive = events.revision === undefined && readyForNewCharts.current && discovered.session !== initialChartSession.current
+    if ((explicitLive || legacyLive)
+      && currentConversationId(sessions.list.getSnapshot()) === conversationId) {
+      handoffLiveChart(sessions, conversationId, discovered)
+      onNewChart?.(discovered)
+    }
   }, [conversationId, discovered?.session, discovered?.order, reference, onNewChart])
   return reference
 }

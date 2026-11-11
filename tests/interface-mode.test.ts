@@ -71,7 +71,7 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
   assert.match(tab, /service\.subscribeState\(listener\)/)
   assert.match(tab, /sidebar\.sessionId === scope\.sessionId/)
   assert.match(tab, /visible && interfaceState\.mode === 'better-sidebar'/)
-  assert.match(tab, /only an analysis result that arrives while this view is live may/)
+  assert.match(tab, /liveChartFor\(sessions, conversationId\)/)
 })
 test('the classic launcher covers screens without a Session; the native path only auto-opens in tab mode', () => {
   const router = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')

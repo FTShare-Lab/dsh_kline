@@ -8,7 +8,7 @@ Explore markets, analyze price action, and draw directly on charts through **Dee
 
 [Explore](#explore) · [Install](#install) · [Get started](#get-started) · [Data and scope](#data-and-scope) · [Documentation](#documentation)
 
-> This page describes **v0.6.9**. Published packages are listed in [Releases](https://github.com/FTShare-Lab/dsh_kline/releases); see the [npm guide](docs/npm-release.md) for publication and installation details.
+> This page describes **v0.6.10**. Published packages are listed in [Releases](https://github.com/FTShare-Lab/dsh_kline/releases); see the [npm guide](docs/npm-release.md) for publication and installation details.
 
 ## Explore
 

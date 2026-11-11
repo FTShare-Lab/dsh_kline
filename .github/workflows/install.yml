@@ -65,16 +65,16 @@ jobs:
           pnpm verify:codex-marketplace
 
       - name: Exercise the packed ordinary-user install
-        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.9.tgz
+        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.10.tgz
 
       - name: Exercise the plugin inside an isolated DSH Web profile
-        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.9.tgz
+        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.10.tgz
 
       - name: Exercise a nested bundle without a profile-root K-line package
-        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.9.tgz --nested
+        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.10.tgz --nested
 
       - name: Exercise isolated Codex package paths
-        run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.9.zip
+        run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.10.zip
 
       - name: Exercise standalone GitHub marketplace plugin
         run: python scripts/smoke-codex-package.py marketplace/ft-kline

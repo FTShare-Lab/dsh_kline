@@ -16,6 +16,10 @@ export interface SessionEventWindow {
         type: string;
         event: any;
     }[];
+    revision?: number;
+    change?: {
+        kind: string;
+    };
 }
 export interface SessionListSnapshot {
     current?: string;

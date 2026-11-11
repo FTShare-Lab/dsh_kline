@@ -69,3 +69,22 @@ test('Harness 0.1.2 supports PTC nested dispatch and external rows', () => {
   assert.equal(latestChartFromEvents([end]), undefined)
   assert.equal(latestChartFromEvents([start, event('tool/code-dispatch', 4, {...end.event.data as object, isError:true})]), undefined)
 })
+
+// DSH 0.2.1-rc.5's public ToolResultMessage is role=tool. Its content
+// contains the result blocks directly, rather than legacy tool-result blocks.
+const modernResultEvent = (id: string, token: string, time: number, extra = {}) => event('tool/result', time, {
+  message: {role: 'tool', toolCallId: id, content: result(token, time).content, ...extra},
+})
+test('DSH 0.2 tool-role results expose the chart that the owning invocation returned', () => {
+  assert.deepEqual(latestChartFromEvents([callEvent('A', 1), modernResultEvent('A', a, 3)]), {session:a, order:1})
+})
+test('DSH 0.2 direct tool results reject errors, missing calls and untrusted tool names', () => {
+  assert.equal(latestChartFromEvents([callEvent('A', 1), modernResultEvent('A', a, 3, {isError:true})]), undefined)
+  assert.equal(latestChartFromEvents([modernResultEvent('missing', a, 3)]), undefined)
+  assert.equal(latestChartFromEvents([callEvent('A', 1, 'other_tool'), modernResultEvent('A', a, 3)]), undefined)
+})
+test('mixed host histories still order charts by their invocation, not their completion', () => {
+  assert.deepEqual(latestChartFromEvents([
+    callEvent('A', 1), callEvent('B', 2), modernResultEvent('B', b, 3), resultEvent('A', a, 4),
+  ]), {session:b, order:2})
+})

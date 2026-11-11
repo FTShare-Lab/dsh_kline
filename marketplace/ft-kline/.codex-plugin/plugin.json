@@ -1,6 +1,6 @@
 {
   "name": "ft-kline",
-  "version": "0.6.9",
+  "version": "0.6.10",
   "description": "Interactive K-line charts, market data and technical analysis for Codex Desktop and CLI.",
   "interface": {
     "displayName": "FT K-Line",

@@ -17,6 +17,7 @@ const allowlist = [
   'docs/free-foreign-daily.md', 'docs/release-notes-v0.6.7.md', 'docs/release-acceptance-v0.6.7.md',
   'docs/release-notes-v0.6.8.md', 'docs/release-acceptance-v0.6.8.md',
   'docs/release-notes-v0.6.9.md', 'docs/release-acceptance-v0.6.9.md',
+  'docs/release-notes-v0.6.10.md', 'docs/release-acceptance-v0.6.10.md',
   'docs/price-pattern-rules-v1.md', 'docs/price-pattern-samples-v1.md',
   'docs/automatic-drawing.md', 'docs/npm-release.md',
   'docs/guide.md', 'docs/guide.en.md', 'docs/drawing-examples.md', 'docs/drawing-examples.en.md', 'docs/chart-functions.md', 'docs/provider-adaptation.md', 'PROVENANCE.md', 'docs/release-acceptance-v0.5.0.md',

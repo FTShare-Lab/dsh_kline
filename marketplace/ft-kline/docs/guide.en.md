@@ -69,7 +69,7 @@ The selected file is reread before provider requests and is never modified or de
 
 Without a key, supported A-share, HK and US daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
 
-For the v0.6.9 candidate, see [release notes](release-notes-v0.6.9.md), [acceptance](release-acceptance-v0.6.9.md), and [npm preparation](npm-release.md).
+For the v0.6.10 candidate, see [release notes](release-notes-v0.6.10.md), [acceptance](release-acceptance-v0.6.10.md), and [npm preparation](npm-release.md).
 
 See the [v0.6.8 release notes](release-notes-v0.6.8.md) and [acceptance checklist](release-acceptance-v0.6.8.md) for verification and remaining manual desktop checks.
 

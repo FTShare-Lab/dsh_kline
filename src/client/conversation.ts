@@ -6,7 +6,11 @@ export interface Observable<T> {
   subscribe(listener: () => void): () => void
 }
 export interface ConversationSnapshot { nodes?: readonly any[] }
-export interface SessionEventWindow { entries: readonly { type: string; event: any }[] }
+export interface SessionEventWindow {
+  entries: readonly { type: string; event: any }[]
+  revision?: number
+  change?: { kind: string }
+}
 export interface SessionListSnapshot {
   // DSH 0.1.x exposes the selected conversation directly.
   current?: string
@@ -53,6 +57,17 @@ export function latestChartFromEvents(entries: SessionEventWindow['entries']): C
     const event = entry.event
     const data = event?.data
     if (event?.type === 'tool/result') {
+      const message = data?.message
+      // DSH 0.2 emits one first-class tool-role message per invocation. The
+      // 0.1 adapter below still handles nested tool-result content blocks.
+      // In both cases the invocation start supplies the trusted tool name and
+      // ordering; result text alone must never claim a chart.
+      if (message?.role === 'tool' && typeof message.toolCallId === 'string') {
+        const call = calls.get(message.toolCallId)
+        if (call) nodes.push({ kind: 'tool-result', call, callTime: call.time,
+          content: message.content, isError: message.isError || !!data.error })
+        continue
+      }
       for (const block of data?.message?.content ?? []) {
         if (block?.type !== 'tool-result') continue
         const call = calls.get(block.toolCallId)

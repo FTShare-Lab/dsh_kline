@@ -8,7 +8,7 @@
 
 [功能展示](#功能展示) · [安装](#安装) · [开始使用](#开始使用) · [数据与适用范围](#数据与适用范围) · [文档](#文档)
 
-> 本页对应 **v0.6.9**。正式安装包以 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) 为准；npm 发布与安装说明见[发布指南](docs/npm-release.md)。
+> 本页对应 **v0.6.10**。正式安装包以 [Releases](https://github.com/FTShare-Lab/dsh_kline/releases) 为准；npm 发布与安装说明见[发布指南](docs/npm-release.md)。
 
 ## 功能展示
 
