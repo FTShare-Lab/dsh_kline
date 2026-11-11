@@ -6,7 +6,7 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-[Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Historical gallery](#historical-interface-and-original-screenshots) · [Documentation](#documentation)
+[Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
 Current release: **v0.6.10**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
@@ -52,6 +52,8 @@ A follow-up request adds parallel channel boundaries after the host checks their
 
 [![Natural-language descending channel: the daily chart retains its ABC labels and adds the channel boundaries](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
+The two full captures above are from October 27, 2026 and retain the conversation and interface from that session. Click an image for its original resolution; current drawing controls are described below.
+
 Example requests:
 
 ```text
@@ -68,18 +70,6 @@ An analysis request returns analysis. An explicit drawing request puts the resul
 
 Open **Draw** → select a tool → **Draw now**. Use **Pick anchors manually** to select your own points and **Settings** to adjust parameters. Drawings appear directly, without a separate save step. Closing or collapsing the controls preserves them; **Clear** is inside the drawing panel.
 
-### ABC labels and anchor selection
-
-[![ABC drawing example with selected anchors, polyline, and labels](docs/images/abc-drawing-v0.5.0.jpg)](docs/images/abc-drawing-v0.5.0.jpg)
-
-### Parallel channel
-
-[![Parallel channel example with upper/lower boundaries and midpoint on the main chart](docs/images/channel-drawing-v0.5.0.jpg)](docs/images/channel-drawing-v0.5.0.jpg)
-
-### Drawing workbench
-
-[![Drawing workbench with tool selection, parameters, and chart objects](docs/images/drawing-workbench-v0.5.0.jpg)](docs/images/drawing-workbench-v0.5.0.jpg)
-
 ### Range formation, breakout, and failure states
 
 MSFT daily example: the range forms from August 28 to September 25, with an upward breakout confirmed on October 6. The chart shows its boundaries and actual confirmation date; subsequent prices do not enlarge the frozen range.
@@ -87,12 +77,6 @@ MSFT daily example: the range forms from August 28 to September 25, with an upwa
 [![MSFT daily platform range with its upward breakout confirmation date](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
 
 Double tops/bottoms and head-and-shoulders patterns likewise show necklines and candidate, confirmation, or failure states. Nine Count displays individual counts; it does not include a full DeMARK 13 Countdown. See [pattern rules](docs/price-pattern-rules-v1.md).
-
-### Workspace and chart entry points
-
-[![K-line workspace and chart tabs with symbol search, indicators, drawing, and chart controls](docs/images/dsh-kline-tab-workspace.png)](docs/images/dsh-kline-tab-workspace.png)
-
-These real captures preserve different stages of the project. The ABC, channel, and earlier workbench images show historical interfaces; current button names and direct drawing behavior are described above. Click an image for its original dimensions.
 
 ## Market overview and chart comparison
 
@@ -114,23 +98,12 @@ The market, comparison, and MSFT platform captures preserve native Retina pixels
 
 ## Levels, review, and research
 
-### Support and resistance
-
-Use **Levels** to analyze reference prices, add custom levels, and draw them on the current chart.
-
-[![Support, resistance, and reference-price annotations on the chart](docs/images/kline-support.png)](docs/images/kline-support.png)
-
-### Interval review
-
-Inspect interval returns and drawdown alongside the chart.
-
-[![Interval review and market statistics](docs/images/kline-range-stats.png)](docs/images/kline-range-stats.png)
-
-### News and company information
-
-Read symbol news, company information, and research panels next to the chart. Coverage depends on the source and permissions.
-
-[![Symbol news and research panel](docs/images/kline-news.png)](docs/images/kline-news.png)
+| Feature | What it does |
+| --- | --- |
+| **Support and resistance** | Analyze reference prices in Levels, add custom levels, and draw them on the current chart |
+| **Interval review** | Inspect interval returns and drawdown alongside the chart |
+| **News and company information** | Read symbol news, company information, and research panels, subject to source coverage and permissions |
+| **Watchlists and groups** | Save, group, sort, import, and open symbols in batches; DSH retains these across conversations |
 
 ## Install
 
@@ -183,47 +156,6 @@ See the [complete guide](docs/guide.en.md) for pinned archives, updates, migrati
 - **Retention:** DSH watchlists and groups persist across conversations. Codex charts, watchlists, and temporary App keys remain in the current connection's memory and do not inherit DSH settings. Drawing recovery across service restarts is not guaranteed.
 
 Market data may be delayed. Patterns and counts support research and review, without guaranteed trading returns. See [key-less coverage](docs/anonymous-market-support.md) and [free Hong Kong/US daily sources](docs/free-foreign-daily.md).
-
-## Historical interface and original screenshots
-
-<details>
-<summary>Expand all early screenshots and original first captures</summary>
-
-These images appeared in earlier READMEs and retain their original files and dimensions. They document the project's history; current interfaces and workflows are described above.
-
-### Early desktop chart
-
-[![Early desktop candlestick chart](docs/images/chart-desktop.jpg)](docs/images/chart-desktop.jpg)
-
-### Early mobile layout
-
-[![Early mobile candlestick layout](docs/images/chart-mobile.jpg)](docs/images/chart-mobile.jpg)
-
-### Early support and resistance chart
-
-[![Early support and resistance presentation](docs/images/chart-support-resistance.jpg)](docs/images/chart-support-resistance.jpg)
-
-### Host conversation and analysis entry
-
-[![Early Harness conversation calling K-line analysis](docs/images/harness-analyze-kline.jpg)](docs/images/harness-analyze-kline.jpg)
-
-### Early sidebar
-
-[![Early DSH K-line sidebar](docs/images/dsh-sidebar.png)](docs/images/dsh-sidebar.png)
-
-### Original market capture
-
-[![Original first market capture; a lossless version of this scene appears above](docs/images/market-overview-v0.6.9.jpg)](docs/images/market-overview-v0.6.9.jpg)
-
-### Original comparison capture
-
-[![Original first comparison capture; a lossless version of this scene appears above](docs/images/main-chart-comparison-v0.6.9.jpg)](docs/images/main-chart-comparison-v0.6.9.jpg)
-
-### Original platform breakout capture
-
-[![Original first MSFT platform capture; a lossless version of this scene appears above](docs/images/platform-breakout-msft-v0.6.9.jpg)](docs/images/platform-breakout-msft-v0.6.9.jpg)
-
-</details>
 
 ## Documentation
 

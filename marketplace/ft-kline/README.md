@@ -6,7 +6,7 @@
 
 [![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
-[绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [历史图集](#历史界面与原版截图) · [文档](#文档)
+[绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [文档](#文档)
 
 当前发布版本 **v0.6.10**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
@@ -52,6 +52,8 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 
 [![自然语言追加下降通道：日 K 主图同时保留 ABC 标注与通道边界](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)](docs/images/natural-language-descending-channel-wolong-2026-10-27.png)
 
+以上两张为 2026-10-27 的完整实测截图，保留当时的对话和界面。点击图片可查看原图；当前绘图操作见下文。
+
 可以这样提出需求：
 
 ```text
@@ -68,18 +70,6 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 
 点击 **绘图** → 选择工具 → **绘图**。需要自行指定锚点时使用 **手动选点**，通过 **设置** 调整参数；图形直接展示，无需另行保存。关闭或收起面板不会删除图形，**清除** 位于绘图面板内。
 
-### ABC 标注与选点
-
-[![ABC 绘图演示：选择锚点并显示折线与标签](docs/images/abc-drawing-v0.5.0.jpg)](docs/images/abc-drawing-v0.5.0.jpg)
-
-### 平行通道
-
-[![平行通道绘图演示：主图上的上下边界与中线](docs/images/channel-drawing-v0.5.0.jpg)](docs/images/channel-drawing-v0.5.0.jpg)
-
-### 绘图工具台
-
-[![绘图工作台演示：工具选择、参数与图上的绘图对象](docs/images/drawing-workbench-v0.5.0.jpg)](docs/images/drawing-workbench-v0.5.0.jpg)
-
 ### 箱体形成、突破与失效状态
 
 微软日 K 实例：08/28—09/25 形成平台，10/06 确认上破。图上展示箱体边界与实际确认日期；后续行情不会扩大已经冻结的箱体。
@@ -87,12 +77,6 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 [![微软日 K 的平台箱体与上破确认日](docs/images/platform-breakout-msft-v0.6.9.png)](docs/images/platform-breakout-msft-v0.6.9.png)
 
 双顶／底、头肩顶／底同样显示颈线及候选、确认、失效等状态。九转显示逐根计数，基础九转不包含完整 DeMARK 13 Countdown。定义与适用范围见[形态规则](docs/price-pattern-rules-v1.md)。
-
-### 工作台与图表入口
-
-[![K 线工作台与多图标签：标的搜索、指标、绘图和图表操作](docs/images/dsh-kline-tab-workspace.png)](docs/images/dsh-kline-tab-workspace.png)
-
-以上保留了不同时期的真实截图。ABC、通道和旧工具台展示的是历史界面；当前按钮名称与直接绘图行为以上文为准。点击图片可查看原始尺寸。
 
 ## 大盘与主图对比
 
@@ -114,23 +98,12 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 
 ## 点位、复盘与资讯
 
-### 支撑与压力
-
-在 **点位** 中分析参考价位、手动添加价位，并直接画在当前图上。
-
-[![点位分析：K 线图上的支撑、压力与参考价位](docs/images/kline-support.png)](docs/images/kline-support.png)
-
-### 区间复盘
-
-查看指定区间的涨跌、回撤等统计，结合图表检查走势。
-
-[![区间复盘与行情统计](docs/images/kline-range-stats.png)](docs/images/kline-range-stats.png)
-
-### 资讯与公司资料
-
-在行情旁查看新闻、公司资料与研究入口；覆盖范围由数据源及权限决定。
-
-[![标的资讯与新闻面板](docs/images/kline-news.png)](docs/images/kline-news.png)
+| 功能 | 可以做什么 |
+| --- | --- |
+| **支撑与压力** | 在「点位」中分析参考价位、手动添加价位，并画在当前图上 |
+| **区间复盘** | 查看指定区间的涨跌、回撤等统计，结合图表检查走势 |
+| **资讯与公司资料** | 在行情旁查看新闻、公司资料与研究入口，覆盖取决于来源与权限 |
+| **自选与分组** | 收藏、分组、排序、导入和批量打开标的；DSH 支持跨对话保留 |
 
 ## 安装
 
@@ -183,47 +156,6 @@ codex plugin add ft-kline@ftshare
 - **保存范围：** DSH 自选与分组跨对话保留。Codex 图表、自选及应用内临时 Key 保存在当前连接内存中，不继承 DSH 配置；绘图不保证跨服务重启恢复。
 
 行情可能延迟。形态与计数用于研究和复盘，不保证交易收益。数据覆盖见[无 Key 支持范围](docs/anonymous-market-support.md)与[港美股免费日线](docs/free-foreign-daily.md)。
-
-## 历史界面与原版截图
-
-<details>
-<summary>展开全部早期截图与首轮原版图片</summary>
-
-以下图片来自早期 README，保留原文件和原始尺寸。它们用于记录功能演进，当前界面与操作流程以前文为准。
-
-### 早期桌面图表
-
-[![早期桌面 K 线图表](docs/images/chart-desktop.jpg)](docs/images/chart-desktop.jpg)
-
-### 早期移动布局
-
-[![早期移动端 K 线布局](docs/images/chart-mobile.jpg)](docs/images/chart-mobile.jpg)
-
-### 早期支撑与压力图
-
-[![早期支撑与压力展示](docs/images/chart-support-resistance.jpg)](docs/images/chart-support-resistance.jpg)
-
-### 宿主对话分析入口
-
-[![早期 Harness 对话调用 K 线分析](docs/images/harness-analyze-kline.jpg)](docs/images/harness-analyze-kline.jpg)
-
-### 早期侧栏
-
-[![早期 DSH K 线侧栏](docs/images/dsh-sidebar.png)](docs/images/dsh-sidebar.png)
-
-### 首轮大盘截图
-
-[![首轮大盘概览截图，正文提供同场景高清版本](docs/images/market-overview-v0.6.9.jpg)](docs/images/market-overview-v0.6.9.jpg)
-
-### 首轮主图对比截图
-
-[![首轮主图对比截图，正文提供同场景高清版本](docs/images/main-chart-comparison-v0.6.9.jpg)](docs/images/main-chart-comparison-v0.6.9.jpg)
-
-### 首轮平台突破截图
-
-[![首轮微软平台突破截图，正文提供同场景高清版本](docs/images/platform-breakout-msft-v0.6.9.jpg)](docs/images/platform-breakout-msft-v0.6.9.jpg)
-
-</details>
 
 ## 文档
 
