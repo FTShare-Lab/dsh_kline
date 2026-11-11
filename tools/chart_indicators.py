@@ -23,7 +23,7 @@ def _period(value: Any, name: str, maximum: int = 200) -> int:
 def calculate_chart_indicators(
     *, rows: Any, expected_hash: str, indicators: list[str],
     ma_periods: list[int], volume_ma: int, boll_period: int,
-    boll_std: float, rsi_period: int, atr_period: int,
+    boll_std: float, rsi_period: int, atr_period: int, ema_period: int = 20,
 ) -> dict[str, Any]:
     if not isinstance(rows, list) or not 2 <= len(rows) <= 4000:
         raise ValueError("indicator rows must contain 2..4000 loaded candles")
@@ -45,10 +45,12 @@ def calculate_chart_indicators(
     boll_period = _period(boll_period, "boll_period")
     rsi_period = _period(rsi_period, "rsi_period")
     atr_period = _period(atr_period, "atr_period")
+    ema_period = _period(ema_period, "ema_period")
     if type(boll_std) not in (int, float) or not math.isfinite(boll_std) or not 0.5 <= boll_std <= 5:
         raise ValueError("boll_std must be a finite number from 0.5 to 5")
     commands = build_chart_commands(
         normalized, indicators=indicators, ma_periods=periods,
+        ema_period=ema_period,
         volume_ma=volume_ma, boll_period=boll_period, boll_std=boll_std,
         rsi_period=rsi_period, atr_period=atr_period,
     )

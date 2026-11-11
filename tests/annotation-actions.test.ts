@@ -211,5 +211,5 @@ test('Chinese and English clear copy describes one clear action in plain languag
   }
   assert.doesNotMatch(html, /data-clear-kind=/)
   assert.doesNotMatch(html, /id="clearDrawingsBtn"|id="clearLevelsBtn"/)
-  assert.match(html, /id="drawingWorkbench"[\s\S]*id="clearBtn"[^>]*>清除绘图/)
+  assert.match(html, /id="drawingWorkbench"[\s\S]*id="clearBtn"[^>]*>清除/)
 })

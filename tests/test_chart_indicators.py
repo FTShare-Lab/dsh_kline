@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 import chart_service
-from core.calc import series_atr, series_macd, series_rsi
+from core.calc import series_atr, series_ema, series_macd, series_rsi
 from tools.chart_indicators import calculate_chart_indicators
 from tools.price_series import candle_sequence_hash
 from ta_sample import sample_rows
@@ -64,3 +64,12 @@ def test_browser_bridge_empty_indicator_selection_is_valid_and_read_only():
     result = calculate_chart_indicators(**{**args(), "indicators": []})
     assert result["chartCommands"] == []
     assert result["chart_modified"] is False
+
+
+def test_browser_bridge_ema_checkbox_uses_shared_talib_series():
+    result = calculate_chart_indicators(**{**args(), "indicators": ["ema"], "ema_period": 12})
+    command = result["chartCommands"][0]
+    assert command["name"] == "ema"
+    assert command["params"] == {"period": 12}
+    assert command["data"]["ema"][str(ROWS[-1]["time"])] == series_ema(ROWS, 12)[ROWS[-1]["time"]]
+    assert str(ROWS[10]["time"]) not in command["data"]["ema"]

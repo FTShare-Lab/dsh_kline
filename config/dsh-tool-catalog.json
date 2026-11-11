@@ -432,7 +432,7 @@
               }
             ],
             "default": null,
-            "description": "ma / vol / macd / kdj / boll / rsi / atr / vwap",
+            "description": "ma / ema / vol / macd / kdj / boll / rsi / atr / vwap",
             "title": "Indicators"
           },
           "interval": {
@@ -603,7 +603,7 @@
               }
             ],
             "default": null,
-            "description": "ma / vol / macd / kdj / boll / rsi / atr / vwap",
+            "description": "ma / ema / vol / macd / kdj / boll / rsi / atr / vwap",
             "title": "Indicators"
           },
           "interval": {
@@ -1913,7 +1913,7 @@
                   }
                 ],
                 "default": null,
-                "description": "通道/平台/形态候选的只读引用；用户直接要求自动绘图时可选择最新合格候选",
+                "description": "当前图自动候选的只读引用；用户直接要求自动绘图时可选择第一项",
                 "title": "Candidate Result Ref"
               },
               "color": {
@@ -3871,5 +3871,5 @@
       "name": "verify_chart_drawings"
     }
   ],
-  "version": "0.6.8"
+  "version": "0.6.9"
 }

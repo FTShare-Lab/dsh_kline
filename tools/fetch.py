@@ -4671,9 +4671,8 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
 def fetch_comparison_candles(symbol: str, *, limit: int = 390) -> dict[str, Any]:
     """Fetch daily comparison data without silently changing instrument type.
 
-    The browser normalizes successful series against their first comparable
-    close. A broad-index request returns the same explicit provider capability
-    error as ``fetch_candles`` until a verified A-share index source is wired.
+    The browser normalizes successful series against a common trading-day
+    close. Stocks, ETFs and supported indexes use the same fetch path.
     """
     sym = _canonical_market_symbol(symbol)
     if not sym:

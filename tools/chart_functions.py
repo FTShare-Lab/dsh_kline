@@ -22,12 +22,7 @@ from tools.lines import LineError
 from tools.rectangles import RECTANGLE_COMMAND, edit_rectangle
 from tools.polylines import LabeledPoint, POLYLINE_COMMAND, edit_polyline
 from tools.pivots import confirmed_pivots
-from tools.closed_daily import closed_daily
-from tools.channel_candidates import channel_candidates
-from tools.recent_drawing_candidates import recent_drawing_candidates
-from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
-from tools.price_patterns import TYPES as PATTERN_TYPES, price_pattern_candidates
-from tools.nine_count import nine_count
+from tools.automatic_analysis import AUTOMATIC_ANALYSES, analyze_automatic, candidate_function_for_kind, candidate_edit_parameters
 from tools.regression_channels import regression_channel
 from tools.price_series import PriceCondition, PriceSource, SERIES_COMMAND, calculate_price_series, edit_price_series
 from tools.annotations import edit_annotation, _validate_content
@@ -37,11 +32,11 @@ from tools.trend_lines import resolve_anchor_time
 
 FunctionName = Literal["fibonacci_retracement", "parallel_channel", "range_box", "labeled_polyline", "pivot_candidates", "recent_drawing_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count", "price_series_line", "conditional_annotation", "price_band", "price_sticks"]
 VERSION = "1"
-ANALYSIS_ONLY = {"pivot_candidates", "recent_drawing_candidates", "regression_channel", "channel_candidates", "range_candidates", "price_pattern_candidates", "nine_count"}
+ANALYSIS_ONLY = {"pivot_candidates", "regression_channel"} | AUTOMATIC_ANALYSES.keys()
 
 
 def _version(function):
-    return "3" if function == "channel_candidates" else VERSION
+    return AUTOMATIC_ANALYSES[function].version if function in AUTOMATIC_ANALYSES else VERSION
 
 
 FUNCTIONS = {
@@ -53,13 +48,11 @@ FUNCTIONS = {
         ("start_time", "end_time", "lower_price", "upper_price"), ()),
     "labeled_polyline": ("labeled_polyline", edit_polyline, ("points",), ()),
     "pivot_candidates": ("pivot_candidates", None, (), ("left_bars", "right_bars", "mode", "limit")),
-    "recent_drawing_candidates": ("recent_drawing_candidates", None, ("drawing_type",), ("lookback_bars", "max_candidates")),
+    "recent_drawing_candidates": ("recent_drawing_candidates", None,
+        AUTOMATIC_ANALYSES["recent_drawing_candidates"].required, AUTOMATIC_ANALYSES["recent_drawing_candidates"].optional),
     "regression_channel": ("regression_channel", None, ("start_time", "end_time"), ("multiplier",)),
-    "channel_candidates": ("channel_candidates", None, (),
-        ("direction", "scope", "lookback_bars", "left_bars", "right_bars", "min_span_bars", "max_candidates", "closed_daily_only")),
-    "range_candidates": ("range_candidates", None, (), ("window_sizes", "max_candidates", "closed_daily_only")),
-    "price_pattern_candidates": ("price_pattern_candidates", None, (), ("pattern_types", "lookback_bars", "max_candidates", "anchor_times")),
-    "nine_count": ("nine_count", None, (), ("display_bars",)),
+    **{name: (name, None, spec.required, spec.optional) for name, spec in AUTOMATIC_ANALYSES.items()
+       if name != "recent_drawing_candidates"},
     "price_series_line": ("series_line", edit_price_series, ("value_source",), ("condition",)),
     "conditional_annotation": ("annotation_kind_parameter", edit_annotation,
         ("annotation_kind", "anchor_source", "condition"), ("annotation_text", "annotation_value", "annotation_icon")),
@@ -124,13 +117,8 @@ def list_functions():
          "optional_parameters": list(optional) + ([] if name in ANALYSIS_ONLY else ["price_scale"]),
          "defaults": ({"left_bars": 2, "right_bars": 2, "mode": "both", "limit": 20}
                       if name == "pivot_candidates" else
-                      {"lookback_bars": 120, "max_candidates": 5} if name == "recent_drawing_candidates" else
+                      deepcopy(AUTOMATIC_ANALYSES[name].defaults) if name in AUTOMATIC_ANALYSES else
                       {"multiplier": 2.0} if name == "regression_channel" else
-                      {"direction": "both", "scope": "current", "lookback_bars": 120, "left_bars": 2, "right_bars": 2,
-                       "min_span_bars": 12, "max_candidates": 3} if name == "channel_candidates" else
-                      {"window_sizes": list(DEFAULT_WINDOW_SIZES), "max_candidates": 3} if name == "range_candidates" else
-                      {"pattern_types": list(PATTERN_TYPES), "lookback_bars": 240, "max_candidates": 5} if name == "price_pattern_candidates" else
-                      {"display_bars": 120} if name == "nine_count" else
                       {"condition": None, "price_scale": "linear"} if name == "price_series_line" else
                       {"selection": "latest_match", "price_scale": "linear"} if name == "conditional_annotation" else
                       {"condition": None, "price_scale": "linear"} if name in {"price_band", "price_sticks"} else
@@ -195,7 +183,7 @@ def list_functions():
                               **({"$defs": schema["$defs"]} if name in {"labeled_polyline", "price_series_line", "conditional_annotation", "price_band", "price_sticks"} else {})}}
         for name, (kind, _, required, optional) in FUNCTIONS.items()],
         "workflow": "get_chart_context -> run_chart_function -> prepare_chart_edit(result_ref) -> apply_chart_edit -> get_chart_edit_status",
-        "analysis_only_workflow": "get_chart_context -> run_chart_function; inspect analysis. A direct drawing request authorizes the newest suitable candidate without another confirmation; analysis-only or proposal-first requests do not. Channel/range/price-pattern candidates use candidate_result_ref, candidate_number and user_confirmed_candidate=true after selection. Nine-count marks use a current result_ref. Both then use prepare/apply/status; historical anchors do not prove a current breakout",
+        "analysis_only_workflow": "get_chart_context -> run_chart_function; inspect analysis. A direct drawing request authorizes the first suitable candidate without another confirmation; analysis-only or proposal-first requests do not. All automatic candidates use candidate_result_ref, candidate_number and user_confirmed_candidate=true after selection. Nine-count marks use a current result_ref. Both then use prepare/apply/status; historical anchors do not prove a current breakout",
         "pattern_quality_verified": False}
 
 
@@ -228,26 +216,16 @@ def _calculate(payload, function, parameters, *, candles=None, context=None):
         raise LineError("invalid_function_parameters", "参数不适用于该函数。")
     if any(k not in values for k in required):
         raise LineError("missing_anchor", "缺少明确锚点或边界；请向用户澄清，不自动选择。")
-    if function in {"price_pattern_candidates", "nine_count", "recent_drawing_candidates"}:
-        if not isinstance(candles, list) or not isinstance(context, dict):
+    if function in AUTOMATIC_ANALYSES:
+        if not isinstance(context, dict):
             raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
-        common = {"symbol": context.get("symbol"), "interval": context.get("interval"),
-                  "source_interval": context.get("source_interval"), "interval_value": context.get("interval_value"),
-                  "provider": context.get("data_provenance", {}).get("provider")}
-        if function == "recent_drawing_candidates":
-            result = recent_drawing_candidates(candles, **common, drawing_type=values["drawing_type"],
-                                               lookback_bars=values.get("lookback_bars", 120),
-                                               max_candidates=values.get("max_candidates", 5))
-        elif function == "price_pattern_candidates":
-            result = price_pattern_candidates(candles, **common, volume_unit=context.get("display_volume_unit"),
-                                              pattern_types=values.get("pattern_types"),
-                                              lookback_bars=values.get("lookback_bars", 240),
-                                              max_candidates=values.get("max_candidates", 5),
-                                              anchor_times=tuple(values["anchor_times"]) if "anchor_times" in values else None)
-        else:
-            result = nine_count(candles, **common, display_bars=values.get("display_bars", 120))
+        result, normalized = analyze_automatic(function, candles, symbol=context.get("symbol"),
+            interval=context.get("interval"), source_interval=context.get("source_interval"),
+            interval_value=context.get("interval_value"),
+            provider=context.get("data_provenance", {}).get("provider"),
+            volume_unit=context.get("display_volume_unit"), parameters=values)
         return {"function": function, "function_version": _version(function), "kind": kind,
-                "result_usage": "analysis_only", "parameters": values, "price_scale": "linear", "summary": result}
+                "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear", "summary": result}
     if function == "pivot_candidates":
         rows = candles
         if not isinstance(rows, list):
@@ -267,51 +245,6 @@ def _calculate(payload, function, parameters, *, candles=None, context=None):
                                     multiplier=values.get("multiplier", 2.0))
         normalized = {"start_time": str(start), "end_time": str(end), "multiplier": result["multiplier"]}
         return {"function": function, "function_version": VERSION, "kind": kind,
-                "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear",
-                "summary": result}
-    if function == "channel_candidates":
-        if not isinstance(candles, list):
-            raise LineError("channel_candidate_data_unavailable", "当前图没有可读取的已加载K线，未补取行情。")
-        quality = None
-        if values.get("closed_daily_only"):
-            if not isinstance(context, dict):
-                raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
-            candles, quality = closed_daily(candles, symbol=context.get("symbol"), interval=context.get("interval"),
-                source_interval=context.get("source_interval"), interval_value=context.get("interval_value"),
-                provider=context.get("data_provenance", {}).get("provider"))
-        result = channel_candidates(candles, direction=values.get("direction", "both"),
-                                    scope=values.get("scope", "current"),
-                                    lookback_bars=values.get("lookback_bars", 120),
-                                    left_bars=values.get("left_bars", 2),
-                                    right_bars=values.get("right_bars", 2),
-                                    min_span_bars=values.get("min_span_bars", 12),
-                                    limit=values.get("max_candidates", 3))
-        if quality is not None: result = {**result, "as_of": quality["as_of"], "data_quality": quality}
-        normalized = {"direction": result["direction"], "scope": result["scope"],
-                      "lookback_bars": result["lookback_bars"],
-                      "left_bars": result["left_bars"], "right_bars": result["right_bars"],
-                      "min_span_bars": result["min_span_bars"], "max_candidates": values.get("max_candidates", 3),
-                      **({"closed_daily_only": True} if quality is not None else {})}
-        return {"function": function, "function_version": _version(function), "kind": kind,
-                "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear",
-                "summary": result}
-    if function == "range_candidates":
-        if not isinstance(candles, list):
-            raise LineError("range_candidate_data_unavailable", "当前图没有可读取的已加载K线，未补取行情。")
-        quality = None
-        if values.get("closed_daily_only"):
-            if not isinstance(context, dict):
-                raise LineError("daily_analysis_unavailable", "当前图缺少可核对的已加载日线。")
-            candles, quality = closed_daily(candles, symbol=context.get("symbol"), interval=context.get("interval"),
-                source_interval=context.get("source_interval"), interval_value=context.get("interval_value"),
-                provider=context.get("data_provenance", {}).get("provider"))
-        result = range_candidates(candles, window_sizes=values.get("window_sizes", DEFAULT_WINDOW_SIZES),
-                                  limit=values.get("max_candidates", 3))
-        if quality is not None: result = {**result, "as_of": quality["as_of"], "data_quality": quality}
-        normalized = {"window_sizes": result["window_sizes"],
-                      "max_candidates": values.get("max_candidates", 3),
-                      **({"closed_daily_only": True} if quality is not None else {})}
-        return {"function": function, "function_version": _version(function), "kind": kind,
                 "result_usage": "analysis_only", "parameters": normalized, "price_scale": "linear",
                 "summary": result}
     if function == "price_series_line":
@@ -511,30 +444,8 @@ def resolve_result(result_ref, context, kind):
 
 def resolve_selected_candidate(result_ref, context, kind, number):
     """Resolve one reviewed 1-based candidate; never alters a chart by itself."""
-    if type(number) is not int or not 1 <= number <= 5 or kind not in {"channel", "rectangle", "price_pattern"}:
-        raise LineError("invalid_candidate_selection", "请指定通道或平台结果中的第1至5个候选。")
-    function = "channel_candidates" if kind == "channel" else "range_candidates" if kind == "rectangle" else "price_pattern_candidates"
+    function = candidate_function_for_kind(kind)
     record = _read_result_record(result_ref, context, function)
     if record.get("result_usage") != "analysis_only":
         raise LineError("candidate_result_not_analysis", "该引用不是只读候选结果。")
-    candidates = record.get("summary", {}).get("candidates")
-    if not isinstance(candidates, list) or number > len(candidates):
-        raise LineError("candidate_not_found", "所选候选不存在；请重新核对结果序号。")
-    selected = candidates[number - 1]
-    if kind == "price_pattern":
-        return {"pattern": deepcopy(selected), "rule_version": record["summary"]["rule_version"],
-                "as_of": record["summary"]["as_of"]}
-    if kind == "channel":
-        anchors = selected.get("anchors", {})
-        try:
-            return {prefix + "_time": str(anchors[key]["time"])
-                    for prefix, key in (("start", "from"), ("end", "to"), ("parallel", "parallel"))} | {
-                    prefix + "_price": anchors[key]["price"]
-                    for prefix, key in (("start", "from"), ("end", "to"), ("parallel", "parallel"))}
-        except (TypeError, KeyError):
-            raise LineError("candidate_result_invalid", "候选锚点不完整，未准备绘图。") from None
-    try:
-        return {"start_time": str(selected["start_time"]), "end_time": str(selected["end_time"]),
-                "lower_price": selected["lower_price"], "upper_price": selected["upper_price"]}
-    except (TypeError, KeyError):
-        raise LineError("candidate_result_invalid", "候选边界不完整，未准备绘图。") from None
+    return candidate_edit_parameters(kind, record.get("summary", {}), number)

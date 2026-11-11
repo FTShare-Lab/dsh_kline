@@ -26,17 +26,17 @@
 | `head_shoulders_top` | 正例 | `02318.HK@500` | 2025-12-04 | structurally_invalid |
 | `head_shoulders_bottom` | 正例 | `PDD.US@500` | 2026-01-05 | breakout_failed |
 | `head_shoulders_bottom` | 正例 | `00002.HK@350` | 2025-01-27 | structurally_invalid |
-| `platform` | 正例 | `AAPL.US@500` | 2026-11-04 | candidate |
-| `platform` | 正例 | `MSFT.US@500` | 2026-10-08 | breakout_failed |
+| `platform` | 正例 | `AAPL.US@500` | 2026-06-22 | breakout_failed |
+| `platform` | 正例 | `MSFT.US@500` | 2026-09-25 | price_confirmed |
 | `double_top` | 负例 | `BIDU.US@650` | atr_unavailable:2、insufficient_prior_trend:2、double_geometry_rejected:8、prior_trend_below_2_atr:19 | 无候选 |
 | `double_bottom` | 负例 | `BIDU.US@650` | atr_unavailable:2、insufficient_prior_trend:2、prior_trend_below_2_atr:15、double_geometry_rejected:12 | 无候选 |
 | `head_shoulders_top` | 负例 | `BIDU.US@650` | atr_unavailable:2、insufficient_prior_trend:2、head_shoulders_geometry_rejected:8、prior_trend_below_2_atr:18 | 无候选 |
 | `head_shoulders_bottom` | 负例 | `BIDU.US@650` | atr_unavailable:2、insufficient_prior_trend:2、prior_trend_below_2_atr:14、head_shoulders_geometry_rejected:12 | 无候选 |
-| `platform` | 负例 | `BIDU.US@650` | atr_unavailable:2 | 无候选 |
+| `platform` | 负例 | `BIDU.US@650` | atr_unavailable:2、platform_non_alternating_touches:1 | 无候选 |
 | `double_top` | 负例 | `INTC.US@650` | atr_unavailable:2、insufficient_prior_trend:2、double_geometry_rejected:13、prior_trend_below_2_atr:16 | 无候选 |
 | `double_bottom` | 负例 | `INTC.US@650` | atr_unavailable:2、insufficient_prior_trend:2、prior_trend_below_2_atr:25、double_geometry_rejected:4 | 无候选 |
 | `head_shoulders_top` | 负例 | `INTC.US@650` | atr_unavailable:2、insufficient_prior_trend:2、head_shoulders_geometry_rejected:11、prior_trend_below_2_atr:17 | 无候选 |
 | `head_shoulders_bottom` | 负例 | `INTC.US@650` | atr_unavailable:2、insufficient_prior_trend:2、prior_trend_below_2_atr:24、head_shoulders_geometry_rejected:4 | 无候选 |
 | `platform` | 负例 | `INTC.US@650` | atr_unavailable:2 | 无候选 |
 
-正例锚点已按冻结 OHLCV 逐例绘图人工复核；自动测试另独立核对严格拐点、首次可知时点、状态及事件日期。负例只表示该冻结窗口未满足本项目规则，不证明图表中绝无主观形态。
+正例锚点已按冻结 OHLCV 逐例绘图人工复核；自动测试另独立核对严格拐点、首次可知时点、状态及事件日期。平台新例已复核收盘轨迹与冻结边界，但仍只是规则候选，不代表所有交易者都会认作经典横盘。负例只表示该冻结窗口未满足本项目规则，不证明图表中绝无主观形态。

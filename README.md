@@ -16,7 +16,7 @@
 | Codex 桌面版 | 支持，图表在应用卡片中打开 | 支持，需先取得当前图表会话 | 支持 |
 | Codex CLI | 无交互图表 | 无图表落图 | 支持，返回结构化结果 |
 
-Codex 版目前为 **v0.6.8**，可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
+当前开发候选为 **v0.6.9**（未发布），正式版为 **v0.6.8**。Codex 版可添加本仓库的公开 **FTShare GitHub 插件源**后安装；尚未上架官方公共插件目录。DSH 版沿用原有安装方式。下面的 DSH 截图和持久化自选说明只针对 DSH Web，Codex 的会话与安装差异见[下文](#在-codex-中使用)。
 
 ## 它能帮你做什么
 
@@ -110,7 +110,9 @@ Codex 依次使用：
 
 图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
 
-发布内容、自动化验证和仍待完成的桌面人工验收见 [v0.6.8 发布说明](docs/release-notes-v0.6.8.md) 与 [验收说明](docs/release-acceptance-v0.6.8.md)。
+v0.6.9 候选见[发布说明](docs/release-notes-v0.6.9.md)、[验收记录](docs/release-acceptance-v0.6.9.md)与[npm 发布准备](docs/npm-release.md)。
+
+已发布版本内容、自动化验证和桌面验收见 [v0.6.8 发布说明](docs/release-notes-v0.6.8.md) 与 [验收说明](docs/release-acceptance-v0.6.8.md)。
 
 ## 开始使用 DSH 版
 

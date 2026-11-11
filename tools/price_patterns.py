@@ -14,6 +14,10 @@ from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
 
 RULE_VERSION = "price_patterns_v1"
 TYPES = ("double_top", "double_bottom", "head_shoulders_top", "head_shoulders_bottom", "platform")
+# The older, geometry-only range proposal tolerates a half-box close drift.
+# A labelled price pattern needs a visibly flatter base. Keep that proposal
+# API unchanged, but reject directional boxes during historical replay.
+MAX_PLATFORM_DRIFT_TO_WIDTH = .35
 
 
 def _pivots(rows):
@@ -37,7 +41,9 @@ def _neckline(anchors, index):
 def _structure(kind, anchors, atr, rows, reasons):
     top = kind.endswith("top")
     first = anchors[0]["index"]
-    if first < 20:
+    # Twenty completed intervals before the anchor require 21 earlier closes.
+    # At first == 20, first - 21 would wrap to the final (future) row.
+    if first < 21:
         reasons["insufficient_prior_trend"] += 1
         return None
     trend = rows[first - 1]["close"] - rows[first - 21]["close"]
@@ -166,6 +172,19 @@ def _same_platform_family(a, b):
             and abs(a["box"]["lower_price"] - b["box"]["lower_price"]) <= tolerance)
 
 
+def _alternating_platform_touches(box):
+    """A rectangle needs boundary visits in alternating time order.
+
+    Two upper touches followed by two lower touches describe a directional
+    move, even when a broad envelope and its fitted close drift pass.
+    """
+    touches = sorted([(time, "upper") for time in box["upper_touch_times"]]
+                     + [(time, "lower") for time in box["lower_touch_times"]])
+    if any(touches[i][0] == touches[i - 1][0] for i in range(1, len(touches))):
+        return False
+    return 1 + sum(touches[i][1] != touches[i - 1][1] for i in range(1, len(touches))) >= 3
+
+
 def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source_interval: str | None = "day",
                              interval_value: int | None = 1, provider: str | None = None,
                              volume_unit: str | None = None, pattern_types=None,
@@ -237,6 +256,14 @@ def price_pattern_candidates(rows, *, symbol: str, interval: str = "day", source
             proposed = range_candidates(candles[max(0, index - max(DEFAULT_WINDOW_SIZES) + 1):index + 1],
                                         window_sizes=DEFAULT_WINDOW_SIZES, limit=5)
             for box in proposed["candidates"]:
+                if any(box[field] > MAX_PLATFORM_DRIFT_TO_WIDTH for field in (
+                        "close_drift_to_width", "fitted_close_drift_to_width",
+                        "recent_close_drift_to_width", "recent_fitted_close_drift_to_width")):
+                    reasons["platform_directional_drift"] += 1
+                    continue
+                if not _alternating_platform_touches(box):
+                    reasons["platform_non_alternating_touches"] += 1
+                    continue
                 key = (box["lower_price"], box["upper_price"])
                 if key in active_boxes:
                     continue

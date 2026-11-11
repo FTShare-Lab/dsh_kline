@@ -50,7 +50,7 @@ def nine_count(rows, *, symbol: str, interval: str = "day", source_interval: str
             continue
         count += 1
         mark = {"time": bar["time"], "index": i, "direction": side, "count": count,
-                "label": str(count), "price": bar["low"] if side == "up" else bar["high"]}
+                "label": str(count), "price": bar["high"] if side == "up" else bar["low"]}
         marks.append(mark)
         if count == 9:
             completed = True

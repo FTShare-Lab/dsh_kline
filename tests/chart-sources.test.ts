@@ -47,7 +47,7 @@ function payload(interval='week',rows=weekly):any {
 }
 function state(p=payload()):any {
   return sanitizeChartContext({state:'ready',symbol:p.symbol,name:p.name,interval:p.interval,interval_value:1,adjust:'none',
-    source_interval:'day',ui_interval:p.interval,range_key:'custom',active_page:'chart',source_chart_session:parent,
+    source_interval:'day',ui_interval:p.interval,display_volume_unit:'shares',range_key:'custom',active_page:'chart',source_chart_session:parent,
     candles:p.chartCommands[0].rows,visible_range:{available:true,index_from:0,index_to_exclusive:p.chartCommands[0].rows.length},
     drawings:drawingInventory(p),indicators:['ma'],data_provenance:{provider:'ftshare',transformation:'local_aggregation',aggregation:{timezone:'Asia/Shanghai'}}})
 }
@@ -87,6 +87,7 @@ test('source snapshots whitelist render fields and reject different candles, AI 
   const raw=payload();raw.api_key='test-secret';raw.data_meta.source_url='test-secret';raw.chartCommands[2].params.password='test-secret'
   const clean=sanitizeSourcePayload(raw,state(raw))
   assert.ok(!JSON.stringify(clean).includes('test-secret'))
+  assert.equal(clean.display_volume_unit,'shares')
   assert.deepEqual(clean.chartCommands, payload().chartCommands)
   const changed=structuredClone(raw);changed.chartCommands[0].rows[0].volume=9
   assert.throws(()=>sanitizeSourcePayload(changed,state(raw)),/source_rows_mismatch/)
@@ -412,7 +413,7 @@ test('real browser source handoff → Python guarded weekly drawing → receipt 
       activeAgentStickIndicators:new Set(),agentStickRegistry:new Map(),registeredAgentStickIndicators:new Set(),patternGroupRegistry:new Map(),
       currentInterval:'week',currentAdjust:'none',currentRangeKey:'custom',sourceCandleInterval:'day',activeSecurityTab:'chart',
       exchangeTimezone:'Asia/Shanghai',openingSymbol:false,userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,
-      maVisible:true,vwapVisible:false,volVisible:false,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,
+      emaVisible:false,maVisible:true,vwapVisible:false,volVisible:false,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,
       volumeUnit:'wan',chartDataStatus:'delayed',rememberWorkspaceTab:()=>{},rememberAnalysisCommands:()=>{},
       window:{__DSH_KLINE_SAVE_VIEW__:(p:any)=>saved.push(p)},
       kchart:{removeOverlay:({groupId}:any)=>{mutations.push(groupId);for(const [id,o] of overlays)if(o.groupId===groupId)overlays.delete(id)},

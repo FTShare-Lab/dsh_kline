@@ -6,9 +6,7 @@ from time import perf_counter
 from typing import Any
 
 from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION, calculate, catalog
-from tools.channel_candidates import channel_candidates
-from tools.closed_daily import closed_daily
-from tools.recent_drawing_candidates import recent_drawing_candidates
+from tools.automatic_analysis import AUTOMATIC_ANALYSES, analyze_automatic, stored_automatic_result
 from tools.channels import edit_channel
 from tools.fibonacci import edit_fibonacci
 from tools.lines import LineError
@@ -16,9 +14,6 @@ from tools.polylines import edit_polyline
 from tools.price_bands import calculate_price_band
 from tools.price_series import PriceCondition, PriceSource, calculate_price_series
 from tools.price_sticks import calculate_price_sticks
-from tools.range_candidates import DEFAULT_WINDOW_SIZES, range_candidates
-from tools.price_patterns import price_pattern_candidates
-from tools.nine_count import nine_count
 from tools.rectangles import edit_rectangle
 
 from .state import CodexChartStore
@@ -131,57 +126,16 @@ def run_chart_function(store: CodexChartStore, context_ref: str, expected_revisi
     context = _bound(store, context_ref, expected_revision, chart_session, symbol)
     payload = store.chart_payload(context_ref)
     values = dict(parameters or {})
-    if function in {"price_pattern_candidates", "nine_count", "recent_drawing_candidates"}:
-        allowed = ({"pattern_types", "lookback_bars", "max_candidates", "anchor_times"}
-                   if function == "price_pattern_candidates" else {"display_bars"} if function == "nine_count"
-                   else {"drawing_type", "lookback_bars", "max_candidates"})
-        if values.keys() - allowed:
-            raise LineError("invalid_function_parameters", "参数不适用于该分析函数。")
-        common = {"symbol": context["symbol"], "interval": context["interval"],
-                  "source_interval": context["interval"], "interval_value": context.get("interval_value"),
-                  "provider": payload.get("data_meta", {}).get("source")}
-        if function == "recent_drawing_candidates":
-            result = recent_drawing_candidates(context["candles"], **common,
-                drawing_type=values.get("drawing_type"), lookback_bars=values.get("lookback_bars", 120),
-                max_candidates=values.get("max_candidates", 5))
-            stored = {"candidates": result["candidates"]}
-        elif function == "price_pattern_candidates":
-            result = price_pattern_candidates(context["candles"], **common,
-                volume_unit=payload.get("display_volume_unit"),
-                pattern_types=values.get("pattern_types"), lookback_bars=values.get("lookback_bars", 240),
-                max_candidates=values.get("max_candidates", 5),
-                anchor_times=tuple(values["anchor_times"]) if "anchor_times" in values else None)
-            stored = {"candidates": result["candidates"]}
-        else:
-            result = nine_count(context["candles"], **common, display_bars=values.get("display_bars", 120))
-            stored = {"marks": result["marks"], "events": result["events"],
-                      "rule_version": result["rule_version"], "as_of": result["as_of"]}
-        ref = store.store_result(context_ref, revision=expected_revision, kind=function, result=stored)
+    if function in AUTOMATIC_ANALYSES:
+        result, _ = analyze_automatic(function, context["candles"], symbol=context["symbol"],
+            interval=context["interval"], source_interval=context["interval"],
+            interval_value=context.get("interval_value"), provider=payload.get("data_meta", {}).get("source"),
+            volume_unit=payload.get("display_volume_unit"), parameters=values)
+        ref = store.store_result(context_ref, revision=expected_revision, kind=function,
+                                 result=stored_automatic_result(function, result))
         return {"ok": True, "result_ref": ref, "function": function, "kind": function,
                 "result_usage": "analysis_only", "summary": result, "chart_modified": False,
-                "function_version": "1"}
-    if function == "channel_candidates":
-        candles = context["candles"]
-        if values.get("closed_daily_only"):
-            candles, quality = closed_daily(candles, symbol=context["symbol"], interval=context["interval"],
-                source_interval=context["interval"], interval_value=context.get("interval_value"),
-                provider=payload.get("data_meta", {}).get("source"))
-        result = channel_candidates(candles, direction=values.get("direction", "both"), scope=values.get("scope", "current"),
-                                    lookback_bars=values.get("lookback_bars", 120), left_bars=values.get("left_bars", 2), right_bars=values.get("right_bars", 2),
-                                    min_span_bars=values.get("min_span_bars", 12), limit=values.get("max_candidates", 3))
-        if values.get("closed_daily_only"): result = {**result, "as_of": quality["as_of"], "data_quality": quality}
-        ref = store.store_result(context_ref, revision=expected_revision, kind="channel_candidates", result={"candidates": result.get("candidates", [])})
-        return {"ok": True, "result_ref": ref, "function": function, "kind": "channel_candidates", "result_usage": "analysis_only", "summary": result, "chart_modified": False}
-    if function == "range_candidates":
-        candles = context["candles"]
-        if values.get("closed_daily_only"):
-            candles, quality = closed_daily(candles, symbol=context["symbol"], interval=context["interval"],
-                source_interval=context["interval"], interval_value=context.get("interval_value"),
-                provider=payload.get("data_meta", {}).get("source"))
-        result = range_candidates(candles, window_sizes=values.get("window_sizes", DEFAULT_WINDOW_SIZES), limit=values.get("max_candidates", 3))
-        if values.get("closed_daily_only"): result = {**result, "as_of": quality["as_of"], "data_quality": quality}
-        ref = store.store_result(context_ref, revision=expected_revision, kind="range_candidates", result={"candidates": result.get("candidates", [])})
-        return {"ok": True, "result_ref": ref, "function": function, "kind": "range_candidates", "result_usage": "analysis_only", "summary": result, "chart_modified": False}
+                "function_version": AUTOMATIC_ANALYSES[function].version}
     if function == "price_series_line":
         source = PriceSource.model_validate(values.get("value_source")); condition = PriceCondition.model_validate(values["condition"]) if values.get("condition") is not None else None
         calculated = calculate_price_series(context["candles"], source, condition)

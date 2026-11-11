@@ -18,6 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from core.rows import validate_rows
+from tools.automatic_analysis import candidate_edit_parameters, candidate_function_for_kind
 
 from tools.annotations import ANNOTATION_COMMAND, ANNOTATION_KINDS, edit_annotation
 from tools.channels import CHANNEL_COMMAND, edit_channel
@@ -156,9 +157,11 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
     if edit.kind != "all_drawings" and ((edit.action == "create") != (edit.object_id is None)):
         raise LineError("invalid_object_identity", "创建不指定 object_id；修改或删除必须使用当前图的稳定对象 ID。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in {"channel", "rectangle", "price_pattern"}
+    candidate_kinds = {"horizontal_line", "trend_line", "fibonacci_retracement", "labeled_polyline", "channel", "rectangle", "price_pattern"}
+    candidate_extras = {"name", "color", "show_midline", "show_fill"} | ({"ratios"} if edit.kind == "fibonacci_retracement" else set())
+    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in candidate_kinds
             or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
-            or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
+            or fields.keys() - candidate_fields - candidate_extras):
         raise LineError(
             "candidate_confirmation_required",
             "候选绘图需要用户直接绘图请求或明确选定候选，并保留当前结果引用、序号及授权标记。",
@@ -392,26 +395,8 @@ class CodexChartStore:
         number = params.pop("candidate_number", None)
         params.pop("user_confirmed_candidate", None)
         if candidate_ref:
-            candidates = self.result(state, candidate_ref, "channel_candidates" if edit.kind == "channel" else "range_candidates" if edit.kind == "rectangle" else "price_pattern_candidates").get("candidates")
-            if not isinstance(candidates, list) or not isinstance(number, int) or not 1 <= number <= len(candidates):
-                raise LineError("candidate_not_found", "所选候选不存在或不属于当前图。")
-            selected = candidates[number - 1]
-            if edit.kind == "channel":
-                anchors = selected.get("anchors", {})
-                try:
-                    params.update({"start_time": str(anchors["from"]["time"]), "start_price": anchors["from"]["price"],
-                                   "end_time": str(anchors["to"]["time"]), "end_price": anchors["to"]["price"],
-                                   "parallel_time": str(anchors["parallel"]["time"]), "parallel_price": anchors["parallel"]["price"]})
-                except (TypeError, KeyError):
-                    raise LineError("candidate_result_invalid", "通道候选锚点不完整。") from None
-            elif edit.kind == "rectangle":
-                try:
-                    params.update({"start_time": str(selected["start_time"]), "end_time": str(selected["end_time"]),
-                                   "lower_price": selected["lower_price"], "upper_price": selected["upper_price"]})
-                except (TypeError, KeyError):
-                    raise LineError("candidate_result_invalid", "平台候选边界不完整。") from None
-            else:
-                params.update({"pattern": deepcopy(selected), "rule_version": "price_patterns_v1", "as_of": selected["as_of"]})
+            summary = self.result(state, candidate_ref, candidate_function_for_kind(edit.kind))
+            params.update(candidate_edit_parameters(edit.kind, summary, number))
         return params
 
     def _edit_payload(self, payload: dict[str, Any], edit: CodexChartEdit, params: dict[str, Any], request_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -437,7 +422,7 @@ class CodexChartStore:
         if edit.kind == "rectangle": return edit_rectangle(payload, edit.action, **arguments)
         if edit.kind == "fibonacci_retracement": return edit_fibonacci(payload, edit.action, **arguments)
         if edit.kind == "labeled_polyline":
-            if edit.action == "update" and edit.result_ref is not None: arguments["replace_from_result"] = True
+            if edit.action == "update" and (edit.result_ref is not None or edit.candidate_result_ref is not None): arguments["replace_from_result"] = True
             return edit_polyline(payload, edit.action, **arguments)
         if edit.kind in ANNOTATION_KINDS:
             arguments["kind"] = edit.kind

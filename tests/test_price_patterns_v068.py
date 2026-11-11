@@ -1,5 +1,6 @@
 """Causal rule and guarded group tests; synthetic bars are not real market evidence."""
 from datetime import datetime, timedelta, timezone
+from collections import Counter
 import json
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -13,7 +14,7 @@ from tools.chart_functions import ChartFunctionParameters, _calculate
 from tools.lines import LineError
 from tools.nine_count import nine_count
 from tools.pattern_groups import edit_pattern_group
-from tools.price_patterns import _same_platform_family, price_pattern_candidates
+from tools.price_patterns import _alternating_platform_touches, _same_platform_family, _structure, price_pattern_candidates
 
 
 def test_nearby_platform_cards_share_one_recent_family_but_distinct_breakouts_remain():
@@ -27,6 +28,13 @@ def test_nearby_platform_cards_share_one_recent_family_but_distinct_breakouts_re
     assert _same_platform_family(newest, adjacent)
     assert not _same_platform_family(newest, older_breakout)
     assert not _same_platform_family(newest, wider_box)
+
+
+def test_platform_touches_must_revisit_a_boundary_after_crossing_the_box():
+    touches = {"upper_touch_times": [1, 4], "lower_touch_times": [7, 10]}
+    assert not _alternating_platform_touches(touches)
+    assert _alternating_platform_touches({"upper_touch_times": [1, 10], "lower_touch_times": [4, 7]})
+    assert not _alternating_platform_touches({"upper_touch_times": [1, 4], "lower_touch_times": [4, 7]})
 
 NOW = datetime(2026, 11, 9, tzinfo=timezone.utc)
 
@@ -48,6 +56,17 @@ def price_rows(knots, count, *, reflect=False):
 
 DOUBLE = {0: 100, 39: 115.6, 40: 120, 45: 113, 50: 120, 53: 112, 54: 111, 55: 110, 100: 110}
 HEAD = {0: 100, 39: 119.5, 45: 125, 50: 115, 55: 132, 60: 116, 65: 125, 70: 113, 71: 112, 72: 111, 100: 111}
+
+
+def test_first_anchor_at_left_edge_never_reads_future_close():
+    rows = price_rows({0: 100, 19: 110, 20: 120, 30: 110, 40: 120, 60: 1000}, 61)
+    anchors = [{"index": i, "price": p} for i, p in [(20, 120), (30, 110), (40, 120)]]
+    reasons = Counter()
+    assert _structure("double_top", anchors, 2, rows, reasons) is None
+    assert reasons["insufficient_prior_trend"] == 1
+    rows[20]["close"] = 110
+    assert _structure("double_top", [{**anchors[0], "index": 21}, *anchors[1:]],
+                      2, rows, Counter()) is not None
 
 
 @pytest.mark.parametrize("kind,knots,reflect,expected", [
@@ -112,8 +131,12 @@ def test_sixty_bar_confirmation_boundary_and_observation_end_are_causal():
 
 
 def test_platform_freezes_box_before_breakout_and_preserves_confirmation_event():
-    closes = [100 + .1 * i for i in range(30)] + [101, 109, 101, 109, 105] * 4 + [113, 114] + [105] * 24
+    closes = [105] * 50 + [113, 114] + [105] * 24
     rows = price_rows({i: c for i, c in enumerate(closes)}, len(closes))
+    for index in (30, 40):
+        rows[index]["high"] = 110
+    for index in (35, 45):
+        rows[index]["low"] = 100
     result = price_pattern_candidates(rows, symbol="600519.XSHG", provider="ftshare",
                                       pattern_types=["platform"], now=NOW)
     failed = next(x for x in result["candidates"] if x["status"] == "breakout_failed")
@@ -152,6 +175,18 @@ def test_nine_left_edge_equal_reversal_and_known_gap_are_explicit():
     assert "known_gaps_segmented" in segmented["limitations"]
     assert not any(10 <= mark["index"] <= 14 for mark in segmented["marks"])
     assert segmented["marks"][:4] == result["marks"][:4]
+
+
+def test_nine_direction_places_up_above_and_down_below_even_after_nine_reverses():
+    closes = [10] * 5 + list(range(9, 0, -1)) + [20] + [20] * 15
+    rows = price_rows({i: value for i, value in enumerate(closes)}, len(closes))
+    result = nine_count(rows, symbol="600519.XSHG", provider="ftshare", display_bars=30, now=NOW)
+    down_nine = next(mark for mark in result["marks"] if mark["direction"] == "down" and mark["count"] == 9)
+    up_one = next(mark for mark in result["marks"] if mark["direction"] == "up" and mark["count"] == 1)
+    assert down_nine["index"] == 13
+    assert down_nine["price"] == rows[13]["low"]
+    assert up_one["index"] == 14
+    assert up_one["price"] == rows[14]["high"]
 
 
 @pytest.mark.parametrize("symbol,zone,before,after", [
@@ -266,11 +301,14 @@ def test_dsh_and_codex_share_exact_pattern_and_nine_summaries_and_guarded_nine_r
                              ("price_pattern_candidates", {"pattern_types": ["double_top"],
                                                            "anchor_times": [rows[i]["time"] for i in (40, 45, 50)]}),
                              ("recent_drawing_candidates", {"drawing_type": "horizontal"}),
+                             ("channel_candidates", {"closed_daily_only": True}),
+                             ("range_candidates", {"closed_daily_only": True}),
                              ("nine_count", {"display_bars": 120})):
         codex = run_chart_function(store, state.context_ref, 1, state.chart_session,
                                    "600519.XSHG", function, params)
         dsh = _calculate(payload, function, ChartFunctionParameters(**params), candles=rows, context=context)
         assert codex["summary"] == dsh["summary"]
+        assert codex["function_version"] == dsh["function_version"]
         if function == "nine_count" and codex["summary"]["marks"]:
             prepared = store.prepare(state.context_ref, 1, state.chart_session, "600519.XSHG", "nine", {
                 "kind": "nine_count", "action": "create", "result_ref": codex["result_ref"]})
@@ -280,6 +318,25 @@ def test_dsh_and_codex_share_exact_pattern_and_nine_summaries_and_guarded_nine_r
                 store.prepare(state.context_ref, 1, state.chart_session, "600519.XSHG", "stale-nine", {
                     "kind": "nine_count", "action": "update", "object_id": prepared["object"]["id"],
                     "result_ref": codex["result_ref"]})
+
+
+def test_dsh_and_codex_share_the_filtered_real_platform_candidates():
+    fixture = json.loads((Path(__file__).parents[1] / "docs" / "fixtures" / "price-pattern-real-v1.json").read_text())
+    series = fixture["series"]["MSFT.US@500"]
+    rows = series["rows"]
+    payload = {"symbol": series["symbol"], "interval": "day", "interval_value": 1,
+               "display_volume_unit": series["volume_unit"], "data_meta": {"source": series["source"]},
+               "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
+    state = (store := CodexChartStore()).create(payload)
+    params = {"pattern_types": ["platform"]}
+    codex = run_chart_function(store, state.context_ref, 1, state.chart_session,
+                               series["symbol"], "price_pattern_candidates", params)
+    context = {"symbol": series["symbol"], "interval": "day", "source_interval": "day",
+               "interval_value": 1, "data_provenance": {"provider": series["source"]},
+               "display_volume_unit": series["volume_unit"]}
+    dsh = _calculate(payload, "price_pattern_candidates", ChartFunctionParameters(**params), candles=rows, context=context)
+    assert codex["summary"] == dsh["summary"]
+    assert codex["summary"]["candidate_count"] >= 1
 
 
 @pytest.mark.parametrize("case_index", range(20))

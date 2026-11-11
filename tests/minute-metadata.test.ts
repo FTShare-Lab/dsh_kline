@@ -18,7 +18,7 @@ function fixture() {
     sourceRowsForCurrentInterval:()=>c.sourceCandles,cropRowsForRange:(value:any)=>value,buildLocalIndicatorCommands:()=>[],activeIndicators:()=>['vol'],
     indicatorStateVersion:1,INDICATOR_HISTORY_BUFFER_DAYS:0,lastLines:[],lastMarks:[],lastHorizontalLines:[],lastAgentTrendLines:[],lastAgentChannels:[],lastAgentRectangles:[],lastAgentFibonacci:[],lastAgentPolylines:[],lastAgentAnnotations:[],lastAgentSeriesLines:[],lastAgentPriceBands:[],lastAgentPriceSticks:[],lastAgentPricePatterns:[],lastAgentNineCounts:[],
     activeSecurityTab:'chart',currentCandles:rows,openingSymbol:false,kchart:{getVisibleRange:()=>({from:0,to:2})},
-    userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,maVisible:false,vwapVisible:false,volVisible:true,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,chartDataStatus:'delayed',volumeUnit:'wan',exchangeTimezone:'Asia/Shanghai',
+    userDrawings:[],customLevels:[],analysisLevels:[],currentSelection:null,emaVisible:false,maVisible:false,vwapVisible:false,volVisible:true,macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,chartDataStatus:'delayed',volumeUnit:'wan',exchangeTimezone:'Asia/Shanghai',
     workspaceTabs:[],activeWorkspaceTabId:'',workspaceTabId:(p:any)=>p.symbol,renderWorkspaceTabs(){},saveWorkspacePreferences(){},
     securityWorkspaceData:{},securityWorkspaceLoading:false,securityIntelligenceData:{},securityIntelligenceLoading:false,
     activeCompanyTab:'overview',clearRangePick(){},securityWorkspaceRequestId:0,securityIntelligenceRequestId:0,

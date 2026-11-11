@@ -65,7 +65,7 @@ class ChartEdit(BaseModel):
     ta_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$",
                                       description="明确选择同一当前图的 SMA/EMA(close) 到 series_line，或 BBANDS(close) 三线到 price_band；不自动绘图。")
     candidate_result_ref: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$",
-        description="通道/平台/形态候选的只读引用；用户直接要求自动绘图时可选择最新合格候选")
+        description="当前图自动候选的只读引用；用户直接要求自动绘图时可选择第一项")
     candidate_number: int | None = Field(default=None, strict=True, ge=1, le=5,
         description="用户指定或宿主从最新合格结果中选择的候选序号，从1开始")
     user_confirmed_candidate: bool | None = Field(default=None, strict=True,
@@ -106,9 +106,11 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
         or fields.keys() - {"ta_result_ref", "name", "color"}):
         raise LineError("ta_result_not_drawable", "仅允许把明确选定的 SMA/EMA 单线或 BBANDS 三线结果创建或更新为对应图形。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
-    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in {"channel", "rectangle", "price_pattern"}
+    candidate_kinds = {"horizontal_line", "trend_line", "fibonacci_retracement", "labeled_polyline", "channel", "rectangle", "price_pattern"}
+    candidate_extras = {"name", "color", "show_midline", "show_fill"} | ({"ratios"} if edit.kind == "fibonacci_retracement" else set())
+    if fields.keys() & candidate_fields and (edit.action not in {"create", "update"} or edit.kind not in candidate_kinds
         or not candidate_fields <= fields.keys() or edit.user_confirmed_candidate is not True
-        or fields.keys() - candidate_fields - {"name", "color", "show_midline", "show_fill"}):
+        or fields.keys() - candidate_fields - candidate_extras):
         raise LineError("candidate_confirmation_required", "候选绘图需要用户直接绘图请求或明确选定候选，并填写原结果引用、序号及授权标记。")
     if edit.kind == "all_drawings" and (edit.action != "delete" or edit.object_id is not None):
         raise LineError("invalid_object_identity", "清空当前图只使用 all_drawings/delete，不指定单个对象 ID。")
@@ -310,7 +312,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         else:
             editor, id_key = editors[edit.kind]
             arguments = dict(params)
-            if edit.kind == "labeled_polyline" and edit.action == "update" and edit.result_ref is not None:
+            if edit.kind == "labeled_polyline" and edit.action == "update" and (edit.result_ref is not None or edit.candidate_result_ref is not None):
                 arguments["replace_from_result"] = True
             if edit.kind in ANNOTATION_KINDS:
                 arguments["kind"] = edit.kind

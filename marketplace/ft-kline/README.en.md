@@ -16,7 +16,7 @@
 | Codex desktop | Yes, in an app card | Yes, after opening the current chart session | Yes |
 | Codex CLI | No interactive chart | No chart drawing | Yes, as structured results |
 
-The Codex plugin is currently **v0.6.8**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
+The development candidate is **v0.6.9** (unreleased); the current published Codex plugin is **v0.6.8**, available through this repository's public **FTShare GitHub marketplace**. It is not listed in the official public plugin directory. DSH retains its existing installation path. The DSH screenshots and persistent-watchlist description below apply to DSH Web; see [Codex setup and differences](#use-with-codex) for the separate plugin.
 
 ## What it helps you do
 
@@ -104,6 +104,8 @@ Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly config
 The selected file is reread before provider requests and is never modified or deleted by the plugin. Use JSON `{"version":1,"api_key":"your key"}`. macOS/Linux require owner-only permissions (`chmod 600`); symbolic links are rejected. Status reports only `environment`, `external_file`, `session` or `none`, never the key or path. Codex does not discover DSH credentials or scan `.env`, shell profiles, keychains or other apps; sharing a file requires explicitly configuring its path.
 
 Without a key, supported A-share, HK and US daily-history and index fallbacks remain available. Chart state, results, watchlists and App-entered keys stay in connection memory until the last view closes, disconnect, or 30 idle minutes. User-managed environment/file credentials are not deleted when a chart closes. DSH persistent watchlists are not inherited.
+
+For the v0.6.9 candidate, see [release notes](docs/release-notes-v0.6.9.md), [acceptance](docs/release-acceptance-v0.6.9.md), and [npm preparation](docs/npm-release.md).
 
 See the [v0.6.8 release notes](docs/release-notes-v0.6.8.md) and [acceptance checklist](docs/release-acceptance-v0.6.8.md) for verification and remaining manual desktop checks.
 

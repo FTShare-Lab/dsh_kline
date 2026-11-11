@@ -198,6 +198,42 @@ test('publisher serializes samples, sends metadata-only heartbeat and closes wit
   } finally { unblock(); publisher.dispose() }
 })
 
+test('page reload queues a small inactive report before a new view becomes active',async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'kline-pagehide-'))
+  const broker=new ChartContextBroker(directory)
+  const listeners=new Map<string,()=>void>(), beacons:Promise<any>[]=[], beaconBodies:any[]=[]
+  const previousWindow=(globalThis as any).window
+  ;(globalThis as any).window={
+    navigator:{sendBeacon:(path:string,blob:Blob)=>{
+      assert.equal(path,'/dsh-kline/context')
+      beacons.push(blob.text().then(text=>{const body=JSON.parse(text);beaconBodies.push(body);return broker.publish(body)}))
+      return true
+    }},
+    addEventListener:(type:string,fn:()=>void)=>listeners.set(type,fn),
+    removeEventListener:(type:string)=>listeners.delete(type),
+  }
+  let initialPublished:()=>void=()=>{}
+  const published=new Promise<void>(resolve=>{initialPublished=resolve})
+  const publisher=createChartContextPublisher({conversationId:'A',viewId:'a'.repeat(32),capture:state,
+    isActive:()=>true,transport:body=>broker.publish(body),onPublished:()=>initialPublished()})
+  try {
+    await published
+    assert.match(broker.prompt(assembly('A')),/browser observation/)
+    listeners.get('pagehide')?.()
+    await Promise.all(beacons)
+    await new Promise(resolve=>setImmediate(resolve))
+    assert.equal(beaconBodies.length,1)
+    assert.equal(beaconBodies[0].active,false)
+    assert.equal(beaconBodies[0].state.state,'empty')
+    await broker.publish(publication('b'.repeat(32),'A'))
+    assert.doesNotMatch(broker.prompt(assembly('A')),/ambiguous_views/)
+  } finally {
+    publisher.dispose()
+    ;(globalThis as any).window=previousWindow
+    await rm(directory,{recursive:true,force:true})
+  }
+})
+
 test('publisher associates its receipt with the exact chart state sent before a view change',async()=>{
   let current=state(),release:()=>void=()=>{}
   const inFlight=new Promise<void>(resolve=>{release=resolve})
@@ -331,7 +367,7 @@ test('view collector reads real viewport, separates user/AI objects, and marks l
   const context:any={activeSecurityTab:'chart',currentSymbol:'TEST.X',currentName:'测试',currentInterval:'day',currentRangeKey:'custom',
     currentCandles:state().candles,lastChartPayload:{symbol:'TEST.X',interval:'day',range_key:'custom',chartCommands:[{type:'DRAW_HORIZONTAL_LINE',id:'H',price:31,label:'完整线',color:'success'}]},
     openingSymbol:false,kchart:{getVisibleRange:()=>({from:1,to:3})},userDrawings:[],customLevels:[],analysisLevels:[],
-    currentSelection:{kind:'candle',symbol:'TEST.X',interval:'day',candle:{time:2}},maVisible:false,vwapVisible:false,volVisible:true,
+    currentSelection:{kind:'candle',symbol:'TEST.X',interval:'day',candle:{time:2}},emaVisible:false,maVisible:false,vwapVisible:false,volVisible:true,
     macdVisible:false,kdjVisible:false,bollVisible:false,rsiVisible:false,atrVisible:false,chartDataStatus:'delayed',volumeUnit:'wan',currentAdjust:'qfq'}
   const capture=runInNewContext(source+'; captureChartContext',context)
   const ready=capture('a'.repeat(32))

@@ -16,12 +16,14 @@ from core.calc import (
     DEFAULT_KDJ,
     DEFAULT_MACD,
     DEFAULT_MA_PERIODS,
+    DEFAULT_EMA_PERIOD,
     DEFAULT_RSI_PERIOD,
     DEFAULT_VOLUME_MA,
     series_atr,
     series_boll,
     series_kdj,
     series_ma,
+    series_ema,
     series_macd,
     series_rsi,
     series_vwap,
@@ -30,7 +32,7 @@ from core.calc import (
 from core.rows import validate_rows
 from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION
 
-SUPPORTED_INDICATORS = ("ma", "vwap", "vol", "macd", "kdj", "boll", "rsi", "atr")
+SUPPORTED_INDICATORS = ("ma", "ema", "vwap", "vol", "macd", "kdj", "boll", "rsi", "atr")
 
 
 def _safe_https_url(value: Any) -> str | None:
@@ -118,7 +120,7 @@ def _normalize_comparisons(comparisons: Any) -> list[dict[str, Any]]:
     if not isinstance(comparisons, list):
         return []
     normalized: list[dict[str, Any]] = []
-    for item in comparisons[:3]:
+    for item in comparisons[:12]:
         if not isinstance(item, dict):
             continue
         symbol = str(item.get("symbol") or "").strip()
@@ -134,6 +136,9 @@ def _normalize_comparisons(comparisons: Any) -> list[dict[str, Any]]:
                 "symbol": symbol[:48],
                 "name": str(item.get("name") or symbol)[:120],
                 "rows": normalized_rows,
+                "exchange_timezone": str(item.get("exchange_timezone") or "")[:64],
+                "interval": str(item.get("interval") or "day")[:16],
+                "visible": item.get("visible") is not False,
             }
         )
     return normalized
@@ -144,6 +149,7 @@ def build_chart_commands(
     *,
     indicators: list[str] | None = None,
     ma_periods: list[int] | None = None,
+    ema_period: int = DEFAULT_EMA_PERIOD,
     marks: Any = None,
     lines: Any = None,
     boll_period: int = DEFAULT_BOLL_PERIOD,
@@ -187,6 +193,14 @@ def build_chart_commands(
                 "note": "data keys are unix seconds; view multiplies by 1000 for klinecharts",
             }
         )
+
+    if "ema" in inds:
+        cmds.append({
+            "type": "SET_INDICATOR_SERIES", "name": "ema", "pane": "candle",
+            "params": {"period": int(ema_period)},
+            "data": {"ema": _map_to_str_keys(series_ema(rows, ema_period))},
+            "note": "data keys are unix seconds; view multiplies by 1000 for klinecharts",
+        })
 
     if "vwap" in inds:
         cmds.append(
@@ -329,6 +343,7 @@ def draw_kline(
     indicators: list[str] | None = None,
     indicators_explicit: bool | None = None,
     ma_periods: list[int] | None = None,
+    ema_period: int = DEFAULT_EMA_PERIOD,
     marks: Any = None,
     lines: Any = None,
     comparisons: Any = None,
@@ -352,6 +367,7 @@ def draw_kline(
         norm,
         indicators=inds,
         ma_periods=ma_periods,
+        ema_period=ema_period,
         marks=marks,
         lines=lines,
         boll_period=boll_period,

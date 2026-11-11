@@ -38,7 +38,7 @@ function fixture(type: string, selectedId: string | null = null) {
     crypto: { randomUUID: () => 'request-1' }, sleep: async () => {},
     queueMicrotask: () => {},
   }
-  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint, dataKey: workbenchDataKey, bindingMatches: workbenchBindingMatches })', context)
+  const api = runInNewContext(source + ';({ state: workbenchState, type: workbenchType, proposal: workbenchProposal, apply: workbenchApplyProposal, pendingFocus: () => pendingDrawingFocus, finishFocus: finishPendingDrawingFocus, signature: workbenchParameterSignature, begin: beginWorkbenchPick, replace: beginWorkbenchReplace, point: workbenchPoint, dataKey: workbenchDataKey, bindingMatches: workbenchBindingMatches })', context)
   api.state.selectedId = selectedId
   return { api, calls, fields, context }
 }
@@ -76,7 +76,7 @@ test('channel proposal sends explicit three anchors to deterministic function, n
   assert.equal(proposal.edit.result_ref, 'd'.repeat(64))
 })
 
-test('ABC candidate switches use a bound function result for atomic group replacement', async () => {
+test('ABC manual anchor edits use a bound function result for atomic group replacement', async () => {
   const { api, calls, context } = fixture('abc', 'poly_1')
   const original = [10, 20, 30].map((time, index) => ({ label: 'ABC'[index], time, price: 100 + index }))
   context.captureChartContext = () => ({ state: 'ready', source_chart_session: 'b'.repeat(32),
@@ -101,6 +101,20 @@ test('direct drawing uses prepare, apply, then exact candidate status', async ()
   assert.equal(calls[0].args.edit.price, 123)
   assert.equal(calls[1].args.candidate_chart_session, 'e'.repeat(32))
   assert.equal(outcome.status.apply_status, 'applied')
+})
+
+test('automatic drawing focuses only after its exact chart session renders', async () => {
+  const { api, context } = fixture('horizontal')
+  const focus: number[][] = []
+  context.focusAutoPreview = (times: number[]) => { focus.push([...times]); return true }
+  await api.apply({ binding: { context_ref: 'a', symbol: 'TEST.X' }, edit: { kind: 'line', action: 'create' }, focusTimes: [10, 20] })
+  assert.equal(api.pendingFocus().chartSession, 'e'.repeat(32))
+  api.finishFocus({ _live_chart_session: 'old', chartCommands: [{ id: 'line_1' }] })
+  api.finishFocus({ _live_chart_session: 'e'.repeat(32), chartCommands: [{ id: 'other' }] })
+  assert.equal(focus.length, 0)
+  api.finishFocus({ _live_chart_session: 'e'.repeat(32), chartCommands: [{ id: 'line_1' }] })
+  assert.deepEqual(focus, [[10, 20]])
+  assert.equal(api.pendingFocus(), null)
 })
 
 test('a pending drawing blocks a parallel prepare and releases the tool selector after acknowledgment', async () => {
@@ -155,10 +169,11 @@ test('the workbench keeps curated objects and lists old drawings without a secon
   for (const label of ['水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（三点折线）'])
     assert.ok(html.includes(label), label)
   const drawingOptions = html.match(/<select id="workbenchType">([\s\S]*?)<\/select>/)?.[1] || ''
-  for (const type of ['sma', 'ema', 'boll']) {
+  for (const type of ['sma', 'ema', 'boll'])
     assert.doesNotMatch(drawingOptions, new RegExp(`value="${type}"`))
-    assert.match(html, new RegExp(`data-workbench-indicator="${type}"`))
-  }
+  for (const id of ['indMa', 'indEma', 'indBoll'])
+    assert.match(html, new RegExp(`id="${id}" type="checkbox"`))
+  assert.doesNotMatch(html, /data-workbench-indicator=|单独添加/)
   assert.match(html, /class="workbench-legacy"[\s\S]*id="drawingList"/)
   assert.doesNotMatch(html, /id="drawingPopover"|data-drawing-type=/)
   assert.match(html, /id="drawingWorkbench"/)
@@ -225,7 +240,7 @@ test('viewport revision preserves an analyzed source while a new candle source e
 test('channel picking accepts three distinct bars while ordinary range selection remains separate', () => {
   const { api, context, fields } = fixture('channel')
   fields.toolbarHint = { textContent: '' }
-  fields.drawingWorkbench = { classList: { contains: () => true } }
+  fields.drawingWorkbench = { classList: { contains: () => true, add() {}, remove() {} } }
   context.currentCandles = [{ time: 10, close: 100 }, { time: 20, close: 90 }, { time: 30, close: 120 }]
   context.setDrawingCaptureActive = () => {}
   context.t = () => '普通区间选择'
@@ -246,7 +261,7 @@ test('channel picking accepts three distinct bars while ordinary range selection
 test('reselecting a single channel anchor preserves its peers', () => {
   const { api, context, fields } = fixture('channel')
   fields.toolbarHint = { textContent: '' }
-  fields.drawingWorkbench = { classList: { contains: () => true } }
+  fields.drawingWorkbench = { classList: { contains: () => true, add() {}, remove() {} } }
   context.setDrawingCaptureActive = () => {}
   context.t = () => '普通区间选择'
   context.renderWorkbenchAnchors = () => context.syncWorkbenchPickUi()
@@ -281,9 +296,32 @@ test('reviewed channel candidate uses only its bound result reference and select
   await assert.rejects(() => api.proposal('create'), /候选与当前图不匹配/)
 })
 
+for (const [type, kind, anchors] of [
+  ['horizontal', 'horizontal_line', [{ time: 10, price: 100 }]],
+  ['trend', 'trend_line', [{ time: 10, price: 100 }, { time: 30, price: 120 }]],
+  ['fibonacci', 'fibonacci_retracement', [{ time: 10, price: 100 }, { time: 30, price: 120 }]],
+  ['abc', 'labeled_polyline', [{ time: 10, price: 100 }, { time: 20, price: 120 }, { time: 30, price: 110 }]],
+] as const) {
+  test(`${type} automatic candidate uses the same guarded result path`, async () => {
+    const { api, calls } = fixture(type)
+    api.state.anchors = anchors.map(point => ({ ...point }))
+    api.state.candidate = { ref: 'f'.repeat(64), number: 1, type,
+      binding: { context_ref: 'a'.repeat(32), expected_revision: 7,
+        chart_session: 'b'.repeat(32), symbol: 'TEST.X' } }
+    const proposal = await api.proposal('create')
+    assert.equal(calls.length, 0)
+    assert.equal(proposal.edit.kind, kind)
+    assert.equal(proposal.edit.candidate_result_ref, 'f'.repeat(64))
+    assert.equal(proposal.edit.candidate_number, 1)
+    assert.ok(!('result_ref' in proposal.edit))
+    assert.ok(!('start_price' in proposal.edit))
+    if (type === 'fibonacci') assert.equal(proposal.edit.ratios.length, 7)
+  })
+}
+
 test('there is only one chart drawing renderer and no temporary SVG layer', () => {
   assert.doesNotMatch(html, /class="workbench-preview"/)
   assert.match(html, /function drawAgentPatternGroupCommands\(commands, strict = false\)/)
-  assert.match(html, /await workbenchApplyProposal\(proposal\)/)
-  assert.match(html, /await workbenchApplyProposal\(\{ binding, edit \}\)/)
+  assert.match(html, /await workbenchApplyProposal\(\{ \.\.\.proposal,\s*focusTimes:/)
+  assert.match(html, /await workbenchApplyProposal\(\{ binding, edit, focusTimes \}\)/)
 })

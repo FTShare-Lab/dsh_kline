@@ -248,7 +248,7 @@ mcp = FastMCP(
 )
 
 
-_SUPPORTED_INDICATORS = frozenset({"ma", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"})
+_SUPPORTED_INDICATORS = frozenset({"ma", "ema", "vol", "macd", "kdj", "boll", "rsi", "atr", "vwap"})
 _SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9_-]{0,15}(?:\.[A-Z]{2,6})?$", re.IGNORECASE)
 _SUPPORTED_INTERVALS = ("minute", "day", "week", "month", "quarter", "year")
 
@@ -775,7 +775,7 @@ async def analyze_kline_rows(
     interval: Annotated[str, Field(description="K 线周期：minute / day / week / month / quarter / year")] = "day",
     limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
     adjust: Annotated[AdjustmentInput, Field(description=ADJUSTMENT_DESCRIPTION + "；只标记调用方已有数据，不重新复权")] = "none",
-    indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
+    indicators: Annotated[list[str] | None, Field(description="ma / ema / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
     metrics: Annotated[list[str] | None, Field(description="指标摘要子集，可选：" + ", ".join(AVAILABLE_METRICS))] = None,
     mark_support_resistance: Annotated[bool, Field(description="仅在用户明确要求支撑位/压力位时设为 true")] = False,
     ma_periods: Annotated[list[int] | None, Field(description=f"MA 周期，默认 {DEFAULT_MA_PERIODS}")] = None,
@@ -843,7 +843,7 @@ async def analyze_kline(
     session_count: Annotated[int | None, Field(ge=1, le=10, description="分钟 K 的最近交易日数量")] = None,
     limit: Annotated[int, Field(ge=2, le=4000, description="最终分析使用的最近 K 线根数")] = 60,
     adjust: Annotated[AdjustmentInput, Field(description=ADJUSTMENT_DESCRIPTION)] = "none",
-    indicators: Annotated[list[str] | None, Field(description="ma / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
+    indicators: Annotated[list[str] | None, Field(description="ma / ema / vol / macd / kdj / boll / rsi / atr / vwap")] = None,
     metrics: Annotated[list[str] | None, Field(description="指标摘要子集，可选：" + ", ".join(AVAILABLE_METRICS))] = None,
     mark_support_resistance: Annotated[bool, Field(description="仅在用户明确要求支撑位/压力位时设为 true；默认不标注")] = False,
     ma_periods: Annotated[list[int] | None, Field(description=f"MA 周期，默认 {DEFAULT_MA_PERIODS}")] = None,

@@ -18,7 +18,7 @@ function collector() {
     currentInterval: 'day', sourceCandleInterval: 'day', currentRangeKey: 'custom', currentAdjust: 'none',
     currentCandles: rows, lastChartPayload: { symbol: 'TEST.X', interval: 'day', data_meta: { source: 'ftshare' } },
     openingSymbol: false, kchart: {}, userDrawings: [], customLevels: [], analysisLevels: [], currentSelection: null,
-    maVisible: false, vwapVisible: false, volVisible: true, macdVisible: false, kdjVisible: false,
+    emaVisible:false,maVisible: false, vwapVisible: false, volVisible: true, macdVisible: false, kdjVisible: false,
     bollVisible: false, rsiVisible: false, atrVisible: false, chartDataStatus: 'delayed', volumeUnit: 'wan',
     exchangeTimezone: 'Asia/Shanghai', chartDataSource: 'ftshare' }
   const source = html.slice(html.indexOf('function captureChartContext('), html.indexOf('function refreshMirrorAxes('))

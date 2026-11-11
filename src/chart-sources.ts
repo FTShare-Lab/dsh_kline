@@ -156,6 +156,7 @@ export function sanitizeSourcePayload(raw:any,state:any):any {
   if(typeof raw.data_meta?.updated_at==='number' && Number.isFinite(raw.data_meta.updated_at) && raw.data_meta.updated_at>0)meta.updated_at=raw.data_meta.updated_at
   const payload={symbol:state.symbol,name:state.name,interval:state.interval,interval_value:state.interval_value,
     adjust:state.adjust,range_key:state.range_key,count:state.candles.length,indicators:state.indicators,
+    display_volume_unit:state.display_volume_unit,
     indicators_explicit:true,data_meta:meta,chartCommands:commands}
   if(canonicalAI({...state,drawings:drawingInventory(payload)})!==canonicalAI(state))throw Error('source_inventory_mismatch')
   return payload

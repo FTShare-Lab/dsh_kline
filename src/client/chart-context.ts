@@ -48,7 +48,7 @@ export function createChartContextPublisher(options: Options) {
       Promise.resolve().then(()=>post(body,controller.signal)).then(value=>finish(resolve,value),error=>finish(reject,error))
     })
   }
-  let disposed=false, busy=false, pending=false, sequence=0, lastState='', lastActive: boolean | undefined
+  let disposed=false, pageHidden=false, busy=false, pending=false, sequence=0, lastState='', lastActive: boolean | undefined
   let scheduled=false, sourceRetryPending=false
   let lastCaptured: any
   let receipt:any
@@ -76,7 +76,7 @@ export function createChartContextPublisher(options: Options) {
         if(sourceRetryPending) {
           sourceRetryPending=false;blockedSourceState='';lastState=''
         }
-        const active=!disposed && options.isActive()
+        const active=!disposed && !pageHidden && options.isActive()
         const state=disposed ? lastCaptured ?? {state:'empty',candles:[],drawings:[]} : options.capture()
         lastCaptured=state
         const serialized=JSON.stringify(state)
@@ -152,9 +152,26 @@ export function createChartContextPublisher(options: Options) {
   const heartbeat=setInterval(notify,2000)
   const doc=typeof document==='undefined' ? undefined : document
   const win=typeof window==='undefined' ? undefined : window
+  function pagehide() {
+    if(disposed)return
+    pageHidden=true
+    // A reloaded page gets a new view ID. Close this view synchronously before
+    // the browser can suspend async work; otherwise it remains a false second
+    // active chart until the 90-second context lease expires.
+    let queued=false
+    try {
+      const body={conversation_id:options.conversationId,view_id:viewId,sequence:++sequence,
+        active:false,captured_at_ms:Date.now(),application_protocol:applications ? 'guarded-view-v1' : undefined,
+        state:{state:'empty',candles:[],drawings:[]}}
+      queued=win?.navigator?.sendBeacon?.('/dsh-kline/context',new Blob([JSON.stringify(body)],{type:'application/json'})) ?? false
+    } catch {} // The regular keepalive publication below is a fallback.
+    if(!queued)notify()
+  }
+  function pageshow() { pageHidden=false; lastState=''; lastActive=undefined; notify() }
   doc?.addEventListener('visibilitychange',notify)
   win?.addEventListener('focus',notify)
-  win?.addEventListener('pageshow',notify)
+  win?.addEventListener('pagehide',pagehide)
+  win?.addEventListener('pageshow',pageshow)
   notify()
   return { notify, retrySource() {
     if(disposed)return
@@ -164,7 +181,8 @@ export function createChartContextPublisher(options: Options) {
     disposed=true; clearInterval(heartbeat)
     doc?.removeEventListener('visibilitychange',notify)
     win?.removeEventListener('focus',notify)
-    win?.removeEventListener('pageshow',notify)
+    win?.removeEventListener('pagehide',pagehide)
+    win?.removeEventListener('pageshow',pageshow)
     for(const controller of inFlight)controller.abort()
     // A close queues behind the in-flight sample; sequence ordering prevents late revival.
     void flush()

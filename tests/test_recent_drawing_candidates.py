@@ -8,6 +8,8 @@ import pytest
 from tools.chart_functions import ChartFunctionParameters, _calculate
 from tools.price_patterns import price_pattern_candidates
 from tools.recent_drawing_candidates import recent_drawing_candidates
+from codex_runtime.functions import run_chart_function
+from codex_runtime.state import CodexChartStore
 
 
 def oscillating_rows(origin, count):
@@ -65,6 +67,40 @@ def test_abc_requires_origin_and_completed_third_leg_beyond_a():
     incomplete = recent_drawing_candidates(abc_rows(111), symbol="600519.XSHG", provider="ftshare",
                                            drawing_type="abc", now=now)
     assert incomplete["candidate_count"] == 0
+
+
+@pytest.mark.parametrize("drawing_type,kind,command", [
+    ("horizontal", "horizontal_line", "DRAW_HORIZONTAL_LINE"),
+    ("trend", "trend_line", "DRAW_AGENT_TREND_LINE"),
+    ("fibonacci", "fibonacci_retracement", "DRAW_AGENT_FIBONACCI"),
+    ("abc", "labeled_polyline", "DRAW_AGENT_POLYLINE"),
+])
+def test_recent_candidate_uses_guarded_ref_for_create_and_update(drawing_type, kind, command):
+    rows = abc_rows() if drawing_type == "abc" else oscillating_rows(
+        datetime(2025, 1, 1, 15, tzinfo=ZoneInfo("Asia/Shanghai")), 130)
+    payload = {"symbol": "600519.XSHG", "interval": "day", "interval_value": 1,
+               "data_meta": {"source": "ftshare"}, "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
+    store = CodexChartStore()
+    state = store.create(payload)
+    def analyze():
+        current = store.context(state.context_ref)
+        result = run_chart_function(store, state.context_ref, current["revision"], current["source_chart_session"],
+                                    "600519.XSHG", "recent_drawing_candidates", {"drawing_type": drawing_type})
+        assert result["summary"]["candidate_count"] > 0
+        return current, result
+    current, result = analyze()
+    edit = {"kind": kind, "action": "create", "candidate_result_ref": result["result_ref"],
+            "candidate_number": 1, "user_confirmed_candidate": True}
+    prepared = store.prepare(state.context_ref, current["revision"], current["source_chart_session"],
+                             "600519.XSHG", "first", edit)
+    assert prepared["object"]["type"] == command
+    object_id = prepared["object"]["id"]
+    store.apply(state.context_ref, prepared["chart_session"])
+    current, result = analyze()
+    edited = store.prepare(state.context_ref, current["revision"], current["source_chart_session"],
+                           "600519.XSHG", "second", {**edit, "action": "update", "object_id": object_id,
+                                                       "candidate_result_ref": result["result_ref"]})
+    assert edited["object"]["id"] == object_id
 
 
 def test_open_current_day_does_not_change_automatic_anchors():

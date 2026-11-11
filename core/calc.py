@@ -20,6 +20,7 @@ from core.ta_engine import ENGINE_VERSION, NATIVE_VERSION, arrays as _ta_arrays,
 # Defaults (shared by calc_metrics + draw_kline)
 # ---------------------------------------------------------------------------
 DEFAULT_MA_PERIODS = [5, 10, 20, 30, 60]
+DEFAULT_EMA_PERIOD = 20
 DEFAULT_LOOKBACK = 60
 DEFAULT_TOLERANCE_PCT = 0.5  # support/resistance touch band
 DEFAULT_RSI_PERIOD = 14
@@ -93,6 +94,13 @@ def series_ma(
         return {f"ma{int(p)}": {} for p in periods}
     close = _ta_arrays(rows)["close"]
     return {f"ma{int(p)}": _ta_map(rows, talib.SMA(close, timeperiod=int(p))) for p in periods}
+
+
+def series_ema(rows: list[dict[str, Any]], period: int = DEFAULT_EMA_PERIOD) -> dict[int, float]:
+    """Return the TA-Lib EMA(close) series keyed by candle time."""
+    if not rows:
+        return {}
+    return _ta_map(rows, talib.EMA(_ta_arrays(rows)["close"], timeperiod=int(period)))
 
 
 def series_vol_ma(
