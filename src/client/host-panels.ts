@@ -29,7 +29,9 @@ export interface KlinePanelsService {
    * Fill `seat` with the chart panel.
    * @param seat - a slot name the host itself declares and renders.
    * @param options.chrome - chrome the panel keeps (default `chart-search`).
-   * @returns a disposer that removes the panel again.
+   * Repeated mounts with the same chrome share one panel until all callers
+   * release it. Conflicting chrome is rejected while the seat is in use.
+   * @returns an idempotent disposer for this caller's mount.
    */
   mount(seat: string, options?: { chrome?: KlineChrome }): () => void
 }
@@ -41,6 +43,75 @@ export interface PanelMountHost {
 
 /** Build the body for one seat; the component side supplies the React element. */
 export type PanelBodyFactory = (seat: string, chrome: KlineChrome | undefined) => unknown
+
+/** Pending requests survive slot-service replacement; callers own separate leases. */
+export interface PanelMountRegistry extends KlinePanelsService {
+  connect(service: KlinePanelsService): () => void
+}
+
+/** Coordinate caller lifetimes independently of the current slot-service lifetime. */
+export function createPanelMountRegistry(): PanelMountRegistry {
+  const requests = new Map<string, { chrome: KlineChrome; users: number }>()
+  type Connection = { service: KlinePanelsService; mounted: Map<string, () => void> }
+  let current: Connection | undefined
+
+  const disconnect = (connection: Connection) => {
+    if (current === connection) current = undefined
+    const disposers = [...connection.mounted.values()]
+    connection.mounted.clear()
+    const errors: unknown[] = []
+    for (const dispose of disposers) {
+      try { dispose() } catch (error) { errors.push(error) }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Could not release host chart panels')
+  }
+
+  return {
+    mount(seat, options) {
+      const chrome = options?.chrome ?? 'chart-search'
+      let request = requests.get(seat)
+      if (request && request.chrome !== chrome) throw new Error(`Chart panel "${seat}" is already mounted with different chrome`)
+      if (!request) {
+        request = { chrome, users: 0 }
+        requests.set(seat, request)
+        try {
+          if (current) current.mounted.set(seat, current.service.mount(seat, { chrome }))
+        } catch (error) {
+          requests.delete(seat)
+          throw error
+        }
+      }
+      const lease = request
+      lease.users += 1
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        if (--lease.users > 0 || requests.get(seat) !== lease) return
+        requests.delete(seat)
+        const dispose = current?.mounted.get(seat)
+        current?.mounted.delete(seat)
+        dispose?.()
+      }
+    },
+    connect(service) {
+      if (current) disconnect(current)
+      const connection: Connection = { service, mounted: new Map() }
+      current = connection
+      try {
+        for (const [seat, request] of requests) {
+          connection.mounted.set(seat, service.mount(seat, { chrome: request.chrome }))
+        }
+      } catch (error) {
+        try { disconnect(connection) } catch (cleanupError) {
+          throw new AggregateError([error, cleanupError], 'Could not attach host chart panels')
+        }
+        throw error
+      }
+      return () => disconnect(connection)
+    },
+  }
+}
 
 /**
  * Turn slot services plus a body factory into the `klinePanels` service.
@@ -56,7 +127,12 @@ export function createPanelMounts(host: PanelMountHost, body: PanelBodyFactory):
       // the native tab registration relies on.
       const dispose = host.slots.inject(seat, () =>
         host.slots.register({ name: seat }, body(seat, options?.chrome))) as unknown as (() => void) | undefined
-      return () => { dispose?.() }
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        dispose?.()
+      }
     },
   }
 }

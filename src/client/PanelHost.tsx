@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react'
 import type { ClientContext } from './client-context'
 import { StandaloneKlineApp } from './KlineContent'
 import type { KlineChrome } from './embed'
-import { createPanelMounts, type KlinePanelProps, type KlinePanelsService } from './host-panels.ts'
+import { createPanelMountRegistry, createPanelMounts, type KlinePanelProps, type KlinePanelsService } from './host-panels.ts'
 import type { SlotsService } from './native-sidebar-services'
 
 /**
@@ -46,42 +46,19 @@ export function KlinePanelHost({ seat, chrome = 'chart-search', symbol, name, on
  * @param ctx - the client context to register on.
  */
 export function registerPanelHosts(ctx: ClientContext): void {
-  const requests = new Map<string, { chrome?: KlineChrome }>()
-  const mounted = new Map<string, () => void>()
-  let mounts: KlinePanelsService | undefined
-
-  const flush = () => {
-    if (mounts === undefined) return
-    for (const [seat, options] of requests) {
-      if (mounted.has(seat)) continue
-      mounted.set(seat, mounts.mount(seat, options))
-    }
-  }
+  const panels = createPanelMountRegistry()
   const panelBody = (seat: string, chrome: KlineChrome | undefined) => (props: KlinePanelProps) =>
     <KlinePanelHost seat={seat} chrome={chrome} {...props} />
 
   ctx.inject(['slots'], scoped => {
     scoped.effect(() => {
       const slots = scoped.get('slots') as SlotsService | undefined
-      mounts = slots === undefined ? undefined : createPanelMounts({ slots }, panelBody)
-      flush()
-      return () => {
-        for (const dispose of mounted.values()) dispose()
-        mounted.clear()
-        mounts = undefined
-      }
+      if (slots === undefined) return () => {}
+      return panels.connect(createPanelMounts({ slots }, panelBody))
     }, 'dsh-kline: host panels')
   })
 
   ctx.provide('klinePanels', {
-    mount(seat, options) {
-      requests.set(seat, options ?? {})
-      flush()
-      return () => {
-        mounted.get(seat)?.()
-        mounted.delete(seat)
-        requests.delete(seat)
-      }
-    },
+    mount: panels.mount,
   } satisfies KlinePanelsService)
 }

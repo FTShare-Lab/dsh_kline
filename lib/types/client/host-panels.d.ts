@@ -26,7 +26,9 @@ export interface KlinePanelsService {
      * Fill `seat` with the chart panel.
      * @param seat - a slot name the host itself declares and renders.
      * @param options.chrome - chrome the panel keeps (default `chart-search`).
-     * @returns a disposer that removes the panel again.
+     * Repeated mounts with the same chrome share one panel until all callers
+     * release it. Conflicting chrome is rejected while the seat is in use.
+     * @returns an idempotent disposer for this caller's mount.
      */
     mount(seat: string, options?: {
         chrome?: KlineChrome;
@@ -38,6 +40,12 @@ export interface PanelMountHost {
 }
 /** Build the body for one seat; the component side supplies the React element. */
 export type PanelBodyFactory = (seat: string, chrome: KlineChrome | undefined) => unknown;
+/** Pending requests survive slot-service replacement; callers own separate leases. */
+export interface PanelMountRegistry extends KlinePanelsService {
+    connect(service: KlinePanelsService): () => void;
+}
+/** Coordinate caller lifetimes independently of the current slot-service lifetime. */
+export declare function createPanelMountRegistry(): PanelMountRegistry;
 /**
  * Turn slot services plus a body factory into the `klinePanels` service.
  * @param host - the host services a mount registers into.
