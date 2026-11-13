@@ -1,4 +1,5 @@
 import { UI_SEEN_KEY } from './mode-preferences.ts'
+import { readHostOptions, type KlineHostOptions } from './host-options.ts'
 export const ONBOARDING_KEY = 'dsh-kline:onboarding-version:v2'
 let existingUser: boolean | undefined
 export function hasPreviousUsage(storage: Storage): boolean {
@@ -15,7 +16,14 @@ export function hasPreviousUsage(storage: Storage): boolean {
 export function captureOnboarding(storage = globalThis.localStorage) {
   existingUser ??= hasPreviousUsage(storage)
 }
-export function onboardingKind(storage = globalThis.localStorage): 'upgrade' | 'first' | 'none' {
+export function onboardingKind(
+  storage = globalThis.localStorage,
+  host: KlineHostOptions | undefined = readHostOptions(),
+): 'upgrade' | 'first' | 'none' {
+  // A host that runs its own first-run experience suppresses both dialogs
+  // without touching the storage: nothing is written, so a later standalone
+  // run still sees the same state.
+  if (host?.onboarding === 'off') return 'none'
   captureOnboarding(storage)
   return classifyOnboarding(storage, existingUser === true)
 }

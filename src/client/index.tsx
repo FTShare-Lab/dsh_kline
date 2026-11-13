@@ -7,8 +7,9 @@ import { ClassicShell } from './ClassicShell'
 import { BetterSidebarBridge } from './BetterSidebarTab'
 import { NativeSidebarBridgeView, registerNativeSidebar } from './native-sidebar'
 import { cleanClassicTabs, isSidebarUsable } from './sidebar-integration'
-import { InterfaceContext, readDisplayMode, resolveDisplayMode } from './mode-preferences'
+import { InterfaceContext, readDisplayMode, resolveDisplayMode, shouldDrawClassicLauncher } from './mode-preferences'
 import { captureOnboarding } from './ui-onboarding'
+import { readHostOptions, setHostOptions, subscribeHostOptions } from './host-options.ts'
 import { registerPanelHosts } from './PanelHost'
 
 export const inject = ['sessions']
@@ -25,20 +26,30 @@ export function apply(ctx: ClientContext) {
   // Registered before the router paints, so the first frame already knows
   // whether the host owns a right column this plugin can put a tab in.
   const native = registerNativeSidebar(ctx, emit)
+  // A host client plugin can provide `klineHost` to switch the chrome it wants
+  // (its own chart entry, its own first-run experience). Without that service
+  // every default below stays exactly as upstream.
+  ctx.inject(['klineHost'], scoped => {
+    scoped.effect(() => {
+      setHostOptions(scoped.get('klineHost'))
+      return () => setHostOptions(undefined)
+    }, 'dsh-kline: host options')
+  })
   function Router() {
     const sidebar = useSyncExternalStore(subscribe, () => service)
     const nativeTab = useSyncExternalStore(subscribe, () => native.available())
+    const host = useSyncExternalStore(subscribeHostOptions, readHostOptions)
     const conversation = useSyncExternalStore(
       subscribeSessions,
       () => currentConversationId(ctx.sessions.list.getSnapshot()),
     )
     const available = nativeTab || isSidebarUsable(sidebar)
-    const mode = resolveDisplayMode(preference, available)
+    const mode = resolveDisplayMode(preference, available, host)
     // A tab body lives in a Session, so before one exists the chart has no
     // tab to live in — whichever column the host owns. The classic launcher
     // covers that screen, which is what the old aria-label probe approximated
     // and only ever got right in an English UI.
-    const showClassicLauncher = mode === 'classic' || conversation === undefined
+    const drawClassicLauncher = shouldDrawClassicLauncher(host, mode, conversation !== undefined)
     return <InterfaceContext.Provider value={{ preference, mode, available }}>
       {/* The host's own column first: it needs no third-party sidebar. */}
       {nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge={native} sessions={ctx.sessions} />}
@@ -46,7 +57,7 @@ export function apply(ctx: ClientContext) {
       {/* Native registration owns the tab kind now; tabs this plugin saved
           under Better Sidebar would render as "plugin not loaded". */}
       {nativeTab && sidebar && <RetireBetterSidebarTabs service={sidebar} />}
-      {showClassicLauncher && <ClassicShell sessions={ctx.sessions} />}
+      {drawClassicLauncher && <ClassicShell sessions={ctx.sessions} />}
     </InterfaceContext.Provider>
   }
   ctx.effect(() => {
