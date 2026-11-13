@@ -9,6 +9,7 @@ import { NativeSidebarBridgeView, registerNativeSidebar } from './native-sidebar
 import { cleanClassicTabs, isSidebarUsable } from './sidebar-integration'
 import { InterfaceContext, readDisplayMode, resolveDisplayMode } from './mode-preferences'
 import { captureOnboarding } from './ui-onboarding'
+import { registerPanelHosts } from './PanelHost'
 
 export const inject = ['sessions']
 export type { ClientContext } from './client-context'
@@ -64,6 +65,9 @@ export function apply(ctx: ClientContext) {
       return () => { service = undefined; emit() }
     }, 'dsh-kline: optional sidebar')
   })
+  // A host that owns bounded panels (a paper-trading rail, a canvas card) asks
+  // the chart to fill its own slot; hosts that never ask keep the plugin as is.
+  registerPanelHosts(ctx)
 }
 
 /**
