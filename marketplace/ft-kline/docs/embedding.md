@@ -37,6 +37,39 @@
 2. **调色板**：面板背景与文字颜色由宿主决定，需要一致时显式传 `theme`，不要依赖宿主 DOM 的 CSS 变量被继承进来。
 3. **不弹全屏对话框**：内嵌模式下对话框是面板内的绝对定位元素；宿主不要给面板 `overflow: visible`，否则对话框会盖到面板外。
 
+## 可选：宿主面板槽位
+
+侧栏和 Tab 之外，宿主也可以在自己已有的有界面板里放一张图表，而插件不需要认识宿主：宿主的客户端半声明一个槽位、渲染时把 `{ symbol, name, onIdentity }` 传给座位，然后调用插件提供的 `klinePanels` 服务填充它。
+
+```ts
+// 宿主客户端半
+ctx.inject(['klinePanels'], scope => {
+  const panels = scope.get('klinePanels') as {
+    mount(seat: string, options?: { chrome?: 'full' | 'chart' | 'chart-search' }): () => void
+  } | undefined
+  if (panels === undefined) return () => {}
+  return panels.mount('paperTrading.kline') // 宿主自己声明的槽位名
+})
+```
+
+- 只有调用 `mount(seat)` 才会往宿主已声明的槽位注册；没有调用的宿主不会注册任何东西，行为与没有本契约的版本一致。
+- 面板体就是侧栏那张图：`chrome` 与上述内嵌契约同义，默认 `chart-search`；`symbol` 跟随宿主选择，`onIdentity` 把图内的选择回写给宿主。
+- 每个座位一个独立会话（`host-panel:<seat>`），同一宿主挂多个面板不会互相串数据。
+
+## 可选：宿主偏好
+
+宿主的客户端半还可以提供 `klineHost` 服务，调整图表自绘的界面元素；没有该服务、字段缺失或取值不认识时，一律回到默认行为：
+
+| 字段 | 取值 | 作用 |
+| --- | --- | --- |
+| `entry` | `'tab'` | 宿主自己提供图表入口（原生右栏）；图表不绘制经典浮动 K，并优先使用宿主的右栏 |
+| `onboarding` | `'off'` | 不显示首启欢迎与一次性界面提示，也不写入相关存储 |
+
+```ts
+// 宿主客户端半
+ctx.provide('klineHost', { entry: 'tab', onboarding: 'off' })
+```
+
 ## 边界
 
 - 本节描述的是**同一插件内的挂载契约**，不是跨包的 ESM 入口：客户端的交付形态是 DSH 的浏览器模块（`window.__ModuleLoader__`），第三方面板插件通过宿主槽位获得图表，而不是 `import` 本包。
