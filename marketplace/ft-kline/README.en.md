@@ -8,7 +8,7 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
-Current release: **v0.6.10**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+Current release: **v0.6.11**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
 ## Supported drawing tools
 
@@ -114,7 +114,7 @@ Supports macOS, Linux, and native Windows. First launch downloads dependencies a
 Install a working DSH Web host and **Python 3.11+**, then run:
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.10
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.11
 ```
 
 GitHub installation is also available:
@@ -166,6 +166,6 @@ Market data may be delayed. Patterns and counts support research and review, wit
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
 | Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
 | Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.10 release notes](docs/release-notes-v0.6.10.md) · [Acceptance](docs/release-acceptance-v0.6.10.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.11 release notes](docs/release-notes-v0.6.11.md) · [Acceptance](docs/release-acceptance-v0.6.11.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

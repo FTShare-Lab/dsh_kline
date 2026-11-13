@@ -1,6 +1,6 @@
 {
   "name": "@ftshare-lab/dsh-kline",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "DeepSeek Harness K-line plugin for conversational and manual chart drawing, TA-Lib indicators, and FTShare market data.",
   "license": "MIT",
   "type": "module",
@@ -69,7 +69,9 @@
     "docs/drawing-examples.en.md",
     "docs/provider-adaptation.md",
     "docs/release-notes-v0.6.10.md",
-    "docs/release-acceptance-v0.6.10.md"
+    "docs/release-acceptance-v0.6.10.md",
+    "docs/release-notes-v0.6.11.md",
+    "docs/release-acceptance-v0.6.11.md"
   ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -117,9 +119,9 @@
   },
   "scripts": {
     "bootstrap": "node ./scripts/run-dsh-kline.mjs --prepare-project",
-    "pack:release": "node ./scripts/build-release-package.mjs ./release/dsh-kline-v0.6.10.tgz",
-    "pack:codex": "node ./scripts/build-codex-package.mjs ./release/ft-kline-v0.6.10.zip && node ./scripts/verify-codex-package.mjs ./release/ft-kline-v0.6.10.zip",
-    "smoke:codex-package": "python ./scripts/smoke-codex-package.py ./release/ft-kline-v0.6.10.zip",
+    "pack:release": "node ./scripts/build-release-package.mjs ./release/dsh-kline-v0.6.11.tgz",
+    "pack:codex": "node ./scripts/build-codex-package.mjs ./release/ft-kline-v0.6.11.zip && node ./scripts/verify-codex-package.mjs ./release/ft-kline-v0.6.11.zip",
+    "smoke:codex-package": "python ./scripts/smoke-codex-package.py ./release/ft-kline-v0.6.11.zip",
     "generate:client-view": "node ./scripts/generate-client-view.mjs",
     "build:sidebar": "pnpm generate:client-view && tsc -p tsconfig.json && tsdown --config tsdown.config.ts && pnpm verify:package",
     "verify:package": "node ./scripts/verify-package.mjs",

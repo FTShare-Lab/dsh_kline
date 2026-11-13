@@ -8,7 +8,7 @@
 
 [绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [文档](#文档)
 
-当前发布版本 **v0.6.10**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
+当前发布版本 **v0.6.11**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
 ## 支持哪些绘图
 
@@ -114,7 +114,7 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 先安装可用的 DSH Web 和 **Python 3.11+**，然后执行：
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.10
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.11
 ```
 
 也可使用 GitHub 安装：
@@ -166,6 +166,6 @@ codex plugin add ft-kline@ftshare
 | 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
 | 技术函数与进阶标注 | [函数与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.10 发布说明](docs/release-notes-v0.6.10.md) · [验收记录](docs/release-acceptance-v0.6.10.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.11 发布说明](docs/release-notes-v0.6.11.md) · [验收记录](docs/release-acceptance-v0.6.11.md) |
 
 [MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

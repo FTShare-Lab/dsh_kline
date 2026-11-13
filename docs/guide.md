@@ -73,7 +73,7 @@ Codex 依次使用：
 
 图表、函数结果、自选和应用内临时 Key 保存在当前连接内存中；最后一个图表视图关闭、连接结束或空闲 30 分钟后清除。Codex 不继承 DSH 的持久化自选。环境变量和显式文件由用户管理，不会随图表关闭而被插件删除。
 
-v0.6.10 候选见[发布说明](release-notes-v0.6.10.md)、[验收记录](release-acceptance-v0.6.10.md)与[npm 发布准备](npm-release.md)。
+v0.6.11 候选见[发布说明](release-notes-v0.6.11.md)、[验收记录](release-acceptance-v0.6.11.md)与[npm 发布准备](npm-release.md)。
 
 已发布版本内容、自动化验证和桌面验收见 [v0.6.8 发布说明](release-notes-v0.6.8.md) 与 [验收说明](release-acceptance-v0.6.8.md)。
 
@@ -174,7 +174,7 @@ dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 二者不选点、不评判专业形态、不代替绘图授权。旧的分类型工具是快照接口，不应绕过当前图应用协议。
 
 运行 `pnpm build:sidebar` 和 `pnpm test` 验证构建与全部 Node / Python 回归。
-DSH 绘图范围见[v0.5.0 验收说明](release-acceptance-v0.5.0.md)，当前候选安装与 Codex 验证见[v0.6.10 验收说明](release-acceptance-v0.6.10.md)。
+DSH 绘图范围见[v0.5.0 验收说明](release-acceptance-v0.5.0.md)，当前候选安装与 Codex 验证见[v0.6.11 验收说明](release-acceptance-v0.6.11.md)。
 首次自动准备依赖需要网络，耗时取决于网络和本机环境。
 
 ## 行情与数据源
