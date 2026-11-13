@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
-import { readDisplayMode, resolveDisplayMode, readAutoOpen, DISPLAY_MODE_KEY, UI_SEEN_KEY, AUTO_OPEN_KEY } from '../src/client/mode-preferences.ts'
-import { hasPreviousUsage, classifyOnboarding, acknowledgeOnboarding, ONBOARDING_KEY } from '../src/client/ui-onboarding.ts'
+import { readDisplayMode, resolveDisplayMode, shouldDrawClassicLauncher, readAutoOpen, DISPLAY_MODE_KEY, UI_SEEN_KEY, AUTO_OPEN_KEY } from '../src/client/mode-preferences.ts'
+import { onboardingKind, hasPreviousUsage, classifyOnboarding, acknowledgeOnboarding, ONBOARDING_KEY } from '../src/client/ui-onboarding.ts'
 import { cleanClassicTabs, isSidebarUsable, KLINE_TAB_ID, KLINE_TAB_TITLE_EN, KLINE_TAB_TITLE_ZH, klineTabTitle, migrateKlineTabTitle } from '../src/client/sidebar-integration.ts'
 import type { BetterSidebarService } from 'dsh-better-sidebar'
 import { isNewerStableVersion } from '../src/client/version.ts'
@@ -19,6 +19,28 @@ for (const preference of ['auto', 'classic', 'better-sidebar'] as const) {
     assert.equal(resolveDisplayMode(preference, available), available && preference === 'better-sidebar' ? 'better-sidebar' : 'classic')
   })
 }
+test('a host without options keeps the upstream interface matrix untouched', () => {
+  for (const preference of ['auto', 'classic', 'better-sidebar'] as const) {
+    for (const available of [false, true]) {
+      assert.equal(resolveDisplayMode(preference, available, undefined), resolveDisplayMode(preference, available))
+      assert.equal(
+        shouldDrawClassicLauncher(undefined, resolveDisplayMode(preference, available, undefined), true),
+        resolveDisplayMode(preference, available, undefined) === 'classic',
+      )
+      // Without a Session the launcher still covers the screen, as upstream.
+      assert.equal(shouldDrawClassicLauncher(undefined, 'better-sidebar', false), true)
+    }
+  }
+})
+test('a host that owns the chart entry uses its column and hides the launcher', () => {
+  const host = { entry: 'tab' } as const
+  assert.equal(resolveDisplayMode('classic', true, host), 'better-sidebar')
+  assert.equal(resolveDisplayMode('auto', true, host), 'better-sidebar')
+  assert.equal(resolveDisplayMode('classic', false, host), 'classic')
+  assert.equal(shouldDrawClassicLauncher(host, 'classic', true), false)
+  assert.equal(shouldDrawClassicLauncher(host, 'classic', false), false)
+  assert.equal(shouldDrawClassicLauncher(host, 'better-sidebar', false), false)
+})
 test('missing, corrupt and inaccessible preference storage safely defaults to classic', () => {
   assert.equal(readDisplayMode(storage()), 'classic')
   assert.equal(readDisplayMode(storage({[DISPLAY_MODE_KEY]: 'unknown'})), 'classic')
@@ -39,6 +61,17 @@ test('first-install and legacy users receive different onboarding', () => {
   }
   assert.equal(classifyOnboarding(storage(), false), 'first')
   assert.equal(classifyOnboarding(storage(), true), 'upgrade')
+})
+test('a host can suppress both onboarding dialogs without writing any state', () => {
+  const fresh = storage()
+  assert.equal(onboardingKind(fresh, { onboarding: 'off' }), 'none')
+  assert.equal(fresh.getItem(UI_SEEN_KEY), null)
+  // Without the host option the upstream classification still runs.
+  assert.equal(onboardingKind(fresh, undefined), 'first')
+  // A returning user is suppressed just the same; nothing is written either way.
+  const returning = storage({'dsh-kline:conversation:A': 'snapshot'})
+  assert.equal(onboardingKind(returning, { onboarding: 'off' }), 'none')
+  assert.equal(returning.getItem(UI_SEEN_KEY), null)
 })
 test('acknowledging onboarding is once per device and does not erase chart or key state', () => {
   const s = storage({'dsh-kline:conversation:A':'snapshot', 'dsh-kline.workspace.v1':'drawings', 'credential':'unchanged'})
@@ -76,15 +109,19 @@ test('UI entry is text only, remains visible on narrow screens, and retains the 
 test('the classic launcher covers screens without a Session; the native path only auto-opens in tab mode', () => {
   const router = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')
   assert.match(router, /\{!nativeTab && sidebar && <BetterSidebarBridge service=\{sidebar\} sessions=\{ctx\.sessions\} \/>\}/)
-  // A tab body lives in a Session, so the launcher has to cover the rest.
-  assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| conversation === undefined/)
+  // A tab body lives in a Session, so the launcher has to cover the rest; a
+  // host that owns the entry switches that rule off through the host contract.
+  assert.match(router, /const drawClassicLauncher = shouldDrawClassicLauncher\(host, mode, conversation !== undefined\)/)
+  // Host options arrive through the optional service and reset when withdrawn.
+  assert.match(router, /ctx\.inject\(\['klineHost'\], scoped => \{/)
+  assert.match(router, /setHostOptions\(scoped\.get\('klineHost'\)\)/)
   // Auto-open belongs to the tab interface, not to a classic-preferring user.
   assert.match(router, /\{nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge=\{native\} sessions=\{ctx\.sessions\} \/>\}/)
   // Availability comes from the services, never from the host's UI language.
   assert.ok(!router.includes('hostRightSidebarAvailable'))
   assert.ok(!router.includes('Open right sidebar'))
   assert.ok(!router.includes('Collapse right sidebar'))
-  assert.match(router, /\{showClassicLauncher && <ClassicShell sessions=\{ctx\.sessions\} \/>\}/)
+  assert.match(router, /\{drawClassicLauncher && <ClassicShell sessions=\{ctx\.sessions\} \/>\}/)
   // Native takes the kind over, so saved Better Sidebar tabs are retired.
   assert.match(router, /cleanClassicTabs\(service\)/)
 })

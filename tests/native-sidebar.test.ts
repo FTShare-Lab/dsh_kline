@@ -180,7 +180,7 @@ test('without a usable host the plugin registers nothing and disposes safely', (
 
 test('the body only mounts the active conversation in Tab mode and passes visibility down', () => {
   assert.match(nativeSource, /const visible = useTabInfo\(\)\.tab\.visible/)
-  assert.match(nativeSource, /const mode = resolveDisplayMode\(preference, true\)/)
+  assert.match(nativeSource, /const mode = resolveDisplayMode\(preference, true, host\)/)
   assert.match(nativeSource, /const activeConversation = useSyncExternalStore\(subscribe, \(\) => currentConversationId\(sessions\.list\.getSnapshot\(\)\)\)/)
   assert.match(nativeSource, /mode !== 'better-sidebar'/)
   assert.match(nativeSource, /activeConversation !== sessionId/)
@@ -189,7 +189,7 @@ test('the body only mounts the active conversation in Tab mode and passes visibi
 })
 
 test('the launcher follows Sessions, not the host UI language, and auto-open stays in tab mode', () => {
-  assert.match(router, /const showClassicLauncher = mode === 'classic' \|\| conversation === undefined/)
+  assert.match(router, /const drawClassicLauncher = shouldDrawClassicLauncher\(host, mode, conversation !== undefined\)/)
   assert.match(router, /\{nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge=\{native\} sessions=\{ctx\.sessions\} \/>\}/)
   assert.ok(!router.includes('hostRightSidebarAvailable'))
   assert.ok(!router.includes('Open right sidebar'))

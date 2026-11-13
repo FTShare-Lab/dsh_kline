@@ -11,5 +11,7 @@ export interface ClientContext {
   effect(callback: () => () => void, label?: string): void
   inject(deps: string[], callback: (ctx: ClientContext) => void): unknown
   get(name: string): unknown
+  /** Publish an optional service another plugin may inject, such as a host contract. */
+  provide(name: string, value: unknown): void
   sessions: Sessions
 }

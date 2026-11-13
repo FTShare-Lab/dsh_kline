@@ -4,6 +4,7 @@ import { KlineTabContent } from './BetterSidebarTab'
 import type { ClientContext } from './client-context'
 import { currentConversationId, type Sessions } from './conversation'
 import { InterfaceContext, readAutoOpen, readDisplayMode, resolveDisplayMode } from './mode-preferences'
+import { readHostOptions, subscribeHostOptions } from './host-options.ts'
 import { registerNativeTab, type NativeTabRegistration } from './native-sidebar-register'
 import type { NativeTabBodyProps, SidebarRightService, SidebarRightTabsService, SlotsService } from './native-sidebar-services'
 
@@ -28,7 +29,8 @@ import type { NativeTabBodyProps, SidebarRightService, SidebarRightTabsService, 
 export function NativeKlineTabBody({ sessionId, sessions, useTabInfo }: NativeTabBodyProps) {
   const visible = useTabInfo().tab.visible
   const preference = useMemo(readDisplayMode, [])
-  const mode = resolveDisplayMode(preference, true)
+  const host = useSyncExternalStore(subscribeHostOptions, readHostOptions)
+  const mode = resolveDisplayMode(preference, true, host)
   const subscribe = useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions])
   const activeConversation = useSyncExternalStore(subscribe, () => currentConversationId(sessions.list.getSnapshot()))
   return (
