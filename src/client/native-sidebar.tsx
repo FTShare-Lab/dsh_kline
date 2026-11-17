@@ -5,7 +5,8 @@ import type { ClientContext } from './client-context'
 import { currentConversationId, type Sessions } from './conversation'
 import { InterfaceContext, readAutoOpen, readDisplayMode, resolveDisplayMode } from './mode-preferences'
 import { readHostOptions, subscribeHostOptions } from './host-options.ts'
-import { registerNativeTab, type NativeTabRegistration } from './native-sidebar-register'
+import { registerNativeTab, type NativeTabRegistration, type NativeTabStatus } from './native-sidebar-register'
+import { reportOnce } from './diagnostics'
 import type { NativeTabBodyProps, SidebarRightService, SidebarRightTabsService, SlotsService } from './native-sidebar-services'
 
 /**
@@ -68,12 +69,21 @@ export function NativeSidebarBridgeView({ bridge, sessions }: { bridge: NativeSi
     : null
 }
 
+/** The registration as it stands, including which host services arrived. */
+export interface NativeSidebarState {
+  injected: { sidebarRightTabs: boolean; sidebarRight: boolean; slots: boolean }
+  available: boolean
+  tab?: NativeTabStatus
+}
+
 /** The host-facing handle the router polls to decide which interface to draw. */
 export interface NativeSidebarBridge {
   /** Both stages registered: the host can draw the chart tab. */
   available(): boolean
   /** Open (or reveal) the chart tab of the session on screen. */
   open(): void
+  /** Read-only diagnostic snapshot; the UI never branches on it. */
+  state(): NativeSidebarState
 }
 
 /**
@@ -88,25 +98,54 @@ export interface NativeSidebarBridge {
  */
 export function registerNativeSidebar(ctx: ClientContext, onChange: () => void): NativeSidebarBridge {
   let registration: NativeTabRegistration | undefined
+  const injected = { sidebarRightTabs: false, sidebarRight: false, slots: false }
+  const tab = (): NativeTabStatus | undefined => registration?.status()
   const bridge: NativeSidebarBridge = {
     available: () => registration?.available() ?? false,
     open: () => registration?.open(),
+    state: () => {
+      const status = tab()
+      return { injected: { ...injected }, available: registration?.available() ?? false, ...status === undefined ? {} : { tab: status } }
+    },
   }
   ctx.inject(['sidebarRightTabs', 'sidebarRight', 'slots'], scope => {
     scope.effect(() => {
       const tabs = scope.get('sidebarRightTabs') as SidebarRightTabsService | undefined
       const navigation = scope.get('sidebarRight') as SidebarRightService | undefined
       const slots = scope.get('slots') as SlotsService | undefined
-      if (tabs === undefined || navigation === undefined || slots === undefined) return () => {}
+      injected.sidebarRightTabs = tabs !== undefined
+      injected.sidebarRight = navigation !== undefined
+      injected.slots = slots !== undefined
+      const missing = [
+        ...tabs === undefined ? ['sidebarRightTabs'] : [],
+        ...navigation === undefined ? ['sidebarRight'] : [],
+        ...slots === undefined ? ['slots'] : [],
+      ]
+      if (tabs === undefined || navigation === undefined || slots === undefined) {
+        // Never silent: a host may omit these services, and without this line
+        // the plugin simply draws the classic launcher with no explanation.
+        reportOnce(`native-sidebar-missing:${missing.join(',')}`,
+          '[dsh-kline] native right sidebar unavailable; the host injected no usable sidebar services',
+          { missing, injected: { ...injected } })
+        return () => {
+          injected.sidebarRightTabs = false
+          injected.sidebarRight = false
+          injected.slots = false
+        }
+      }
       const next = registerNativeTab({ tabs, navigation, slots }, {
         body: NativeKlineTabBody,
         bodyProps: (sessionId: string) => ({ sessions: ctx.sessions, sessionId }),
         onChange,
       })
       registration = next
+      reportOnce('native-sidebar-registered', '[dsh-kline] native right sidebar tab registered', bridge.state())
       onChange()
       return () => {
         registration = undefined
+        injected.sidebarRightTabs = false
+        injected.sidebarRight = false
+        injected.slots = false
         next.dispose()
         onChange()
       }

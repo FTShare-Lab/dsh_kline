@@ -245,4 +245,6 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 
 在当前 DSH Web 地址请求 `/dsh-kline/healthz`：200 表示定位记录与实际 HTTP 后端实例一致；503 返回故障原因。这个检查不验证行情供应商权限或 MCP 工具调用。`/dsh-kline/session?session=…` 读取历史快照，不能代替健康检查。后端实际端口由定位文件决定，不能假定固定为 8765。
 
+分析成功但右侧栏没有自动出现工作台标签时，先看浏览器控制台里的 `[dsh-kline]`：每页对每种情况最多输出一次，分别说明原生右栏服务是否全部注入（缺失时列出名称）、标签注册是否完成、自动开图是否在标签就绪前被跳过、宿主是否拒绝打开标签（附原错误），以及标签已就绪但界面仍使用经典侧栏、因此不会自动开图。`[data-dsh-kline-router]` 容器存在但没有内容时，这些日志可以区分“未注册”与“注册成功但未开图”。注册状态也可通过 `NativeSidebarBridge.state()` 读取，包含三个宿主服务是否注入、`available` 以及打开/跳过/拒绝计数。
+
 安装日志为缓存目录下的 `bootstrap.log`，后端 stderr 为 `logs/backend-<宿主PID>.log`，超过约 1 MiB 时保留一份 `.previous`。默认缓存目录为 macOS/Linux 的 `~/.cache/dsh_kline`（支持 `XDG_CACHE_HOME`）或 Windows 的 `%LOCALAPPDATA%\dsh_kline`，可用 `DSH_KLINE_CACHE_DIR` 覆盖；`DSH_KLINE_RUNTIME_DIR` 可独立覆盖运行目录。健康响应不会返回服务令牌。

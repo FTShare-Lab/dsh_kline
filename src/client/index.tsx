@@ -11,6 +11,7 @@ import { InterfaceContext, readDisplayMode, resolveDisplayMode, shouldDrawClassi
 import { captureOnboarding } from './ui-onboarding'
 import { readHostOptions, setHostOptions, subscribeHostOptions } from './host-options.ts'
 import { registerPanelHosts } from './PanelHost'
+import { reportOnce } from './diagnostics'
 
 export const inject = ['sessions']
 export type { ClientContext } from './client-context'
@@ -50,6 +51,16 @@ export function apply(ctx: ClientContext) {
     // covers that screen, which is what the old aria-label probe approximated
     // and only ever got right in an English UI.
     const drawClassicLauncher = shouldDrawClassicLauncher(host, mode, conversation !== undefined)
+    // The tab exists but this interface keeps the classic launcher: say so
+    // once, because otherwise an analysis result opens nothing and the page
+    // looks broken (the auto-open report's exact situation).
+    const autoOpenWithheld = nativeTab && mode !== 'better-sidebar'
+    useEffect(() => {
+      if (!autoOpenWithheld) return
+      reportOnce('native-auto-open-withheld',
+        '[dsh-kline] the chart tab is ready but auto-open is off while the chart UI uses the classic launcher',
+        { preference, mode, hostEntry: host?.entry })
+    }, [autoOpenWithheld, preference, mode, host])
     return <InterfaceContext.Provider value={{ preference, mode, available }}>
       {/* The host's own column first: it needs no third-party sidebar. */}
       {nativeTab && mode === 'better-sidebar' && <NativeSidebarBridgeView bridge={native} sessions={ctx.sessions} />}

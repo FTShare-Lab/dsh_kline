@@ -1,5 +1,6 @@
 import type { ClientContext } from './client-context';
 import { type Sessions } from './conversation';
+import { type NativeTabStatus } from './native-sidebar-register';
 import type { NativeTabBodyProps } from './native-sidebar-services';
 /**
  * The chart as a tab of the host's own right column.
@@ -27,12 +28,24 @@ export declare function NativeSidebarBridgeView({ bridge, sessions }: {
     bridge: NativeSidebarBridge;
     sessions: Sessions;
 }): import("react").JSX.Element | null;
+/** The registration as it stands, including which host services arrived. */
+export interface NativeSidebarState {
+    injected: {
+        sidebarRightTabs: boolean;
+        sidebarRight: boolean;
+        slots: boolean;
+    };
+    available: boolean;
+    tab?: NativeTabStatus;
+}
 /** The host-facing handle the router polls to decide which interface to draw. */
 export interface NativeSidebarBridge {
     /** Both stages registered: the host can draw the chart tab. */
     available(): boolean;
     /** Open (or reveal) the chart tab of the session on screen. */
     open(): void;
+    /** Read-only diagnostic snapshot; the UI never branches on it. */
+    state(): NativeSidebarState;
 }
 /**
  * Register the chart tab into the host's native right Sidebar.

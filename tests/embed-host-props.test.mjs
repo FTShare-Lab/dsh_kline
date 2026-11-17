@@ -50,6 +50,8 @@ function hostHarness() {
       if (id === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }) }
       if (id === './embed') return embed
       if (id === './mode-preferences' || id === './ui-onboarding') return {}
+      // The layout gate has its own tests; this harness mounts synchronously.
+      if (id === './layout-ready') return { whenLaidOut: (_element, mount) => { mount(); return () => {} } }
       assert.equal(id, './generated-view')
       return { mountKlineView(_root, _payload, dependencies) {
         mounts++

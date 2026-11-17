@@ -28,6 +28,30 @@ export interface NativeTabOptions {
     /** Called whenever `available()` changes. */
     readonly onChange?: () => void;
 }
+/** What happened to the most recent `open()` call. */
+export type NativeOpenOutcome = 'none' | 'opened' | 'refused' | 'skipped';
+/**
+ * The registration's live state, for the bridge handle and for support.
+ * Counters are cumulative until `dispose()`.
+ */
+export interface NativeTabStatus {
+    /** Both stages are in place: the tab can actually draw. */
+    available: boolean;
+    disposed: boolean;
+    /** The host accepted the tab type. */
+    typeRegistered: boolean;
+    /** The keyed body seat resolved and mounted this tab's body. */
+    bodyRegistered: boolean;
+    /** `open()` calls that reached the host. */
+    openAttempts: number;
+    /** `open()` calls the host refused (for example, no Session on screen). */
+    openRefusals: number;
+    /** `open()` calls skipped before reaching the host. */
+    openSkips: number;
+    lastOutcome: NativeOpenOutcome;
+    /** The last refusal, verbatim, so a report can quote it. */
+    lastError?: string;
+}
 /** A live native tab: what the router asks, and how the auto-open path opens it. */
 export interface NativeTabRegistration {
     /** Both stages are in place: the tab can actually draw. */
@@ -36,6 +60,8 @@ export interface NativeTabRegistration {
     open(): void;
     /** Back both stages out. Idempotent, and every teardown is failure-isolated. */
     dispose(): void;
+    /** Read-only snapshot for diagnostics; never affects what the host draws. */
+    status(): NativeTabStatus;
 }
 /**
  * Register the chart as a tab type of the host's right column.

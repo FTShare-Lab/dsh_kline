@@ -3,6 +3,7 @@ import { mountKlineView } from './generated-view'
 import { InterfaceContext } from './mode-preferences'
 import { onboardingKind, acknowledgeOnboarding } from './ui-onboarding'
 import { klineHostDataset, sameSymbol, type KlineEmbedApi, type KlineHostProps } from './embed'
+import { whenLaidOut } from './layout-ready'
 
 export interface ChartSession {
   ok: true
@@ -74,6 +75,7 @@ export function NativeKlineApp({ session, conversationId, ownerConversationId, v
     let active = true
     const controller = new AbortController()
     let dispose: (() => void) | undefined
+    let cancelLayout: (() => void) | undefined
     Promise.all([
       fetch(session.recovery ? `/dsh-kline/recovery?conversation=${encodeURIComponent(ownerConversationId ?? '')}`
         : `/dsh-kline/data?session=${encodeURIComponent(session.session)}`, { cache: 'no-store', signal: controller.signal }).then(response => response.json()),
@@ -82,13 +84,25 @@ export function NativeKlineApp({ session, conversationId, ownerConversationId, v
       if (!active || !host.current) return
       if (!result?.ok || !result?.payload) throw new Error(result?.message || '图表会话不可用')
       if(session.recovery && (result.session!==session.session || result.conversation_id!==ownerConversationId)) throw new Error('图表恢复来源已变化，请重新打开当前对话。')
-      const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
-      dispose = mountKlineView(root, result.payload, { klinecharts, conversationId, ownerConversationId, isVisible: () => visibility.current,
-        onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify }, chartSession: session.session, onIdentity, interfaceMode })
+      const element = host.current
+      const root = element.shadowRoot || element.attachShadow({ mode: 'open' })
+      // A freshly opened tab can exist before the host lays its pane out.
+      // Initializing at 0×0 sizes every canvas zero for the first frame, so
+      // wait for the first non-zero box (already-laid-out containers mount now).
+      cancelLayout = whenLaidOut(element, () => {
+        if (!active) return
+        try {
+          dispose = mountKlineView(root, result.payload, { klinecharts, conversationId, ownerConversationId, isVisible: () => visibility.current,
+            onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify }, chartSession: session.session, onIdentity, interfaceMode })
+        } catch (reason) {
+          if (active) setError(String((reason as { message?: unknown } | undefined)?.message ?? reason))
+        }
+      })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
       controller.abort()
+      cancelLayout?.()
       dispose?.()
     }
   }, [session.session, conversationId])
@@ -125,27 +139,39 @@ export function StandaloneKlineApp({ conversationId, ownerConversationId, visibl
   useEffect(() => {
     let active = true
     let dispose: (() => void) | undefined
+    let cancelLayout: (() => void) | undefined
     setReady(false)
     bridge.current = null
     loadKlinecharts().then(klinecharts => {
       if (!active || !host.current) return
-      const root = host.current.shadowRoot || host.current.attachShadow({ mode: 'open' })
-      dispose = mountKlineView(root, STANDALONE_CHART_PAYLOAD, {
-        klinecharts,
-        conversationId,
-        ownerConversationId,
-        isVisible: () => visibility.current,
-        onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify },
-        chartSession: standaloneChartSession(conversationId),
-        onIdentity,
-        interfaceMode,
-        embedded,
-        theme: themeAtMount.current,
-        onReady: (api: KlineEmbedApi) => { bridge.current = api; setReady(true) },
+      const element = host.current
+      const root = element.shadowRoot || element.attachShadow({ mode: 'open' })
+      // Same first-frame rule as the native tab: a host panel can be mounted
+      // before its slot has a size.
+      cancelLayout = whenLaidOut(element, () => {
+        if (!active) return
+        try {
+          dispose = mountKlineView(root, STANDALONE_CHART_PAYLOAD, {
+            klinecharts,
+            conversationId,
+            ownerConversationId,
+            isVisible: () => visibility.current,
+            onContextPublisher: (publisher: {notify: () => void}) => { contextNotice.current = publisher.notify },
+            chartSession: standaloneChartSession(conversationId),
+            onIdentity,
+            interfaceMode,
+            embedded,
+            theme: themeAtMount.current,
+            onReady: (api: KlineEmbedApi) => { bridge.current = api; setReady(true) },
+          })
+        } catch (reason) {
+          if (active) setError(String((reason as { message?: unknown } | undefined)?.message ?? reason))
+        }
       })
     }).catch(reason => active && setError(String(reason?.message || reason)))
     return () => {
       active = false
+      cancelLayout?.()
       dispose?.()
     }
   }, [conversationId, onIdentity, embedded])

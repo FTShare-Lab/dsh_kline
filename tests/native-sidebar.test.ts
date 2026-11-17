@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { NATIVE_TAB_ID, nativeTabDefinition, nativeTabDescription } from '../src/client/native-sidebar-contract.ts'
 import { BODY_SEAT, registerNativeTab } from '../src/client/native-sidebar-register.ts'
 import { KLINE_TAB_ID, KLINE_TAB_TITLE_EN, KLINE_TAB_TITLE_ZH, klineTabTitle } from '../src/client/sidebar-integration.ts'
+import { resetDiagnostics } from '../src/client/diagnostics.ts'
 
 const nativeSource = readFileSync(new URL('../src/client/native-sidebar.tsx', import.meta.url), 'utf8')
 const router = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')
@@ -195,4 +196,75 @@ test('the launcher follows Sessions, not the host UI language, and auto-open sta
   assert.ok(!router.includes('Open right sidebar'))
   assert.ok(!router.includes('Collapse right sidebar'))
   assert.match(router, /cleanClassicTabs\(service\)/)
+})
+
+test('status names both stages, open attempts, refusals and skips', () => {
+  const { host, declareSeat } = fakeHost({ immediate: false })
+  const tab = registerNativeTab(host as never, { body: 'BODY' })
+  assert.deepEqual(tab.status(), {
+    available: false, disposed: false, typeRegistered: true, bodyRegistered: false,
+    openAttempts: 0, openRefusals: 0, openSkips: 0, lastOutcome: 'none',
+  })
+  tab.open()
+  assert.equal(tab.status().openSkips, 1)
+  assert.equal(tab.status().lastOutcome, 'skipped')
+  declareSeat()
+  tab.open()
+  assert.equal(tab.status().openAttempts, 1)
+  assert.equal(tab.status().lastOutcome, 'opened')
+  assert.equal(tab.status().bodyRegistered, true)
+})
+
+test('a refused navigation is recorded, not only warned', () => {
+  const { host } = fakeHost()
+  host.navigation.openTab = () => { throw Error('no session on screen') }
+  const tab = registerNativeTab(host as never, { body: 'BODY' })
+  tab.open()
+  assert.equal(tab.status().openRefusals, 1)
+  assert.equal(tab.status().lastOutcome, 'refused')
+  assert.equal(tab.status().lastError, 'no session on screen')
+  assert.equal(tab.status().openAttempts, 1)
+})
+
+test('dispose clears availability and both stage flags', () => {
+  const { host } = fakeHost()
+  const tab = registerNativeTab(host as never, { body: 'BODY' })
+  tab.dispose()
+  assert.deepEqual(tab.status(), {
+    available: false, disposed: true, typeRegistered: false, bodyRegistered: false,
+    openAttempts: 0, openRefusals: 0, openSkips: 0, lastOutcome: 'none',
+  })
+})
+
+test('automatic opening leaves one diagnostic per outcome instead of silence', () => {
+  resetDiagnostics()
+  const lines: unknown[][] = []
+  const original = console.info
+  console.info = (...args: unknown[]) => { lines.push(args) }
+  try {
+    const { host, declareSeat } = fakeHost({ immediate: false })
+    const tab = registerNativeTab(host as never, { body: 'BODY' })
+    tab.open()
+    tab.open()
+    assert.equal(lines.length, 1, 'a repeated skip stays one line')
+    assert.match(String(lines[0][0]), /\[dsh-kline\].*skipped/)
+    declareSeat()
+    tab.open()
+    assert.equal(lines.length, 2)
+    assert.match(String(lines[1][0]), /\[dsh-kline\].*opened the native chart tab/)
+    tab.open()
+    assert.equal(lines.length, 2, 'repeated successes are not re-logged')
+  } finally {
+    console.info = original
+    resetDiagnostics()
+  }
+})
+
+test('the bridge exposes injection state and the router explains a withheld auto-open', () => {
+  assert.match(nativeSource, /state: \(\) => \{/)
+  assert.match(nativeSource, /injected\.sidebarRightTabs = tabs !== undefined/)
+  assert.match(nativeSource, /native-sidebar-missing/)
+  assert.match(nativeSource, /reportOnce\('native-sidebar-registered'/)
+  assert.match(router, /const autoOpenWithheld = nativeTab && mode !== 'better-sidebar'/)
+  assert.match(router, /native-auto-open-withheld/)
 })

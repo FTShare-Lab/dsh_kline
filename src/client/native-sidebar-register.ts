@@ -1,6 +1,7 @@
 import { NATIVE_TAB_ID, nativeTabDefinition } from './native-sidebar-contract.ts'
 import type { SidebarRightService, SidebarRightTabsService, SlotsService } from './native-sidebar-services'
 import { KLINE_TAB_ID } from './sidebar-integration.ts'
+import { reportOnce } from './diagnostics.ts'
 
 /**
  * The native right-Sidebar registration, without React and without a host
@@ -35,6 +36,32 @@ export interface NativeTabOptions {
   readonly onChange?: () => void
 }
 
+/** What happened to the most recent `open()` call. */
+export type NativeOpenOutcome = 'none' | 'opened' | 'refused' | 'skipped'
+
+/**
+ * The registration's live state, for the bridge handle and for support.
+ * Counters are cumulative until `dispose()`.
+ */
+export interface NativeTabStatus {
+  /** Both stages are in place: the tab can actually draw. */
+  available: boolean
+  disposed: boolean
+  /** The host accepted the tab type. */
+  typeRegistered: boolean
+  /** The keyed body seat resolved and mounted this tab's body. */
+  bodyRegistered: boolean
+  /** `open()` calls that reached the host. */
+  openAttempts: number
+  /** `open()` calls the host refused (for example, no Session on screen). */
+  openRefusals: number
+  /** `open()` calls skipped before reaching the host. */
+  openSkips: number
+  lastOutcome: NativeOpenOutcome
+  /** The last refusal, verbatim, so a report can quote it. */
+  lastError?: string
+}
+
 /** A live native tab: what the router asks, and how the auto-open path opens it. */
 export interface NativeTabRegistration {
   /** Both stages are in place: the tab can actually draw. */
@@ -43,6 +70,8 @@ export interface NativeTabRegistration {
   open(): void
   /** Back both stages out. Idempotent, and every teardown is failure-isolated. */
   dispose(): void
+  /** Read-only snapshot for diagnostics; never affects what the host draws. */
+  status(): NativeTabStatus
 }
 
 /**
@@ -58,6 +87,26 @@ export function registerNativeTab(host: NativeTabHost, options: NativeTabOptions
   let bodyDispose: (() => void) | undefined
   let available = false
   let disposed = false
+  let typeRegistered = false
+  let bodyRegistered = false
+  let openAttempts = 0
+  let openRefusals = 0
+  let openSkips = 0
+  let lastOutcome: NativeOpenOutcome = 'none'
+  let lastError: string | undefined
+
+  const status = (): NativeTabStatus => ({
+    available: available && !disposed,
+    disposed,
+    typeRegistered,
+    bodyRegistered,
+    openAttempts,
+    openRefusals,
+    openSkips,
+    lastOutcome,
+    ...lastError === undefined ? {} : { lastError },
+  })
+  const errorText = (error: unknown): string => String((error as { message?: unknown } | undefined)?.message ?? error)
 
   /** One teardown step: a failing disposer must not block the rest of the rollback. */
   const runSafely = (dispose: (() => void) | undefined, what: string) => {
@@ -83,13 +132,19 @@ export function registerNativeTab(host: NativeTabHost, options: NativeTabOptions
     seatDispose = undefined
     runSafely(typeDispose, 'type')
     typeDispose = undefined
+    typeRegistered = false
     settle(false)
   }
-  const failed = (): NativeTabRegistration => ({ available: () => false, open: () => {}, dispose: () => {} })
+  const failed = (): NativeTabRegistration => {
+    disposed = true
+    return { available: () => false, open: () => {}, dispose: () => {}, status }
+  }
 
   try {
     typeDispose = host.tabs.register(nativeTabDefinition())
+    typeRegistered = true
   } catch (error) {
+    lastError = errorText(error)
     console.error('[dsh-kline] native right sidebar tab type registration failed:', error)
     return failed()
   }
@@ -109,14 +164,17 @@ export function registerNativeTab(host: NativeTabHost, options: NativeTabOptions
         ...options.bodyProps === undefined ? {} : { inject: options.bodyProps },
       }, options.body)
     } catch (error) {
+      lastError = errorText(error)
       console.error('[dsh-kline] native right sidebar tab body registration failed:', error)
       queueMicrotask(release)
       return () => {}
     }
     let closed = false
+    bodyRegistered = true
     bodyDispose = () => {
       if (closed) return
       closed = true
+      bodyRegistered = false
       runSafely(dispose, 'body')
     }
     settle(true)
@@ -126,6 +184,7 @@ export function registerNativeTab(host: NativeTabHost, options: NativeTabOptions
   try {
     seatDispose = host.slots.inject(BODY_SEAT, mountBody) as unknown as (() => void) | undefined
   } catch (error) {
+    lastError = errorText(error)
     console.error('[dsh-kline] native right sidebar body seat failed:', error)
     release()
     return failed()
@@ -134,15 +193,31 @@ export function registerNativeTab(host: NativeTabHost, options: NativeTabOptions
   return {
     available: () => available && !disposed,
     open: () => {
-      if (!available || disposed) return
+      if (!available || disposed) {
+        // Previously silent. One page-lifetime line says which stage is
+        // missing, so "chart_ready but no tab" is answerable from the console.
+        openSkips += 1
+        lastOutcome = 'skipped'
+        reportOnce(disposed ? 'native-open-after-dispose' : 'native-open-before-ready',
+          '[dsh-kline] the native chart tab could not open yet; the automatic request was skipped',
+          { available, disposed, typeRegistered, bodyRegistered, openSkips })
+        return
+      }
+      openAttempts += 1
       try {
         host.navigation.openTab(KLINE_TAB_ID)
+        lastOutcome = 'opened'
+        reportOnce('native-open-ok', '[dsh-kline] opened the native chart tab', { kind: KLINE_TAB_ID })
       } catch (error) {
         // Opening is a navigation request: a host with no Session on screen
         // refuses it, and the next analysis result or the guide entry retries.
+        openRefusals += 1
+        lastOutcome = 'refused'
+        lastError = errorText(error)
         console.warn('[dsh-kline] could not open the native chart tab:', error)
       }
     },
     dispose: release,
+    status,
   }
 }
