@@ -323,12 +323,7 @@ if not IS_CLI:
     @mcp.tool(name="draw_chart", structured_output=True)
     async def draw_chart(context_ref: str, symbol: str, request_id: str,
                          drawings: Annotated[list[DrawingRequest], Field(min_length=1, max_length=8)]) -> Annotated[types.CallToolResult, ToolOutput]:
-        """For explicit automatic drawing requests, analyze and draw 1–8 named tools in one guarded task.
-
-        Stable request_id prevents duplicates. Each tool uses the shared analysis
-        engine and reports its own applied/no_candidate result. State commit and
-        optional App receipt do not prove visible pixels. No fetching or guessed anchors.
-        """
+        """Analyze and draw 1–8 explicitly requested tools in one guarded task. Stable request_id prevents duplicates. Each tool uses shared analysis and reports applied/no_candidate. State commit and optional App receipt do not prove visible pixels. No fetching or guessed anchors."""
         try: return result(draw_many_codex(STORE, context_ref, symbol, request_id, drawings), "drawing task completed; check item outcomes", chart=True)
         except (LineError, ValueError, TypeError) as exc: return failure(exc)
 

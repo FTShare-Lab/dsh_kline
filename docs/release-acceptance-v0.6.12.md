@@ -29,6 +29,8 @@ DSH Web 0.2.1-rc.5，隔离 profile，DeepSeek-V4.1-Flash（High），使用真�
 
 发布按现有流水线执行：候选跨平台 CI（Linux / macOS / Windows × Python 3.11 / 3.12 / 3.13）通过后进入 main，再由标签流水线构建两类归档。下载草稿资产，复核版本、SHA-256 和内容后公开 Release；npm 上传同一 TGZ，并验证 registry 与按包名安装。
 
+首轮跨平台 CI 发现 Codex 多图工具的多行说明受 Python 版本影响，导致 3.11／3.12 的静态目录校验失败；已消除说明缩进差异，并用本地 3.11 与 3.13 复核。以修复提交的重新运行结果作为发行门槛。
+
 远端检查结果见[跨平台 CI](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml)和[发行流水线](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/release.yml)。本记录不以本地通过代替远端结果。
 
 ## 未覆盖与限制

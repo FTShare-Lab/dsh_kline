@@ -1067,7 +1067,7 @@
       }
     },
     {
-      "description": "For explicit automatic drawing requests, analyze and draw 1–8 named tools in one guarded task.\n\nStable request_id prevents duplicates. Each tool uses the shared analysis\nengine and reports its own applied/no_candidate result. State commit and\noptional App receipt do not prove visible pixels. No fetching or guessed anchors.\n",
+      "description": "Analyze and draw 1–8 explicitly requested tools in one guarded task. Stable request_id prevents duplicates. Each tool uses shared analysis and reports applied/no_candidate. State commit and optional App receipt do not prove visible pixels. No fetching or guessed anchors.",
       "inputSchema": {
         "$defs": {
           "DrawingRequest": {
