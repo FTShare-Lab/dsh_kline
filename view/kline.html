@@ -3551,13 +3551,21 @@ function marketIndexLoadingMarkup() {
     `<div class="market-index-card loading" aria-hidden="true"><span class="market-index-skeleton name"></span><span class="market-index-skeleton price"></span><span class="market-index-skeleton symbol"></span><span class="market-index-skeleton change"></span></div>`
   ).join("")}</div>`;
 }
-function marketIndexSourceFooter() {
-  if (!marketTickerItems.length || !marketTickerSource) return "";
-  const sources = marketTickerSource.split("+").map((source) => {
-    if (source === "cache") return viewLanguage === "zh" ? "缓存" : "Cached";
-    return marketDataSourcePresentation(source).label;
-  }).join(" + ");
-  return `<footer class="insight-source-footer"><span class="insight-source">${escapeHtml(t("marketIndices"))} · ${escapeHtml(t("source"))} ${escapeHtml(sources)}</span></footer>`;
+function marketIndexSourceFooter(workspaceData = null) {
+  const source = workspaceData?.source;
+  const workspaceSource = typeof source === "string" ? source : (source?.name || source?.provider || "");
+  const sourceNames = marketTickerItems.length ? marketTickerSource.split("+").filter(Boolean) : [];
+  if (workspaceSource) sourceNames.push(workspaceSource);
+  const labels = [...new Set(sourceNames.map((name) => {
+    if (name === "cache") return viewLanguage === "zh" ? "缓存" : "Cached";
+    return marketDataSourcePresentation(name).label;
+  }))];
+  if (!labels.length) return "";
+  const markup = labels.map((label) => /^ftshare(?:-mcp)?$/i.test(label)
+    ? `<a class="data-source-link" href="${escapeHtml(ftshareWebsiteUrl("market_footer"))}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+    : escapeHtml(label)).join(" + ");
+  const updatedAt = typeof source === "object" ? (source?.updated_at || source?.updatedAt || "") : "";
+  return `<footer class="insight-source-footer"><span class="insight-source">${escapeHtml(t("source"))} ${markup}${updatedAt ? ` · ${escapeHtml(updatedAt)}` : ""}</span></footer>`;
 }
 function marketSegmentMarkup(kind, selected, availableValues = []) {
   const options = kind === "direction"
@@ -3678,7 +3686,7 @@ function renderMarketWorkspace() {
     `<section class="intelligence-section market-directions-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketDirections"))}</h3>${marketSegmentMarkup("direction", marketDirectionMode, directionModes)}</div>${directions || (marketPulseLoading ? `<div class="market-leaderboard loading" aria-label="${escapeHtml(t("marketLoading"))}">${Array.from({ length: 6 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div>` : noData)}</section>` +
     (marketBoardDetailLoading ? `<section class="intelligence-section"><p class="intelligence-note">正在加载板块详情</p></section>` : marketBoardDetailMarkup(marketBoardDetail)) +
     (abnormal ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3><button type="button" class="market-open-all" data-market-open-dragon>查看全部</button></div>${abnormal}</section>` : marketPulseLoading ? `<section class="intelligence-section"><div class="intelligence-heading"><h3>${escapeHtml(t("marketAbnormalTrading"))}</h3></div><div class="market-leaderboard loading" aria-label="正在加载龙虎榜">${Array.from({ length: 4 }, () => `<div class="market-leader loading"><span class="market-leader-rank"></span><span class="market-leader-name"></span><span class="market-leader-price"></span></div>`).join("")}</div></section>` : "") +
-    `</div>${marketIndexSourceFooter()}${directions || abnormal ? workspaceSourceFooter(pulseResult) : ""}`;
+    `</div>${marketIndexSourceFooter(directions || abnormal ? pulseResult : null)}`;
 }
 function renderDragonWorkspace() {
   const panel = document.getElementById("dragonWorkspacePanel");
@@ -10386,7 +10394,7 @@ const FTSHARE_MCP_URL = "https://github.com/FTShare-Lab/FTShare-MCP";
 const FTSHARE_WEBSITE_URL = "https://ftai.chat/ftshare";
 function ftshareWebsiteUrl(entry = "settings") {
   const campaign = window.__FT_KLINE_APP__ ? "codex" : "dsh";
-  const content = ["header", "settings", "help", "welcome"].includes(entry) ? entry : "settings";
+  const content = ["header", "settings", "help", "welcome", "market_footer"].includes(entry) ? entry : "settings";
   return `${FTSHARE_WEBSITE_URL}?utm_source=dsh_kline&utm_medium=AI&utm_campaign=${campaign}&utm_content=${content}`;
 }
 function ftshareAccountUrl(entry = "settings") {

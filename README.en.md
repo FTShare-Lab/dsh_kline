@@ -8,11 +8,15 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
-Current release: **v0.6.12**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+Current GitHub release: **v0.6.13**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
 [Installation and downloads](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-en) · For DSH and Codex.
 
-## This update: draw together, edit a selection, undo
+## This update: website access and channel attribution
+
+Open FtShare from the chart header, or sign in/register from connection settings to obtain an API key. The market page shows one source footer, with FtShare linked to its website. Website and promotion links carry channel and placement tags; counts do not represent installations. See [attribution details](docs/utm-attribution.md).
+
+## Drawing interactions (since v0.6.12)
 
 - **Multiple drawings:** request several tools in one sentence or select **Multiple** in the drawing panel, up to 8 per task. Qualifying results appear together; tools without a candidate are reported separately.
 - **Selection and editing:** select ordinary geometry, drag an anchor, or enter a price under **Edit**. Natural-language requests can change just one named ABC point while preserving its object and other anchors.
@@ -180,6 +184,7 @@ Market data may be delayed. Patterns and counts support research and review, wit
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
 | Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
 | Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.12 release notes](docs/release-notes-v0.6.12.md) · [Acceptance](docs/release-acceptance-v0.6.12.md) |
+| Website links and attribution | [UTM details](docs/utm-attribution.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.13 release notes](docs/release-notes-v0.6.13.md) · [Acceptance](docs/release-acceptance-v0.6.13.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-en)

@@ -8,11 +8,15 @@
 
 [绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [文档](#文档)
 
-当前发布版本 **v0.6.12**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
+当前 GitHub 发布版本 **v0.6.13**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
 [安装入口与下载](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-zh) · 支持 DSH 与 Codex。
 
-## 本次更新：一次绘制，选中续改，撤销恢复
+## 本次更新：官网入口与渠道归因
+
+顶部直接访问 FtShare，连接页可注册／登录并获取 Key。市场页底部仅保留一处来源，FtShare 名称可点击。官网链接与独立推广入口按渠道和位置归因，次数不代表安装人数。详见 [UTM 说明](docs/utm-attribution.md)。
+
+## 绘图交互（v0.6.12 起）
 
 - **一次多图：** 一句话请求多个图形，或在绘图面板勾选「多图」。每次最多 8 项；合格结果整组显示，没有候选的项目单独说明。
 - **直接修改：** 点击普通几何图形选中，拖动锚点或通过「修改」输入价格；也可以说“只修改选中 ABC 的 C 点”，保留原对象及其他锚点。
@@ -131,7 +135,7 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
 ```
 
-也可使用 GitHub 安装：
+GitHub 版本使用下方入口安装；npm 当前版本见上方徽章：
 
 ```bash
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
@@ -180,6 +184,7 @@ codex plugin add ft-kline@ftshare
 | 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
 | 技术函数与进阶标注 | [函数与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.12 发布说明](docs/release-notes-v0.6.12.md) · [验收记录](docs/release-acceptance-v0.6.12.md) |
+| 官网入口与渠道统计 | [UTM 说明](docs/utm-attribution.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.13 发布说明](docs/release-notes-v0.6.13.md) · [验收记录](docs/release-acceptance-v0.6.13.md) |
 
 [MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-zh)
