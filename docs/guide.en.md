@@ -230,3 +230,21 @@ MCP discovery remains connected while Python is prepared; `dsh_kline_runtime_sta
 Request `/dsh-kline/healthz` on the current DSH Web origin: 200 confirms the locator and HTTP backend instance agree; 503 identifies the failure. It does not check provider permissions or MCP tool execution. Historical `/dsh-kline/session?session=…` snapshots are not a health check. Use the locator's actual service port rather than assuming 8765.
 
 Dependency logs remain in `bootstrap.log`; backend stderr is persisted to `logs/backend-<host_pid>.log` with one `.previous` rotation at approximately 1 MiB. The default cache is `~/.cache/dsh_kline` on macOS/Linux (honoring `XDG_CACHE_HOME`) or `%LOCALAPPDATA%\dsh_kline` on Windows. `DSH_KLINE_CACHE_DIR` overrides it; `DSH_KLINE_RUNTIME_DIR` independently overrides runtime files. Health responses never expose the service token.
+
+## FTShare referral links
+
+The free-key link points to `https://ftai.chat/ftshare`, following the FT financial-workbench UTM convention with `utm_source=dsh-kline` and `utm_medium=AI`. DSH uses `utm_campaign=dsh`; the Codex App uses `utm_campaign=codex`. `utm_content` identifies `settings`, `help`, `readme-zh`, or `readme-en`. README links retain the `dsh` campaign as the DSH product entry.
+
+Parameters travel only when a user opens the website link. They contain no API key, symbol, conversation, or user identifier, and add no background analytics requests. Access/signup attribution depends on FTShare's website analytics and report permissions. These links do not measure npm install sources or unique installations.
+
+Reference: the [downstream bundle's key-registration link](https://github.com/FTShare-Lab/dsh-plugin-fft-bundle/blob/dev/packages/dsh-fft-bundle/README.md) and its [v1.0.4 changelog](https://github.com/FTShare-Lab/dsh-plugin-fft-bundle/blob/dev/CHANGELOG.md).
+
+## Promotion links and channel statistics
+
+The [public installation page](https://ft-kline-links.zippymarshmallow.chatgpt.site/) supports DSH and Codex. The [admin dashboard](https://ft-kline-links.zippymarshmallow.chatgpt.site/admin) requires the site owner's ChatGPT account. It offers 7/30/90-day reports, CSV export and a tagged-link generator.
+
+Share a channel link, for example `https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=x&utm_medium=social&utm_campaign=evergreen&utm_content=post`. Available sources include github, x, wechat, dsh-marketplace and codex-marketplace. Redirects at `/go/npm`, `/go/release`, `/go/github`, `/go/codex` and `/go/ftshare` count outbound clicks to fixed destinations.
+
+The separate service records daily aggregate page visits, outbound clicks and successful clipboard actions. It excludes known preview bots and prefetches; these counts are neither unique users nor verified installations. Browser limitations and service failures can undercount. Existing download history cannot be attributed retroactively. API keys, conversations, market symbols, visitor identity, IP and User-Agent are not stored in its counter table. The installed plugin sends no background telemetry. FTShare referral links remain direct and do not depend on this service.
+
+Runtime administrator identity is stored in Sites, outside plugin configuration.

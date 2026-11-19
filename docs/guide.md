@@ -246,3 +246,19 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 在当前 DSH Web 地址请求 `/dsh-kline/healthz`：200 表示定位记录与实际 HTTP 后端实例一致；503 返回故障原因。这个检查不验证行情供应商权限或 MCP 工具调用。`/dsh-kline/session?session=…` 读取历史快照，不能代替健康检查。后端实际端口由定位文件决定，不能假定固定为 8765。
 
 安装日志为缓存目录下的 `bootstrap.log`，后端 stderr 为 `logs/backend-<宿主PID>.log`，超过约 1 MiB 时保留一份 `.previous`。默认缓存目录为 macOS/Linux 的 `~/.cache/dsh_kline`（支持 `XDG_CACHE_HOME`）或 Windows 的 `%LOCALAPPDATA%\dsh_kline`，可用 `DSH_KLINE_CACHE_DIR` 覆盖；`DSH_KLINE_RUNTIME_DIR` 可独立覆盖运行目录。健康响应不会返回服务令牌。
+
+## FTShare 官网来源归因
+
+免费申请 Key 统一进入 `https://ftai.chat/ftshare`，沿用 FT 金融工作台的 UTM 约定：`utm_source=dsh-kline`、`utm_medium=AI`。DSH 界面使用 `utm_campaign=dsh`，Codex App 使用 `utm_campaign=codex`；`utm_content` 区分 `settings`、`help`、`readme-zh` 与 `readme-en`。README 作为 DSH 产品入口保留 `dsh` campaign。
+
+这些参数随用户主动打开官网的链接发送，不包括 Key、标的、对话或用户标识，也不发起后台统计请求。是否展示访问或注册归因，取决于 FTShare 网站的统计接入与报表权限；该链接不能用于统计 npm 安装来源或独立安装人数。
+
+参考：[下游组合包的申请入口](https://github.com/FTShare-Lab/dsh-plugin-fft-bundle/blob/dev/packages/dsh-fft-bundle/README.md)与 [v1.0.4 变更](https://github.com/FTShare-Lab/dsh-plugin-fft-bundle/blob/dev/CHANGELOG.md)。
+
+## 推广链接与渠道统计
+
+[公开安装入口](https://ft-kline-links.zippymarshmallow.chatgpt.site/)支持 DSH 与 Codex；[统计后台](https://ft-kline-links.zippymarshmallow.chatgpt.site/admin)仅站点所有者的 ChatGPT 账号可访问。后台提供 7／30／90 天汇总、CSV 导出和推广链接生成器。
+
+例如分享：`https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=x&utm_medium=social&utm_campaign=evergreen&utm_content=post`。来源支持 github、x、wechat、dsh-marketplace、codex-marketplace 等；`/go/npm`、`/go/release`、`/go/github`、`/go/codex` 和 `/go/ftshare` 为固定目标跳转入口。
+
+独立服务只保存按日、来源、活动及入口汇总的访问、出站点击和成功复制命令次数，排除已知预览机器人与预加载。次数不代表独立用户或实际安装；浏览器限制或统计服务故障可能少计，历史下载不能补录来源。计数表不保存 API Key、对话、标的、访问者身份、IP 或 User-Agent；已安装插件不会后台上报。插件的 FTShare 申请链接仍直达官网，不依赖推广服务。
