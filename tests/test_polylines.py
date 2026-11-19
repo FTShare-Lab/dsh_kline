@@ -56,7 +56,7 @@ class PolylineTests(unittest.TestCase):
         array_schema = next(s for s in f['parameter_schema']['properties']['points']['anyOf'] if s.get('type') == 'array')
         self.assertEqual(array_schema['maxItems'], 8)
         self.assertIn('LabeledPoint', f['parameter_schema']['$defs'])
-        self.assertEqual(len(asyncio.run(server.mcp.list_tools())), 41)
+        self.assertEqual(len(asyncio.run(server.mcp.list_tools())), 42)
         custom = [{**p, 'label': str(i)} for i, p in enumerate(points(), 1)]
         self.assertEqual([p['label'] for p in self.calculate(custom)['summary']['points']], ['1', '2', '3'])
         self.assertFalse(self.calculate()['summary']['automatic_wave_recognition'])

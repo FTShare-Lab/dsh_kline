@@ -94,3 +94,17 @@ class DrawingFeedbackTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+def test_canvas_projection_is_optional_and_cannot_claim_pixels_or_visibility_for_failed_objects():
+    objects = [{'id': 'H', 'kind': 'horizontal_line'}]
+    raw = feedback(objects)
+    assert sanitize_drawing_feedback(raw, objects)['items'][0]['canvas_visibility'] == 'unknown'
+    raw['items'][0]['canvas_visibility'] = 'inside_plot'
+    raw['occlusion_verified'] = True
+    safe = sanitize_drawing_feedback(raw, objects)
+    assert safe['items'][0]['canvas_visibility'] == 'inside_plot'
+    assert safe['occlusion_verified'] is False
+    assert safe['pixel_verified'] is False
+    raw['items'][0].update(status='failed', reason='overlay_missing')
+    assert sanitize_drawing_feedback(raw, objects)['report_status'] == 'invalid'

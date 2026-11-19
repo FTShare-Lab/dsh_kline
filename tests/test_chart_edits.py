@@ -10,7 +10,7 @@ from pydantic import ValidationError
 import chart_service
 import server
 from tools.chart_context import read_chart_context
-from tools.chart_edits import ChartEdit, prepare_chart_edit, snapshot_inventory
+from tools.chart_edits import ChartEdit, prepare_chart_edit, snapshot_inventory, MAX_PREPARATIONS
 from tools.chart_applications import read_edit_status
 from tools.lines import LineError, edit_horizontal_line
 from tools.trend_lines import edit_trend_line
@@ -224,7 +224,7 @@ class GuardedEditTests(unittest.TestCase):
     def test_capacity_does_not_discard_history_or_publish(self):
         journal = self.runtime / "edits" / "4242" / self.ref / "journal.json"
         history = {"entries": [{"request_id": "old" + str(i), "revision": i + 2,
-                               "fingerprint": "0" * 64, "status": "preparing"} for i in range(64)]}
+                               "fingerprint": "0" * 64, "status": "preparing"} for i in range(MAX_PREPARATIONS)]}
         chart_service._atomic_runtime_json(journal, history)
         self.assert_code("chart_edit_capacity", self.prepare)
         self.assertEqual(json.loads(journal.read_text()), history); self.assertEqual(self.published, [])

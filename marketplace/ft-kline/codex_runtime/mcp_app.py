@@ -82,7 +82,7 @@ def _bridge() -> str:
   const refreshObservation = async () => {
     const ref = window.__DSH_CHART_SESSION__?.context_ref;
     if (!ref) return null;
-    const observed = await action('observe', { context_ref: ref });
+    const observed = await action('observe', { context_ref: ref, selected_drawing_id: window.__DSH_KLINE_SELECTED_DRAWING__?.() || null });
     if (!observed?.ok) return observed;
     const key = String(observed.chart_session || '');
     window.__DSH_KLINE_OBSERVATION__ = { ok: true, context_ref: observed.context_ref, revision: observed.revision,
@@ -115,7 +115,10 @@ def _bridge() -> str:
     await window.handleToolResult({ structuredContent: payload });
     lastDeliveryKey = deliveryKey;
     await refreshObservation().catch(console.warn);
-    if (candidate) await action('ack_render', { context_ref: payload.context_ref, candidate_chart_session: candidate, rendered: true }).catch(console.warn);
+    if (candidate) {
+      const receipt = await action('ack_render', { context_ref: payload.context_ref, candidate_chart_session: candidate, rendered: true }).catch(() => null);
+      if (receipt?.ui_receipt === 'rendered') window.__DSH_KLINE_RECORD_DRAWING__?.(candidate, payload.drawing_history_event || null, payload.drawing_focus_ids || []);
+    }
   };
   const sessionOnlyPresentation = () => {
     // The shared DSH view contains a persistent-key option. Remove it for
@@ -132,6 +135,7 @@ def _bridge() -> str:
   };
   window.__FT_KLINE_APP__ = { appInstance, ready: Promise.all([hostReady, payloadReady]), action, refreshObservation,
     async mounted() { mounted = true; sessionOnlyPresentation(); if (buffered) { const next = buffered; buffered = null; await deliver(next.payload, next.candidate); } await refreshObservation().catch(console.warn); } };
+  window.__DSH_KLINE_SYNC_CONTEXT__ = refreshObservation;
   window.__DSH_KLINE_REPORT_CONTEXT__ = () => { void refreshObservation().catch(console.warn); };
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {

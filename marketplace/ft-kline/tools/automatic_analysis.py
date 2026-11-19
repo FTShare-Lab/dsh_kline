@@ -133,8 +133,12 @@ def candidate_edit_parameters(kind: str, summary: dict[str, Any], number: int) -
         if kind == "horizontal_line":
             return {"price": anchors[0]["price"]}
         if kind == "labeled_polyline":
-            return {"points": [{"label": "ABC"[index], "time": str(anchor["time"]), "price": anchor["price"]}
-                               for index, anchor in enumerate(anchors)]}
+            origin = selected.get("origin")
+            if not isinstance(origin, dict) or "time" not in origin or "price" not in origin:
+                raise LineError("candidate_result_invalid", "ABC 候选缺少起点，不能只画两个波段。")
+            return {"points": [{"label": "0", "time": str(origin["time"]), "price": origin["price"]},
+                               *[{"label": "ABC"[index], "time": str(anchor["time"]), "price": anchor["price"]}
+                                 for index, anchor in enumerate(anchors)]]}
         return {"start_time": str(anchors[0]["time"]), "start_price": anchors[0]["price"],
                 "end_time": str(anchors[1]["time"]), "end_price": anchors[1]["price"]}
     if kind == "price_pattern":

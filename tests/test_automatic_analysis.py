@@ -17,9 +17,9 @@ from codex_runtime.state import CodexChartEdit, _edit_parameters
         {"anchors": [{"time": 10, "price": 11.0}, {"time": 20, "price": 12.0}]}]},
      {"start_time": "10", "start_price": 11.0, "end_time": "20", "end_price": 12.0}),
     ("labeled_polyline", "recent_drawing_candidates", {"drawing_type": "abc", "candidates": [
-        {"anchors": [{"time": 10, "price": 11.0}, {"time": 20, "price": 12.0},
+        {"origin": {"time": 5, "price": 14.0}, "anchors": [{"time": 10, "price": 11.0}, {"time": 20, "price": 12.0},
                      {"time": 30, "price": 10.0}]}]},
-     {"points": [{"label": "A", "time": "10", "price": 11.0},
+     {"points": [{"label": "0", "time": "5", "price": 14.0}, {"label": "A", "time": "10", "price": 11.0},
                  {"label": "B", "time": "20", "price": 12.0},
                  {"label": "C", "time": "30", "price": 10.0}]}),
     ("channel", "channel_candidates", {"candidates": [{"anchors": {
@@ -70,3 +70,9 @@ def test_both_hosts_accept_a_bound_candidate_and_reject_mixed_manual_coordinates
         edit_parameters(ChartEdit(**mixed))
     with pytest.raises(LineError, match="候选"):
         _edit_parameters(CodexChartEdit(**mixed))
+
+
+def test_abc_mapping_requires_origin_instead_of_silently_drawing_two_legs():
+    with pytest.raises(LineError, match="起点"):
+        candidate_edit_parameters("labeled_polyline", {"drawing_type":"abc", "candidates":[
+            {"anchors":[{"time":10,"price":11}, {"time":20,"price":12}, {"time":30,"price":10}]}]}, 1)

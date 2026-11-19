@@ -24,6 +24,9 @@ from tools.price_bands import BAND_COMMAND, edit_price_band
 from tools.price_sticks import STICKS_COMMAND, edit_price_sticks
 from tools.pattern_groups import PATTERN_COMMAND, NINE_COMMAND, edit_pattern_group
 
+# Undo and redo are real guarded operations and consume preparation records too.
+MAX_PREPARATIONS = 256
+
 KINDS = {LINE_COMMAND: "horizontal_line", TREND_COMMAND: "trend_line",
          CHANNEL_COMMAND: "channel", RECTANGLE_COMMAND: "rectangle", FIBONACCI_COMMAND: "fibonacci_retracement",
          POLYLINE_COMMAND: "labeled_polyline", ANNOTATION_COMMAND: "annotation", SERIES_COMMAND: "series_line",
@@ -33,8 +36,8 @@ KINDS = {LINE_COMMAND: "horizontal_line", TREND_COMMAND: "trend_line",
 
 class ChartEdit(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings"]
-    action: Literal["create", "update", "delete"]
+    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings", "drawing_batch", "drawing_history"]
+    action: Literal["create", "update", "delete"] = Field(description="普通图形用 create/update/delete；drawing_batch 用 create；drawing_history 用 update，且不填 object_id、name、color。")
     object_id: str | None = Field(default=None, min_length=1, max_length=128,
                                  description="修改/删除使用当前观察中的 AI 稳定 ID；创建不填")
     name: str | None = Field(default=None, max_length=48)
@@ -71,6 +74,12 @@ class ChartEdit(BaseModel):
     user_confirmed_candidate: bool | None = Field(default=None, strict=True,
         description="用户明确要求直接绘图或选定候选时填 true；仅分析/提案请求不可填")
 
+    edits: list[dict[str, Any]] | None = Field(default=None, min_length=1, max_length=8,
+        description="同一当前图的1至8个绘图修改；整组一次应用，不支持嵌套")
+    history_session: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{32}$",
+        description="本视图已确认应用的原操作引用；仅用于撤销或重做该操作")
+    history_direction: Literal["undo", "redo"] | None = None
+
 
 def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
     fields = edit.model_dump(exclude_none=True)
@@ -91,6 +100,8 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
         "price_pattern": set(),
         "nine_count": set(),
         "all_drawings": set(),
+        "drawing_batch": {"edits"},
+        "drawing_history": {"history_session", "history_direction"},
     }[edit.kind]
     if fields.keys() - supported or edit.action == "delete" and fields:
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填类型、action，单对象删除另填 object_id。")
@@ -114,7 +125,12 @@ def edit_parameters(edit: ChartEdit) -> dict[str, Any]:
         raise LineError("candidate_confirmation_required", "候选绘图需要用户直接绘图请求或明确选定候选，并填写原结果引用、序号及授权标记。")
     if edit.kind == "all_drawings" and (edit.action != "delete" or edit.object_id is not None):
         raise LineError("invalid_object_identity", "清空当前图只使用 all_drawings/delete，不指定单个对象 ID。")
-    if edit.kind != "all_drawings" and (edit.action == "create" and edit.object_id is not None or edit.action != "create" and edit.object_id is None):
+    if edit.kind in {"drawing_batch", "drawing_history"}:
+        required = {"edits"} if edit.kind == "drawing_batch" else {"history_session", "history_direction"}
+        actions = {"create"} if edit.kind == "drawing_batch" else {"update", "create"}
+        if edit.action not in actions or edit.object_id is not None or set(fields) != required:
+            raise LineError("invalid_drawing_transaction", "drawing_batch 使用 create 和 edits；drawing_history 使用 update、history_session、history_direction，不填 object_id 或样式。")
+    if edit.kind not in {"all_drawings", "drawing_batch", "drawing_history"} and (edit.action == "create" and edit.object_id is not None or edit.action != "create" and edit.object_id is None):
         raise LineError("invalid_object_identity", "创建不指定 object_id；修改/删除必须使用当前观察中的完整 AI ID。")
     _, name, color = validate_line_fields(name=edit.name, color=edit.color)
     if "name" in fields: fields["name"] = name
@@ -209,6 +225,88 @@ def _public_edit_object(kind: str, obj: dict) -> dict:
         "valid_bars": sum(value is not None for value in obj[count_field])}
 
 
+def _resolve_edit_parameters(edit, context):
+    params = edit_parameters(edit)
+    if edit.result_ref is not None:
+        from tools.chart_functions import resolve_result
+        params.update(resolve_result(edit.result_ref, context, edit.kind))
+    if edit.ta_result_ref is not None:
+        from tools.ta_functions import resolve_ta_drawing
+        params.update(resolve_ta_drawing(edit.ta_result_ref, context, edit.kind))
+    if edit.candidate_result_ref is not None:
+        from tools.chart_functions import resolve_selected_candidate
+        params.update(resolve_selected_candidate(edit.candidate_result_ref, context, edit.kind, edit.candidate_number))
+    return params
+
+
+def _apply_prepared_edit(payload, context, context_ref, request_id, edit, params):
+    if edit.kind == "drawing_batch":
+        if any(ChartEdit.model_validate(child).kind in {"drawing_batch", "drawing_history", "all_drawings"} for child in edit.edits):
+            raise LineError("invalid_drawing_transaction", "多图修改不能嵌套、清空或执行历史操作。")
+        edited = deepcopy(payload)
+        objects = []
+        targets = set()
+        for index, raw in enumerate(edit.edits):
+            child = ChartEdit.model_validate(raw)
+            if child.object_id and child.object_id in targets:
+                raise LineError("duplicate_drawing_target", "同一组不能重复修改同一个对象。")
+            targets.add(child.object_id)
+            edited, obj = _apply_prepared_edit(edited, context, context_ref, f"{request_id}:{index}",
+                                              child, _resolve_edit_parameters(child, context))
+            objects.append(_public_edit_object(child.kind, obj))
+        return edited, {"kind": "drawing_batch", "objects": objects, "count": len(objects)}
+    if edit.kind == "drawing_history":
+        from tools.drawing_history import restore_drawings
+        return restore_drawings(payload, context, edit.history_session, edit.history_direction)
+    if edit.object_id is not None and not any(obj.get("origin") == "ai" and obj["kind"] == edit.kind
+        and obj["id"] == edit.object_id for obj in context["drawings"]):
+        raise LineError("drawing_not_editable", "目标不是当前观察中的该类型 AI 图形，手动/自动对象不允许修改。")
+    if edit.object_id is not None and edit.kind in {"channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", *ANNOTATION_KINDS}:
+        target = next(obj for obj in context["drawings"] if obj.get("origin") == "ai" and obj["id"] == edit.object_id)
+        if target.get("interval") != context["interval"]:
+            raise LineError("drawing_interval_mismatch", "目标属于其他周期，当前周期不能改写或删除该对象；请明确切回其适用周期，不自动搬锚点。")
+    editors = {"horizontal_line": (edit_horizontal_line, "line_id"), "trend_line": (edit_trend_line, "line_id"),
+                      "channel": (edit_channel, "channel_id"), "rectangle": (edit_rectangle, "rectangle_id"),
+                      "fibonacci_retracement": (edit_fibonacci, "fibonacci_id"),
+                      "labeled_polyline": (edit_polyline, "polyline_id"),
+                      "series_line": (edit_price_series, "series_id"),
+                      "price_band": (edit_price_band, "band_id"),
+                      "price_sticks": (edit_price_sticks, "sticks_id"),
+                      "price_pattern": (edit_pattern_group, "group_id"),
+                      "nine_count": (edit_pattern_group, "group_id"),
+                      "text_annotation": (edit_annotation, "annotation_id"),
+                      "number_annotation": (edit_annotation, "annotation_id"),
+                      "icon_annotation": (edit_annotation, "annotation_id")}
+    if edit.kind == "all_drawings":
+        targets = {item["id"] for item in context["drawings"] if item.get("origin") == "ai"
+                   and item.get("interval") == context["interval"]}
+        if not targets:
+            raise LineError("drawing_not_found", "当前周期没有可清空的 AI 图形。")
+        edited = deepcopy(payload)
+        edited["chartCommands"] = [command for command in payload["chartCommands"]
+                                   if not (command.get("type") in KINDS and command.get("id") in targets)]
+        obj = {"kind": "all_drawings", "deleted_count": len(targets)}
+    else:
+        editor, id_key = editors[edit.kind]
+        arguments = dict(params)
+        if edit.kind == "labeled_polyline" and edit.action == "update" and (edit.result_ref is not None or edit.candidate_result_ref is not None):
+            arguments["replace_from_result"] = True
+        if edit.kind in ANNOTATION_KINDS:
+            arguments["kind"] = edit.kind
+            arguments = {({"annotation_text": "text", "annotation_value": "value", "annotation_icon": "icon"}.get(k, k)): v
+                         for k, v in arguments.items()}
+        if edit.kind in {"price_pattern", "nine_count"}:
+            arguments["kind"] = edit.kind
+        arguments.pop("result_ref", None)
+        arguments.pop("ta_result_ref", None)
+        for key in ("candidate_result_ref", "candidate_number", "user_confirmed_candidate"):
+            arguments.pop(key, None)
+        if edit.action == "create": arguments["request_id"] = context_ref + ":" + hashlib.sha256(request_id.encode()).hexdigest()
+        else: arguments[id_key] = edit.object_id
+        edited, obj = editor(payload, edit.action, **arguments)
+    return edited, obj
+
+
 def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: str, symbol: str,
                        request_id: str, edit: ChartEdit, *, publish=None) -> dict:
     """Prepare at most one candidate per observed revision; durable fail-closed retry journal.
@@ -220,19 +318,10 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         raise LineError("invalid_context_revision", "expected_revision 必须是读回的正整数观察版本。")
     if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128 or any(ord(c) < 32 for c in request_id):
         raise LineError("invalid_request_id", "request_id 必须为1至128字符，同一次请求重试保持不变。")
-    params = edit_parameters(edit)
     context = read_chart_context(context_ref, candle_scope="loaded", limit=4000)
     if context["revision"] != expected_revision:
         raise LineError("chart_context_revision_conflict", "当前图观察版本已变化，请重新读取并核对用户意图；未准备修改。")
-    if edit.result_ref is not None:
-        from tools.chart_functions import resolve_result
-        params.update(resolve_result(edit.result_ref, context, edit.kind))
-    if edit.ta_result_ref is not None:
-        from tools.ta_functions import resolve_ta_drawing
-        params.update(resolve_ta_drawing(edit.ta_result_ref, context, edit.kind))
-    if edit.candidate_result_ref is not None:
-        from tools.chart_functions import resolve_selected_candidate
-        params.update(resolve_selected_candidate(edit.candidate_result_ref, context, edit.kind, edit.candidate_number))
+    params = _resolve_edit_parameters(edit, context)
     # A sequence's full values belong only in the candidate snapshot. The
     # journal/guard bind them by digest so preparation does not echo thousands
     # of prices back into the host conversation.
@@ -255,7 +344,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         try:
             saved = json.loads(journal.read_text(encoding="utf-8")) if journal.exists() else {"entries": []}
             entries = saved["entries"]
-            if not isinstance(entries, list) or len(entries) > 64: raise ValueError("invalid journal")
+            if not isinstance(entries, list) or len(entries) > MAX_PREPARATIONS: raise ValueError("invalid journal")
             if any(not isinstance(e, dict) or not isinstance(e.get("request_id"), str)
                    or not isinstance(e.get("revision"), int) or isinstance(e["revision"], bool)
                    or e.get("status") not in {"preparing", "prepared", "outcome_unknown"}
@@ -273,7 +362,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
             return {**deepcopy(previous["result"]), "replayed": True}
         if any(e["revision"] == expected_revision for e in entries):
             raise LineError("chart_edit_revision_consumed", "该观察版本已有准备结果或未确认请求；不能从同一版本并行创建分支。")
-        if len(entries) >= 64:
+        if len(entries) >= MAX_PREPARATIONS:
             raise LineError("chart_edit_capacity", "该视图修改日志已达本阶段上限，停止发布，未自动丢弃重试记录。")
         payload = chart_service.read_chart_snapshot(chart_session)
         if payload is None: raise LineError("chart_session_not_found", "来源快照不属于当前 DSH 实例或不存在。")
@@ -281,52 +370,7 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
             require_alignment(context, payload, chart_session, symbol)
         except (KeyError, TypeError, AttributeError):
             raise LineError("chart_snapshot_not_aligned", "来源快照字段无法安全核对，未准备修改。") from None
-        if edit.object_id is not None and not any(obj.get("origin") == "ai" and obj["kind"] == edit.kind
-            and obj["id"] == edit.object_id for obj in context["drawings"]):
-            raise LineError("drawing_not_editable", "目标不是当前观察中的该类型 AI 图形，手动/自动对象不允许修改。")
-        if edit.object_id is not None and edit.kind in {"channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", *ANNOTATION_KINDS}:
-            target = next(obj for obj in context["drawings"] if obj.get("origin") == "ai" and obj["id"] == edit.object_id)
-            if target.get("interval") != context["interval"]:
-                raise LineError("drawing_interval_mismatch", "目标属于其他周期，当前周期不能改写或删除该对象；请明确切回其适用周期，不自动搬锚点。")
-        editors = {"horizontal_line": (edit_horizontal_line, "line_id"), "trend_line": (edit_trend_line, "line_id"),
-                          "channel": (edit_channel, "channel_id"), "rectangle": (edit_rectangle, "rectangle_id"),
-                          "fibonacci_retracement": (edit_fibonacci, "fibonacci_id"),
-                          "labeled_polyline": (edit_polyline, "polyline_id"),
-                          "series_line": (edit_price_series, "series_id"),
-                          "price_band": (edit_price_band, "band_id"),
-                          "price_sticks": (edit_price_sticks, "sticks_id"),
-                          "price_pattern": (edit_pattern_group, "group_id"),
-                          "nine_count": (edit_pattern_group, "group_id"),
-                          "text_annotation": (edit_annotation, "annotation_id"),
-                          "number_annotation": (edit_annotation, "annotation_id"),
-                          "icon_annotation": (edit_annotation, "annotation_id")}
-        if edit.kind == "all_drawings":
-            targets = {item["id"] for item in context["drawings"] if item.get("origin") == "ai"
-                       and item.get("interval") == context["interval"]}
-            if not targets:
-                raise LineError("drawing_not_found", "当前周期没有可清空的 AI 图形。")
-            edited = deepcopy(payload)
-            edited["chartCommands"] = [command for command in payload["chartCommands"]
-                                       if not (command.get("type") in KINDS and command.get("id") in targets)]
-            obj = {"kind": "all_drawings", "deleted_count": len(targets)}
-        else:
-            editor, id_key = editors[edit.kind]
-            arguments = dict(params)
-            if edit.kind == "labeled_polyline" and edit.action == "update" and (edit.result_ref is not None or edit.candidate_result_ref is not None):
-                arguments["replace_from_result"] = True
-            if edit.kind in ANNOTATION_KINDS:
-                arguments["kind"] = edit.kind
-                arguments = {({"annotation_text": "text", "annotation_value": "value", "annotation_icon": "icon"}.get(k, k)): v
-                             for k, v in arguments.items()}
-            if edit.kind in {"price_pattern", "nine_count"}:
-                arguments["kind"] = edit.kind
-            arguments.pop("result_ref", None)
-            arguments.pop("ta_result_ref", None)
-            for key in ("candidate_result_ref", "candidate_number", "user_confirmed_candidate"):
-                arguments.pop(key, None)
-            if edit.action == "create": arguments["request_id"] = context_ref + ":" + hashlib.sha256(request_id.encode()).hexdigest()
-            else: arguments[id_key] = edit.object_id
-            edited, obj = editor(payload, edit.action, **arguments)
+        edited, obj = _apply_prepared_edit(payload, context, context_ref, request_id, edit, params)
         # The new drawing candidate has its own guarded application proof.
         # Do not misidentify it as the unchanged root browser-source token.
         edited.pop("view_source_guard", None)
@@ -338,6 +382,12 @@ def prepare_chart_edit(context_ref: str, expected_revision: int, chart_session: 
         guard = {"protocol": "prepared-only-v1", **identity, "conversation_id": context["conversation_id"],
                  "view_id": context["view_id"], "request_id": request_id, "requires_live_apply": True}
         edited.update(drawing_only=True, drawing_parent_session=chart_session, drawing_guard=guard)
+        edited.pop("drawing_history_event", None)
+        edited.pop("drawing_focus_ids", None)
+        if edit.kind == "drawing_batch":
+            edited["drawing_focus_ids"] = [o["id"] for o in obj["objects"] if o.get("id")]
+        if edit.kind == "drawing_history":
+            edited["drawing_history_event"] = {"session": edit.history_session, "direction": edit.history_direction}
         entry = {"request_id": request_id, "revision": expected_revision, "fingerprint": fingerprint, "status": "preparing"}
         entries.append(entry)
         chart_service._atomic_runtime_json(journal, {"entries": entries})

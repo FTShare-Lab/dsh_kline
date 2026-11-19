@@ -393,3 +393,15 @@ test('view collector reads real viewport, separates user/AI objects, and marks l
   assert.equal(capture('').interval,'minute'); assert.equal(capture('').interval_value,5)
   context.sourceCandleIntervalValue=null; assert.equal(capture('').interval_value,null)
 })
+
+test('live viewport uses SDK real span when right padding leaves cached bars off screen',()=>{
+  const html=readFileSync(new URL('../view/kline.html',import.meta.url),'utf8')
+  const capture=html.slice(html.indexOf('function captureChartContext('),html.indexOf('function refreshMirrorAxes('))
+  const viewport=capture.slice(capture.indexOf('let viewport ='),capture.indexOf('const drawings ='))
+  const rows=Array.from({length:222},(_,i)=>({time:i+1}))
+  const evaluate=(range:any)=>runInNewContext(viewport+';viewport',{state:'ready',rows,kchart:{getVisibleRange:()=>range}})
+  assert.deepEqual(JSON.parse(JSON.stringify(evaluate({from:189,to:222,realFrom:211,realTo:222}))),
+    {available:true,index_from:211,index_to_exclusive:222})
+  assert.equal(evaluate({from:189,to:222,realFrom:225,realTo:222}).index_from,222)
+  assert.equal(evaluate({from:1,to:4}).index_from,1)
+})

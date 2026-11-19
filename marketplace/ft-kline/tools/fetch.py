@@ -1193,12 +1193,8 @@ def _index_candles_provider_unavailable_result(symbol: str) -> dict[str, Any]:
 
 def _exchange_timezone(symbol: str) -> str:
     """Return the IANA trading timezone used for calendar aggregation."""
-    normalized = str(symbol or "").strip().upper()
-    if normalized.endswith((".HK", ".HKG")) or normalized.startswith("100.HSI"):
-        return "Asia/Hong_Kong"
-    if _is_us_symbol(normalized) or normalized in {"100.NDX", "100.SPX", "100.DJIA"}:
-        return "America/New_York"
-    return "Asia/Shanghai"
+    from tools.exchange_time import exchange_clock
+    return exchange_clock(symbol)[0].key
 
 
 def _aggregate_quarters(rows: list[dict[str, Any]], *, timezone_name: str = "Asia/Shanghai") -> list[dict[str, Any]]:

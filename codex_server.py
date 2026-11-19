@@ -25,6 +25,8 @@ from pydantic import BaseModel, ConfigDict
 
 from codex_runtime.analysis import (AVAILABLE_METRICS, analyze_rows, analyze_symbol, fetch_candles,
                                     resolve_symbol, search_symbols, validate_interval)
+from codex_runtime.drawing_tasks import draw_many as draw_many_codex
+from tools.drawing_requests import DrawingRequest
 from codex_runtime.functions import (list_chart_functions, list_ta_catalog, read_ta, run_chart_function, run_ta)
 from codex_runtime.mcp_app import APP_META, register_resource
 from codex_runtime.state import APP_RESOURCE_URI, CodexChartEdit, CodexChartStore
@@ -318,6 +320,13 @@ if not IS_CLI:
         try: return result(run_chart_function(STORE, context_ref, expected_revision, chart_session, symbol, function, parameters), "run_chart_function ok", chart=True)
         except Exception as exc: return failure(exc)
 
+    @mcp.tool(name="draw_chart", structured_output=True)
+    async def draw_chart(context_ref: str, symbol: str, request_id: str,
+                         drawings: Annotated[list[DrawingRequest], Field(min_length=1, max_length=8)]) -> Annotated[types.CallToolResult, ToolOutput]:
+        """Analyze and draw 1–8 explicitly requested tools in one guarded task. Stable request_id prevents duplicates. Each tool uses shared analysis and reports applied/no_candidate. State commit and optional App receipt do not prove visible pixels. No fetching or guessed anchors."""
+        try: return result(draw_many_codex(STORE, context_ref, symbol, request_id, drawings), "drawing task completed; check item outcomes", chart=True)
+        except (LineError, ValueError, TypeError) as exc: return failure(exc)
+
     @mcp.tool(name="prepare_chart_edit", structured_output=True)
     async def prepare_chart_edit(context_ref: str, expected_revision: Annotated[int, Field(gt=0)], chart_session: str, symbol: str,
                                  request_id: Annotated[str, Field(min_length=1, max_length=128)], edit: CodexChartEdit) -> Annotated[types.CallToolResult, ToolOutput]:
@@ -348,7 +357,7 @@ if not IS_CLI:
                              "fetch_security_workspace", "fetch_comparison_candles", "market_ticker",
                              "calculate_chart_indicators", "calc_range", "analyze_key_levels", "test_ftshare_connection",
                              "configure_session_key", "clear_session_key", "workbench_run_ta", "workbench_run_chart_function",
-                             "workbench_prepare_edit", "workbench_apply_edit", "workbench_edit_status", "ack_render"})
+                             "workbench_prepare_edit", "workbench_apply_edit", "workbench_edit_status", "workbench_draw_many", "ack_render"})
 
     @mcp.tool(name="ft_kline_app_action", meta={"ui": {"resourceUri": APP_RESOURCE_URI, "visibility": ["app"]}}, structured_output=True)
     async def ft_kline_app_action(action: str, arguments: dict[str, Any], app_instance: str) -> Annotated[types.CallToolResult, ToolOutput]:
@@ -358,6 +367,9 @@ if not IS_CLI:
             if action == "activate": data = STORE.claim(str(arguments.get("context_ref") or ""), app_instance)
             elif action == "observe":
                 state = STORE._state(str(arguments.get("context_ref") or ""), app_instance=app_instance, claim=True)
+                selected = arguments.get("selected_drawing_id")
+                if "selected_drawing_id" in arguments:
+                    state.selected_drawing_id = selected if any(d["id"] == selected for d in STORE.context(state.context_ref)["drawings"]) else None
                 data = {"ok": True, "context_ref": state.context_ref, "revision": state.revision, "chart_session": state.chart_session}
             elif action == "close": STORE.close(str(arguments.get("context_ref") or ""), app_instance=app_instance); data = {"ok": True}
             elif action == "sync_chart_view":
@@ -379,6 +391,9 @@ if not IS_CLI:
                 _app_context(arguments, app_instance); data = run_ta(STORE, **arguments)
             elif action == "workbench_run_chart_function":
                 _app_context(arguments, app_instance); data = run_chart_function(STORE, **arguments)
+            elif action == "workbench_draw_many":
+                _app_context(arguments, app_instance)
+                data = draw_many_codex(STORE, **arguments)
             elif action == "workbench_prepare_edit":
                 _app_context(arguments, app_instance)
                 arguments["edit"] = CodexChartEdit.model_validate(arguments.get("edit"))

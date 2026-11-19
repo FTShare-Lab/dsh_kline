@@ -14,11 +14,53 @@ const PHASES=['current','applied','rolled_back','rollback_unknown']
 const STATUS_REASONS:any={created:['overlay_registered','outside_time_viewport','indicator_registered'],hidden:['period_mismatch','anchors_not_loaded','snapshot_outside_loaded_history'],
   removed:['overlay_removed','indicator_removed'],failed:['invalid_geometry','overlay_missing','overlay_mismatch','overlay_still_present','creation_failed','indicator_missing','indicator_still_present'],
   unknown:['overlay_api_unavailable','overlay_lookup_failed','overlay_mismatch','context_not_ready','application_rolled_back','rollback_unknown','indicator_api_unavailable']}
-function empty(status:string) {return {schema_version:1,report_status:status,evidence_scope:'chart_object_api',render_verified:false,pixel_verified:false,items:[]}}
+function empty(status:string) {return {schema_version:1,report_status:status,evidence_scope:'chart_object_api',geometry_visibility_basis:'browser_reported_plot_projection_excluding_labels',occlusion_verified:false,render_verified:false,pixel_verified:false,items:[]}}
 function timeRangeOverlap(points:any[], first:number|undefined, last:number|undefined):boolean|null {
   if(!first || !last || !points.length)return null
   const times=points.map(point=>point.timestamp/1000)
   return Math.max(...times)>=first && Math.min(...times)<=last
+}
+export const CANVAS_VISIBILITIES=['unknown','inside_plot','partially_clipped','outside_plot','not_applicable']
+function segmentInPlot(a:any,b:any,width:number,height:number) {
+  let first=0,last=1
+  const dx=b.x-a.x,dy=b.y-a.y
+  for(const [p,q] of [[-dx,a.x],[dx,width-a.x],[-dy,a.y],[dy,height-a.y]]) {
+    if(p===0){if(q<0)return false;continue}
+    const ratio=q/p
+    if(p<0)first=Math.max(first,ratio);else last=Math.min(last,ratio)
+    if(first>last)return false
+  }
+  return true
+}
+/** Plot-coordinate geometry only: labels, DOM occlusion and pixels are not verified. */
+export function projectedCanvasVisibility(kind:string,command:any,expected:any,chart:any):string {
+  if(!['horizontal_line','trend_line','channel','rectangle','fibonacci_retracement','labeled_polyline'].includes(kind))return 'unknown'
+  try {
+    const bounds=chart.getDom('candle_pane','main').getBoundingClientRect()
+    const width=bounds.width,height=bounds.height
+    if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)return 'unknown'
+    let source=expected.points
+    if(kind==='fibonacci_retracement')source=(command.levels||[]).flatMap((level:any)=>[
+      {timestamp:command.from.time*1000,value:level.price},{timestamp:command.to.time*1000,value:level.price}])
+    let points=chart.convertToPixel(source,{paneId:'candle_pane',absolute:false})
+    if(!Array.isArray(points)||!points.length||points.length!==source.length||points.some((p:any)=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return 'unknown'
+    let segments:any[]=[]
+    let fillOverlap=false
+    if(kind==='horizontal_line')points=[{x:0,y:points[0].y},{x:width,y:points[0].y}]
+    if(kind==='rectangle') {
+      const [a,b]=points,left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y)
+      points=[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}]
+      segments=points.map((p:any,i:number)=>[p,points[(i+1)%4]])
+      fillOverlap=command.show_fill!==false&&right>=0&&left<=width&&bottom>=0&&top<=height
+    } else if(kind==='channel'||kind==='fibonacci_retracement') {
+      for(let i=0;i+1<points.length;i+=2)segments.push([points[i],points[i+1]])
+      if(kind==='channel'&&command.show_midline!==false&&points.length===4)segments.push([
+        {x:(points[0].x+points[2].x)/2,y:(points[0].y+points[2].y)/2},
+        {x:(points[1].x+points[3].x)/2,y:(points[1].y+points[3].y)/2}])
+    } else segments=points.slice(1).map((p:any,i:number)=>[points[i],p])
+    if(points.every((p:any)=>p.x>=0&&p.x<=width&&p.y>=0&&p.y<=height))return 'inside_plot'
+    return fillOverlap||segments.some(([a,b])=>segmentInPlot(a,b,width,height)) ? 'partially_clipped':'outside_plot'
+  } catch{return 'unknown'}
 }
 export function sanitizeDrawingFeedback(raw:any, allowed:any[]):any {
   if(raw==null)return empty('not_reported')
@@ -33,8 +75,10 @@ export function sanitizeDrawingFeedback(raw:any, allowed:any[]):any {
         || !['unknown','outside_time_viewport','not_applicable'].includes(item.visibility)
         || (item.time_range_overlap!=null && typeof item.time_range_overlap!=='boolean'))throw Error('invalid_item')
       if((item.reason==='outside_time_viewport')!==(item.visibility==='outside_time_viewport'))throw Error('invalid_visibility')
+      const canvas=item.canvas_visibility??'unknown'
+      if(!CANVAS_VISIBILITIES.includes(canvas)||item.status!=='created'&&['inside_plot','partially_clipped','outside_plot'].includes(canvas))throw Error('invalid_canvas_visibility')
       seen.add(item.id)
-      return {id:item.id,kind:item.kind,status:item.status,reason:item.reason,visibility:item.visibility,
+      return {canvas_visibility:canvas,id:item.id,kind:item.kind,status:item.status,reason:item.reason,visibility:item.visibility,
         outside_loaded_price_envelope:item.outside_loaded_price_envelope===true,
         time_range_overlap:typeof item.time_range_overlap==='boolean' ? item.time_range_overlap : null}
     })
@@ -158,6 +202,7 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
             ? overlay.extendData?.annotationIcon===cmd.icon : overlay.extendData?.text===chartAnnotationText(cmd)))
     } catch {item.reason='overlay_lookup_failed';return item}
     item.status=same ? 'created' : 'failed';item.reason=same ? 'overlay_registered' : 'overlay_mismatch'
+    if(same)item.canvas_visibility=projectedCanvasVisibility(drawing.kind,cmd,expected,chart)
     if(same && item.time_range_overlap===false){item.visibility='outside_time_viewport';item.reason='outside_time_viewport'}
     return item
   })
@@ -190,5 +235,5 @@ export function collectDrawingFeedback(payload:any, context:any, chart:any, prev
   }
   const hasSeries=items.some((item:any)=>['series_line','price_band','price_sticks'].includes(item.kind)),hasOverlay=items.some((item:any)=>!['series_line','price_band','price_sticks'].includes(item.kind))
   return {schema_version:1,phase,evidence_scope:hasSeries ? hasOverlay ? 'mixed_chart_api_and_indicator_registry' : 'indicator_registry' : 'chart_object_api',
-    render_verified:false,pixel_verified:false,items}
+    geometry_visibility_basis:'browser_reported_plot_projection_excluding_labels',occlusion_verified:false,render_verified:false,pixel_verified:false,items}
 }

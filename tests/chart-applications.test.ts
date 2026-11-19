@@ -56,10 +56,11 @@ function queue(runtime:string,ref:string,token:string) {
 function status(runtime:string,ref:string,token:string) {
   return py(runtime,`r=asyncio.run(server.get_chart_edit_status('${ref}','${token}')); print(json.dumps(r.structuredContent))`)
 }
-async function fixture() {
+async function fixture(selectionSupported=false) {
   const runtime=await mkdtemp(join(tmpdir(),'kline-apply-'))
   const broker=new ChartContextBroker(join(runtime,'views',String(process.pid)),()=>Date.now(),runtime)
-  const state=base(), payload={symbol:'TEST.X',interval:'day',interval_value:1,adjust:'none',range_key:'custom',count:4,
+  const state=base();if(selectionSupported){state.drawing_selection_supported=true;state.selected_drawing_status='none'}
+  const payload={symbol:'TEST.X',interval:'day',interval_value:1,adjust:'none',range_key:'custom',count:4,
     chartCommands:[{type:'SET_CANDLES',rows:state.candles},{type:'DRAW_HORIZONTAL_LINE',id:'H',label:'H',color:'info',price:31}]}
   await mkdir(join(runtime,'sessions'))
   await writeFile(join(runtime,'sessions',original+'.json'),JSON.stringify({ok:true,session:original,host_process_id:process.pid,payload}))
@@ -231,7 +232,7 @@ test('rollback success and rollback uncertainty are distinct, and silent state m
 })
 
 test('real Node → Python prepare/queue → inline view drawing-only apply → receipt → next edit preserves source and viewport',async()=>{
-  const f=await fixture()
+  const f=await fixture(true)
   try {
     const html=readFileSync(new URL('../view/kline.html',import.meta.url),'utf8'), overlays=new Map<string,any>(), saved:any[]=[]
     overlays.set('manual:T',{groupId:'manual'})
@@ -245,7 +246,7 @@ test('real Node → Python prepare/queue → inline view drawing-only apply → 
       kchart:{removeOverlay:({groupId}:any)=>{for(const [id,o] of overlays)if(o.groupId===groupId)overlays.delete(id)},
         createOverlay:(o:any)=>{overlays.set(o.id,o);return o.id},getOverlayById:(id:string)=>overlays.get(id) ?? null,
         getVisibleRange:()=>({from:1,to:3}),applyNewData:()=>assert.fail('must preserve candles')},
-      rememberWorkspaceTab:()=>{},rememberAnalysisCommands:()=>{},window:{__DSH_KLINE_SAVE_VIEW__:(p:any)=>saved.push(p)}}
+      document:{getElementById:()=>null},rememberWorkspaceTab:()=>{},rememberAnalysisCommands:()=>{},window:{__DSH_KLINE_SAVE_VIEW__:(p:any)=>saved.push(p)}}
     const render=html.slice(html.indexOf('function drawHorizontalLineCommands('),html.indexOf('function isSupportResistanceLevel('))
     const collect=html.slice(html.indexOf('function captureChartContext('),html.indexOf('function refreshMirrorAxes('))
     const api=runInNewContext(render+collect+';({apply:applyLiveDrawingCommands,confirm:confirmLiveDrawingApplication,capture:()=>captureChartContext(lastChartPayload?._live_chart_session || "'+original+'")})',context)

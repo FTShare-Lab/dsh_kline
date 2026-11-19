@@ -42,6 +42,7 @@ const CHART_ACTIONS = new Set([
   'workbench_prepare_edit',
   'workbench_apply_edit',
   'workbench_edit_status',
+  'workbench_draw_many',
 ])
 
 interface WebServerContext {

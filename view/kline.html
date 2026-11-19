@@ -246,6 +246,29 @@
   @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-30%); } }
   .timebar { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 38px; padding: 5px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .timebar-group { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .drawing-multi-options { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; max-height: 88px; overflow: auto; padding: 6px 0; border-top: 1px solid var(--border); }
+  .drawing-multi-options[hidden] { display: none; }
+  .drawing-multi-options input { accent-color: var(--accent); }
+  .drawing-workbench.multi-mode .workbench-primary-row, .drawing-workbench.multi-mode #patternWorkbench { display: none; }
+  .drawing-multi-options label { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; white-space: nowrap; font-size: 12px; }
+  .drawing-multi-options .btn { height: 28px; min-height: 28px; padding: 2px 8px; }
+  .drawing-history-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+  .drawing-history-actions .btn { width: 28px; min-width: 28px; height: 28px; padding: 4px; }
+  .drawing-history-actions svg { width: 16px; height: 16px; }
+  .drawing-selection-actions { display: flex; gap: 8px; align-items: center; padding: 4px 12px; border-bottom: 1px solid var(--border); min-width: 0; }
+  .drawing-selection-actions[hidden], .drawing-anchor-editor[hidden], .drawing-action-status[hidden] { display: none; }
+  .drawing-selection-actions .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .drawing-selection-actions .btn { flex: 0 0 auto; height: 28px; min-height: 28px; padding: 2px 8px; }
+  #drawingSelectedName { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawing-action-status { padding: 3px 12px; font-size: 12px; }
+  .drawing-anchor-editor { display: flex; gap: 10px; align-items: center; overflow-x: auto; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+  .drawing-anchor-editor label { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; }
+  .drawing-anchor-editor input { width: 104px; height: 28px; min-height: 28px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-soft); color: var(--text); font: inherit; }
+  .drawing-anchor-editor input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent); border-color: var(--accent); }
+  .drawing-selection-layer { position: absolute; inset: 0; z-index: 9; pointer-events: none; overflow: hidden; }
+  .drawing-anchor-handle { position: absolute; width: 13px; height: 13px; padding: 0; border: 2px solid #ff6b00; border-radius: 50%; background: var(--bg); transform: translate(-50%, -50%); pointer-events: auto; touch-action: none; cursor: grab; }
+  .drawing-anchor-handle:active { cursor: grabbing; }
+  .drawing-anchor-handle:focus-visible { outline: 2px solid #ff6b00; outline-offset: 3px; }
   .toolbar-zoom { display: flex; gap: 2px; margin-left: auto; }
   .toolbar-zoom .btn { width: 28px; min-width: 28px; min-height: 28px; padding: 2px; }
   .timebar-divider { width: 1px; align-self: stretch; background: var(--border); flex: 0 0 1px; }
@@ -1323,13 +1346,20 @@
     </div>
     </div>
     <div class="overflow-menu" id="toolbarOverflow" hidden><button class="btn" id="toolbarOverflowBtn" type="button" aria-label="更多图表工具" aria-expanded="false" aria-controls="toolbarOverflowPanel"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button><div class="overflow-panel" id="toolbarOverflowPanel" role="group" aria-label="更多图表工具"></div></div>
+    <div class="drawing-history-actions" role="group" aria-label="绘图历史">
+      <button class="btn" id="drawingUndo" type="button" title="撤销绘图（⌘/Ctrl Z）" aria-label="撤销绘图" disabled><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4M3 8h8a5 5 0 0 1 0 10"/></svg></button>
+      <button class="btn" id="drawingRedo" type="button" title="重做绘图（⌘/Ctrl Shift Z）" aria-label="重做绘图" disabled><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13 4 4 4-4 4m4-4H9a5 5 0 0 0 0 10"/></svg></button>
+    </div>
     <div class="toolbar-zoom" role="group" aria-label="画布缩放">
       <button class="btn" id="chartZoomOutBtn" type="button" title="缩小画布；不改变K线数据" aria-label="缩小画布">−</button>
       <button class="btn" id="chartZoomInBtn" type="button" title="放大画布；不改变K线数据" aria-label="放大画布">＋</button>
     </div>
   </div>
 <section class="drawing-workbench" id="drawingWorkbench" aria-label="绘图工具">
-  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC（三点折线）</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span><div class="workbench-actions"><button class="btn primary" id="workbenchCandidateBtn" type="button" hidden>绘图</button><button class="btn primary" id="workbenchPick" type="button">手动选点</button><button class="btn primary" id="workbenchMoreButton" type="button" aria-expanded="false">设置</button></div><div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">绘图</button><button class="btn primary" id="patternManual" type="button" hidden>手动选点</button><button class="btn primary" id="patternMoreButton" type="button" aria-expanded="false">设置</button></div><button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除</button><div class="overflow-menu" id="workbenchOverflow" hidden><button class="btn" id="workbenchOverflowBtn" type="button" aria-label="更多绘图操作" aria-expanded="false" aria-controls="workbenchOverflowPanel"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button><div class="overflow-panel" id="workbenchOverflowPanel" role="group" aria-label="更多绘图操作"></div></div><button class="btn workbench-close" id="workbenchClose" type="button" aria-label="关闭绘图面板" title="关闭绘图面板">×</button></div>
+  <div class="workbench-tool-row" id="workbenchToolRow"><label class="workbench-field" id="workbenchTypeField"><span data-i18n="drawingTool">工具</span><select id="workbenchType"><option value="horizontal" data-i18n="drawHorizontal">水平线</option><option value="trend" data-i18n="drawTrend">趋势线</option><option value="channel" data-i18n="drawChannel">平行通道</option><option value="rectangle" data-i18n="drawRectangle">平台框</option><option value="fibonacci" data-i18n="drawFibonacci">斐波那契</option><option value="abc" data-i18n="drawAbc">ABC</option><option value="pattern_double_top" data-i18n="drawDoubleTop">双顶</option><option value="pattern_double_bottom" data-i18n="drawDoubleBottom">双底</option><option value="pattern_head_shoulders_top" data-i18n="drawHeadShouldersTop">头肩顶</option><option value="pattern_head_shoulders_bottom" data-i18n="drawHeadShouldersBottom">头肩底</option><option value="pattern_platform" data-i18n="drawPlatformStatus">平台突破／失效</option><option value="nine_count" data-i18n="drawNineCount">九转计数</option></select></label><span id="workbenchIndicatorTitle" hidden></span><div class="workbench-actions"><button class="btn primary" id="workbenchCandidateBtn" type="button" hidden>绘图</button><button class="btn primary" id="workbenchPick" type="button">手动选点</button><button class="btn primary" id="workbenchMoreButton" type="button" aria-expanded="false">设置</button></div><div class="pattern-actions"><button class="btn primary" id="patternAnalyze" type="button">绘图</button><button class="btn primary" id="patternManual" type="button" hidden>手动选点</button><button class="btn primary" id="patternMoreButton" type="button" aria-expanded="false">设置</button></div><button class="btn primary" id="workbenchMultiBtn" data-i18n="multiDraw" type="button" aria-expanded="false" aria-controls="drawingMultiOptions" title="一次绘制多个图形">多图</button><button class="btn" id="clearBtn" type="button" aria-haspopup="dialog" aria-expanded="false">清除</button><div class="overflow-menu" id="workbenchOverflow" hidden><button class="btn" id="workbenchOverflowBtn" type="button" aria-label="更多绘图操作" aria-expanded="false" aria-controls="workbenchOverflowPanel"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button><div class="overflow-panel" id="workbenchOverflowPanel" role="group" aria-label="更多绘图操作"></div></div><button class="btn workbench-close" id="workbenchClose" type="button" aria-label="关闭绘图面板" title="关闭绘图面板">×</button></div>
+  <div id="drawingMultiOptions" class="drawing-multi-options" hidden role="group" aria-label="组合绘图">
+    <label><input type="checkbox" data-multi-tool="horizontal"> <span data-i18n="drawHorizontal">水平线</span></label><label><input type="checkbox" data-multi-tool="trend"> <span data-i18n="drawTrend">趋势线</span></label><label><input type="checkbox" data-multi-tool="fibonacci"> <span data-i18n="drawFibonacci">斐波那契</span></label><label><input type="checkbox" data-multi-tool="abc" checked> ABC</label><label><input type="checkbox" data-multi-tool="channel" data-direction="descending" checked> <span data-i18n="descendingChannel">下降通道</span></label><label><input type="checkbox" data-multi-tool="channel" data-direction="ascending"> <span data-i18n="ascendingChannel">上升通道</span></label><label><input type="checkbox" data-multi-tool="double_bottom"> <span data-i18n="drawDoubleBottom">双底</span></label><label><input type="checkbox" data-multi-tool="double_top"> <span data-i18n="drawDoubleTop">双顶</span></label><label><input type="checkbox" data-multi-tool="head_shoulders_bottom"> <span data-i18n="drawHeadShouldersBottom">头肩底</span></label><label><input type="checkbox" data-multi-tool="platform"> <span data-i18n="drawPlatformStatus">平台突破／失效</span></label><label><input type="checkbox" data-multi-tool="nine_count"> <span data-i18n="drawNineCount">九转计数</span></label><button class="btn primary" id="drawingMultiApply" data-i18n="drawSelected" type="button">绘制所选</button>
+  </div>
   <div class="clear-popover" id="clearPopover" role="dialog" aria-label="清除当前绘图"><p class="clear-scope" id="clearConfirmText"></p><div class="clear-popover-actions"><button class="btn" id="cancelClearBtn" type="button" data-i18n="clearCancel">取消</button><button class="btn primary" id="confirmClearBtn" type="button" data-i18n="clearConfirmAction">清空</button></div></div>
   <section class="pattern-workbench" id="patternWorkbench" hidden aria-label="形态与九转">
     <div id="patternModeTitle"><strong hidden>自动识别</strong><span class="muted">自动查找近期候选；可手动选点</span></div>
@@ -1369,6 +1399,9 @@
   <div class="chart-meta-row" id="chartMetaIndicators" hidden></div>
 </div>
 <div class="comparison-legend" id="comparisonLegend" role="group" aria-label="对比走势" hidden></div>
+<div class="drawing-selection-actions" id="drawingSelectionActions" hidden role="group" aria-label="所选图形">
+  <span id="drawingSelectedName"></span><button class="btn" id="drawingSelectedEdit" type="button">修改</button><button class="btn" id="drawingSelectedDelete" type="button">删除</button><span class="muted" data-i18n="drawingDragHint">拖动圆点调整</span>
+</div><div class="drawing-anchor-editor" id="drawingAnchorEditor" hidden></div><div class="drawing-action-status muted" id="drawingActionStatus" role="status" hidden></div>
 <div class="chart-wrap">
   <div id="klineChart"></div>
   <div class="pane-hover-controls" id="paneHoverControls" role="group" aria-label="副图操作" hidden><button type="button" data-pane-action="down" title="下移副图" aria-label="下移副图">↓</button><button type="button" data-pane-action="collapse" title="收起副图" aria-label="收起副图">⌃</button><button type="button" data-pane-action="maximize" title="放大副图" aria-label="放大副图">⤢</button></div>
@@ -1376,6 +1409,7 @@
   <svg class="ma-layer" id="maLayer" aria-hidden="true"></svg>
   <div class="crosshair-time-label" id="crosshairTimeLabel" hidden aria-hidden="true"></div>
   <div class="user-drawing-layer" id="userDrawingLayer" aria-hidden="true"></div>
+  <div class="drawing-selection-layer" id="drawingSelectionLayer"></div>
   <div class="drawing-capture-layer" id="drawingCaptureLayer" aria-hidden="true"></div>
   <div class="price-alert-layer" id="priceAlertLayer" aria-hidden="true"></div>
   <div class="percent-axis" id="percentAxis" aria-label="涨跌幅坐标轴"></div>
@@ -1853,7 +1887,7 @@ Object.assign(UI_COPY.zh, {
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
   workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
   clearAnnotations: "清除绘图", clearCancel: "取消", clearConfirmAction: "清除",
-  clearConfirmMessage: "清除 {symbol} 当前图上的 {drawn} 个图形或标注？此操作无法撤销。",
+  clearConfirmMessage: "清除 {symbol} 当前图上的 {drawn} 个图形或标注？",
   clearNone: "当前图没有可清空的绘图或标注。", clearNotReady: "图表尚未就绪，请加载后再清空。", clearChanged: "图表内容已变化，请重新打开清空确认。", clearAllDone: "当前图绘图与标注已清空",
   clearInProgress: "正在清空并核对绘图…",
   keyLevelsInsufficient: "关键点位分析至少需要 5 根有效 K 线，请扩大时间范围。", keyLevelsEmpty: "分析完成：当前数据未识别出有效支撑或压力点位。",
@@ -1885,7 +1919,7 @@ Object.assign(UI_COPY.en, {
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
   workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
   clearAnnotations: "Clear drawings", clearCancel: "Cancel", clearConfirmAction: "Clear",
-  clearConfirmMessage: "Clear {drawn} drawings or marks from {symbol}? This cannot be undone.",
+  clearConfirmMessage: "Clear {drawn} drawings or marks from {symbol}?",
   clearNone: "No drawings or annotations to clear on this chart.", clearNotReady: "Chart is not ready. Load it before clearing.", clearChanged: "Chart content changed. Reopen the clear confirmation.", clearAllDone: "Drawings and annotations cleared from this chart",
   clearInProgress: "Clearing and checking drawings…",
   keyLevelsInsufficient: "At least 5 valid candles are needed. Expand the date range.", keyLevelsEmpty: "Analysis complete: no valid support or resistance levels found.",
@@ -2282,21 +2316,21 @@ function setColorMode(mode) {
   refreshChartTheme();
   saveWorkspacePreferences();
 }
-Object.assign(UI_COPY.zh, { savedIndicators: "可保存指标", savedIndicatorHint: "保存后成为当前图的独立对象，与上方显示开关分别管理。",
+Object.assign(UI_COPY.zh, { multiDraw: "多图", drawSelected: "绘制所选", descendingChannel: "下降通道", ascendingChannel: "上升通道", drawingDragHint: "拖动圆点调整", savedIndicators: "可保存指标", savedIndicatorHint: "保存后成为当前图的独立对象，与上方显示开关分别管理。",
   indicatorAdded: "已添加的指标", emaNote: "指数均线", emaPeriod: "EMA 周期",
   levelScope: "参考价位不会自动画线，点击“画线”才会添加到图上。", automaticReferences: "自动参考", myLevelMarks: "手动添加",
   drawingTool: "工具", maDays: "均线天数（2–200）", bollWidth: "带宽（越大越宽）", channelMidline: "显示通道中线",
   repickAll: "手动选点", findCandidates: "自动查找近期候选", savedShapes: "已绘图形", legacyShapes: "旧版图形（可查看、删除）", deleteLegacyShape: "删除旧版图形",
-  drawHorizontal: "水平线", drawTrend: "趋势线", drawChannel: "平行通道", drawRectangle: "平台框", drawFibonacci: "斐波那契", drawAbc: "ABC（三点折线）",
+  drawHorizontal: "水平线", drawTrend: "趋势线", drawChannel: "平行通道", drawRectangle: "平台框", drawFibonacci: "斐波那契", drawAbc: "ABC",
   drawDoubleTop: "双顶", drawDoubleBottom: "双底", drawHeadShouldersTop: "头肩顶", drawHeadShouldersBottom: "头肩底", drawPlatformStatus: "平台突破／失效", drawNineCount: "九转计数",
   observedDailyBars: "观察日线根数", displayedDailyBars: "显示最近日线根数", drawingName: "名称", drawingColor: "颜色", drawingStyleOptional: "名称与颜色（可选）", colorBlue: "蓝", colorOrange: "橙", colorRed: "红", colorGreen: "绿",
   drawingPrice: "价位", drawingMoreSettings: "设置", drawingRatios: "斐波那契比例（逗号分隔）", drawingFill: "平台填充", drawingShow: "显示", drawingHide: "隐藏", drawingUpdate: "更新", drawingDelete: "删除" });
-Object.assign(UI_COPY.en, { savedIndicators: "Saved indicators", savedIndicatorHint: "Saved objects belong to this chart and are separate from display switches above.",
+Object.assign(UI_COPY.en, { multiDraw: "Multiple", drawSelected: "Draw selected", descendingChannel: "Descending channel", ascendingChannel: "Ascending channel", drawingDragHint: "Drag a handle to adjust", savedIndicators: "Saved indicators", savedIndicatorHint: "Saved objects belong to this chart and are separate from display switches above.",
   indicatorAdded: "Added indicators", emaNote: "Exponential average", emaPeriod: "EMA period",
   levelScope: "Reference levels stay off the chart until you choose Draw line.", automaticReferences: "Automatic references", myLevelMarks: "Add manually",
   drawingTool: "Tool", maDays: "Moving-average days (2–200)", bollWidth: "Band width (larger is wider)", channelMidline: "Show channel midline",
   repickAll: "Pick anchors manually", findCandidates: "Find recent candidates", savedShapes: "Saved shapes", legacyShapes: "Legacy shapes (view or delete)", deleteLegacyShape: "Delete legacy shape",
-  drawHorizontal: "Horizontal line", drawTrend: "Trend line", drawChannel: "Parallel channel", drawRectangle: "Platform box", drawFibonacci: "Fibonacci", drawAbc: "ABC (three points)",
+  drawHorizontal: "Horizontal line", drawTrend: "Trend line", drawChannel: "Parallel channel", drawRectangle: "Platform box", drawFibonacci: "Fibonacci", drawAbc: "ABC",
   drawDoubleTop: "Double top", drawDoubleBottom: "Double bottom", drawHeadShouldersTop: "Head and shoulders top", drawHeadShouldersBottom: "Head and shoulders bottom", drawPlatformStatus: "Platform breakout / failure", drawNineCount: "Nine Count",
   observedDailyBars: "Daily bars to inspect", displayedDailyBars: "Recent daily bars to show", drawingName: "Name", drawingColor: "Color", drawingStyleOptional: "Name and color (optional)", colorBlue: "Blue", colorOrange: "Orange", colorRed: "Red", colorGreen: "Green",
   drawingPrice: "Price", drawingMoreSettings: "Settings", drawingRatios: "Fibonacci ratios (comma separated)", drawingFill: "Platform fill", drawingShow: "Show", drawingHide: "Hide", drawingUpdate: "Update", drawingDelete: "Delete" });
@@ -2617,8 +2651,12 @@ function captureChartContext(sourceSession) {
   // Loaded data is not the viewport. Unsupported viewport APIs stay explicitly unknown.
   const range = state === "ready" ? kchart?.getVisibleRange?.() : null;
   if (range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
-    const from = Math.max(0, Math.min(rows.length, Math.floor(range.from)));
-    const to = Math.max(from, Math.min(rows.length, Math.ceil(range.to)));
+    // The SDK's from/to can include cached, off-screen bars after scrolling
+    // past the newest bar. realFrom/realTo describe the actual plot span.
+    const actualFrom = Number.isFinite(range.realFrom) ? range.realFrom : range.from;
+    const actualTo = Number.isFinite(range.realTo) ? range.realTo : range.to;
+    const from = Math.max(0, Math.min(rows.length, Math.floor(actualFrom)));
+    const to = Math.max(from, Math.min(rows.length, Math.ceil(actualTo)));
     viewport = { available: true, index_from: from, index_to_exclusive: to };
   }
   const drawings = [];
@@ -2678,6 +2716,7 @@ function captureChartContext(sourceSession) {
     adjust:typeof currentAdjust === "string" ? currentAdjust : "",
     source_interval:sourceInterval, ui_interval:currentInterval, display_volume_unit:volumeUnit,
     range_key:currentRangeKey, active_page:activeSecurityTab, candles:rows, visible_range:viewport, drawings, selection,
+    drawing_selection_supported: typeof drawingSelectedCommand === "function", selected_drawing_id: typeof drawingSelectedCommand === "function" ? drawingSelectedCommand()?.id || null : null,
     selection_status:currentSelection && !["candle", "range"].includes(currentSelection.kind) ? "not_supported" : selection ? "selected" : "none",
     source_chart_session:/^[A-Za-z0-9_-]{32}$/.test(sourceSession || "") ? sourceSession : null,
     indicators:[["ma",maVisible],["ema",emaVisible],["vwap",vwapVisible],["vol",volVisible],["macd",macdVisible],["kdj",kdjVisible],
@@ -2951,6 +2990,7 @@ function scheduleChartResize() {
     drawMaLayer();
     drawComparisonLayer();
     drawUserDrawings();
+    renderDrawingInteraction();
     drawPriceAlertOverlays();
     renderIntradaySessionGuides();
     positionRangeStatsCard();
@@ -2971,6 +3011,7 @@ function scheduleChartOverlayRender() {
     renderIntradaySessionGuides();
     refreshPercentAxis();
     positionRangeStatsCard();
+    renderDrawingInteraction();
     window.__DSH_KLINE_REPORT_CONTEXT__?.();
   });
 }
@@ -5781,6 +5822,7 @@ async function clearCurrentChartAnnotations() {
   }
   if (!inventory.total) { closeClearPopover(); return; }
   const scope = clearConfirmationScope;
+  const confirmedLegacyIds = inventory.legacyIds;
   clearingChart = true;
   document.getElementById("confirmClearBtn").disabled = true;
   setChartStatus(t("clearInProgress"));
@@ -5789,7 +5831,7 @@ async function clearCurrentChartAnnotations() {
     // never erase their commands directly from browser storage.
     await clearAiDrawingsGuarded(inventory.ai);
     if (scope !== currentClearScope()) throw new Error("图表已切换，清空已停止。");
-    if (JSON.stringify(clearConfirmationInventory?.legacyIds) !== JSON.stringify(chartClearInventory().legacyIds))
+    if (JSON.stringify(confirmedLegacyIds) !== JSON.stringify(chartClearInventory().legacyIds))
       throw new Error(t("clearChanged"));
     clearAnalysisAnnotations(true);
     clearCurrentUserDrawings(true);
@@ -6618,6 +6660,7 @@ async function workbenchApplyProposal(proposal) {
       pendingDrawingFocus = { chartSession: candidate, objectId: prepared.object.id,
         symbol: binding.symbol, times: proposal.focusTimes };
     const applied = await workbenchTool("workbench_apply_edit", { context_ref: binding.context_ref, candidate_chart_session: candidate });
+    window.__DSH_KLINE_REPORT_CONTEXT__?.();
     if (applied.apply_status === "rejected" || applied.apply_status === "failed") throw new Error(applied.reason || "图形应用被拒绝");
     for (let attempt = 0; attempt < 15; attempt++) {
       const status = await workbenchTool("workbench_edit_status", { context_ref: binding.context_ref, candidate_chart_session: candidate });
@@ -6971,7 +7014,8 @@ function workbenchManagedObjects() {
     const command = lastChartPayload?.chartCommands?.find(cmd => cmd.id === item.id);
     if (item.kind === "series_line") return ["sma", "ema"].includes(command?.source?.kind) && command?.condition == null;
     if (item.kind === "price_band") return command?.upper_source?.kind === "bbands" && Array.isArray(command?.middle_values);
-    if (item.kind === "labeled_polyline") return item.points?.length === 3 && item.points.every((point, index) => point.label === "ABC"[index]);
+    if (item.kind === "labeled_polyline") return (item.points?.length === 3 && item.points.every((point, index) => point.label === "ABC"[index]))
+      || (item.points?.length === 4 && item.points.slice(1).every((point, index) => point.label === "ABC"[index]));
     return true;
   }) : [];
 }
@@ -7024,6 +7068,11 @@ function selectWorkbenchObject(id) {
   const object = workbenchManagedObjects().find(item => item.id === id);
   if (!object) return;
   const cmd = lastChartPayload?.chartCommands?.find(item => item.id === id);
+  if (object.kind === "labeled_polyline" && object.points?.length === 4 && cmd) {
+    drawingSelect(id); drawingInteraction.editingId = id; renderDrawingInteraction();
+    focusAutoPreview(object.points.map(point => point.time));
+    return;
+  }
   if (object.kind === "price_pattern") {
     const p = cmd?.pattern;
     const times = p?.type === "platform" ? [p.box?.start_time, p.box?.end_time, p.confirmed_at]
@@ -7274,7 +7323,8 @@ function candleAtChartPoint(clientX, clientY) {
   const chartEl = document.getElementById("klineChart");
   if (!kchart || !chartEl) return null;
   const rect = chartEl.getBoundingClientRect();
-  const pixel = { x: clientX - rect.left, y: clientY - rect.top };
+  const mainRect = kchart.getDom?.("candle_pane", "main")?.getBoundingClientRect?.();
+  const pixel = { x: clientX - (mainRect?.left ?? rect.left), y: clientY - rect.top };
   try {
     const converted = kchart.convertFromPixel?.([pixel], { paneId: "candle_pane", absolute: true });
     const point = Array.isArray(converted) ? converted[0] : converted;
@@ -7284,7 +7334,7 @@ function candleAtChartPoint(clientX, clientY) {
   // Canvas click events do not consistently expose a converted timestamp across
   // KLineCharts renderers. Preserve the interaction with an x-axis fallback.
   if (currentCandles.length && rect.width > 0) {
-    const ratio = Math.max(0, Math.min(1, pixel.x / rect.width));
+    const ratio = Math.max(0, Math.min(1, pixel.x / (mainRect?.width || rect.width)));
     return currentCandles[Math.round(ratio * (currentCandles.length - 1))] || null;
   }
   return null;
@@ -7615,9 +7665,10 @@ function drawHorizontalLineCommands(commands, strict = false) {
     const price = Number(cmd.price);
     if (!Number.isFinite(price) || price <= 0) continue;
     // User-specified full-width lines are separate from automatic level labels.
-    // Lock pointer edits until bidirectional state synchronization is available.
+    // SDK overlays stay locked; selected handles commit through the guarded editor.
     const created = kchart.createOverlay({ name: "ftvHorizontalLine", id: cmd.id,
       groupId: "agentHorizontalLines", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: [{ timestamp, value: price }],
       extendData: { label: cmd.label || "", price, colorName: cmd.color || "info" },
@@ -7639,6 +7690,7 @@ function drawAgentTrendLineCommands(commands, strict = false) {
       || !Number.isFinite(startPrice) || !Number.isFinite(endPrice) || startPrice <= 0 || endPrice <= 0) continue;
     const created = kchart.createOverlay({ name: "ftvTrendLine", id: cmd.id,
       groupId: "agentTrendLines", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: [{ timestamp: start * 1000, value: startPrice }, { timestamp: end * 1000, value: endPrice }],
       extendData: { label: cmd.label || "", colorName: cmd.color || "info", agent: true },
@@ -7666,6 +7718,7 @@ function drawAgentChannelCommands(commands, strict = false) {
     // One overlay owns both boundaries/midline, so an ID update/delete is atomic.
     const created = kchart.createOverlay({ name: "ftvAgentChannel", id: cmd.id,
       groupId: "agentChannels", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: anchors.map((point) => ({ timestamp: Number(point.time) * 1000, value: Number(point.price) })),
       extendData: { label: cmd.label || "", colorName: cmd.color || "info", showMidline: cmd.show_midline !== false },
@@ -7687,6 +7740,7 @@ function drawAgentRectangleCommands(commands, strict = false) {
     // All four edges/fill share one stable ID; no disconnected boundary-line IDs.
     const created = kchart.createOverlay({ name: "ftvAgentRectangle", id: cmd.id,
       groupId: "agentRectangles", paneId: "candle_pane", lock: true, zLevel: -1,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: [{ timestamp: start * 1000, value: upper }, { timestamp: end * 1000, value: lower }],
       extendData: { label: cmd.label || "", colorName: cmd.color || "info", showFill: cmd.show_fill !== false },
@@ -7718,6 +7772,7 @@ function drawAgentFibonacciCommands(commands, strict = false) {
       { timestamp: cmd.from.time * 1000, value: level.price }, { timestamp: cmd.to.time * 1000, value: level.price });
     const created = kchart.createOverlay({ name: "ftvAgentFibonacci", id: cmd.id,
       groupId: "agentFibonacci", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points, extendData: { label: cmd.label || "", colorName: cmd.color || "info", levels: cmd.levels },
     });
@@ -7744,6 +7799,7 @@ function drawAgentPolylineCommands(commands, strict = false) {
     if (cmd.points.some(p => !times.has(p.time))) continue;
     const created = kchart.createOverlay({ name: "ftvAgentPolyline", id: cmd.id,
       groupId: "agentPolylines", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: cmd.points.map(p => ({ timestamp: p.time * 1000, value: p.price })),
       extendData: { label: cmd.label || "", colorName: cmd.color || "info", pointLabels: cmd.points.map(p => p.label) },
@@ -7769,6 +7825,7 @@ function drawAgentAnnotationCommands(commands, strict = false) {
     const display = cmd.kind === "text_annotation" ? cmd.text : cmd.kind === "number_annotation" ? String(cmd.value) : "";
     const created = kchart.createOverlay({ name: "ftvAgentAnnotation", id: cmd.id,
       groupId: "agentAnnotations", paneId: "candle_pane", lock: true,
+      onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: (event) => { event.preventDefault(); return true; },
       points: [{ timestamp: cmd.time * 1000, value: cmd.price }],
       extendData: { label: cmd.label || "", text: display, annotationKind: cmd.kind,
@@ -8088,7 +8145,7 @@ function drawAgentPatternGroupCommands(commands, strict = false) {
     }
     if (!points.length || !/^[a-f0-9]{64}$/.test(cmd.geometry_hash)) { if (strict) throw new Error("组对象几何无效"); continue; }
     const created = kchart.createOverlay({ name: "ftvPatternGroup", id: cmd.id,
-      groupId: "agentPatternGroups", paneId: "candle_pane", lock: true,
+      groupId: "agentPatternGroups", paneId: "candle_pane", lock: true, onClick: () => { drawingSelect(cmd.id); return true; },
       onRightClick: event => { event.preventDefault(); return true; }, points, extendData: ex });
     if (strict && !created) throw new Error("组对象绘制失败");
     if (created) patternGroupRegistry.set(cmd.id, cmd.geometry_hash);
@@ -8187,6 +8244,7 @@ function confirmLiveChartSource(token,confirmed) {
 function applyLiveDrawingCommands(candidate, token) {
   const ai = new Set(["DRAW_HORIZONTAL_LINE", "DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_RECTANGLE", "DRAW_AGENT_FIBONACCI", "DRAW_AGENT_POLYLINE", "DRAW_AGENT_ANNOTATION", "DRAW_AGENT_SERIES_LINE", "DRAW_AGENT_PRICE_BAND", "DRAW_AGENT_PRICE_STICKS", "DRAW_AGENT_PRICE_PATTERN", "DRAW_AGENT_NINE_COUNT"]);
   const previous = lastChartPayload;
+  const previousSelection = drawingInteraction.selected;
   const redraw = (commands) => {
     drawAgentRectangleCommands(commands, true);
     drawHorizontalLineCommands(commands, true);
@@ -8210,13 +8268,16 @@ function applyLiveDrawingCommands(candidate, token) {
   try {
     redraw(merged.chartCommands);
     lastChartPayload = merged;
+    if (drawingInteraction.selected && !merged.chartCommands.some(c => c.id === drawingInteraction.selected.id)) drawingInteraction.selected = null;
     rememberAnalysisCommands(merged);
     pendingLiveDrawingPayload = merged;
+    drawingInteraction.pending = { token, key: drawingInteractionKey(), event: candidate.drawing_history_event || null, focusIds: candidate.drawing_focus_ids || [] };
     window.requestAnimationFrame?.(() => finishPendingDrawingFocus(merged));
     try { return window.__DSH_KLINE_DRAWING_FEEDBACK__?.(merged, previous.chartCommands, "applied"); }
     catch { return { report_status: "invalid", items: [] }; }
   } catch (error) {
     lastChartPayload = previous;
+    drawingInteraction.selected = previousSelection;
     rememberAnalysisCommands(previous);
     try { redraw(previous.chartCommands); error.rolledBack = true; }
     catch { error.rolledBack = false; }
@@ -8237,7 +8298,319 @@ function confirmLiveDrawingApplication(token) {
     window.__DSH_KLINE_SAVE_VIEW__?.({ ...lastChartPayload, local_render: false, indicators_explicit: false });
   }
   pendingLiveDrawingPayload = null;
+  if (drawingInteraction.pending?.token === token) {
+    drawingRecordApplication(drawingInteraction.pending); drawingInteraction.pending = null;
+  }
+  renderDrawingInteraction();
 }
+
+/* Drawing selection and history. Changes always use the shared guarded editor. */
+const drawingInteraction = { selected: null, editingId: null, drag: null, busy: false, histories: new Map(), pending: null, rowsRef: null, rowsHash: null };
+function drawingInteractionKey() {
+  if (drawingInteraction.rowsRef !== currentCandles) {
+    drawingInteraction.rowsRef = currentCandles;
+    drawingInteraction.rowsHash = typeof candleSequenceHash === "function" ? candleSequenceHash(currentCandles) : JSON.stringify(currentCandles);
+  }
+  const meta = lastChartPayload?.data_meta || lastChartPayload?.dataMeta || {};
+  const provenance = [meta.source, meta.provider, meta.volume_unit, meta.volume_adjustment, meta.price_adjustment, meta.timestamp_convention];
+  return JSON.stringify([currentSymbol, currentInterval, typeof currentAdjust === "string" ? currentAdjust : null,
+    window.__DSH_KLINE_OBSERVATION__?.context_ref, drawingInteraction.rowsHash,
+    typeof sourceCandleIntervalValue === "undefined" ? null : sourceCandleIntervalValue,
+    typeof sourceCandleInterval === "undefined" ? null : sourceCandleInterval, provenance]);
+}
+function drawingSelectedCommand() {
+  if (drawingInteraction.selected?.key !== drawingInteractionKey()) return null;
+  return lastChartPayload?.chartCommands?.find(c => c.id === drawingInteraction.selected.id
+    && (!c.interval || c.interval === currentInterval)) || null;
+}
+function drawingSelect(id) {
+  if (drawingInteraction.busy || drawingInteraction.drag) return;
+  const command = lastChartPayload?.chartCommands?.find(c => c.id === id);
+  if (!command) return;
+  drawingInteraction.selected = { id, key: drawingInteractionKey() };
+  renderDrawingInteraction();
+  window.__DSH_KLINE_REPORT_CONTEXT__?.();
+}
+function drawingAnchors(command) {
+  if (!command) return [];
+  if (command.type === "DRAW_HORIZONTAL_LINE") {
+    const range = kchart?.getVisibleRange?.();
+    const index = Math.max(0, Math.min(currentCandles.length - 1, Math.floor(((range?.from || 0) + (range?.to || currentCandles.length)) / 2)));
+    return [{ time: currentCandles[index]?.time, price: command.price }];
+  }
+  if (command.type === "DRAW_AGENT_RECTANGLE") return [
+    { time: command.start_time, price: command.lower_price }, { time: command.end_time, price: command.upper_price }];
+  if (command.type === "DRAW_AGENT_POLYLINE") return command.points;
+  if (command.type === "DRAW_AGENT_ANNOTATION") return [{ time: command.time, price: command.price }];
+  if (["DRAW_AGENT_TREND_LINE", "DRAW_AGENT_CHANNEL", "DRAW_AGENT_FIBONACCI"].includes(command.type))
+    return [command.from, command.to, ...(command.parallel ? [command.parallel] : [])];
+  // Computed series and recognized pattern groups retain their computed geometry.
+  return [];
+}
+function drawingAnchorEdit(command, index, point) {
+  const kind = DRAWING_EDIT_KINDS[command.type];
+  if (!kind) throw new Error(workbenchCopy("此图形不支持拖动锚点。", "This drawing has no draggable anchors."));
+  const edit = { kind, action: "update", object_id: command.id };
+  if (kind === "horizontal_line") edit.price = point.price;
+  else if (kind === "rectangle") {
+    edit[index === 0 ? "start_time" : "end_time"] = String(point.time);
+    edit[index === 0 ? "lower_price" : "upper_price"] = point.price;
+  } else if (kind === "labeled_polyline") {
+    edit.point_label = command.points[index].label;
+    edit.point_time = String(point.time); edit.point_price = point.price;
+  } else if (command.type === "DRAW_AGENT_ANNOTATION") {
+    edit.kind = command.kind; edit.anchor_time = String(point.time); edit.anchor_price = point.price;
+  } else {
+    const prefix = ["start", "end", "parallel"][index];
+    if (!prefix) throw new Error("Invalid anchor");
+    edit[prefix + "_time"] = String(point.time); edit[prefix + "_price"] = point.price;
+  }
+  return edit;
+}
+const DRAWING_EDIT_KINDS = { DRAW_HORIZONTAL_LINE: "horizontal_line", DRAW_AGENT_TREND_LINE: "trend_line",
+  DRAW_AGENT_CHANNEL: "channel", DRAW_AGENT_RECTANGLE: "rectangle", DRAW_AGENT_FIBONACCI: "fibonacci_retracement",
+  DRAW_AGENT_POLYLINE: "labeled_polyline", DRAW_AGENT_ANNOTATION: "text_annotation", DRAW_AGENT_PRICE_PATTERN: "price_pattern",
+  DRAW_AGENT_NINE_COUNT: "nine_count", DRAW_AGENT_SERIES_LINE: "series_line", DRAW_AGENT_PRICE_BAND: "price_band", DRAW_AGENT_PRICE_STICKS: "price_sticks" };
+function drawingHistory() {
+  const key = drawingInteractionKey();
+  if (!drawingInteraction.histories.has(key)) {
+    if (drawingInteraction.histories.size >= 20) drawingInteraction.histories.delete(drawingInteraction.histories.keys().next().value);
+    drawingInteraction.histories.set(key, { undo: [], redo: [], seen: new Set() });
+  }
+  return drawingInteraction.histories.get(key);
+}
+function drawingRecordApplication(entry) {
+  if (!entry || entry.key !== drawingInteractionKey()) return;
+  const history = drawingHistory();
+  if (history.seen.has(entry.token)) return;
+  history.seen.add(entry.token);
+  if (entry.event) {
+    const source = entry.event.direction === "undo" ? history.undo : history.redo;
+    const target = entry.event.direction === "undo" ? history.redo : history.undo;
+    if (source.at(-1)?.session === entry.event.session) target.push(source.pop());
+    else { history.undo = []; history.redo = []; }
+  } else {
+    history.undo.push({ session: entry.token });
+    if (history.undo.length > 40) history.undo.shift();
+    history.redo = [];
+  }
+  renderDrawingInteraction();
+  if (!entry.event && entry.focusIds?.length) window.requestAnimationFrame?.(() => {
+    if (entry.key !== drawingInteractionKey()) return;
+    const times = entry.focusIds.flatMap(id => {
+      const command = lastChartPayload?.chartCommands?.find(c => c.id === id);
+      if (!command || command.type === "DRAW_HORIZONTAL_LINE") return [];
+      if (command.type === "DRAW_AGENT_PRICE_PATTERN") return command.pattern?.anchors?.map(a => a.time)
+        || [command.pattern?.box?.start_time, command.pattern?.box?.end_time];
+      if (command.type === "DRAW_AGENT_NINE_COUNT") return command.marks?.slice(-30).map(m => m.time) || [];
+      return drawingAnchors(command).map(a => a.time);
+    }).filter(time => Number.isFinite(Number(time)));
+    if (times.length) focusAutoPreview(times);
+  });
+}
+function drawingInteractionMessage(message) {
+  const node = document.getElementById("drawingActionStatus");
+  if (node) { node.textContent = message; node.hidden = !message; }
+}
+async function drawingPerform(edit, message) {
+  if (drawingInteraction.busy || workbenchMutationActive) return;
+  drawingInteraction.busy = true; renderDrawingInteraction();
+  try {
+    const binding = await drawingFreshBinding();
+    const result = await workbenchApplyProposal({ binding, edit });
+    drawingInteractionMessage(message || workbenchCopy("已更新", "Updated"));
+    return result;
+  } catch (error) {
+    if (["drawing_history_binding_changed", "drawing_history_conflict", "drawing_history_unavailable"].includes(error.code)) {
+      const history = drawingHistory(); history.undo = []; history.redo = [];
+    }
+    drawingInteractionMessage(workbenchCopy("未完成修改：", "Change not completed: ") + error.message);
+    throw error;
+  } finally { drawingInteraction.busy = false; renderDrawingInteraction(); }
+}
+async function drawingFreshBinding() {
+  // Publish the selected state and await its broker revision before preparing.
+  if (window.__DSH_KLINE_SYNC_CONTEXT__) await window.__DSH_KLINE_SYNC_CONTEXT__();
+  else { window.__DSH_KLINE_REPORT_CONTEXT__?.(); await sleep(150); }
+  return workbenchCurrentBinding();
+}
+async function drawingUndoRedo(direction) {
+  const history = drawingHistory();
+  const entry = (direction === "undo" ? history.undo : history.redo).at(-1);
+  if (!entry) return;
+  await drawingPerform({ kind: "drawing_history", action: "update", history_session: entry.session, history_direction: direction }, direction === "undo" ? workbenchCopy("已撤销", "Undone") : workbenchCopy("已重做", "Redone"));
+}
+function drawingPlotBounds() {
+  const root = document.getElementById("klineChart")?.getBoundingClientRect();
+  const main = kchart?.getDom?.("candle_pane", "main")?.getBoundingClientRect?.();
+  const pane = kchart?.getDom?.("candle_pane", "root")?.getBoundingClientRect?.();
+  return { left: main && root ? main.left - root.left : 0,
+    right: main && root ? main.right - root.left : root?.width || 0,
+    top: pane && root ? pane.top - root.top : 0,
+    bottom: pane && root ? pane.bottom - root.top : root?.height || 0 };
+}
+function renderSelectedAnchorEditor(command, busy) {
+  const editor = document.getElementById("drawingAnchorEditor");
+  if (!editor) return;
+  const anchors = command ? drawingAnchors(command) : [];
+  const shown = !!command && drawingInteraction.editingId === command.id && anchors.length > 0;
+  editor.hidden = !shown;
+  if (!shown) { editor.replaceChildren(); delete editor.dataset.signature; return; }
+  const signature = JSON.stringify([command.id, anchors, viewLanguage]);
+  if (editor.dataset.signature !== signature) {
+    editor.replaceChildren(); editor.dataset.signature = signature;
+    anchors.forEach((anchor, index) => {
+      const label = document.createElement("label");
+      const caption = document.createElement("span");
+      caption.textContent = anchor.label || [workbenchCopy("起点", "Start"), workbenchCopy("终点", "End"), workbenchCopy("平行点", "Parallel")][index];
+      const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.min = "0.000001";
+      input.value = String(anchor.price); input.setAttribute("aria-label", `${caption.textContent} ${workbenchCopy("价格", "price")}`);
+      input.addEventListener("change", () => {
+        const price = Number(input.value);
+        if (!Number.isFinite(price) || price <= 0) { input.value = String(anchor.price); return; }
+        const current = drawingSelectedCommand();
+        if (current?.id !== command.id) return;
+        drawingPerform(drawingAnchorEdit(current, index, { time: anchor.time, price })).catch(() => {});
+      });
+      label.append(caption, input); editor.append(label);
+    });
+  }
+  for (const input of editor.querySelectorAll("input")) input.disabled = busy;
+}
+function renderDrawingInteraction() {
+  const layer = document.getElementById("drawingSelectionLayer");
+  if (!layer) return;
+  const command = drawingSelectedCommand(), history = drawingHistory();
+  const busy = drawingInteraction.busy || workbenchMutationActive || !!lastChartPayload?._live_application_pending;
+  const undo = document.getElementById("drawingUndo"), redo = document.getElementById("drawingRedo");
+  const english = viewLanguage === "en";
+  if (undo) { undo.disabled = busy || !history.undo.length; undo.title = english ? "Undo drawing (⌘/Ctrl Z)" : "撤销绘图（⌘/Ctrl Z）"; undo.setAttribute("aria-label", undo.title); }
+  if (redo) { redo.disabled = busy || !history.redo.length; redo.title = english ? "Redo drawing (⌘/Ctrl Shift Z)" : "重做绘图（⌘/Ctrl Shift Z）"; redo.setAttribute("aria-label", redo.title); }
+  const strip = document.getElementById("drawingSelectionActions");
+  if (strip) strip.hidden = !command;
+  if (command) {
+    const hint = document.querySelector("[data-i18n=drawingDragHint]");
+    if (hint) hint.hidden = !drawingAnchors(command).length;
+    const name = document.getElementById("drawingSelectedName");
+    if (name) name.textContent = command.label || ({ DRAW_HORIZONTAL_LINE: english ? "Horizontal line" : "水平线",
+      DRAW_AGENT_CHANNEL: english ? "Channel" : "通道", DRAW_AGENT_POLYLINE: "ABC",
+      DRAW_AGENT_TREND_LINE: english ? "Trend line" : "趋势线", DRAW_AGENT_FIBONACCI: english ? "Fibonacci" : "斐波那契",
+      DRAW_AGENT_RECTANGLE: english ? "Range box" : "平台框" }[command.type] || (english ? "Drawing" : "图形"));
+    const editButton = document.getElementById("drawingSelectedEdit");
+    if (editButton) { editButton.textContent = english ? "Edit" : "修改"; editButton.disabled = busy || !drawingAnchors(command).length; editButton.setAttribute("aria-expanded", String(drawingInteraction.editingId === command.id)); }
+    const remove = document.getElementById("drawingSelectedDelete");
+    if (remove) { remove.textContent = english ? "Delete" : "删除"; remove.disabled = busy; }
+  }
+  renderSelectedAnchorEditor(command, busy);
+  if (drawingInteraction.drag) return;
+  layer.replaceChildren();
+  if (!command || !kchart) return;
+  const chart = document.getElementById("klineChart"), rect = chart?.getBoundingClientRect();
+  if (!rect) return;
+  const plot = drawingPlotBounds();
+  for (const [index, anchor] of drawingAnchors(command).entries()) {
+    const coordinates = kchart.convertToPixel?.([{ timestamp: Number(anchor.time) * 1000, value: Number(anchor.price) }], { paneId: "candle_pane", absolute: true });
+    const p = Array.isArray(coordinates) ? coordinates[0] : coordinates;
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < 0 || p.x + plot.left > plot.right || p.y < plot.top || p.y > plot.bottom) continue;
+    const handle = document.createElement("button"); handle.type = "button"; handle.className = "drawing-anchor-handle";
+    handle.style.left = (p.x + plot.left) + "px"; handle.style.top = p.y + "px"; handle.disabled = busy;
+    const label = anchor.label || [english ? "Start" : "起点", english ? "End" : "终点", english ? "Parallel" : "平行点"][index];
+    handle.title = `${label} · ${fmt(anchor.price)}`; handle.setAttribute("aria-label", handle.title);
+    handle.dataset.anchorIndex = String(index);
+    handle.addEventListener("pointerdown", event => drawingStartDrag(event, handle, command, index, anchor));
+    layer.append(handle);
+  }
+}
+function drawingStartDrag(event, handle, command, index, anchor) {
+  if (event.button !== 0 || drawingInteraction.busy || workbenchMutationActive || lastChartPayload?._live_application_pending) return;
+  event.preventDefault(); event.stopPropagation(); handle.setPointerCapture(event.pointerId);
+  const drag = { handle, command, index, anchor, point: anchor, key: drawingInteractionKey(),
+    source: lastChartPayload?._live_chart_session || window.__DSH_KLINE_INITIAL_CHART_SESSION__, changed: false };
+  drawingInteraction.drag = drag;
+  const move = e => {
+    if (drawingInteraction.drag !== drag) return;
+    const rect = document.getElementById("klineChart").getBoundingClientRect();
+    const plot = drawingPlotBounds();
+    const converted = kchart.convertFromPixel?.([{ x: e.clientX - rect.left - plot.left, y: Math.max(plot.top, Math.min(plot.bottom - 1, e.clientY - rect.top)) }], { paneId: "candle_pane", absolute: true });
+    const p = Array.isArray(converted) ? converted[0] : converted;
+    const indexValue = Number.isFinite(p?.dataIndex) ? Math.round(p.dataIndex) : null;
+    const row = indexValue !== null ? currentCandles[indexValue] : Number.isFinite(p?.timestamp) ? nearestCandle(Math.floor(p.timestamp / 1000)) : null;
+    if (!row || !Number.isFinite(p?.value) || p.value <= 0) return;
+    drag.point = { time: row.time, price: p.value };
+    drag.changed = command.type !== "DRAW_HORIZONTAL_LINE" && drag.point.time !== anchor.time || Math.abs(drag.point.price - anchor.price) > Math.max(1, anchor.price) * 1e-10;
+    const pixel = kchart.convertToPixel([{ timestamp: row.time * 1000, value: p.value }], { paneId: "candle_pane", absolute: true })[0];
+    handle.style.left = (pixel.x + plot.left) + "px"; handle.style.top = pixel.y + "px";
+  };
+  const finish = async e => {
+    handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", finish); handle.removeEventListener("pointercancel", cancel); handle.removeEventListener("lostpointercapture", cancel);
+    if (drawingInteraction.drag !== drag) return;
+    drawingInteraction.drag = null;
+    if (e.type === "pointercancel" || !drag.changed) { renderDrawingInteraction(); return; }
+    if (drag.key !== drawingInteractionKey() || drag.source !== (lastChartPayload?._live_chart_session || window.__DSH_KLINE_INITIAL_CHART_SESSION__)) {
+      drawingInteractionMessage(workbenchCopy("图表已变化，本次拖动未应用。", "The chart changed. Drag was not applied.")); renderDrawingInteraction(); return;
+    }
+    try { await drawingPerform(drawingAnchorEdit(command, index, drag.point)); } catch {}
+  };
+  const cancel = () => finish({ type: "pointercancel" });
+  drag.cancel = cancel;
+  handle.addEventListener("lostpointercapture", cancel);
+  handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", finish); handle.addEventListener("pointercancel", cancel);
+}
+async function drawingDrawMany() {
+  if (drawingInteraction.busy || workbenchMutationActive) return;
+  const inputs = [...document.querySelectorAll("#drawingMultiOptions input:checked")];
+  if (!inputs.length || inputs.length > 8) { drawingInteractionMessage(workbenchCopy("请选择1至8个图形", "Choose 1 to 8 drawings")); return; }
+  drawingInteraction.busy = true; renderDrawingInteraction();
+  const button = document.getElementById("drawingMultiApply"); if (button) button.disabled = true;
+  try {
+    const binding = await drawingFreshBinding();
+    const result = await workbenchTool("workbench_draw_many", { context_ref: binding.context_ref, symbol: binding.symbol,
+      request_id: `multi-${crypto.randomUUID()}`, drawings: inputs.map(input => ({ tool: input.dataset.multiTool,
+        direction: input.dataset.direction || "both", lookback_bars: 240 })) });
+    const names = { horizontal: t("drawHorizontal"), trend: t("drawTrend"), fibonacci: t("drawFibonacci"), abc: "ABC", channel: workbenchCopy("通道", "Channel"), double_bottom: workbenchCopy("双底", "Double bottom"),
+      double_top: workbenchCopy("双顶", "Double top"), head_shoulders_bottom: workbenchCopy("头肩底", "Inverse head and shoulders"),
+      platform: workbenchCopy("平台", "Platform"), nine_count: workbenchCopy("九转", "Nine Count") };
+    drawingInteractionMessage(result.items.map(item => `${names[item.tool] || item.tool}：${item.status === "applied"
+      ? workbenchCopy("已绘制", "Drawn") : item.status === "no_candidate" ? workbenchCopy("无合格候选", "No suitable candidate") : ["queued", "delivered"].includes(item.status) ? workbenchCopy("等待确认", "Awaiting confirmation") : workbenchCopy("未完成", "Not completed")}`).join(" · "));
+  } catch (error) { drawingInteractionMessage(workbenchCopy("未完成绘图：", "Drawing not completed: ") + error.message); }
+  finally { drawingInteraction.busy = false; if (button) button.disabled = false; renderDrawingInteraction(); }
+}
+function bindDrawingInteraction() {
+  window.__DSH_KLINE_SELECTED_DRAWING__ = () => drawingSelectedCommand()?.id || null;
+  window.__DSH_KLINE_RECORD_DRAWING__ = (token, event, focusIds) => drawingRecordApplication({ token, event, focusIds, key: drawingInteractionKey() });
+  document.getElementById("workbenchMultiBtn")?.addEventListener("click", event => {
+    const panel = document.getElementById("drawingMultiOptions"); panel.hidden = !panel.hidden;
+    document.getElementById("drawingWorkbench").classList.toggle("multi-mode", !panel.hidden);
+    event.currentTarget.setAttribute("aria-expanded", String(!panel.hidden));
+  });
+  document.getElementById("drawingMultiApply")?.addEventListener("click", () => drawingDrawMany());
+  document.getElementById("drawingUndo")?.addEventListener("click", () => drawingUndoRedo("undo").catch(() => {}));
+  document.getElementById("drawingRedo")?.addEventListener("click", () => drawingUndoRedo("redo").catch(() => {}));
+  document.getElementById("drawingSelectedDelete")?.addEventListener("click", () => {
+    const cmd = drawingSelectedCommand(); if (!cmd) return;
+    drawingPerform({ kind: cmd.kind || DRAWING_EDIT_KINDS[cmd.type], action: "delete", object_id: cmd.id }).catch(() => {});
+  });
+  document.getElementById("drawingSelectedEdit")?.addEventListener("click", () => {
+    const cmd = drawingSelectedCommand(); if (!cmd) return;
+    drawingInteraction.editingId = drawingInteraction.editingId === cmd.id ? null : cmd.id;
+    renderDrawingInteraction();
+    if (drawingInteraction.editingId) window.requestAnimationFrame?.(() => {
+      if (drawingSelectedCommand()?.id === cmd.id) focusAutoPreview(drawingAnchors(cmd).map(anchor => anchor.time));
+    });
+  });
+  document.addEventListener("keydown", event => {
+    const target = event.composedPath?.()[0] || event.target;
+    if (target?.matches?.("input,textarea,select,[contenteditable=true]") || target?.isContentEditable) return;
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && ["z", "y"].includes(event.key.toLowerCase())) {
+      const direction = event.shiftKey || event.key.toLowerCase() === "y" ? "redo" : "undo";
+      if (drawingHistory()[direction].length) { event.preventDefault(); drawingUndoRedo(direction).catch(() => {}); }
+    } else if (event.key === "Escape" && !drawingInteraction.busy) {
+      if (drawingInteraction.drag) { event.preventDefault(); drawingInteraction.drag.cancel?.(); return; }
+      drawingInteraction.selected = null; renderDrawingInteraction(); window.__DSH_KLINE_REPORT_CONTEXT__?.();
+    }
+  });
+}
+/* End drawing interaction. */
 
 function isSupportResistanceLevel(cmd) {
   const from = Number(cmd?.from?.price);
@@ -10570,6 +10943,14 @@ async function openTickerSymbolChart(symbol, name) {
   // Broad indices are served as daily free data; a 1D/5D range would request
   // minute bars the free tier cannot provide. Switch to a daily range first.
   if (!symbol) return;
+  const identity = resolveSymbolIdentity(symbol, name);
+  const remembered = workspaceTabForSymbol(identity.symbol || symbol);
+  if (remembered && remembered.id !== activeWorkspaceTabId) {
+    closeSearchResults();
+    await selectWorkspaceTab(remembered.id);
+    setSecurityTab("chart");
+    return;
+  }
   setSecurityTab("chart");
   if (isIntradayRange()) {
     await setRange("1y");
@@ -11617,7 +11998,7 @@ const overflowLayouts = [
     document.querySelector(".level-menu-wrap"), document.querySelector(".alert-menu-wrap"), document.querySelector(".compare-menu-wrap")]),
   makeOverflowRow("workbenchToolRow", "workbenchOverflow", [
     document.getElementById("workbenchPick"), document.getElementById("patternManual"),
-    document.getElementById("workbenchMoreButton"), document.getElementById("patternMoreButton"), document.getElementById("clearBtn")]),
+    document.getElementById("workbenchMoreButton"), document.getElementById("patternMoreButton"), document.getElementById("workbenchMultiBtn"), document.getElementById("clearBtn")]),
 ];
 let overflowLayoutQueued = false;
 function queueOverflowLayout() {
@@ -12293,6 +12674,7 @@ document.getElementById("rangeAnalyzeBtn").addEventListener("click", () => {
   submitRangeAnalyze().catch(console.warn);
 });
 bindLevelEvents();
+bindDrawingInteraction();
 document.getElementById("rangeClearBtn").addEventListener("click", () => {
   clearRangePick();
   setChartStatus("");

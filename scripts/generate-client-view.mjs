@@ -101,12 +101,13 @@ export function mountKlineView(root, payload, dependencies = {}) {
     bindSource: (token, previous) => bindLiveChartSource(token, previous),
     confirmSource: (token, confirmed) => confirmLiveChartSource(token, confirmed),
     onSourceStatus: status => renderLiveSourceStatus(status),
-    onPublished: publication => { window.__DSH_KLINE_OBSERVATION__ = publication; renderDrawingWorkbench?.() },
+    onPublished: publication => { window.__DSH_KLINE_OBSERVATION__ = publication; renderDrawingWorkbench?.(); renderDrawingInteraction?.() },
     feedback: () => collectDrawingFeedback(lastChartPayload, captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart),
   })
   window.__DSH_KLINE_DRAWING_FEEDBACK__ = (next, previous, phase) => collectDrawingFeedback(next,
     captureChartContext(lastChartPayload?._live_chart_session || dependencies.chartSession), kchart, previous, phase)
   window.__DSH_KLINE_REPORT_CONTEXT__ = contextPublisher.notify
+  window.__DSH_KLINE_SYNC_CONTEXT__ = contextPublisher.sync
   window.__DSH_KLINE_SOURCE_KEY__ = drawingSourceKey
   window.__DSH_KLINE_RETRY_SOURCE__ = contextPublisher.retrySource
   dependencies.onContextPublisher?.(contextPublisher)

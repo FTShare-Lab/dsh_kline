@@ -19,5 +19,11 @@ export declare function createChartContextPublisher(options: Options): {
     notify(): void;
     retrySource(): void;
     dispose(): void;
+    sync?: undefined;
+} | {
+    notify: () => void;
+    sync(): Promise<void>;
+    retrySource(): void;
+    dispose(): void;
 };
 export {};

@@ -116,7 +116,7 @@ class ChartFunctionTests(unittest.TestCase):
         self.assertEqual(catalog['functions'][0]['version'], '1')
         self.assertEqual(catalog['functions'][0]['defaults']['ratios'], DEFAULT_RATIOS)
         tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
-        self.assertEqual(len(tools), 41)
+        self.assertEqual(len(tools), 42)
         self.assertIn('A direct request to draw authorizes', tools['run_chart_function'].description)
         self.assertIn('For direct drawing requests', tools['prepare_chart_edit'].description)
         self.assertTrue({'list_ta_functions', 'run_ta_function', 'read_ta_result'} <= set(tools))

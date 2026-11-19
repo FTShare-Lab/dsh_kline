@@ -47,6 +47,11 @@ def edit_interaction(data: dict, change: dict | None = None) -> dict:
             if item.get("reason") != "indicator_registered":
                 if time_overlap is False: message = "网页已确认应用，目标图形对象已核对，但在应用当时的时间视口之外；画面像素未核验。"
                 elif time_overlap is True: message = "网页已确认应用，目标图形对象与锚点已核对，时间范围覆盖应用当时的视口；画面像素未核验。"
+            canvas = item.get("canvas_visibility", "unknown")
+            if canvas in {"inside_plot", "partially_clipped", "outside_plot"}:
+                message = {"inside_plot": "网页已确认应用；绘图几何位于当时画布内，遮挡与像素未核验。",
+                           "partially_clipped": "网页已确认应用；绘图几何在当时画布内仅显示部分，存在裁剪。",
+                           "outside_plot": "网页已确认应用；绘图几何在当时画布之外。"}[canvas]
             value = (value[0], message, value[2])
         elif object_status == "removed":
             value = (value[0], "网页已确认删除，目标图形对象已从图表对象表移除；画面像素未核验。", value[2])
@@ -54,7 +59,7 @@ def edit_interaction(data: dict, change: dict | None = None) -> dict:
             value = (value[0], "网页已确认应用，但目标图形在当前周期或数据范围内隐藏；画面像素未核验。", value[2])
     return {"status": value[0], "message": value[1], "next_action": value[2],
             "completion_confirmed": value[0] == "confirmed", "render_verified": False,
-            "object_status": object_status, "time_range_overlap": time_overlap, "pixel_verified": False,
+            "object_status": object_status, "time_range_overlap": time_overlap, "canvas_visibility": item.get("canvas_visibility", "unknown") if item else "unknown", "occlusion_verified": False, "pixel_verified": False,
             "record_is_historical": data.get("record_is_historical") is True}
 
 

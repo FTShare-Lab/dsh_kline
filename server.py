@@ -54,6 +54,7 @@ from tools.channels import channels, edit_channel
 from tools.rectangles import rectangles, edit_rectangle
 from tools.drawing_verification import DrawingExpectation, verify_drawings
 from tools.chart_context import read_chart_context
+from tools.drawing_tasks import DrawingRequest, draw_many
 from tools.chart_edits import ChartEdit, prepare_chart_edit as prepare_guarded_chart_edit
 from tools.chart_functions import ChartFunctionParameters, FunctionName, list_functions, run_function
 from tools.ta_functions import list_ta_catalog, run_ta, read_ta
@@ -126,6 +127,10 @@ mcp = FastMCP(
         "-> get_chart_edit_status, never legacy snapshot mutations. "
         "For Fibonacci, labeled paths or reusable geometry, discover list_chart_functions and run_chart_function "
         "against fresh context, then pass edit.result_ref into that same guarded workflow. "
+        "For explicit requests to draw one or multiple automatic shapes, prefer draw_chart with a stable request_id; it handles analysis and guarded application as one task. "
+        "For undo/redo, prepare edit={kind:drawing_history,action:update,history_session:ORIGINAL_CONFIRMED_OPERATION,history_direction:undo|redo}; omit object_id, names and styles. Redo refers to that same original operation, not the undo receipt. Do not simulate undo by another ordinary edit. "
+        "Report candle and drawing dates in the exchange timezone: US America/New_York, HK Asia/Hong_Kong, mainland Asia/Shanghai. Never shift a US close anchor to the next Beijing date. "
+        "Keep ordinary drawing replies concise and user-facing; do not recite revision, protocol flags, internal identifiers or rule-version labels unless asked. Standard automatic ABC has an origin plus A/B/C endpoints (four anchors). "
         "Functions calculate; candidate functions find recent rule-based geometry but never apply it. "
         "A direct request to DRAW a named tool or automatic shape authorizes the host to select "
         "the newest valid candidate and finish prepare/apply/status in the same turn, without "
@@ -154,7 +159,7 @@ mcp = FastMCP(
         "drawing_feedback reports browser chart-object API observations, not screen pixels. "
         "created means registered object with matched shape/style; time_range_overlap only checks "
         "the reported time-axis span (current in get_chart_context, historical in get_chart_edit_status), "
-        "NOT price-axis visibility or screen pixels. "
+        "NOT price-axis visibility or screen pixels. canvas_visibility separately reports browser-projected geometry as inside_plot, partially_clipped, outside_plot or unknown; it excludes labels and does not verify occlusion or pixels. "
         "outside_time_viewport is geometric scope only, and outside_loaded_price_envelope is a warning, "
         "NOT proof the line is hidden. The edit interaction describes only its target object; "
         "other drawing_feedback items may need separate review. "
@@ -1127,7 +1132,7 @@ async def get_chart_context(
     source without fetching or drawing. A pending/unconfirmed source is not editable: wait
     for fresh context, never refetch or fall back to old snapshot tools. Source binding does
     not approve a drawing proposal or move existing objects into a different period.
-    Use time_display's deterministic +08:00 ISO/date labels when reporting dates; do not
+    Use time_display's exchange-local ISO/date labels when reporting dates; do not
     mentally convert Unix seconds or guess dates. Minute anchors require exact ISO times.
     Optional paired region times measure the full loaded region (max 4000 bars), independently
     of returned candle sampling. source_status is allowlisted diagnostic metadata only:
@@ -1137,7 +1142,7 @@ async def get_chart_context(
     Recheck only republishes/checks the current browser chart; it does not fetch quotes or queue drawings.
     Body envelope != common body intersection; volume net change
     != monotonic change. Measurements do not select/classify a platform or authorize drawing.
-    boundary_evidence gives an actual bar's +08:00 date/ISO, source_fields (open/close/low/high),
+    boundary_evidence gives an actual bar's exchange-local date/ISO, source_fields (open/close/low/high),
     price and matched_bar_count for each extreme; ties use the first matching bar, not a unique
     or preferred drawing anchor. Cite these, not guessed dates. body_overlap's candidate lower
     is max(body lows), candidate upper is min(body highs): lower>upper is EMPTY (no shared
@@ -1172,7 +1177,7 @@ async def preview_chart_channel(
     The host selects explicit anchors from fresh actual candles under user-authorized analysis;
     this tool never searches/fits/selects anchors or judges professional pattern quality. Use it
     before proposing a channel, without shell arithmetic or refetching candles. Date-only anchors
-    use UTC+08:00 on daily/larger bars; minute bars need exact timezone ISO or Unix seconds.
+    use the symbol exchange timezone on daily/larger bars; minute bars need exact timezone ISO or Unix seconds.
     Geometry is identical to channel execution: candle_index_linear_price, finite inclusive
     start/end, no calendar-time slope or extrapolated bars. Returns upper/lower boundaries,
     raw signed wick/body distances, full-region exceedance counts and worst-bar witnesses.
@@ -1349,6 +1354,30 @@ async def run_chart_function(
     return _result(data, label + " · " + json.dumps(data, ensure_ascii=False, separators=(",", ":")))
 
 
+@mcp.tool(name="draw_chart")
+async def draw_chart(context_ref: str, symbol: str,
+    request_id: Annotated[str, Field(min_length=1, max_length=100)],
+    drawings: Annotated[list[DrawingRequest], Field(min_length=1, max_length=8)],
+) -> types.CallToolResult:
+    """Draw one or several named automatic tools on the current chart in one task.
+
+    Use for explicit requests such as draw ABC and a descending channel. Read
+    current context once, preserve its symbol, and supply a stable request_id.
+    Analysis, candidate selection, one atomic guarded application and a bounded
+    receipt wait are internal. Each item reports applied/no_candidate/pending or
+    failure; an absent candidate does not prevent other eligible tools drawing.
+    A repeated request_id never creates duplicates. Pending is not completion;
+    check the returned candidate with get_chart_edit_status, never resubmit a new
+    request_id. No fetching, cross-view rebinding or invented anchors. For exact
+    user coordinates or existing-object edits use prepare_chart_edit instead.
+    """
+    try:
+        data = await draw_many(context_ref, symbol, request_id, drawings)
+        return types.CallToolResult(content=[types.TextContent(type="text", text=json.dumps(data, ensure_ascii=False))], structuredContent=data)
+    except (LineError, ValueError, TypeError, OSError) as exc:
+        return _drawing_error(exc if isinstance(exc, LineError) else LineError("drawing_task_failed", "绘图任务未获完成确认，请核对原任务。"))
+
+
 @mcp.tool(name="prepare_chart_edit")
 async def prepare_chart_edit(
     context_ref: Annotated[str, Field(description="本对话 get_chart_context 返回的当前视图引用")],
@@ -1358,9 +1387,16 @@ async def prepare_chart_edit(
     request_id: Annotated[str, Field(min_length=1, max_length=128, description="同一次准备及重试使用同一 ID；不同参数不可复用")],
     edit: ChartEdit,
 ) -> types.CallToolResult:
-    """DEFAULT entry for ALL browser-chart drawing creates/updates/deletes, including Fibonacci and labeled paths.
+    """LOW-LEVEL entry for explicit coordinates and existing-object changes.
+
+    For automatic shapes or multiple named drawing tools prefer draw_chart.
+    Handles browser-chart drawing creates/updates/deletes, including Fibonacci and labeled paths.
 
     Read get_chart_context first, then prepare here, apply_chart_edit, get_chart_edit_status.
+    Undo/redo: kind=drawing_history, action=update, history_session=the ORIGINAL
+    confirmed operation token, history_direction=undo or redo; omit object_id,
+    name and color. Redo uses the same original token, not the undo receipt.
+    Never simulate undo by another ordinary coordinate update.
     Includes literal requests; legacy create/update/delete_* tools edit snapshots, NOT the current view.
     Prepare, NOT APPLY, one current-view drawing candidate with revision/alignment guards.
 

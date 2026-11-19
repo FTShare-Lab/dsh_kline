@@ -94,6 +94,9 @@ def test_recent_candidate_uses_guarded_ref_for_create_and_update(drawing_type, k
     prepared = store.prepare(state.context_ref, current["revision"], current["source_chart_session"],
                              "600519.XSHG", "first", edit)
     assert prepared["object"]["type"] == command
+    if drawing_type == "abc":
+        assert [p["label"] for p in prepared["object"]["points"]] == ["0", "A", "B", "C"]
+        assert [p["time"] for p in prepared["object"]["points"]] == [abc_rows()[i]["time"] for i in (30, 40, 47, 55)]
     object_id = prepared["object"]["id"]
     store.apply(state.context_ref, prepared["chart_session"])
     current, result = analyze()
@@ -140,3 +143,21 @@ def test_manual_shape_anchors_only_select_a_rule_validated_candidate():
     assert valid["candidate_count"] == 1
     assert invalid["candidate_count"] == 0
     assert invalid["rejected_reasons"]["manual_selection_not_recognized"] == 1
+
+
+def test_real_slv_candidate_projects_all_four_confirmed_anchors_without_invented_points():
+    import json
+    from pathlib import Path
+    from tools.automatic_analysis import candidate_edit_parameters
+    sample = json.loads((Path(__file__).parent / "fixtures" / "slv_2026_11_17_abc.json").read_text())
+    result = recent_drawing_candidates(sample["rows"], symbol=sample["symbol"], provider=sample["provider"],
+        drawing_type="abc", lookback_bars=240, now=datetime(2026, 11, 18, 12, tzinfo=timezone.utc))
+    points = candidate_edit_parameters("labeled_polyline", result, 1)["points"]
+    expected = sample["expected_points"]
+    assert points == [{"label":p["label"], "time":str(p["time"]), "price":p["price"]} for p in expected]
+    rows = {row["time"]:row for row in sample["rows"]}
+    zone = ZoneInfo(sample["exchange_timezone"])
+    for point, source in zip(points, expected):
+        assert datetime.fromtimestamp(int(point["time"]), zone).date().isoformat() == source["trade_date"]
+        row = rows[int(point["time"])]
+        assert point["price"] == row["high" if point["label"] in ("0", "B") else "low"]
