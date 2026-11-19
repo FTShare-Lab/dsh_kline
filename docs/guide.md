@@ -249,7 +249,7 @@ FTShare 只是默认适配器，不是分析引擎的前提。调用方可以把
 
 ## FTShare 官网来源归因
 
-免费申请 Key 统一进入 `https://ftai.chat/ftshare`，沿用 FT 金融工作台的 UTM 约定：`utm_source=dsh-kline`、`utm_medium=AI`。DSH 界面使用 `utm_campaign=dsh`，Codex App 使用 `utm_campaign=codex`；`utm_content` 区分 `settings`、`help`、`readme-zh` 与 `readme-en`。README 作为 DSH 产品入口保留 `dsh` campaign。
+免费申请 Key 统一进入 `https://ftai.chat/ftshare`，沿用 FT 金融工作台的 UTM 约定：`utm_source=dsh_kline`、`utm_medium=AI`。DSH 界面使用 `utm_campaign=dsh`，Codex App 使用 `utm_campaign=codex`；`utm_content` 区分 `settings`、`help`、`readme-zh` 与 `readme-en`。README 作为 DSH 产品入口保留 `dsh` campaign。
 
 这些参数随用户主动打开官网的链接发送，不包括 Key、标的、对话或用户标识，也不发起后台统计请求。是否展示访问或注册归因，取决于 FTShare 网站的统计接入与报表权限；该链接不能用于统计 npm 安装来源或独立安装人数。
 

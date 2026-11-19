@@ -1179,7 +1179,7 @@
             <div class="settings-provider-actions"><button class="btn primary" id="ftshareConfigureBtn" type="button" data-i18n="configureAndTest">配置并测试</button><button class="btn" id="ftshareClearBtn" type="button" data-i18n="clearConfig">清除</button></div>
             <div class="settings-provider-status" id="ftshareConfigStatus" role="status" aria-live="polite"></div>
             <div class="settings-provider-note" data-i18n="sourceFreeMode">注册免费的 FTShare Key 后可使用套餐允许的个股 K 线；分钟 K、新闻等按接口和套餐提供。</div>
-            <div class="settings-link-row"><a id="ftshareWebsiteLink" href="https://ftai.chat/ftshare?utm_source=dsh-kline&amp;utm_medium=AI&amp;utm_campaign=dsh&amp;utm_content=settings" target="_blank" rel="noopener noreferrer" data-i18n="ftshareWebsite">打开 FTShare 官网</a><a href="https://market.ft.tech/gateway/doc/p/pb8eizu3" target="_blank" rel="noopener noreferrer" data-i18n="ftshareDocs">查看 API 文档</a></div>
+            <div class="settings-link-row"><a id="ftshareWebsiteLink" href="https://ftai.chat/ftshare?utm_source=dsh_kline&amp;utm_medium=AI&amp;utm_campaign=dsh&amp;utm_content=settings" target="_blank" rel="noopener noreferrer" data-i18n="ftshareWebsite">打开 FTShare 官网</a><a href="https://market.ft.tech/gateway/doc/p/pb8eizu3" target="_blank" rel="noopener noreferrer" data-i18n="ftshareDocs">查看 API 文档</a></div>
           </div>
         </section>
         <section class="settings-section" id="settingsSectionUpdates" hidden>
@@ -10375,7 +10375,7 @@ const FTSHARE_WEBSITE_URL = "https://ftai.chat/ftshare";
 function ftshareWebsiteUrl(entry = "settings") {
   const campaign = window.__FT_KLINE_APP__ ? "codex" : "dsh";
   const content = entry === "help" ? "help" : "settings";
-  return `${FTSHARE_WEBSITE_URL}?utm_source=dsh-kline&utm_medium=AI&utm_campaign=${campaign}&utm_content=${content}`;
+  return `${FTSHARE_WEBSITE_URL}?utm_source=dsh_kline&utm_medium=AI&utm_campaign=${campaign}&utm_content=${content}`;
 }
 function syncFtshareReferralLink() {
   const link = document.getElementById("ftshareWebsiteLink");

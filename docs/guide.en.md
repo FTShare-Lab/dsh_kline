@@ -233,7 +233,7 @@ Dependency logs remain in `bootstrap.log`; backend stderr is persisted to `logs/
 
 ## FTShare referral links
 
-The free-key link points to `https://ftai.chat/ftshare`, following the FT financial-workbench UTM convention with `utm_source=dsh-kline` and `utm_medium=AI`. DSH uses `utm_campaign=dsh`; the Codex App uses `utm_campaign=codex`. `utm_content` identifies `settings`, `help`, `readme-zh`, or `readme-en`. README links retain the `dsh` campaign as the DSH product entry.
+The free-key link points to `https://ftai.chat/ftshare`, following the FT financial-workbench UTM convention with `utm_source=dsh_kline` and `utm_medium=AI`. DSH uses `utm_campaign=dsh`; the Codex App uses `utm_campaign=codex`. `utm_content` identifies `settings`, `help`, `readme-zh`, or `readme-en`. README links retain the `dsh` campaign as the DSH product entry.
 
 Parameters travel only when a user opens the website link. They contain no API key, symbol, conversation, or user identifier, and add no background analytics requests. Access/signup attribution depends on FTShare's website analytics and report permissions. These links do not measure npm install sources or unique installations.
 
