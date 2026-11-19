@@ -77,7 +77,8 @@
     "docs/drawing-interaction-acceptance-2026-11-18.md",
     "docs/release-notes-v0.6.13.md",
     "docs/release-acceptance-v0.6.13.md",
-    "docs/utm-attribution.md"
+    "docs/utm-attribution.md",
+    "docs/desktop-network-compatibility.md"
   ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

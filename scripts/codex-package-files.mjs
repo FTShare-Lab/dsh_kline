@@ -20,7 +20,7 @@ const allowlist = [
   'docs/release-notes-v0.6.10.md', 'docs/release-acceptance-v0.6.10.md',
   'docs/release-notes-v0.6.11.md', 'docs/release-acceptance-v0.6.11.md',
   'docs/release-notes-v0.6.12.md', 'docs/release-acceptance-v0.6.12.md',
-  'docs/release-notes-v0.6.13.md', 'docs/release-acceptance-v0.6.13.md', 'docs/utm-attribution.md',
+  'docs/release-notes-v0.6.13.md', 'docs/release-acceptance-v0.6.13.md', 'docs/utm-attribution.md', 'docs/desktop-network-compatibility.md',
   'docs/drawing-interaction-acceptance-2026-11-18.md',
   'docs/price-pattern-rules-v1.md', 'docs/price-pattern-samples-v1.md',
   'docs/automatic-drawing.md', 'docs/npm-release.md',

@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { ChartHttpError, requestChartHttp } from './chart-http.ts'
 import { ChartServiceUnavailable, readServiceLocator, probeChartService, unavailableService, type ServiceLocator } from './chart-service-status.ts'
 import { ChartContextBroker } from './chart-context.ts'
 import { ChartApplications } from './chart-applications.ts'
@@ -248,15 +249,19 @@ function serviceOrigin(session: ServiceLocator): string {
 }
 
 async function proxyJson(response: ServerResponse, url: string, init: RequestInit): Promise<void> {
-  let upstream: Response
-  try { upstream = await fetch(url, {...init, signal:AbortSignal.timeout(120000)}) }
-  catch (error) { throw new ChartServiceUnavailable(error instanceof Error && error.name === 'TimeoutError' ? 'backend_timeout' : 'backend_unreachable') }
-  const body = Buffer.from(await upstream.arrayBuffer())
-  if (body.length > MAX_PROXY_BYTES) {
-    sendJson(response, 502, { ok: false, error: 'chart_response_too_large' })
-    return
+  try {
+    const upstream = await requestChartHttp(url, {
+      method: init.method === 'POST' ? 'POST' : 'GET', headers: init.headers as Record<string, string>,
+      body: typeof init.body === 'string' ? init.body : undefined, timeoutMs: 120000, maxBytes: MAX_PROXY_BYTES,
+    })
+    sendBytes(response, upstream.status, upstream.body, 'application/json; charset=utf-8')
+  } catch (error) {
+    if (error instanceof ChartHttpError && error.reason === 'too_large') {
+      sendJson(response, 502, { ok: false, error: 'chart_response_too_large' })
+      return
+    }
+    throw new ChartServiceUnavailable(error instanceof ChartHttpError && error.reason === 'timeout' ? 'backend_timeout' : 'backend_unreachable')
   }
-  sendBytes(response, upstream.status, body, 'application/json; charset=utf-8')
 }
 
 async function readRequestBody(request: IncomingMessage): Promise<Buffer> {
