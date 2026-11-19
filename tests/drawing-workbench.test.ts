@@ -166,7 +166,7 @@ test('automatic and manual selections apply directly without a preview save step
 })
 
 test('the workbench keeps curated objects and lists old drawings without a second create tool', () => {
-  for (const label of ['水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC（三点折线）'])
+  for (const label of ['水平线', '趋势线', '平行通道', '平台框', '斐波那契', 'ABC'])
     assert.ok(html.includes(label), label)
   const drawingOptions = html.match(/<select id="workbenchType">([\s\S]*?)<\/select>/)?.[1] || ''
   for (const type of ['sma', 'ema', 'boll'])

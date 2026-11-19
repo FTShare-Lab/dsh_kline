@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { TEST_PYTHON } from '../scripts/test-runtime.mjs'
 import { runInNewContext } from 'node:vm'
-import { collectDrawingFeedback, sanitizeDrawingFeedback } from '../src/drawing-feedback.ts'
+import { collectDrawingFeedback, sanitizeDrawingFeedback, projectedCanvasVisibility } from '../src/drawing-feedback.ts'
 import { drawingInventory } from '../src/chart-observation.ts'
 import { createChartContextPublisher } from '../src/client/chart-context.ts'
 
@@ -207,4 +207,44 @@ test('telemetry failures do not stop chart observation or expose exception text,
   assert.equal(calls[0].state.state,'ready');assert.ok(!JSON.stringify(calls).includes('private-secret'))
   publisher.dispose();await new Promise(resolve=>setImmediate(resolve))
   assert.equal(captures,1);assert.equal(calls[1].active,false)
+})
+
+function projectedChart(points:any[]) {
+  return {getDom:()=>({getBoundingClientRect:()=>({width:100,height:80})}),convertToPixel:()=>points}
+}
+test('plot projection distinguishes vertical clipping, crossing segments and unavailable APIs without claiming pixels',()=>{
+  const expected={points:[{timestamp:1,value:1},{timestamp:2,value:2}]}
+  const check=(points:any[])=>projectedCanvasVisibility('trend_line',{},expected,projectedChart(points))
+  assert.equal(check([{x:10,y:10},{x:90,y:70}]),'inside_plot')
+  assert.equal(check([{x:10,y:-20},{x:90,y:-10}]),'outside_plot')
+  assert.equal(check([{x:-20,y:40},{x:120,y:40}]),'partially_clipped')
+  assert.equal(check([{x:10,y:20},{x:120,y:100}]),'partially_clipped')
+  assert.equal(check([{x:-30,y:10},{x:-10,y:20}]),'outside_plot')
+  assert.equal(check([{x:NaN,y:10},{x:20,y:20}]),'unknown')
+  assert.equal(projectedCanvasVisibility('trend_line',{},expected,{}),'unknown')
+  assert.equal(projectedCanvasVisibility('nine_count',{},expected,projectedChart([])),'unknown')
+  const map=overlays(),chart={...projectedChart([{x:10,y:-20}]),getOverlayById:(id:string)=>map[id]}
+  const result=collectDrawingFeedback(payload([horizontal]),context(),chart)
+  assert.equal(result.items[0].time_range_overlap,true)
+  assert.equal(result.items[0].canvas_visibility,'outside_plot')
+  assert.equal(result.occlusion_verified,false)
+  assert.equal(result.pixel_verified,false)
+})
+test('projection checks actual channel edges and rectangle fill, not spurious diagonals',()=>{
+  const expected={points:Array(4).fill({timestamp:1,value:1})}
+  const chart=projectedChart([{x:-20,y:10},{x:-10,y:20},{x:110,y:20},{x:120,y:30}])
+  assert.equal(projectedCanvasVisibility('channel',{show_midline:false},expected,chart),'outside_plot')
+  const box=projectedChart([{x:-10,y:-10},{x:110,y:90}])
+  assert.equal(projectedCanvasVisibility('rectangle',{show_fill:false},{points:expected.points.slice(0,2)},box),'outside_plot')
+  assert.equal(projectedCanvasVisibility('rectangle',{show_fill:true},{points:expected.points.slice(0,2)},box),'partially_clipped')
+})
+test('canvas metadata is backwards compatible and cannot promote unknown or failed objects into verified pixels',()=>{
+  const allowed=drawingInventory(payload([horizontal])),raw=report(payload([horizontal]))
+  assert.equal(sanitizeDrawingFeedback(raw,allowed).items[0].canvas_visibility,'unknown')
+  raw.items[0].canvas_visibility='inside_plot';raw.occlusion_verified=true;raw.pixel_verified=true
+  const clean=sanitizeDrawingFeedback(raw,allowed)
+  assert.equal(clean.items[0].canvas_visibility,'inside_plot')
+  assert.equal(clean.occlusion_verified,false);assert.equal(clean.pixel_verified,false)
+  raw.items[0].status='failed';raw.items[0].reason='overlay_missing'
+  assert.equal(sanitizeDrawingFeedback(raw,allowed).report_status,'invalid')
 })

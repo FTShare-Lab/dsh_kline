@@ -213,3 +213,16 @@ test('Chinese and English clear copy describes one clear action in plain languag
   assert.doesNotMatch(html, /id="clearDrawingsBtn"|id="clearLevelsBtn"/)
   assert.match(html, /id="drawingWorkbench"[\s\S]*id="clearBtn"[^>]*>清除/)
 })
+
+
+test('rendering the confirmed deletion may close the popover without invalidating the remaining clear', async () => {
+  const { state, context } = fixture()
+  state.aiDrawings = [{ id: 'ai-1', origin: 'ai', kind: 'channel', interval: 'year' }]
+  const apply = state.workbenchApplyProposal
+  state.workbenchApplyProposal = async (proposal:any) => { await apply(proposal); runInContext('closeClearPopover()', context) }
+  runInContext('showClearConfirmation()', context)
+  await runInContext('clearCurrentChartAnnotations()', context)
+  assert.deepEqual(state.deletedAi, ['ai-1'])
+  assert.equal(state.statuses.at(-1), 'clearAllDone')
+  assert.equal(state.drawingClears, 1)
+})

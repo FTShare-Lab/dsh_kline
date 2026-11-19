@@ -13,6 +13,7 @@ REASONS = {
 
 def _empty(status):
     return {"schema_version": 1, "report_status": status, "evidence_scope": "chart_object_api",
+            "geometry_visibility_basis": "browser_reported_plot_projection_excluding_labels", "occlusion_verified": False,
             "render_verified": False, "pixel_verified": False, "items": []}
 
 
@@ -31,10 +32,12 @@ def sanitize_drawing_feedback(raw, allowed):
                 or kind not in KINDS or status not in REASONS or reason not in REASONS[status]
                 or visibility not in {"unknown", "outside_time_viewport", "not_applicable"}
                 or (reason == "outside_time_viewport") != (visibility == "outside_time_viewport")): raise ValueError("item")
+            canvas = item.get("canvas_visibility", "unknown")
+            if canvas not in {"unknown", "inside_plot", "partially_clipped", "outside_plot", "not_applicable"} or (status != "created" and canvas in {"inside_plot", "partially_clipped", "outside_plot"}): raise ValueError("canvas_visibility")
             seen.add(identity)
             overlap = item.get("time_range_overlap")
             if overlap is not None and type(overlap) is not bool: raise ValueError("time_range_overlap")
-            items.append({"id": identity, "kind": kind, "status": status, "reason": reason, "visibility": visibility,
+            items.append({"canvas_visibility": canvas, "id": identity, "kind": kind, "status": status, "reason": reason, "visibility": visibility,
                           "outside_loaded_price_envelope": item.get("outside_loaded_price_envelope") is True,
                           "time_range_overlap": overlap})
         if len(seen) != len(objects): raise ValueError("coverage")

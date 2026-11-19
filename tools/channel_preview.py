@@ -7,16 +7,17 @@ from typing import Any
 
 from tools.channels import channel_geometry
 from tools.lines import LineError, validate_line_fields
-from tools.trend_lines import CN_TZ, resolve_anchor_time
+from tools.trend_lines import resolve_anchor_time
+from tools.exchange_time import exchange_clock
 
 
 def preview_channel(rows: list[dict], interval: str, *, start_time: str, start_price: float,
                     end_time: str, end_price: float, parallel_time: str, parallel_price: float,
-                    bar_limit: int = 200) -> dict[str, Any]:
+                    bar_limit: int = 200, symbol=None) -> dict[str, Any]:
     """Rows have already passed live-observation validation; never fetch or publish."""
     if isinstance(bar_limit, bool) or not isinstance(bar_limit, int) or not 1 <= bar_limit <= 4000:
         raise LineError("invalid_preview_limit", "bar_limit 为1至4000整数；汇总始终核对完整起止区间。")
-    source = {"interval": interval, "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
+    source = {"symbol": symbol, "interval": interval, "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
     anchors = []
     for timestamp, price in ((start_time, start_price), (end_time, end_price), (parallel_time, parallel_price)):
         price, _, _ = validate_line_fields(price=price)
@@ -43,7 +44,7 @@ def preview_channel(rows: list[dict], interval: str, *, start_time: str, start_p
         if not all(math.isfinite(v) for v in (upper, lower, *values.values())):
             raise LineError("nonfinite_channel_measurement", "通道偏差计算超出有限数值范围，未输出部分核对结果。")
         try:
-            instant = datetime.fromtimestamp(row["time"], CN_TZ)
+            instant = datetime.fromtimestamp(row["time"], exchange_clock(symbol)[0])
             date, iso = instant.date().isoformat(), instant.isoformat(timespec="seconds")
         except (ValueError, OverflowError, OSError):
             date, iso = None, None

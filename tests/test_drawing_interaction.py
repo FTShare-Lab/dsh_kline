@@ -31,7 +31,7 @@ class DrawingInteractionTests(unittest.TestCase):
 
     def test_tool_discovery_unambiguously_routes_all_current_chart_writes_without_removing_legacy_tools(self):
         tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
-        self.assertEqual(len(tools), 41)
+        self.assertEqual(len(tools), 42)
         self.assertIn('run_chart_function', tools)
         self.assertIn('list_chart_functions', tools)
         route = 'get_chart_context -> prepare_chart_edit -> apply_chart_edit -> get_chart_edit_status'
@@ -41,7 +41,9 @@ class DrawingInteractionTests(unittest.TestCase):
                 self.assertTrue(description.startswith('LEGACY SNAPSHOT ONLY.'))
                 self.assertIn(route, description)
                 self.assertIn('Only explicit snapshot-editing requests', description)
-        self.assertTrue(tools['prepare_chart_edit'].description.startswith('DEFAULT entry for ALL browser-chart'))
+        self.assertTrue(tools['prepare_chart_edit'].description.startswith('LOW-LEVEL entry'))
+        self.assertIn('draw_chart', tools)
+        self.assertIn('stable request_id', tools['draw_chart'].description)
         self.assertIn('For ALL current-view drawing creates/updates/deletes', server.mcp.instructions)
         self.assertNotIn('For explicit horizontal-line drawing use create_horizontal_line', server.mcp.instructions)
 

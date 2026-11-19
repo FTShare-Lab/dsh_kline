@@ -6,11 +6,12 @@ from datetime import datetime
 from typing import Any
 
 from tools.lines import LineError
-from tools.trend_lines import CN_TZ, resolve_anchor_time
+from tools.trend_lines import resolve_anchor_time
+from tools.exchange_time import exchange_clock
 
 
 def _boundary_witness(region: list[dict], values: list[float], price: float,
-                      fields: tuple[str, ...]) -> dict[str, Any]:
+                      fields: tuple[str, ...], zone) -> dict[str, Any]:
     """One bounded arithmetic witness, not a selected drawing/pattern anchor.
 
     Validated rows are time-ordered. Report the first matching bar and count all
@@ -19,7 +20,7 @@ def _boundary_witness(region: list[dict], values: list[float], price: float,
     index = next(i for i, value in enumerate(values) if value == price)
     row = region[index]
     try:
-        instant = datetime.fromtimestamp(row["time"], CN_TZ)
+        instant = datetime.fromtimestamp(row["time"], zone)
         date, iso = instant.date().isoformat(), instant.isoformat(timespec="seconds")
     except (ValueError, OverflowError, OSError):
         date, iso = None, None
@@ -28,8 +29,9 @@ def _boundary_witness(region: list[dict], values: list[float], price: float,
             "matched_bar_count": sum(value == price for value in values)}
 
 
-def measure_chart_region(rows: list[dict], interval: str, start_time: str, end_time: str) -> dict[str, Any]:
-    source = {"interval": interval, "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
+def measure_chart_region(rows: list[dict], interval: str, start_time: str, end_time: str, *, symbol=None) -> dict[str, Any]:
+    source = {"symbol": symbol, "interval": interval, "chartCommands": [{"type": "SET_CANDLES", "rows": rows}]}
+    zone, _ = exchange_clock(symbol)
     start = resolve_anchor_time(source, start_time)
     end = resolve_anchor_time(source, end_time)
     if start > end:
@@ -64,17 +66,17 @@ def measure_chart_region(rows: list[dict], interval: str, start_time: str, end_t
             "schema_version": 1, "scope": "selected_region_only",
             "tie_policy": "first_matching_bar_with_total_count",
             "wick_envelope": {
-                "lower": _boundary_witness(region, wick_low, min(wick_low), ("low",)),
-                "upper": _boundary_witness(region, wick_high, max(wick_high), ("high",))},
+                "lower": _boundary_witness(region, wick_low, min(wick_low), ("low",), zone),
+                "upper": _boundary_witness(region, wick_high, max(wick_high), ("high",), zone)},
             "body_envelope": {
-                "lower": _boundary_witness(region, body_low, envelope_low, ("open", "close")),
-                "upper": _boundary_witness(region, body_high, envelope_high, ("open", "close"))},
+                "lower": _boundary_witness(region, body_low, envelope_low, ("open", "close"), zone),
+                "upper": _boundary_witness(region, body_high, envelope_high, ("open", "close"), zone)},
             "body_overlap": {
                 "relation": relation,
                 "comparison": "lower_greater_than_upper" if relation == "empty" else
                               "lower_equals_upper" if relation == "point" else "lower_less_than_upper",
-                "lower_candidate": _boundary_witness(region, body_low, overlap_low, ("open", "close")),
-                "upper_candidate": _boundary_witness(region, body_high, overlap_high, ("open", "close"))},
+                "lower_candidate": _boundary_witness(region, body_low, overlap_low, ("open", "close"), zone),
+                "upper_candidate": _boundary_witness(region, body_high, overlap_high, ("open", "close"), zone)},
         },
         "volume_changes": {"first": volumes[0], "last": volumes[-1], "first_to_last_pct": change,
                            "increasing_steps": increasing, "decreasing_steps": decreasing,

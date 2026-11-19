@@ -9,6 +9,7 @@ import secrets
 from typing import Any
 
 from tools.lines import LineError, MAX_LINES, validate_line_fields
+from tools.exchange_time import exchange_clock
 
 TREND_COMMAND = "DRAW_AGENT_TREND_LINE"
 CN_TZ = timezone(timedelta(hours=8))
@@ -30,7 +31,7 @@ def resolve_anchor_time(payload: dict[str, Any], value: str) -> int:
             if payload.get("interval") not in {"day", "week", "month", "quarter", "year"}:
                 raise LineError("ambiguous_anchor_time", "分钟周期请指定带时区的 K 线收盘时间或 Unix 秒，不能只写日期。")
             matches = [int(r["time"]) for r in rows
-                       if datetime.fromtimestamp(r["time"], CN_TZ).date() == date]
+                       if datetime.fromtimestamp(r["time"], exchange_clock(payload.get("symbol"))[0]).date() == date]
         else:
             if re.fullmatch(r"\d{1,10}", value):
                 timestamp = int(value)

@@ -15,7 +15,6 @@ from core.rows import validate_rows, RowsValidationError
 from tools.lines import LineError
 from tools.drawing_feedback import sanitize_drawing_feedback
 from tools.drawing_interaction import drawing_capabilities
-from tools.trend_lines import CN_TZ
 from tools.chart_measurements import measure_chart_region
 from tools.channel_preview import preview_channel
 from tools.chart_source_status import sanitize_source_status
@@ -49,16 +48,6 @@ def sanitize_data_provenance(state: dict[str, Any]) -> dict[str, Any]:
                 pass
     return {"scope": "browser_input_to_display", "provider": provider, "source_interval": source,
             "display_interval": display, "transformation": transformation, "aggregation": aggregation}
-
-
-def _time_label(value: int | None) -> dict[str, Any] | None:
-    if value is None:
-        return None
-    try:
-        instant = datetime.fromtimestamp(value, CN_TZ)
-        return {"time": value, "date": instant.date().isoformat(), "iso": instant.isoformat(timespec="seconds")}
-    except (ValueError, OverflowError, OSError):
-        return {"time": value, "date": None, "iso": None}
 
 
 def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit: int = 200,
@@ -139,7 +128,7 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
                 from tools.fibonacci import validate_ratios
                 item["ratios"] = validate_ratios(obj["ratios"])
                 item["levels"] = [{"ratio": p["ratio"], "price": p["price"]} for p in obj["levels"][:16]]
-            item.update(context_editable=False, edit_capability="source_snapshot_only" if obj.get("origin") == "ai" else "read_only")
+            item.update(context_editable=False, edit_capability=("guarded_apply" if saved.get("guarded_apply_supported") else "source_snapshot_only") if obj.get("origin") == "ai" else "read_only")
             drawings.append(item)
         selection = state.get("selection")
         if selection:
@@ -162,25 +151,23 @@ def read_chart_context(context_ref: str, *, candle_scope: str = "visible", limit
                     "end_time":rows[-1]["time"] if rows else None}, visible_range=view_range,
                   drawings=drawings, drawings_scope="stored_objects_for_active_instrument", selection=selection,
                   drawing_feedback=sanitize_drawing_feedback(saved.get("drawing_feedback"), [d for d in drawings if d.get("origin") == "ai"]),
-                  selection_status=state.get("selection_status", "none"), selected_drawing_id=None, selected_drawing_status="not_supported",
-                  drawing_capabilities=drawing_capabilities(),
+                  selection_status=state.get("selection_status", "none"),
+                  selected_drawing_id=state.get("selected_drawing_id") if any(d["id"] == state.get("selected_drawing_id") and d.get("origin") == "ai" for d in drawings) else None,
+                  selected_drawing_status=state.get("selected_drawing_status", "not_supported"),
+                  drawing_capabilities={**drawing_capabilities(), "drawing_selection_supported": state.get("drawing_selection_supported") is True},
                   candles=selected[-limit:], candle_selection={"scope":candle_scope,"total":len(selected),"returned":min(limit,len(selected)),
                     "truncated":len(selected)>limit,"order":"ascending","sample":"last_limit"})
     result["source_status"] = sanitize_source_status(saved.get("source_status"))
     # Keep raw candles untouched for strict source-alignment checks. Supply a
     # separate deterministic display map so the host need not guess dates.
-    result["time_display"] = {"timezone": "UTC+08:00", "basis": "same_as_anchor_date_resolution",
-                              "loaded_start": _time_label(rows[0]["time"] if rows else None),
-                              "loaded_end": _time_label(rows[-1]["time"] if rows else None),
-                              "visible_start": _time_label(visible[0]["time"] if visible else None),
-                              "visible_end": _time_label(visible[-1]["time"] if visible else None),
-                              "sample_labels": [_time_label(row["time"]) for row in selected[-limit:]]}
+    from tools.exchange_time import time_display
+    result["time_display"] = time_display(result.get("symbol"), rows, drawings, sample=selected[-limit:], visible=visible)
     if region_start_time is not None:
         if state["state"] != "ready":
             raise LineError("chart_measurement_not_ready", "当前图未就绪，不能使用旧K线测量区域。")
-        result["region_measurements"] = measure_chart_region(rows, result["interval"], region_start_time, region_end_time)
+        result["region_measurements"] = measure_chart_region(rows, result["interval"], region_start_time, region_end_time, symbol=result.get("symbol"))
     if channel_candidate is not None:
         if state["state"] != "ready":
             raise LineError("chart_measurement_not_ready", "当前图未就绪，不能使用旧K线预览通道。")
-        result["channel_preview"] = preview_channel(rows, result["interval"], **channel_candidate)
+        result["channel_preview"] = preview_channel(rows, result["interval"], symbol=result.get("symbol"), **channel_candidate)
     return result

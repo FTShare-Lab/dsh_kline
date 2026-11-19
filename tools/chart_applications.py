@@ -81,14 +81,14 @@ def read_edit_status(context_ref: str, candidate: str) -> dict:
         or not isinstance(guard.get("view_id"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", guard["view_id"])
         or not isinstance(guard.get("request_id"), str) or not 1 <= len(guard["request_id"]) <= 128
         or not isinstance(guard.get("chart_session"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{32}", guard["chart_session"])
-        or not isinstance(guard.get("parameters"), dict) or guard.get("kind") not in ("horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "all_drawings")
+        or not isinstance(guard.get("parameters"), dict) or guard.get("kind") not in ("horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings", "drawing_batch", "drawing_history")
         or guard.get("action") not in ("create", "update", "delete")):
         raise LineError("invalid_chart_application", "候选不属于该准备请求，未推断应用状态。")
     entries = _read(directory / "journal.json").get("entries")
-    from tools.chart_edits import _hash
+    from tools.chart_edits import _hash, MAX_PREPARATIONS
     identity = {key: guard.get(key) for key in ("context_ref", "expected_revision", "chart_session", "symbol",
                                                "kind", "action", "object_id", "parameters")}
-    matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("request_id") == guard.get("request_id")] if isinstance(entries, list) and len(entries) <= 64 else []
+    matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("request_id") == guard.get("request_id")] if isinstance(entries, list) and len(entries) <= MAX_PREPARATIONS else []
     entry = matches[0] if len(matches) == 1 else {}
     result = entry.get("result")
     if (not isinstance(result, dict) or entry.get("status") != "prepared"

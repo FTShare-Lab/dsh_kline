@@ -39,7 +39,7 @@ export class ChartApplications {
     const ancestors:string[]=[], seen=new Set<string>([checkpoint.candidate_chart_session])
     let parent=candidate.drawing_parent_session
     while(parent) {
-      if(!TOKEN.test(parent) || seen.has(parent) || ancestors.length>=64)throw Error('invalid_recovery_lineage')
+      if(!TOKEN.test(parent) || seen.has(parent) || ancestors.length>=256)throw Error('invalid_recovery_lineage')
       seen.add(parent);ancestors.push(parent)
       const saved=await this.read(join(this.runtime,'sessions',parent+'.json'))
       if(saved.ok!==true || saved.session!==parent || saved.host_process_id!==process.pid)throw Error('invalid_recovery_lineage')
@@ -87,6 +87,9 @@ export class ChartApplications {
     if(receipt.status==='applied') {
       const expected={...app.base_state,source_chart_session:token,
         drawings:[...app.base_state.drawings.filter((d:any)=>d.origin!=='ai'),...drawingInventory(payload)]}
+      if(expected.drawing_selection_supported && !expected.drawings.some((d:any)=>d.origin==='ai' && d.id===expected.selected_drawing_id)) {
+        expected.selected_drawing_id=null;expected.selected_drawing_status='none'
+      }
       if(observationKey(view.state)!==observationKey(expected)) {
         app.status='outcome_unknown';app.reason='ack_state_mismatch'
       } else {app.status='applied';app.confirmed_chart_session=token;app.reason='state_confirmed'}
@@ -123,7 +126,7 @@ export class ChartApplications {
     await this.write(path,app) // Record delivery before sending it to a browser.
     return {candidate_chart_session:token,context_ref:view.ref,conversation_id:view.conversation,view_id:view.view,
       expected_revision:view.revision,lease_id:app.lease_id,expires_at_ms:app.expires_at_ms,base_state:app.base_state,
-      payload:{symbol:payload.symbol,interval:payload.interval,chartCommands:payload.chartCommands.filter((c:any)=>
+      payload:{symbol:payload.symbol,interval:payload.interval,drawing_history_event:payload.drawing_history_event ?? null,drawing_focus_ids:payload.drawing_focus_ids ?? [],chartCommands:payload.chartCommands.filter((c:any)=>
         ['DRAW_HORIZONTAL_LINE','DRAW_AGENT_TREND_LINE','DRAW_AGENT_CHANNEL','DRAW_AGENT_RECTANGLE','DRAW_AGENT_FIBONACCI','DRAW_AGENT_POLYLINE','DRAW_AGENT_ANNOTATION','DRAW_AGENT_SERIES_LINE','DRAW_AGENT_PRICE_BAND','DRAW_AGENT_PRICE_STICKS','DRAW_AGENT_PRICE_PATTERN','DRAW_AGENT_NINE_COUNT'].includes(c.type))}}
   }
 }

@@ -8,7 +8,16 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
-Current release: **v0.6.11**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+Current release: **v0.6.12**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+
+## This update: draw together, edit a selection, undo
+
+- **Multiple drawings:** request several tools in one sentence or select **Multiple** in the drawing panel, up to 8 per task. Qualifying results appear together; tools without a candidate are reported separately.
+- **Selection and editing:** select ordinary geometry, drag an anchor, or enter a price under **Edit**. Natural-language requests can change just one named ABC point while preserving its object and other anchors.
+- **Undo and redo:** use the toolbar, `⌘/Ctrl+Z`, or `⌘/Ctrl+Shift+Z`. A drawing batch is one history step. Prices, indicators, and viewport are preserved; the latest 40 steps remain in this page session and do not survive a refresh.
+- **Dates and visibility:** tool results supply exchange-local dates, including US daylight-saving changes. DSH distinguishes time overlap from geometry inside, partly clipped, or outside the plot. Labels, occlusion, and actual pixels are not automatically verified.
+
+DSH acceptance covered a qualifying four-point SLV ABC, a single-point edit and undo, plus QQQ multi-drawing and batch undo/redo. Codex shares the drawing rules and passed runtime and package checks; its App UI was not exercised in this round. See [release acceptance](docs/release-acceptance-v0.6.12.md).
 
 ## Supported drawing tools
 
@@ -36,7 +45,7 @@ Chat and the chart panel use the same drawing capabilities. Automatic drawing us
 - **Indicator panel:** SMA, EMA, VOL, MACD, KDJ, RSI, BOLL, ATR, and VWAP. Selected SMA/EMA/BOLL results can also be added as independent objects through the host.
 - **Chat-driven annotations:** text, numbers, arrows, diamonds, and labeled polylines. Continue editing by object name or named point.
 - **Advanced tool interfaces:** conditional price series, price bands, and conditional sticks. See [function and drawing coverage](docs/chart-functions.md) for inputs, display behavior, and limits.
-- **Object management:** create, rename, recolor, update anchors, and delete; multiple objects can coexist on one chart. The 201 TA-Lib functions support queries and calculations; only implemented drawing and indicator families can be put on the chart.
+- **Object management:** create, select, drag ordinary geometry anchors, rename, recolor, delete, undo, and redo; multiple objects can coexist on one chart. The 201 TA-Lib functions support queries and calculations; only implemented drawing and indicator families can be put on the chart.
 
 ## Natural-language drawing in action
 
@@ -57,6 +66,9 @@ The two full captures above are from October 27, 2026 and retain the conversatio
 Example requests:
 
 ```text
+Draw ABC and a descending channel on the current daily chart; explain any tool without a qualifying candidate.
+Change only point C of the selected ABC to 48, keeping its date and other anchors unchanged.
+Undo that edit.
 Open Wolong Electric's daily chart. Verify a recent ABC swing candidate and draw it if it qualifies.
 Add a descending channel to the same chart, keeping the ABC labels.
 Draw the newest qualifying double bottom and explain its current state.
@@ -68,7 +80,7 @@ An analysis request returns analysis. An explicit drawing request puts the resul
 
 ## Drawing workbench and price patterns
 
-Open **Draw** → select a tool → **Draw now**. Use **Pick anchors manually** to select your own points and **Settings** to adjust parameters. Drawings appear directly, without a separate save step. Closing or collapsing the controls preserves them; **Clear** is inside the drawing panel.
+Open **Draw** → select a tool → **Draw now**. Choose **Multiple** to request several tools together. Use **Pick anchors manually** to select your own points and **Settings** to adjust parameters. Drawings appear directly, without a separate save step. Closing or collapsing the controls preserves them; **Clear** is inside the drawing panel.
 
 ### Range formation, breakout, and failure states
 
@@ -114,7 +126,7 @@ Supports macOS, Linux, and native Windows. First launch downloads dependencies a
 Install a working DSH Web host and **Python 3.11+**, then run:
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.11
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
 ```
 
 GitHub installation is also available:
@@ -152,7 +164,7 @@ See the [complete guide](docs/guide.en.md) for pinned archives, updates, migrati
 
 - **Sources:** FTShare can be configured and tested under Settings → Data source. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
 - **Permissions and periods:** minute bars, news, and company information depend on the source and permissions. Automatic drawing, patterns, and Nine Count currently use loaded, closed daily bars for A-share, Hong Kong, and US stocks.
-- **Editing:** drawings use real candles in the current chart. Unknown sources, expired results, or ambiguous active views stop edits with an explanation. Dragging anchors and undo are not currently supported.
+- **Editing:** drawings use real candles in the current chart. Unknown sources, expired results, or ambiguous active views stop edits with an explanation. Ordinary geometry supports selection, dragging, and undo. Recognized patterns, Nine Count, and calculated series retain their computed structure and do not expose arbitrary anchor dragging.
 - **Retention:** DSH watchlists and groups persist across conversations. Codex charts, watchlists, and temporary App keys remain in the current connection's memory and do not inherit DSH settings. Drawing recovery across service restarts is not guaranteed.
 
 Market data may be delayed. Patterns and counts support research and review, without guaranteed trading returns. See [key-less coverage](docs/anonymous-market-support.md) and [free Hong Kong/US daily sources](docs/free-foreign-daily.md).
@@ -166,6 +178,6 @@ Market data may be delayed. Patterns and counts support research and review, wit
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
 | Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
 | Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.11 release notes](docs/release-notes-v0.6.11.md) · [Acceptance](docs/release-acceptance-v0.6.11.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.12 release notes](docs/release-notes-v0.6.12.md) · [Acceptance](docs/release-acceptance-v0.6.12.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)

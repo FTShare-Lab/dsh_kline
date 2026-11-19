@@ -41,8 +41,8 @@ MAX_STATES = 16
 class CodexChartEdit(BaseModel):
     """The same public guarded-edit fields as DSH, without DSH transport state."""
     model_config = ConfigDict(extra="forbid")
-    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings"]
-    action: Literal["create", "update", "delete"]
+    kind: Literal["horizontal_line", "trend_line", "channel", "rectangle", "fibonacci_retracement", "labeled_polyline", "text_annotation", "number_annotation", "icon_annotation", "series_line", "price_band", "price_sticks", "price_pattern", "nine_count", "all_drawings", "drawing_batch", "drawing_history"]
+    action: Literal["create", "update", "delete"] = Field(description="普通图形用 create/update/delete；drawing_batch 用 create；drawing_history 用 update，且不填 object_id、name、color。")
     object_id: str | None = Field(default=None, min_length=1, max_length=128)
     name: str | None = Field(default=None, max_length=48)
     color: str | None = None
@@ -75,6 +75,10 @@ class CodexChartEdit(BaseModel):
         description="User-selected or host-selected suitable candidate number, starting at 1")
     user_confirmed_candidate: bool | None = Field(default=None,
         description="True only for a direct drawing request or an explicit candidate selection, never analysis-only")
+
+    edits: list[dict[str, Any]] | None = Field(default=None, min_length=1, max_length=8)
+    history_session: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{32}$")
+    history_direction: Literal["undo", "redo"] | None = None
 
 
 _EDITABLE_COMMANDS = {LINE_COMMAND, TREND_COMMAND, CHANNEL_COMMAND, RECTANGLE_COMMAND,
@@ -145,7 +149,7 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
         "text_annotation": {"anchor_time", "anchor_price", "annotation_text"},
         "number_annotation": {"anchor_time", "anchor_price", "annotation_value"},
         "icon_annotation": {"anchor_time", "anchor_price", "annotation_icon"},
-        "series_line": set(), "price_band": set(), "price_sticks": set(), "price_pattern": set(), "nine_count": set(), "all_drawings": set(),
+        "series_line": set(), "price_band": set(), "price_sticks": set(), "price_pattern": set(), "nine_count": set(), "all_drawings": set(), "drawing_batch": {"edits"}, "drawing_history": {"history_session", "history_direction"},
     }[edit.kind]
     if fields.keys() - allowed or (edit.action == "delete" and fields):
         raise LineError("invalid_edit_fields", "参数不适用于该图形；删除只填写对象标识。")
@@ -154,7 +158,12 @@ def _edit_parameters(edit: CodexChartEdit) -> dict[str, Any]:
         raise LineError("conflicting_function_parameters", "整组结果引用不能与直接锚点或单点修改混用。")
     if edit.kind == "all_drawings" and (edit.action != "delete" or edit.object_id is not None):
         raise LineError("invalid_object_identity", "清空当前图只使用 all_drawings/delete，不指定对象 ID。")
-    if edit.kind != "all_drawings" and ((edit.action == "create") != (edit.object_id is None)):
+    if edit.kind in {"drawing_batch", "drawing_history"}:
+        required = {"edits"} if edit.kind == "drawing_batch" else {"history_session", "history_direction"}
+        actions = {"create"} if edit.kind == "drawing_batch" else {"update", "create"}
+        if edit.action not in actions or edit.object_id is not None or set(fields) != required:
+            raise LineError("invalid_drawing_transaction", "drawing_batch 使用 create 和 edits；drawing_history 使用 update、history_session、history_direction，不填 object_id 或样式。")
+    if edit.kind not in {"all_drawings", "drawing_batch", "drawing_history"} and ((edit.action == "create") != (edit.object_id is None)):
         raise LineError("invalid_object_identity", "创建不指定 object_id；修改或删除必须使用当前图的稳定对象 ID。")
     candidate_fields = {"candidate_result_ref", "candidate_number", "user_confirmed_candidate"}
     candidate_kinds = {"horizontal_line", "trend_line", "fibonacci_retracement", "labeled_polyline", "channel", "rectangle", "price_pattern"}
@@ -178,6 +187,7 @@ class Candidate:
     edited_payload: dict[str, Any]
     edit: dict[str, Any]
     object: dict[str, Any]
+    parent_payload: dict[str, Any] | None = None
     status: str = "prepared"
     ui_acknowledged: bool = False
     render_failure: str | None = None
@@ -189,11 +199,13 @@ class ChartState:
     chart_session: str
     payload: dict[str, Any]
     revision: int = 1
+    selected_drawing_id: str | None = None
     app_instances: set[str] = field(default_factory=set)
     last_access: float = field(default_factory=time.monotonic)
     candidates: dict[str, Candidate] = field(default_factory=dict)
     request_ids: dict[str, Candidate] = field(default_factory=dict)
     results: dict[str, dict[str, Any]] = field(default_factory=dict)
+    drawing_tasks: dict[str, dict[str, Any]] = field(default_factory=dict)
     session_key: str | None = None
     # The reused chart UI has a watchlist rail.  For Codex it is deliberately
     # scoped to this in-memory chart conversation rather than the DSH profile.
@@ -276,13 +288,16 @@ class CodexChartStore:
     def context(self, context_ref: str) -> dict[str, Any]:
         state = self._state(context_ref)
         rows = _rows(state.payload)
-        return {"ok": True, "context_ref": state.context_ref, "revision": state.revision,
+        from tools.exchange_time import time_display
+        return {"time_display": time_display(state.payload.get("symbol"), rows, _inventory(state.payload), sample=rows), "ok": True, "context_ref": state.context_ref, "revision": state.revision,
                 "source_chart_session": state.chart_session, "symbol": state.payload.get("symbol"),
                 "interval": state.payload.get("interval"), "interval_value": state.payload.get("interval_value", 1),
                 "adjust": state.payload.get("adjust", "none"), "state": "ready", "candles": rows,
                 "loaded_range": {"start": rows[0]["time"], "end": rows[-1]["time"], "count": len(rows)} if rows else None,
                 "candle_selection": {"scope": "loaded", "truncated": False, "count": len(rows)},
-                "drawings": _inventory(state.payload), "data_provenance": "codex_memory_current_connection",
+                "drawings": _inventory(state.payload), "selected_drawing_id": state.selected_drawing_id if any(d["id"] == state.selected_drawing_id for d in _inventory(state.payload)) else None,
+                "selected_drawing_status": "selected" if any(d["id"] == state.selected_drawing_id for d in _inventory(state.payload)) else "none",
+                "drawing_capabilities": {"drawing_selection_supported": True, "editable_origins": ["ai"]}, "data_provenance": "codex_memory_current_connection",
                 "edit_capability": "guarded", "expires_after_idle_seconds": self.idle_seconds}
 
     def claim(self, context_ref: str, app_instance: str) -> dict[str, Any]:
@@ -387,6 +402,25 @@ class CodexChartStore:
         return deepcopy(record)
 
     def _resolve_params(self, state: ChartState, edit: CodexChartEdit, params: dict[str, Any]) -> dict[str, Any]:
+        if edit.kind == "drawing_batch":
+            resolved, targets = [], set()
+            for raw in edit.edits:
+                child = CodexChartEdit.model_validate(raw)
+                if child.kind in {"drawing_batch", "drawing_history", "all_drawings"}:
+                    raise LineError("invalid_drawing_transaction", "多图绘制不能嵌套或包含历史操作。")
+                if child.object_id and child.object_id in targets:
+                    raise LineError("duplicate_drawing_target", "不能重复修改同一对象。")
+                targets.add(child.object_id)
+                resolved.append({"edit": child.model_dump(exclude_none=True), "params": self._resolve_params(state, child, _edit_parameters(child))})
+            return {"children": resolved}
+        if edit.kind == "drawing_history":
+            original = state.candidates.get(edit.history_session)
+            if not original or original.status != "applied" or not original.ui_acknowledged or original.parent_payload is None or original.edit["kind"] == "drawing_history":
+                raise LineError("drawing_history_unconfirmed", "只能撤销本 App 已确认的绘图操作。")
+            from tools.drawing_restore import restore_drawing_commands
+            restored, obj = restore_drawing_commands(state.payload, original.parent_payload, original.edited_payload,
+                                                     state.payload["interval"], edit.history_direction)
+            return {"restored": restored, "object": obj}
         for key in ("result_ref", "ta_result_ref"):
             ref = params.pop(key, None)
             if ref:
@@ -400,6 +434,14 @@ class CodexChartStore:
         return params
 
     def _edit_payload(self, payload: dict[str, Any], edit: CodexChartEdit, params: dict[str, Any], request_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        if edit.kind == "drawing_batch":
+            edited, objects = deepcopy(payload), []
+            for index, child in enumerate(params["children"]):
+                edited, obj = self._edit_payload(edited, CodexChartEdit.model_validate(child["edit"]), child["params"], f"{request_id}:{index}")
+                objects.append(obj)
+            return edited, {"kind": "drawing_batch", "objects": objects, "count": len(objects)}
+        if edit.kind == "drawing_history":
+            return params["restored"], params["object"]
         if edit.kind == "all_drawings":
             copy = deepcopy(payload)
             old = len(copy.get("chartCommands", []))
@@ -459,10 +501,18 @@ class CodexChartStore:
             return self._candidate_result(state, previous, replayed=True)
         if any(candidate.revision == expected_revision for candidate in state.request_ids.values()):
             raise LineError("chart_edit_revision_consumed", "该版本已有准备结果；请先应用或重新读取上下文。")
+        if len(state.request_ids) >= 256:
+            raise LineError("chart_edit_capacity", "当前图表的修改记录已达上限，请新建图表。")
         edited, object_value = self._edit_payload(state.payload, parsed, params, request_id)
+        edited.pop("drawing_history_event", None)
+        edited.pop("drawing_focus_ids", None)
+        if parsed.kind == "drawing_batch":
+            edited["drawing_focus_ids"] = [o["id"] for o in object_value["objects"] if o.get("id")]
+        if parsed.kind == "drawing_history":
+            edited["drawing_history_event"] = {"session": parsed.history_session, "direction": parsed.history_direction}
         candidate = Candidate(token=secrets.token_urlsafe(24), request_id=request_id, revision=expected_revision,
                               fingerprint=fingerprint, edited_payload=edited,
-                              edit={"kind": parsed.kind, "action": parsed.action, "object_id": parsed.object_id}, object=object_value)
+                              edit={"kind": parsed.kind, "action": parsed.action, "object_id": parsed.object_id}, object=object_value, parent_payload=deepcopy(state.payload))
         state.candidates[candidate.token] = candidate
         state.request_ids[request_id] = candidate
         return self._candidate_result(state, candidate)
