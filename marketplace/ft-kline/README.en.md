@@ -164,7 +164,7 @@ See the [complete guide](docs/guide.en.md) for pinned archives, updates, migrati
 
 ## Data and scope
 
-- **Sources:** [Get a free FTShare key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-en), then configure and test it under Settings → Data source. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
+- **Sources:** [Get a free FTShare key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-en), or open the website from “FtShare” in the chart header. Under Settings → FTShare configuration, sign in or register, obtain a key, then paste it and test the connection. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
 - **Permissions and periods:** minute bars, news, and company information depend on the source and permissions. Automatic drawing, patterns, and Nine Count currently use loaded, closed daily bars for A-share, Hong Kong, and US stocks.
 - **Editing:** drawings use real candles in the current chart. Unknown sources, expired results, or ambiguous active views stop edits with an explanation. Ordinary geometry supports selection, dragging, and undo. Recognized patterns, Nine Count, and calculated series retain their computed structure and do not expose arbitrary anchor dragging.
 - **Retention:** DSH watchlists and groups persist across conversations. Codex charts, watchlists, and temporary App keys remain in the current connection's memory and do not inherit DSH settings. Drawing recovery across service restarts is not guaranteed.

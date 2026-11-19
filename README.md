@@ -164,7 +164,7 @@ codex plugin add ft-kline@ftshare
 
 ## 数据与适用范围
 
-- **行情来源：** 可在 [FTShare 官网免费申请 Key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-zh)，然后在「设置 → 数据源」配置并测试。无 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源。
+- **行情来源：** 可在 [FTShare 官网免费申请 Key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-zh)，也可点击图表顶部「FtShare」进入官网；在「设置 → FTShare 配置」注册／登录、获取 Key，再粘贴并测试连接。无 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源。
 - **权限与周期：** 分钟线、新闻和公司资料取决于来源与权限。自动绘图、价格形态与九转当前使用已加载的 A／港／美股已收盘日线。
 - **修改边界：** 绘图使用当前图真实 K 线。数据来源不明、结果过期或活动视图存在歧义时，会停止修改并说明原因；普通几何图形支持选中、拖动和撤销；价格形态、九转及计算序列保留其计算结构，不提供任意拖改锚点。
 - **保存范围：** DSH 自选与分组跨对话保留。Codex 图表、自选及应用内临时 Key 保存在当前连接内存中，不继承 DSH 配置；绘图不保证跨服务重启恢复。

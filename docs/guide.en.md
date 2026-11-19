@@ -61,6 +61,8 @@ Chart edits follow `get_chart_context → prepare_chart_edit → apply_chart_edi
 
 ### Reuse an FTShare key
 
+Use “FtShare” in the chart header to open the website. The welcome screen and Settings → FTShare configuration also provide sign-in/registration and website links. Get an API key from the account center, paste it, and test the connection. Signing in to the website does not automatically authenticate the plugin.
+
 Symbol discovery and quote access are separate. v0.6.7 adds a keyless Tencent HK/US daily fallback: HK supports unadjusted, forward and backward adjustment; US supports unadjusted and forward adjustment. Volumes remain historical session shares. Public-source coverage is bounded; see the [data contract](free-foreign-daily.md). See the [key-less capability and evaluation notes](anonymous-market-support.md); fixed release archives retain their release's behavior.
 
 Credential priority is: **plugin-process `FTSHARE_API_KEY` → explicitly configured `FTSHARE_API_KEY_FILE` → temporary App-session key**. An export in an unrelated terminal is not automatically visible to the desktop app.
