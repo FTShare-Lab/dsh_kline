@@ -124,10 +124,10 @@ def _bridge() -> str:
     // The shared DSH view contains a persistent-key option. Remove it for
     // Codex rather than leaving a control that could imply disk storage.
     document.getElementById('ftsharePersistInput')?.closest('label')?.remove();
-    const note = document.querySelector('#settingsSectionFtshare [data-i18n="ftshareConfigNote"]');
+    const note = document.querySelector('#settingsSectionFtshare [data-i18n="ftshareConnectSteps"]');
     if (note) note.textContent = document.documentElement.lang.startsWith('en')
-      ? 'Codex uses this key only for the current App session. It is not shown or written to disk.'
-      : 'Codex 仅在当前 App 会话使用此 Key，不显示也不写入磁盘。';
+      ? 'Sign in to get an API key, then paste it below. Codex uses this key only for the current App session; it is not shown or written to disk.'
+      : '登录后获取 API Key 并粘贴到下方。Codex 仅在当前 App 会话使用此 Key，不显示也不写入磁盘。';
     const auto = document.querySelector('#settingsSectionSource .source-autoload span');
     if (auto) auto.textContent = document.documentElement.lang.startsWith('en')
       ? 'Credential priority: FTSHARE_API_KEY, explicitly selected FTSHARE_API_KEY_FILE, then this App session. No automatic DSH credential search.'

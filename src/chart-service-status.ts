@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { ChartHttpError, requestChartHttp } from './chart-http.ts'
 
 export class ChartServiceUnavailable extends Error {
   readonly reason: string
@@ -44,12 +45,12 @@ export async function readServiceLocator(path: string, hostPid: number): Promise
 }
 
 export async function probeChartService(locator: ServiceLocator, timeoutMs = 1500): Promise<void> {
-  let response: Response
-  try { response = await fetch(new URL('/healthz', locator.service_url), { signal: AbortSignal.timeout(timeoutMs) }) }
-  catch (error) { throw new ChartServiceUnavailable(error instanceof Error && error.name === 'TimeoutError' ? 'backend_timeout' : 'backend_unreachable') }
+  let response: { status: number; body: Buffer }
+  try { response = await requestChartHttp(new URL('/healthz', locator.service_url), { timeoutMs, maxBytes: 64 * 1024 }) }
+  catch (error) { throw new ChartServiceUnavailable(error instanceof ChartHttpError && error.reason === 'timeout' ? 'backend_timeout' : 'backend_unreachable') }
   let data: any
-  try { data = await response.json() } catch { throw new ChartServiceUnavailable('backend_invalid_health') }
-  if (!response.ok || data?.ok !== true || data?.service !== 'dsh_kline_chart') throw new ChartServiceUnavailable('backend_invalid_health')
+  try { data = JSON.parse(response.body.toString('utf8')) } catch { throw new ChartServiceUnavailable('backend_invalid_health') }
+  if (response.status < 200 || response.status >= 300 || data?.ok !== true || data?.service !== 'dsh_kline_chart') throw new ChartServiceUnavailable('backend_invalid_health')
   // New locators attest a particular HTTP instance, preventing a reused PID or
   // port from making an unrelated process appear healthy. Old packages remain readable.
   if (locator.instance_id && (data.instance_id !== locator.instance_id || data.process_id !== locator.process_id

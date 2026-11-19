@@ -4,13 +4,19 @@
 
 简体中文 · [English](README.en.md)
 
-[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![npm 月下载量](https://img.shields.io/npm/dm/%40ftshare-lab%2Fdsh-kline?label=downloads%2Fmonth)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![跨平台测试](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-zh) [![npm 月下载量](https://img.shields.io/npm/dm/%40ftshare-lab%2Fdsh-kline?label=downloads%2Fmonth)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-zh) [![最新发布](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-zh) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
 [绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [文档](#文档)
 
-当前发布版本 **v0.6.12**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
+当前 GitHub 发布版本 **v0.6.13**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
-## 本次更新：一次绘制，选中续改，撤销恢复
+[安装入口与下载](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-zh) · 支持 DSH 与 Codex。
+
+## 本次更新：官网入口与渠道归因
+
+顶部直接访问 FtShare，连接页可注册／登录并获取 Key。市场页底部仅保留一处来源，FtShare 名称可点击。官网链接与独立推广入口按渠道和位置归因，次数不代表安装人数。详见 [UTM 说明](docs/utm-attribution.md)。
+
+## 绘图交互（v0.6.12 起）
 
 - **一次多图：** 一句话请求多个图形，或在绘图面板勾选「多图」。每次最多 8 项；合格结果整组显示，没有候选的项目单独说明。
 - **直接修改：** 点击普通几何图形选中，拖动锚点或通过「修改」输入价格；也可以说“只修改选中 ABC 的 C 点”，保留原对象及其他锚点。
@@ -129,13 +135,13 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
 ```
 
-也可使用 GitHub 安装：
+GitHub 版本使用下方入口安装；npm 当前版本见上方徽章：
 
 ```bash
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 ```
 
-插件市场中搜索 `dsh_kline` 也可安装；市场的版本与下载数据随其目录同步。npm 当前版本见[包页面](https://www.npmjs.com/package/@ftshare-lab/dsh-kline)，下载量不代表独立安装人数。
+插件市场中搜索 `dsh_kline` 也可安装；市场的版本与下载数据随其目录同步。npm 当前版本见[包页面](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-zh)，下载量不代表独立安装人数。
 
 [![插件市场中的 dsh_kline 安装与更新入口](docs/images/dsh-market.png)](docs/images/dsh-market.png)
 
@@ -162,7 +168,7 @@ codex plugin add ft-kline@ftshare
 
 ## 数据与适用范围
 
-- **行情来源：** 可接入 FTShare；在「设置 → 数据源」配置并测试 Key。无 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源。
+- **行情来源：** 可在 [FTShare 官网免费申请 Key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-zh)，也可点击图表顶部「FtShare」进入官网；在「设置 → FTShare 配置」注册／登录、获取 Key，再粘贴并测试连接。无 Key 时可尝试部分 A 股、港美股历史日 K 和指数备用行情，覆盖与可用性取决于公开源。
 - **权限与周期：** 分钟线、新闻和公司资料取决于来源与权限。自动绘图、价格形态与九转当前使用已加载的 A／港／美股已收盘日线。
 - **修改边界：** 绘图使用当前图真实 K 线。数据来源不明、结果过期或活动视图存在歧义时，会停止修改并说明原因；普通几何图形支持选中、拖动和撤销；价格形态、九转及计算序列保留其计算结构，不提供任意拖改锚点。
 - **保存范围：** DSH 自选与分组跨对话保留。Codex 图表、自选及应用内临时 Key 保存在当前连接内存中，不继承 DSH 配置；绘图不保证跨服务重启恢复。
@@ -178,6 +184,7 @@ codex plugin add ft-kline@ftshare
 | 形态定义与真实样本 | [规则](docs/price-pattern-rules-v1.md) · [样本](docs/price-pattern-samples-v1.md) |
 | 技术函数与进阶标注 | [函数与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.12 发布说明](docs/release-notes-v0.6.12.md) · [验收记录](docs/release-acceptance-v0.6.12.md) |
+| 官网入口与渠道统计 | [UTM 说明](docs/utm-attribution.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.13 发布说明](docs/release-notes-v0.6.13.md) · [验收记录](docs/release-acceptance-v0.6.13.md) |
 
-[MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)
+[MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-zh)

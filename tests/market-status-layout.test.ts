@@ -51,3 +51,28 @@ test('footer identifies the index quote time and owns the single refresh action'
   assert.doesNotMatch(meta.innerHTML, /FTShare|支持接入其他数据源/)
   assert.equal((html.match(/id=\\?"refreshMarketDataBtn\\?"/g) || []).length, 1, 'refresh button is rendered only in the footer')
 })
+
+test('market footer deduplicates a shared provider and links FtShare with placement attribution', () => {
+  const source = html.slice(html.indexOf('function marketIndexSourceFooter('), html.indexOf('function marketSegmentMarkup('))
+  const context = {
+    marketTickerItems: [{ symbol: '000001.XSHG' }], marketTickerSource: 'ftshare', viewLanguage: 'en',
+    marketDataSourcePresentation: (name: string) => ({ label: name.toLowerCase() === 'ftshare' ? 'FTShare' : name }),
+    escapeHtml: (value: unknown) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),
+    t: () => 'Source',
+    ftshareWebsiteUrl: (entry: string) => `https://ftai.chat/ftshare?utm_source=dsh_kline&utm_content=${entry}`,
+  }
+  const render = runInNewContext(source + '; marketIndexSourceFooter', context)
+  const shared = render({ source: { name: 'FTShare', updated_at: '2026-11-19 08:23 UTC' } })
+  assert.equal((shared.match(/<footer /g) || []).length, 1)
+  assert.equal((shared.match(/>FTShare<\/a>/g) || []).length, 1)
+  assert.match(shared, /https:\/\/ftai\.chat\/ftshare\?utm_source=dsh_kline&amp;utm_content=market_footer/)
+  assert.match(shared, /2026-11-19 08:23 UTC/)
+  context.marketTickerSource = 'tencent-free+cache'
+  const mixed = render({ source: { name: 'FTShare' } })
+  assert.match(mixed, /tencent-free \+ Cached \+ <a/)
+  context.marketTickerItems = []
+  assert.match(render({ source: 'FTShare' }), />FTShare<\/a>/)
+  assert.equal(render(), '')
+  const market = html.slice(html.indexOf('function renderMarketWorkspace()'), html.indexOf('function renderDragonWorkspace()'))
+  assert.doesNotMatch(market, /workspaceSourceFooter\(/)
+})

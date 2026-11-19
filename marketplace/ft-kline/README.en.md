@@ -4,13 +4,19 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [简体中文](README.md) · English
 
-[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![npm monthly downloads](https://img.shields.io/npm/dm/%40ftshare-lab%2Fdsh-kline?label=downloads%2Fmonth)](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://github.com/FTShare-Lab/dsh_kline/releases) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
+[![Cross-platform tests](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml/badge.svg?branch=main)](https://github.com/FTShare-Lab/dsh_kline/actions/workflows/install.yml) [![npm](https://img.shields.io/npm/v/%40ftshare-lab%2Fdsh-kline?label=npm)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-en) [![npm monthly downloads](https://img.shields.io/npm/dm/%40ftshare-lab%2Fdsh-kline?label=downloads%2Fmonth)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-en) [![Latest release](https://img.shields.io/github/v/release/FTShare-Lab/dsh_kline?label=Release)](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-en) [![MIT](https://img.shields.io/github/license/FTShare-Lab/dsh_kline)](LICENSE)
 
 [Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
-Current release: **v0.6.12**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+Current GitHub release: **v0.6.13**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
-## This update: draw together, edit a selection, undo
+[Installation and downloads](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-en) · For DSH and Codex.
+
+## This update: website access and channel attribution
+
+Open FtShare from the chart header, or sign in/register from connection settings to obtain an API key. The market page shows one source footer, with FtShare linked to its website. Website and promotion links carry channel and placement tags; counts do not represent installations. See [attribution details](docs/utm-attribution.md).
+
+## Drawing interactions (since v0.6.12)
 
 - **Multiple drawings:** request several tools in one sentence or select **Multiple** in the drawing panel, up to 8 per task. Qualifying results appear together; tools without a candidate are reported separately.
 - **Selection and editing:** select ordinary geometry, drag an anchor, or enter a price under **Edit**. Natural-language requests can change just one named ABC point while preserving its object and other anchors.
@@ -135,7 +141,7 @@ GitHub installation is also available:
 dsh plugin --profile web add github:FTShare-Lab/dsh_kline
 ```
 
-You can also find `dsh_kline` in the plugin marketplace. Its version and download information depend on catalog synchronization. See the [npm package](https://www.npmjs.com/package/@ftshare-lab/dsh-kline) for the published version; downloads are not unique installations.
+You can also find `dsh_kline` in the plugin marketplace. Its version and download information depend on catalog synchronization. See the [npm package](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/npm?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=npm-badge-en) for the published version; downloads are not unique installations.
 
 [![dsh_kline installation and update entry in the plugin marketplace](docs/images/dsh-market.png)](docs/images/dsh-market.png)
 
@@ -162,7 +168,7 @@ See the [complete guide](docs/guide.en.md) for pinned archives, updates, migrati
 
 ## Data and scope
 
-- **Sources:** FTShare can be configured and tested under Settings → Data source. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
+- **Sources:** [Get a free FTShare key](https://ftai.chat/ftshare?utm_source=dsh_kline&utm_medium=AI&utm_campaign=dsh&utm_content=readme-en), or open the website from “FtShare” in the chart header. Under Settings → FTShare configuration, sign in or register, obtain a key, then paste it and test the connection. Without a key, selected A-share, Hong Kong, US, and index historical daily sources may be available; coverage depends on the public provider.
 - **Permissions and periods:** minute bars, news, and company information depend on the source and permissions. Automatic drawing, patterns, and Nine Count currently use loaded, closed daily bars for A-share, Hong Kong, and US stocks.
 - **Editing:** drawings use real candles in the current chart. Unknown sources, expired results, or ambiguous active views stop edits with an explanation. Ordinary geometry supports selection, dragging, and undo. Recognized patterns, Nine Count, and calculated series retain their computed structure and do not expose arbitrary anchor dragging.
 - **Retention:** DSH watchlists and groups persist across conversations. Codex charts, watchlists, and temporary App keys remain in the current connection's memory and do not inherit DSH settings. Drawing recovery across service restarts is not guaranteed.
@@ -178,6 +184,7 @@ Market data may be delayed. Patterns and counts support research and review, wit
 | Pattern definitions and real samples | [Rules](docs/price-pattern-rules-v1.md) · [Samples](docs/price-pattern-samples-v1.md) |
 | Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
 | Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
-| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.12 release notes](docs/release-notes-v0.6.12.md) · [Acceptance](docs/release-acceptance-v0.6.12.md) |
+| Website links and attribution | [UTM details](docs/utm-attribution.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.13 release notes](docs/release-notes-v0.6.13.md) · [Acceptance](docs/release-acceptance-v0.6.13.md) |
 
-[MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://github.com/FTShare-Lab/dsh_kline/releases)
+[MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-en)
