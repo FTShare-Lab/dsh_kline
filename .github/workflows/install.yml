@@ -32,6 +32,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Read release package version
+        id: package
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Set up pnpm
         run: |
           corepack enable
@@ -65,16 +70,16 @@ jobs:
           pnpm verify:codex-marketplace
 
       - name: Exercise the packed ordinary-user install
-        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v0.6.13.tgz
+        run: node scripts/smoke-packed-install.mjs release/dsh-kline-v${{ steps.package.outputs.version }}.tgz
 
       - name: Exercise the plugin inside an isolated DSH Web profile
-        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.13.tgz
+        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v${{ steps.package.outputs.version }}.tgz
 
       - name: Exercise a nested bundle without a profile-root K-line package
-        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v0.6.13.tgz --nested
+        run: node scripts/smoke-dsh-profile.mjs release/dsh-kline-v${{ steps.package.outputs.version }}.tgz --nested
 
       - name: Exercise isolated Codex package paths
-        run: python scripts/smoke-codex-package.py release/ft-kline-v0.6.13.zip
+        run: python scripts/smoke-codex-package.py release/ft-kline-v${{ steps.package.outputs.version }}.zip
 
       - name: Exercise standalone GitHub marketplace plugin
         run: python scripts/smoke-codex-package.py marketplace/ft-kline
