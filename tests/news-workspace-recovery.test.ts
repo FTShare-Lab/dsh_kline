@@ -126,7 +126,7 @@ test('reload visibly replaces a previous error, disables the button and retains 
   const failed = { ...previous(), news: [], sections: { news: { state: 'error', errors: [{ code: 'upstream_error', http_status: 502 }] } } }
   const state = { securityWorkspaceLoading: true, currentSecurityWorkspace: () => failed,
     document: { getElementById: (id: string) => panels[id] },
-    syncSecurityNavigation() {}, renderMarketWorkspace() {}, renderDragonWorkspace() {}, renderSecurityIntelligence() {},
+    syncSecurityNavigation() {}, renderMarketTicker() {}, renderMarketWorkspace() {}, renderDragonWorkspace() {}, renderSecurityIntelligence() {},
     workspaceSourceFooter: () => '', companyWorkspaceMarkup: () => '', escapeHtml: String, t: String,
   }
   const markup = source('function insightEmptyMarkup(', 'function intelligenceItemsMarkup(')
@@ -264,4 +264,17 @@ test('a pending prefetch has a deadline and reports its failure without starting
   assert.equal(context.securityWorkspaceData.sections.news.errors[0].code, 'backend_timeout')
   assert.equal(context.securityWorkspaceLoading, false)
   assert.equal(context.prefetchedWorkspaces.size, 0)
+})
+
+test('the footer busy state follows the selected page instead of a background news request', () => {
+  const context = { activeSecurityTab: 'news', securityWorkspaceLoading: true, chartDataRefreshInFlight: false, t: String, escapeHtml: String }
+  const icon = source('function reloadIconMarkup(', 'function workspaceReloadButton(')
+  const render = runInNewContext(icon + source('function marketRefreshButtonMarkup(', 'function renderMarketTicker(') + '; marketRefreshButtonMarkup', context)
+  assert.match(render(), /disabled/)
+  context.activeSecurityTab = 'chart'
+  assert.doesNotMatch(render(), /disabled/)
+  context.activeSecurityTab = 'news'
+  context.securityWorkspaceLoading = false
+  assert.doesNotMatch(render(), /disabled/)
+  assert.match(source('function renderSecurityWorkspace(', 'function workspaceHasContent('), /renderMarketTicker\(\)/)
 })

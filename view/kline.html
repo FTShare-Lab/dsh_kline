@@ -3811,6 +3811,9 @@ function renderSecurityIntelligence() {
 function renderSecurityWorkspace() {
   const data = currentSecurityWorkspace();
   syncSecurityNavigation(data);
+  // Navigation can change which request owns the footer's busy state. Always
+  // reconcile it here, including when another symbol's request finishes later.
+  renderMarketTicker();
   renderMarketWorkspace();
   renderDragonWorkspace();
   const newsPanel = document.getElementById("newsWorkspacePanel");
@@ -3936,7 +3939,6 @@ async function loadSecurityWorkspace(symbol, name, refresh = false, { background
     securityWorkspaceData = previous || null;
     securityWorkspaceLoading = true;
     renderSecurityWorkspace();
-    renderMarketTicker();
     if (!background) showActivityNotice(t("workspaceLoading"));
   }
   try {
@@ -3972,7 +3974,6 @@ async function loadSecurityWorkspace(symbol, name, refresh = false, { background
     }
     if (currentSymbol === symbol && securityWorkspaceRequestTokens.get(tabId) === requestId) {
       renderSecurityWorkspace();
-      renderMarketTicker();
       reportSize();
       const newsPage = typeof activeSecurityTab !== "undefined" && activeSecurityTab === "news";
       const companyPage = typeof activeSecurityTab !== "undefined" && activeSecurityTab === "company";
