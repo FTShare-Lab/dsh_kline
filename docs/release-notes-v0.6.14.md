@@ -9,4 +9,4 @@
 
 本次修复插件的刷新与反馈流程。FTShare 新闻语义检索服务的 502 仍需服务端修复，本版不宣称新闻服务已经恢复。不会新增、迁移或发布用户凭据；既有 App 会话 Key 和外部凭据文件的使用范围不变。
 
-GitHub 附件提供 DSH TGZ、Codex ZIP 及各自 SHA-256。npm 发布线独立管理，本次不发布 npm。详见[验收记录](release-acceptance-v0.6.14.md)。
+GitHub 附件提供 DSH TGZ、Codex ZIP 及各自 SHA-256。npm 同步使用已核对的同一份 DSH TGZ 发布 0.6.14；安装命令与版本保持一致。保留现有 UTM 渠道参数，npm 与 Release 入口继续指向包页面及最新发行版。详见[验收记录](release-acceptance-v0.6.14.md)。

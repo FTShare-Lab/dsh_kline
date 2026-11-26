@@ -132,7 +132,7 @@ Supports macOS, Linux, and native Windows. First launch downloads dependencies a
 Install a working DSH Web host and **Python 3.11+**, then run:
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.14
 ```
 
 GitHub installation is also available:

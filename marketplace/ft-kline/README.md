@@ -132,7 +132,7 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 先安装可用的 DSH Web 和 **Python 3.11+**，然后执行：
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.14
 ```
 
 GitHub 版本使用下方入口安装；npm 当前版本见上方徽章：

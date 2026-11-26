@@ -29,6 +29,12 @@ Codex 图表资源升级到 `chart-v4` 后，22 项相关 Node／前端测试与
 
 远端跨平台检查及发布附件由 GitHub Actions 再次构建和验证，具体结果以本版 Release 关联的工作流为准；发布前核对下载附件的 SHA-256。
 
+## npm 与渠道入口
+
+npm 账号已验证具有本包发布权限；采用 GitHub 构建并核对 SHA-256 的同一份 TGZ 发布。中英文 README 的固定安装版本同步到 0.6.14。
+
+UTM 参数保持现有渠道与位置规则。使用 `qa-v0614` 测试标签和不计入点击的 HEAD 请求核对线上入口：npm 与 Release 分别返回 302 到 `https://www.npmjs.com/package/@ftshare-lab/dsh-kline` 和 GitHub `releases/latest`，未锁定旧版本。npm 下载量与渠道点击数继续分别统计。
+
 ## 页面证据
 
 ![重新加载中的旋转图标与禁用按钮](images/news-refresh-loading-v0.6.14.jpg)
