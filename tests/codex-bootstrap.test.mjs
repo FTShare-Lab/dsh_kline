@@ -37,7 +37,7 @@ test('a client caching its first catalog can call analyze_kline without refreshi
     f.send({ id: 2, method: 'tools/list' })
     const initial = f.replies.at(-1).result.tools
     assert.ok(initial.some(t => t.name === 'analyze_kline'))
-    assert.equal(initial.find(t => t.name === 'analyze_kline')._meta.ui.resourceUri, 'ui://ft-kline/chart-v3')
+    assert.equal(initial.find(t => t.name === 'analyze_kline')._meta.ui.resourceUri, 'ui://ft-kline/chart-v4')
     assert.ok(initial.some(t => t.name === 'prepare_chart_edit'))
     assert.deepEqual(initial.find(t => t.name === 'ft_kline_app_action')._meta.ui.visibility, ['app'])
     f.send({ id: 3, method: 'tools/call', params: { name: 'analyze_kline', arguments: { symbol: '600036.XSHG' } } })

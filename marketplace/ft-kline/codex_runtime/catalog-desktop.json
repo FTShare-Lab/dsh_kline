@@ -11,14 +11,14 @@
             "resourceDomains": []
           },
           "prefersBorder": false,
-          "resourceUri": "ui://ft-kline/chart-v3"
+          "resourceUri": "ui://ft-kline/chart-v4"
         }
       },
       "description": "",
       "mimeType": "text/html;profile=mcp-app",
-      "name": "ft_kline_chart_v3",
+      "name": "ft_kline_chart_v4",
       "title": "FT K-Line",
-      "uri": "ui://ft-kline/chart-v3"
+      "uri": "ui://ft-kline/chart-v4"
     }
   ],
   "tools": [
@@ -310,7 +310,7 @@
     {
       "_meta": {
         "ui": {
-          "resourceUri": "ui://ft-kline/chart-v3"
+          "resourceUri": "ui://ft-kline/chart-v4"
         }
       },
       "description": "",
@@ -499,7 +499,7 @@
     {
       "_meta": {
         "ui": {
-          "resourceUri": "ui://ft-kline/chart-v3"
+          "resourceUri": "ui://ft-kline/chart-v4"
         }
       },
       "description": "",
@@ -1878,7 +1878,7 @@
     {
       "_meta": {
         "ui": {
-          "resourceUri": "ui://ft-kline/chart-v3",
+          "resourceUri": "ui://ft-kline/chart-v4",
           "visibility": [
             "app"
           ]
@@ -1932,5 +1932,5 @@
       }
     }
   ],
-  "version": "0.6.13"
+  "version": "0.6.14"
 }

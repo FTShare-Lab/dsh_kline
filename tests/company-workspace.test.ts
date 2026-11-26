@@ -98,7 +98,7 @@ test('market page groups actionable indices by region and sector empty states st
   assert.match(sector, /industryFlowUnavailable/)
   assert.doesNotMatch(sector, /marketPulse\"\)\)<\/h3>/)
 })
-test('section notices distinguish errors, empty results, unsupported and index data without extra buttons', () => {
+test('company notices distinguish errors, empty results, unsupported and index data without extra buttons', () => {
   const render = runInNewContext(notice + '; workspaceSectionNotice', {
     t: (key: string) => key, insightEmptyMarkup: (title: string, hint = '') => title + ' ' + hint,
   })
@@ -111,7 +111,6 @@ test('section notices distinguish errors, empty results, unsupported and index d
     assert.ok(result.includes(expected))
     assert.ok(!result.includes('<button'))
   }
-  assert.ok(!html.includes('data-workspace-retry'))
 })
 test('industry labels do not render a fake placeholder value in the sector workspace', () => {
   const source = html.slice(html.indexOf('function intelligenceItemsMarkup('), html.indexOf('function intelligenceSectionMarkup('))

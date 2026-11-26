@@ -1,2 +1,2 @@
-export declare const PACKAGE_VERSION = "0.6.13";
+export declare const PACKAGE_VERSION = "0.6.14";
 export declare function mountKlineView(root: any, payload: any, dependencies?: {}): () => void;

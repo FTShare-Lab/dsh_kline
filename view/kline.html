@@ -856,6 +856,13 @@
   .insight-empty { display: grid; min-height: 270px; place-content: center; gap: 6px; padding: 24px; color: var(--text-soft); font-size: 12px; line-height: 1.6; text-align: center; }
   .insight-empty strong { color: var(--text); font-size: 13px; font-weight: 700; }
   .insight-empty span { max-width: 320px; }
+  .insight-empty .btn { justify-self: center; margin-top: 8px; }
+  .workspace-refresh-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; color: var(--text-soft); font-size: 12px; }
+  .workspace-reload { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+  .reload-icon { display: inline-block; width: 14px; height: 14px; flex: 0 0 auto; }
+  .workspace-reload.loading .reload-icon, .market-data-refresh.loading .reload-icon { animation: workspace-reload-spin 1s linear infinite; }
+  @keyframes workspace-reload-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .workspace-reload.loading .reload-icon, .market-data-refresh.loading .reload-icon { animation: none; } }
   .intelligence-content { display: grid; gap: 18px; padding-top: 16px; }
   .intelligence-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .intelligence-heading h3 { margin: 0; color: var(--text); font-size: 15px; font-weight: 750; }
@@ -1550,17 +1557,28 @@ async function callTool(name, args, { timeoutMs = 0 } = {}) {
   // proxy. `/api/tools` belongs to the DSH host, while `/dsh-kline/api/tools`
   // carries the active chart-service token and works for standalone workspaces.
   const controller = timeoutMs > 0 ? new AbortController() : null;
-  const timer = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+  let timer = null;
   try {
-    const response = await fetch(`/dsh-kline/api/tools/${encodeURIComponent(name)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(toolArgs),
-      ...(controller ? { signal: controller.signal } : {}),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result?.message || result?.error || `HTTP ${response.status}`);
-    return result;
+    const request = (async () => {
+      const response = await fetch(`/dsh-kline/api/tools/${encodeURIComponent(name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toolArgs),
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      const result = await response.json();
+      if (!response.ok) throw Object.assign(new Error(result?.message || result?.error || `HTTP ${response.status}`), { code: result?.error_code || result?.reason || result?.error || "", status: response.status });
+      return result;
+    })();
+    if (!controller) return await request;
+    // MCP App hosts can ignore AbortSignal. Race the complete request (body
+    // included), so an unresponsive host cannot leave Refresh disabled forever.
+    return await Promise.race([request, new Promise((_, reject) => {
+      timer = window.setTimeout(() => {
+        reject(Object.assign(new Error(`${name} timed out`), { code: "backend_timeout" }));
+        controller.abort();
+      }, timeoutMs);
+    })]);
   } finally { if (timer !== null) window.clearTimeout(timer); }
 }
 function sleep(ms) { return new Promise((resolve) => window.setTimeout(resolve, ms)); }
@@ -1568,15 +1586,15 @@ function isRetryableToolError(error) {
   const message = String(error?.message || error || "").toLowerCase();
   return /(timeout|timed out|network|temporar|429|503|fetch_failed|stock_candlesticks)/.test(message);
 }
-async function callMarketTool(name, args, attempts = 2) {
+async function callMarketTool(name, args, attempts = 2, options = {}) {
   let lastError = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const result = await callTool(name, args);
+      const result = await callTool(name, args, options);
       const structured = result?.structuredContent || result || {};
       if (result?.isError || structured.ok === false) {
         throw Object.assign(new Error(structured.message || structured.error || `${name} failed`), {
-          code: structured.error_code || structured.error || "",
+          code: structured.error_code || structured.reason || structured.error || "",
           ftshare_key_configured: structured.ftshare_key_configured,
         });
       }
@@ -1892,10 +1910,26 @@ Object.assign(UI_COPY.zh, {
   market: "市场",
   sector: "板块", marketPulse: "市场脉搏", marketPulseHint: "涨跌停、资金流与热门板块，按当前数据权限展示。", sectorLinkage: "板块与同类股", sectorLinkageHint: "行业归属、行业资金与可用的同类公司。", capitalEvents: "资金与事件", capitalEventsHint: "个股资金流与涨跌停等交易事件。", intelligenceLoading: "正在加载市场与标的情报…", intelligenceUnavailable: "当前数据源暂未返回板块、资金或事件信息。", intelligenceNotApplicable: "该类标的不适用个股板块与资金事件分析。",
   marketLoading: "正在加载全市场信息…", marketUnavailable: "当前数据源暂未返回全市场信息。", marketIndices: "主要指数", marketIndicesHint: "中国内地、香港与美国的核心市场指数；点击即可打开对应 K 线。", marketIndicesUnavailable: "主要指数暂未返回；请稍后使用顶部刷新重试。", marketCN: "中国内地", marketCNHint: "A股", marketHK: "香港", marketHKHint: "港股", marketUS: "美国", marketUSHint: "美股", marketIndustryHint: "按主力资金和涨跌表现排序的热门行业。", sectorLoading: "正在加载当前标的的板块信息…", peerStocksUnavailable: "当前数据源已返回行业，但暂未提供可用的同类公司名单。", industryFlowUnavailable: "当前数据源暂未返回该行业的资金记录。",
-  workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用顶部刷新按钮重试。", workspaceRateLimitSummary: "部分资料正在重新加载，已保留可用内容。",
+  workspaceLoadFailed: "资料加载失败", workspacePartial: "部分资料暂未加载，已保留可用内容。", workspaceRefreshHint: "可使用底部刷新按钮重试。", workspaceRateLimitSummary: "部分资料正在重新加载，已保留可用内容。",
   workspaceUnsupported: "当前插件尚未接入此类资料，并非确认数据源没有数据。", workspaceNotApplicable: "指数不适用上市公司财报或股东资料。",
   workspaceRateLimited: "数据源请求限流，请稍后重新加载。", workspaceAuthRequired: "此项资料需要有效 API Key 及对应权限；不影响其他免费资料。",
-  workspaceRequestFailed: "暂时无法取得资料，请检查连接后重试。",
+  workspaceRequestFailed: "暂时无法取得资料，请重试；持续失败时请反馈错误详情。",
+  workspaceUpstreamFailed: "FTShare 此项数据服务暂时不可用，请稍后重试。",
+  workspaceConnectionFailed: "暂时无法连接数据服务，请检查连接后重试。",
+  workspaceSdkMismatch: "当前插件与数据接口不兼容，请升级插件后重试。",
+  workspaceRequestRejected: "数据接口拒绝了此项请求，请反馈标的代码以便排查。",
+  workspaceStale: "已保留上次加载的内容，数据可能不是最新。",
+  workspaceRetry: "重新加载资讯",
+  workspaceReloading: "正在重新加载…",
+  workspaceReloadingHint: "正在向数据源请求最新资料，请稍候。",
+  workspaceRefreshCompany: "刷新资料",
+  workspaceKeyInvalid: "API Key 校验失败，请在 FTShare 配置中更新 Key。",
+  workspaceAccessDenied: "当前 Key 无权访问此项资料，请确认该接口的权限或配额。",
+  workspaceTimeout: "资料请求超时，请重试；若持续超时，请检查数据服务运行状态。",
+  workspaceLastAttempt: "最近请求",
+  workspaceLastSuccess: "上次成功加载",
+  workspaceNewsUpdated: "资讯已更新",
+  workspaceCompanyUpdated: "公司资料已更新",
   clearAnnotations: "清除绘图", clearCancel: "取消", clearConfirmAction: "清除",
   clearConfirmMessage: "清除 {symbol} 当前图上的 {drawn} 个图形或标注？",
   clearNone: "当前图没有可清空的绘图或标注。", clearNotReady: "图表尚未就绪，请加载后再清空。", clearChanged: "图表内容已变化，请重新打开清空确认。", clearAllDone: "当前图绘图与标注已清空",
@@ -1924,10 +1958,26 @@ Object.assign(UI_COPY.en, {
   market: "Market",
   sector: "Sector", marketPulse: "Market pulse", marketPulseHint: "Breadth, capital flow and hot sectors, subject to the active data plan.", sectorLinkage: "Sector & peers", sectorLinkageHint: "Industry, industry flow and available peer companies.", capitalEvents: "Capital & events", capitalEventsHint: "Stock capital flow and trading-event context.", intelligenceLoading: "Loading market and security intelligence…", intelligenceUnavailable: "The current source has not returned sector, capital-flow or event data.", intelligenceNotApplicable: "This instrument does not use equity sector or event analysis.",
   marketLoading: "Loading market overview…", marketUnavailable: "The current source has not returned market-wide information.", marketIndices: "Major indices", marketIndicesHint: "Core mainland China, Hong Kong and US indices. Select one to open its chart.", marketIndicesUnavailable: "Major indices are temporarily unavailable. Use the refresh button above to retry.", marketCN: "Mainland China", marketCNHint: "A-shares", marketHK: "Hong Kong", marketHKHint: "HK equities", marketUS: "United States", marketUSHint: "US equities", marketIndustryHint: "Hot industries ranked by capital flow and price performance.", sectorLoading: "Loading this symbol's sector context…", peerStocksUnavailable: "The source returned the industry, but no usable peer-company list is available.", industryFlowUnavailable: "The source has not returned capital-flow records for this industry.",
-  workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button above to retry.", workspaceRateLimitSummary: "Some information is retrying; available content is retained.",
+  workspaceLoadFailed: "Information could not be loaded", workspacePartial: "Some information could not be loaded. Available content is retained.", workspaceRefreshHint: "Use the refresh button below to retry.", workspaceRateLimitSummary: "Some information is retrying; available content is retained.",
   workspaceUnsupported: "This information is not integrated in the plugin yet; it may still be available from the provider.", workspaceNotApplicable: "Company financials and shareholders do not apply to an index.",
   workspaceRateLimited: "Provider rate limit reached. Please retry later.", workspaceAuthRequired: "This section requires a valid API key and appropriate access. Other free information is unaffected.",
-  workspaceRequestFailed: "Information is temporarily unavailable. Check your connection and retry.",
+  workspaceRequestFailed: "Information is temporarily unavailable. Retry, or report the error if it persists.",
+  workspaceUpstreamFailed: "This FTShare data service is temporarily unavailable. Please retry later.",
+  workspaceConnectionFailed: "Unable to connect to the data service. Check your connection and retry.",
+  workspaceSdkMismatch: "The plugin is incompatible with this data endpoint. Please upgrade the plugin.",
+  workspaceRequestRejected: "The data endpoint rejected this request. Report the symbol for investigation.",
+  workspaceStale: "Previously loaded content is retained and may be out of date.",
+  workspaceRetry: "Reload news",
+  workspaceReloading: "Reloading…",
+  workspaceReloadingHint: "Requesting the latest information from the data provider. Please wait.",
+  workspaceRefreshCompany: "Refresh information",
+  workspaceKeyInvalid: "API key validation failed. Update the key in FTShare configuration.",
+  workspaceAccessDenied: "This key cannot access this data. Check the endpoint permissions or quota.",
+  workspaceTimeout: "The information request timed out. Retry, or check the data service if this continues.",
+  workspaceLastAttempt: "Last request",
+  workspaceLastSuccess: "Last successful load",
+  workspaceNewsUpdated: "News updated",
+  workspaceCompanyUpdated: "Company information updated",
   clearAnnotations: "Clear drawings", clearCancel: "Cancel", clearConfirmAction: "Clear",
   clearConfirmMessage: "Clear {drawn} drawings or marks from {symbol}?",
   clearNone: "No drawings or annotations to clear on this chart.", clearNotReady: "Chart is not ready. Load it before clearing.", clearChanged: "Chart content changed. Reopen the clear confirmation.", clearAllDone: "Drawings and annotations cleared from this chart",
@@ -3346,17 +3396,21 @@ function workspaceTabForSymbol(symbol = currentSymbol) {
 function workspaceSectionState(data, section) {
   return String(data?.sections?.[section]?.state || "available");
 }
-function workspaceSourceText(data) {
+function workspaceSourceText(data, section = "") {
   if (!data) return t("noWorkspaceData");
   const source = data.source || {};
   const name = typeof source === "string" ? source : (source.name || source.provider || t("source"));
   const stamp = typeof source === "object" ? (source.updated_at || source.updatedAt || "") : "";
-  return `${name}${stamp ? ` · ${stamp}` : ""}`;
+  const status = data.sections?.[section];
+  const label = status?.retained ? t("workspaceLastSuccess") : status?.state === "error" ? t("workspaceLastAttempt") : "";
+  return `${name}${stamp ? ` · ${label ? `${label}: ` : ""}${stamp}` : ""}`;
 }
-function workspaceSourceFooter(data) {
-  if (!data) return "";
+function workspaceSourceFooter(data, section = "") {
+  if (!data?.source) return "";
+  const retainedAt = data.sections?.[section]?.retained_at;
+  if (retainedAt) data = { ...data, source: { ...data.source, updated_at: retainedAt } };
   const sourceClass = data?.source?.status === "mock" ? " mock" : "";
-  return `<footer class="insight-source-footer"><span class="insight-source${sourceClass}">${escapeHtml(t("source"))} ${escapeHtml(workspaceSourceText(data))}</span></footer>`;
+  return `<footer class="insight-source-footer"><span class="insight-source${sourceClass}">${escapeHtml(t("source"))} ${escapeHtml(workspaceSourceText(data, section))}</span></footer>`;
 }
 function syncSecurityNavigation(data = currentSecurityWorkspace()) {
   const labelMap = { market: t("market"), dragon: t("dragon"), chart: t("chart"), sector: t("sector"), news: t("newsPage"), company: t("companyPage") };
@@ -3433,7 +3487,7 @@ function companyModuleMarkup(data, section, title, render) {
     const content = companySectionHasContent(data, section) ? render(data) : "";
     return content ? `<section class="company-module"><div class="company-module-heading"><h3>${escapeHtml(title)}</h3></div>${content}</section>` : "";
   }
-  const content = workspaceSectionNotice(data, section) || (blocked ? "" : render(data));
+  const content = workspaceSectionNotice(data, section) + (blocked ? "" : render(data));
   return `<section class="company-module"><div class="company-module-heading"><h3>${escapeHtml(title)}</h3></div>${content}</section>`;
 }
 function companyWorkspaceMarkup(data) {
@@ -3448,8 +3502,20 @@ function companyWorkspaceMarkup(data) {
   ].filter(Boolean).join("");
   return summary + (modules || insightEmptyMarkup(t("workspaceLoading")));
 }
-function insightEmptyMarkup(title, hint = "") {
-  return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}</div>`;
+function insightEmptyMarkup(title, hint = "", action = "") {
+  return `<div class="insight-empty"><strong>${escapeHtml(title)}</strong>${hint ? `<span>${escapeHtml(hint)}</span>` : ""}${action}</div>`;
+}
+function reloadIconMarkup() {
+  return '<svg class="reload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2.3-5.7"/></svg>';
+}
+function workspaceReloadButton(section = "news") {
+  const loading = typeof securityWorkspaceLoading !== "undefined" && securityWorkspaceLoading;
+  const label = t(loading ? "workspaceReloading" : section === "news" ? "workspaceRetry" : "workspaceRefreshCompany");
+  return `<button class="btn workspace-reload${loading ? " loading" : ""}" type="button" data-workspace-retry="${section}" aria-busy="${loading}" ${loading ? "disabled" : ""}>${reloadIconMarkup()}<span>${escapeHtml(label)}</span></button>`;
+}
+function workspaceRefreshBar(section) {
+  const loading = typeof securityWorkspaceLoading !== "undefined" && securityWorkspaceLoading;
+  return `<div class="workspace-refresh-bar"><span role="status" aria-live="polite">${loading ? escapeHtml(t("workspaceReloadingHint")) : ""}</span>${workspaceReloadButton(section)}</div>`;
 }
 function workspaceSectionNotice(data, section) {
   const status = data?.sections?.[section] || {};
@@ -3458,10 +3524,23 @@ function workspaceSectionNotice(data, section) {
   if (["error", "partial"].includes(status.state)) {
     const codes = (status.errors || []).map(error => error.code);
     const reason = codes.includes("rate_limited") ? t("workspaceRateLimited")
-      : codes.some(code => ["auth_required", "invalid_key", "capability_limited"].includes(code)) ? t("workspaceAuthRequired") : t("workspaceRequestFailed");
-    return insightEmptyMarkup(t(status.state === "partial" ? "workspacePartial" : "workspaceLoadFailed"), `${reason} ${t("workspaceRefreshHint")}`);
+      : codes.includes("invalid_key") ? t("workspaceKeyInvalid")
+      : codes.includes("capability_limited") ? t("workspaceAccessDenied")
+      : codes.includes("auth_required") ? t("workspaceAuthRequired")
+      : codes.includes("unsupported") ? t("workspaceUnsupported")
+      : codes.includes("sdk_contract_mismatch") ? t("workspaceSdkMismatch")
+      : codes.includes("request_rejected") ? t("workspaceRequestRejected")
+      : codes.some(code => ["upstream_error", "ftshare_endpoint_unavailable"].includes(code)) ? t("workspaceUpstreamFailed")
+      : codes.includes("backend_timeout") ? t("workspaceTimeout")
+      : codes.some(code => ["upstream_unavailable", "backend_unreachable"].includes(code)) ? t("workspaceConnectionFailed")
+      : t("workspaceRequestFailed");
+    const httpStatuses = [...new Set((status.errors || []).map(error => Number(error.http_status)).filter(value => Number.isInteger(value) && value >= 400 && value <= 599))];
+    const detail = httpStatuses.length ? `HTTP ${httpStatuses.join(" / ")}` : "";
+    const hint = [reason, detail, status.retained ? t("workspaceStale") : "", t("workspaceRefreshHint")].filter(Boolean).join(" ");
+    const retry = section === "news" ? workspaceReloadButton(section) : "";
+    return insightEmptyMarkup(t(status.state === "partial" ? "workspacePartial" : "workspaceLoadFailed"), hint, retry);
   }
-  if (status.state === "empty") return insightEmptyMarkup(t(section === "news" ? "newsEmpty" : "companyEmpty"), t("workspaceRefreshHint"));
+  if (status.state === "empty") return insightEmptyMarkup(t(section === "news" ? "newsEmpty" : "companyEmpty"), t("workspaceRefreshHint"), section === "news" ? workspaceReloadButton(section) : "");
   return "";
 }
 function intelligenceItemsMarkup(items) {
@@ -3737,15 +3816,17 @@ function renderSecurityWorkspace() {
   const newsPanel = document.getElementById("newsWorkspacePanel");
   const companyPanel = document.getElementById("companyWorkspacePanel");
   if (!newsPanel || !companyPanel) return;
+  newsPanel.setAttribute("aria-busy", String(securityWorkspaceLoading));
+  companyPanel.setAttribute("aria-busy", String(securityWorkspaceLoading));
   renderSecurityIntelligence();
   const sourceFooter = workspaceSourceFooter(data);
   if (!data) {
     newsPanel.innerHTML = securityWorkspaceLoading
-      ? insightEmptyMarkup(t("workspaceLoading"))
+      ? insightEmptyMarkup(t("workspaceReloading"), t("workspaceReloadingHint"), workspaceReloadButton("news"))
       : workspaceSectionNotice({ sections: { news: { state: "error" } } }, "news");
     companyPanel.innerHTML = securityWorkspaceLoading
-      ? insightEmptyMarkup(t("workspaceLoading"))
-      : workspaceSectionNotice({ sections: { overview: { state: "error" } } }, "overview");
+      ? workspaceRefreshBar("company")
+      : workspaceRefreshBar("company") + workspaceSectionNotice({ sections: { overview: { state: "error" } } }, "overview");
     return;
   }
   const news = Array.isArray(data.news) ? data.news : [];
@@ -3755,9 +3836,12 @@ function renderSecurityWorkspace() {
     const titleMarkup = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title;
     return `<article class="news-item"><div class="news-item-title"><span class="news-kind">${escapeHtml(item.kind || "资讯")}</span>${titleMarkup}</div><time class="news-meta">${escapeHtml(item.time || "--")}</time><div class="news-item-summary">${escapeHtml(item.summary || "")}</div></article>`;
   }).join("");
-  const newsContent = workspaceSectionNotice(data, "news") + (newsMarkup || (data.sections?.news ? "" : insightEmptyMarkup(t("newsEmpty"))));
-  newsPanel.innerHTML = `<div class="news-list">${newsContent}</div>${sourceFooter}`;
-  companyPanel.innerHTML = `${companyWorkspaceMarkup(data)}${sourceFooter}`;
+  const notice = securityWorkspaceLoading
+    ? (news.length ? workspaceRefreshBar("news") : insightEmptyMarkup(t("workspaceReloading"), t("workspaceReloadingHint"), workspaceReloadButton("news")))
+    : workspaceSectionNotice(data, "news");
+  const newsContent = (notice || workspaceRefreshBar("news")) + (newsMarkup || (data.sections?.news ? "" : insightEmptyMarkup(t("newsEmpty"))));
+  newsPanel.innerHTML = `<div class="news-list">${newsContent}</div>${workspaceSourceFooter(data, "news")}`;
+  companyPanel.innerHTML = `${workspaceRefreshBar("company")}${companyWorkspaceMarkup(data)}${sourceFooter}`;
 }
 function workspaceHasContent(data) {
   if (!data || typeof data !== "object") return false;
@@ -3773,6 +3857,32 @@ function workspaceHasContent(data) {
 }
 function workspaceHasRateLimit(data) {
   return ["news", "overview", "financials", "holders"].some((section) => workspaceSectionIsRateLimited(data, section));
+}
+function mergeSecurityWorkspace(previous, incoming) {
+  if (!previous || previous.symbol !== incoming.symbol) return incoming;
+  const next = { ...incoming, source: incoming.source || previous.source, sections: { ...incoming.sections } };
+  for (const section of ["news", "overview", "financials", "holders"]) {
+    const status = incoming.sections?.[section];
+    if (status?.state !== "error" || !workspaceHasContent({ [section]: previous[section] })) continue;
+    next[section] = previous[section];
+    next.sections[section] = {
+      ...status, state: "partial", retained: true,
+      retained_at: previous.sections?.[section]?.retained_at || previous.source?.updated_at || "",
+    };
+  }
+  return next;
+}
+function securityWorkspaceFailure(symbol, error) {
+  const message = String(error?.message || "");
+  const code = error?.code || (error?.name === "AbortError" || /timeout|timed out/i.test(message) ? "backend_timeout"
+    : /fetch|network|connection/i.test(message) ? "backend_unreachable" : "workspace_request_failed");
+  return { symbol, sections: Object.fromEntries(["news", "overview", "financials", "holders"].map(section =>
+    [section, { state: "error", errors: [{ code }] }])) };
+}
+async function retrySecurityWorkspace() {
+  if (!currentSymbol || securityWorkspaceLoading) return;
+  clearSecurityWorkspaceRetry(currentSymbol);
+  await loadSecurityWorkspace(currentSymbol, currentName, true);
 }
 function clearSecurityWorkspaceRetry(symbol) {
   const key = String(symbol || "").toUpperCase();
@@ -3826,6 +3936,7 @@ async function loadSecurityWorkspace(symbol, name, refresh = false, { background
     securityWorkspaceData = previous || null;
     securityWorkspaceLoading = true;
     renderSecurityWorkspace();
+    renderMarketTicker();
     if (!background) showActivityNotice(t("workspaceLoading"));
   }
   try {
@@ -3833,18 +3944,24 @@ async function loadSecurityWorkspace(symbol, name, refresh = false, { background
     const warmed = pending ? await pending : null;
     const result = warmed
       ? { structuredContent: { ok: true, security_workspace: warmed } }
-      : await callMarketTool("fetch_security_workspace", { symbol, name, refresh });
+      : await callMarketTool("fetch_security_workspace", { symbol, name, refresh }, 1, { timeoutMs: 45_000 });
     const structured = result?.structuredContent || result || {};
     if (securityWorkspaceRequestTokens.get(tabId) !== requestId) return;
     const target = workspaceTabForSymbol(tabId);
     const data = !result?.isError && structured.ok ? structured.security_workspace : null;
-    const next = data || previous || null;
+    if (!data || typeof data !== "object") throw new Error("workspace response missing");
+    const next = mergeSecurityWorkspace(previous, data);
     if (target) target.workspace = next;
     if (currentSymbol === symbol) securityWorkspaceData = next;
     if (data && workspaceHasRateLimit(data)) scheduleSecurityWorkspaceRetry(symbol, name, data);
     else if (data) clearSecurityWorkspaceRetry(symbol);
   } catch (error) {
     console.warn("security workspace", error);
+    if (securityWorkspaceRequestTokens.get(tabId) !== requestId) return;
+    const next = mergeSecurityWorkspace(previous, securityWorkspaceFailure(symbol, error));
+    const target = workspaceTabForSymbol(tabId);
+    if (target) target.workspace = next;
+    if (currentSymbol === symbol) securityWorkspaceData = next;
   } finally {
     if (securityWorkspaceRequestTokens.get(tabId) === requestId) {
       const target = workspaceTabForSymbol(tabId);
@@ -3855,8 +3972,20 @@ async function loadSecurityWorkspace(symbol, name, refresh = false, { background
     }
     if (currentSymbol === symbol && securityWorkspaceRequestTokens.get(tabId) === requestId) {
       renderSecurityWorkspace();
+      renderMarketTicker();
       reportSize();
-      finishActivityNotice(workspaceHasContent(securityWorkspaceData) ? t("workspaceReady") : t("workspaceUnavailable"), !workspaceHasContent(securityWorkspaceData));
+      const newsPage = typeof activeSecurityTab !== "undefined" && activeSecurityTab === "news";
+      const companyPage = typeof activeSecurityTab !== "undefined" && activeSecurityTab === "company";
+      const newsStatus = securityWorkspaceData?.sections?.news?.state;
+      const newsFailed = newsPage && ["error", "partial"].includes(newsStatus);
+      const companyFailed = companyPage && ["overview", "financials", "holders"].some(section => ["error", "partial"].includes(securityWorkspaceData?.sections?.[section]?.state));
+      const hasContent = newsPage ? Boolean(securityWorkspaceData?.news?.length)
+        : companyPage ? workspaceHasContent({ overview: securityWorkspaceData?.overview, financials: securityWorkspaceData?.financials, holders: securityWorkspaceData?.holders }) : workspaceHasContent(securityWorkspaceData);
+      const failed = newsFailed || companyFailed;
+      const message = failed ? t(hasContent ? "workspacePartial" : "workspaceLoadFailed")
+        : hasContent ? t(newsPage ? "workspaceNewsUpdated" : companyPage ? "workspaceCompanyUpdated" : "workspaceReady")
+        : t(newsPage && newsStatus === "empty" ? "newsEmpty" : "workspaceUnavailable");
+      finishActivityNotice(message, failed || !hasContent);
     }
   }
 }
@@ -9141,7 +9270,7 @@ async function prefetchSecurityWorkspace(symbol, name) {
   if (!key || freshPrefetchedWorkspace(key)) return freshPrefetchedWorkspace(key);
   const existing = workspacePrefetchTasks.get(key);
   if (existing) return existing;
-  const promise = callMarketTool("fetch_security_workspace", { symbol, name }, 1)
+  const promise = callMarketTool("fetch_security_workspace", { symbol, name }, 1, { timeoutMs: 45_000 })
     .then((result) => {
       const payload = result?.structuredContent || result || {};
       const workspace = !result?.isError && payload.ok ? payload.security_workspace : null;
@@ -9150,7 +9279,7 @@ async function prefetchSecurityWorkspace(symbol, name) {
     })
     .catch((error) => {
       console.info("security workspace prefetch deferred", { symbol, error: String(error?.message || error) });
-      return null;
+      return securityWorkspaceFailure(symbol, error);
     })
     .finally(() => { if (workspacePrefetchTasks.get(key) === promise) workspacePrefetchTasks.delete(key); });
   workspacePrefetchTasks.set(key, promise);
@@ -10848,12 +10977,19 @@ function scheduleChartDataRetry() {
   }, CHART_DATA_RETRY_MS);
 }
 async function refreshMarketData(isRetry = false) {
-  if (chartDataRefreshInFlight) return;
+  const informationPage = typeof activeSecurityTab !== "undefined" && ["news", "company"].includes(activeSecurityTab);
+  if (chartDataRefreshInFlight || (informationPage && securityWorkspaceLoading)) return;
   chartDataRefreshInFlight = true;
   renderMarketDataStatus();
   renderMarketTicker();
   if (!isRetry) setChartStatus(t("refreshing"));
   try {
+    // The info page must not wait for unrelated quote/ticker requests before
+    // showing a retry result, or reload the chart and its drawings as a side effect.
+    if (!isRetry && informationPage && currentSymbol) {
+      await retrySecurityWorkspace();
+      return;
+    }
     const updates = [loadMarketTicker()];
     if (currentSymbol) {
       updates.push(openSymbol(currentSymbol, currentName, { preserveOnFailure: true, showLoading: !isRetry, refresh: !isRetry, skipWorkspace: !isRetry }));
@@ -10878,8 +11014,10 @@ async function refreshMarketData(isRetry = false) {
   }
 }
 function marketRefreshButtonMarkup() {
-  const title = chartDataRefreshInFlight ? t("refreshing") : t("refresh");
-  return `<button class="btn icon-btn market-data-refresh ${chartDataRefreshInFlight ? "loading" : ""}" id="refreshMarketDataBtn" type="button" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" ${chartDataRefreshInFlight ? "disabled" : ""}>&#8635;</button>`;
+  const informationLoading = typeof activeSecurityTab !== "undefined" && ["news", "company"].includes(activeSecurityTab) && securityWorkspaceLoading;
+  const loading = chartDataRefreshInFlight || informationLoading;
+  const title = loading ? t("refreshing") : t("refresh");
+  return `<button class="btn icon-btn market-data-refresh ${loading ? "loading" : ""}" id="refreshMarketDataBtn" type="button" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" aria-busy="${loading}" ${loading ? "disabled" : ""}>${reloadIconMarkup()}</button>`;
 }
 function renderMarketTicker() {
   const bar = document.getElementById("marketTicker");
@@ -12307,6 +12445,13 @@ document.getElementById("marketTickerMeta").addEventListener("click", (event) =>
   const button = event.target instanceof Element ? event.target.closest("#refreshMarketDataBtn") : null;
   if (button) refreshMarketData().catch(console.warn);
 });
+for (const panelId of ["newsWorkspacePanel", "companyWorkspacePanel"]) {
+  document.getElementById(panelId).addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("[data-workspace-retry]")) {
+      retrySecurityWorkspace().catch(console.warn);
+    }
+  });
+}
 document.getElementById("errorBox").addEventListener("click", (event) => {
   if (event.target instanceof Element && event.target.closest("#configureDataSourceBtn")) {
     setSettingsOpen(true);

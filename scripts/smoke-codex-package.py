@@ -58,7 +58,7 @@ def probe_launcher(destination: Path, env: dict[str, str], *, desktop: bool) -> 
         resources = request("resources/list")["resources"]
         assert bool(resources) is desktop
         if desktop:
-            request("resources/read", {"uri": "ui://ft-kline/chart-v3"})
+            request("resources/read", {"uri": "ui://ft-kline/chart-v4"})
             app = next(tool for tool in tools if tool["name"] == "ft_kline_app_action")
             assert app["_meta"]["ui"]["visibility"] == ["app"]
         deadline = time.monotonic() + 30
