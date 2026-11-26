@@ -142,6 +142,6 @@ test('search HTTP timeout aborts the request instead of leaving Searching foreve
       options.signal.addEventListener('abort', () => { aborted = true; reject(Error('aborted')) }, { once: true })
     }) }
   const call: any = runInNewContext(source + ';callTool', context)
-  await assert.rejects(() => call('search_symbols', { query: '紫金' }, { timeoutMs: 10 }), /aborted/)
+  await assert.rejects(() => call('search_symbols', { query: '紫金' }, { timeoutMs: 10 }), (error: any) => error.code === 'backend_timeout')
   assert.equal(aborted, true)
 })

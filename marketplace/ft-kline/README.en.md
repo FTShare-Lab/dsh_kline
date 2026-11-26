@@ -8,7 +8,7 @@ Explore market data in **DeepSeek Harness** and **Codex**. Analyze, draw, and re
 
 [Drawing tools](#supported-drawing-tools) · [ABC and channel examples](#natural-language-drawing-in-action) · [Drawing workbench](#drawing-workbench-and-price-patterns) · [Market and comparison](#market-overview-and-chart-comparison) · [Install](#install) · [Documentation](#documentation)
 
-Current GitHub release: **v0.6.13**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
+Current GitHub release: **v0.6.14**. npm package: **`@ftshare-lab/dsh-kline`**. Drawings appear directly and remain when the controls are closed. Switch candidates, continue editing, or clear them yourself.
 
 [Installation and downloads](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-en) · For DSH and Codex.
 
@@ -132,7 +132,7 @@ Supports macOS, Linux, and native Windows. First launch downloads dependencies a
 Install a working DSH Web host and **Python 3.11+**, then run:
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.14
 ```
 
 GitHub installation is also available:
@@ -185,6 +185,6 @@ Market data may be delayed. Patterns and counts support research and review, wit
 | Technical functions and advanced annotations | [Function and drawing coverage](docs/chart-functions.md) |
 | Host and provider integration | [Embedding](docs/embedding.md) · [Provider adaptation](docs/provider-adaptation.md) |
 | Website links and attribution | [UTM details](docs/utm-attribution.md) |
-| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.13 release notes](docs/release-notes-v0.6.13.md) · [Acceptance](docs/release-acceptance-v0.6.13.md) |
+| Releases and acceptance | [Changelog](CHANGELOG.md) · [v0.6.14 release notes](docs/release-notes-v0.6.14.md) · [Acceptance](docs/release-acceptance-v0.6.14.md) |
 
 [MIT License](LICENSE) · [Frontend provenance](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-en)

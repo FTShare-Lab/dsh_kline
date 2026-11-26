@@ -8,7 +8,7 @@
 
 [绘图清单](#支持哪些绘图) · [ABC 与通道实测](#自然语言绘图实测) · [绘图工作台](#绘图工作台与价格形态) · [大盘与对比](#大盘与主图对比) · [安装](#安装) · [文档](#文档)
 
-当前 GitHub 发布版本 **v0.6.13**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
+当前 GitHub 发布版本 **v0.6.14**，npm 包名 **`@ftshare-lab/dsh-kline`**。图形直接显示，关闭工具面板后保留；用户可切换候选、继续修改或清除。
 
 [安装入口与下载](https://ft-kline-links.zippymarshmallow.chatgpt.site/?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=install-zh) · 支持 DSH 与 Codex。
 
@@ -132,7 +132,7 @@ DeepSeek 核对卧龙电驱日 K 的 0／A／B／C 四个锚点，再通过插�
 先安装可用的 DSH Web 和 **Python 3.11+**，然后执行：
 
 ```bash
-dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.12
+dsh plugin --profile web add @ftshare-lab/dsh-kline@0.6.14
 ```
 
 GitHub 版本使用下方入口安装；npm 当前版本见上方徽章：
@@ -185,6 +185,6 @@ codex plugin add ft-kline@ftshare
 | 技术函数与进阶标注 | [函数与绘图范围](docs/chart-functions.md) |
 | 宿主与数据源接入 | [面板嵌入](docs/embedding.md) · [数据适配](docs/provider-adaptation.md) |
 | 官网入口与渠道统计 | [UTM 说明](docs/utm-attribution.md) |
-| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.13 发布说明](docs/release-notes-v0.6.13.md) · [验收记录](docs/release-acceptance-v0.6.13.md) |
+| 版本与验收 | [更新日志](CHANGELOG.md) · [v0.6.14 发布说明](docs/release-notes-v0.6.14.md) · [验收记录](docs/release-acceptance-v0.6.14.md) |
 
 [MIT License](LICENSE) · [前端来源](PROVENANCE.md) · [GitHub Releases](https://ft-kline-links.zippymarshmallow.chatgpt.site/go/release?utm_source=github&utm_medium=readme&utm_campaign=evergreen&utm_content=release-badge-zh)

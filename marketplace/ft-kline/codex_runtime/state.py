@@ -32,7 +32,7 @@ from tools.pattern_groups import PATTERN_COMMAND, NINE_COMMAND, edit_pattern_gro
 from tools.rectangles import RECTANGLE_COMMAND, edit_rectangle
 from tools.trend_lines import TREND_COMMAND, edit_trend_line
 
-APP_RESOURCE_URI = "ui://ft-kline/chart-v3"
+APP_RESOURCE_URI = "ui://ft-kline/chart-v4"
 MCP_APP_MIME = "text/html;profile=mcp-app"
 IDLE_SECONDS = 30 * 60
 MAX_STATES = 16

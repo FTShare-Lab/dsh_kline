@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ft-kline",
-  "version": "0.6.13",
+  "version": "0.6.14",
   "description": "Interactive K-line charts, market data and technical analysis for Codex Desktop and CLI.",
   "extensions": {
     "com.openai": {
       "mcpApps": {
-        "resourceUri": "ui://ft-kline/chart-v3",
+        "resourceUri": "ui://ft-kline/chart-v4",
         "mimeType": "text/html;profile=mcp-app",
         "displayModes": [
           "inline",

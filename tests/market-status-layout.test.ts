@@ -44,7 +44,8 @@ test('footer identifies the index quote time and owns the single refresh action'
     tickerStatusLabel: () => '收盘', reportSize() {}, window: { requestAnimationFrame(callback: () => void) { callback() } },
   }
   const source = html.slice(html.indexOf('function marketRefreshButtonMarkup('), html.indexOf('async function loadMarketTicker('))
-  const render: any = runInNewContext(source + '; renderMarketTicker', context)
+  const icon = html.slice(html.indexOf('function reloadIconMarkup('), html.indexOf('function workspaceReloadButton('))
+  const render: any = runInNewContext(icon + source + '; renderMarketTicker', context)
   render()
   assert.match(meta.innerHTML, /主要指数 · 18:36/)
   assert.match(meta.innerHTML, /id="refreshMarketDataBtn"/)

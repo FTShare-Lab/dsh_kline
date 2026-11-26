@@ -1023,7 +1023,13 @@ def _classify_ftshare_error(exc: Exception) -> tuple[str, str]:
     configured_key = _valid_ftshare_key(os.environ.get("FTSHARE_API_KEY"))
     safe_raw = raw.replace(configured_key, "<redacted>") if configured_key else raw
     status_match = re.search(r"HTTP(?:\s+Error)?\s+(\d{3})", safe_raw, re.IGNORECASE)
-    status = status_match.group(1) if status_match else ""
+    # The SDK also raises FtshareAPIError for HTTP-200 business errors.
+    # Its text is "FTShare API error 403", not "HTTP 403"; use the structured
+    # code so permission/rate-limit failures are not reported as connectivity.
+    structured_status = getattr(exc, "status_code", None) or (
+        status_match.group(1) if status_match else getattr(exc, "code", None)
+    )
+    status = str(structured_status) if structured_status is not None else ""
     if status in {"401", "403"}:
         if re.search(r"未携带|缺少|missing|required|not provided", raw, re.IGNORECASE):
             return "auth_required", "FTShare 未收到 API Key，请检查配置后重试。"
@@ -4535,7 +4541,7 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
     except Exception:
         pass
     errors: list[str] = []
-    section_errors: dict[str, list[dict[str, str]]] = {}
+    section_errors: dict[str, list[dict[str, Any]]] = {}
     # FTShare rate limits apply to the account rather than one endpoint. Once
     # the provider asks us to slow down, do not turn one company page into a
     # burst of identical requests and errors; the UI will retain available data
@@ -4565,7 +4571,13 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
                     continue
                 if code == "rate_limited":
                     rate_limited_until = time.monotonic() + 3.0
-                section_errors.setdefault(section, []).append({"code": code, "message": message})
+                failure: dict[str, Any] = {"code": code, "message": message}
+                # Only label a transport status as HTTP. SDK business error
+                # codes can use 5xx numbers inside an HTTP-200 response.
+                http_status = getattr(exc, "status_code", None)
+                if isinstance(http_status, int) and 400 <= http_status <= 599:
+                    failure["http_status"] = http_status
+                section_errors.setdefault(section, []).append(failure)
                 errors.append(f"{method_name}: {message}")
                 return []
         return []
@@ -4634,6 +4646,7 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
     }
     def section_state(section: str, available: bool, unsupported: bool = False) -> dict[str, Any]:
         failures = section_errors.get(section, [])
+        unsupported = unsupported or bool(failures and all(error["code"] == "unsupported" for error in failures))
         return {"state": ("partial" if failures else "available") if available else
                 ("unsupported" if unsupported else "error" if failures else "empty"), "errors": failures}
 
@@ -4642,7 +4655,7 @@ def fetch_security_workspace(symbol: str, *, name: str | None = None, refresh: b
         "source": {
             "name": "FTShare",
             "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-            "status": "retrieved",
+            "status": "partial" if errors else "retrieved",
             "retrieved_at": int(time.time()),
             "query": news_query,
         },

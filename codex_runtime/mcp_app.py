@@ -199,7 +199,7 @@ def mcp_app_html() -> str:
 
 
 def register_resource(mcp) -> None:
-    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v3", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
+    @mcp.resource(APP_RESOURCE_URI, name="ft_kline_chart_v4", title="FT K-Line", mime_type=MCP_APP_MIME, meta=APP_META)
     def chart_resource() -> str:
         return mcp_app_html()
 

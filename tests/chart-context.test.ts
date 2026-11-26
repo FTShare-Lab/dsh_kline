@@ -114,8 +114,8 @@ test('Node browser observation is read by the actual Python MCP tool without mar
     const raw=publication(); raw.state.source_interval='day'
     raw.state.data_provenance={provider:'ftshare',transformation:'none',source_url:'test-secret'}
     const published=await broker.publish(raw)
-    const script='import asyncio,json,server; r=asyncio.run(server.get_chart_context("'+published.context_ref+'")); print(json.dumps(r.structuredContent))'
-    const child=spawnSync(TEST_PYTHON,['-c',script],{encoding:'utf8',env:{...process.env,DSH_KLINE_RUNTIME_DIR:runtime,DSH_KLINE_HOST_PID:String(process.pid)}})
+    const script='import faulthandler; faulthandler.dump_traceback_later(30, exit=True); import asyncio,json,server; r=asyncio.run(server.get_chart_context("'+published.context_ref+'")); print(json.dumps(r.structuredContent))'
+    const child=spawnSync(TEST_PYTHON,['-c',script],{encoding:'utf8',timeout:60_000,env:{...process.env,DSH_KLINE_RUNTIME_DIR:runtime,DSH_KLINE_HOST_PID:String(process.pid)}})
     assert.equal(child.status,0,child.stderr)
     const read=JSON.parse(child.stdout)
     assert.equal(read.observation_source,'live_browser_report'); assert.equal(read.loaded_range.count,4)
@@ -156,7 +156,8 @@ test('actual Node observation and Python MCP preparation agree on ownership and 
       {type:'DRAW_HORIZONTAL_LINE',id:drawing.id,label:drawing.name,color:drawing.color,price:drawing.price}]}
     await mkdir(join(runtime,'sessions'))
     await writeFile(join(runtime,'sessions','b'.repeat(32)+'.json'),JSON.stringify({ok:true,session:'b'.repeat(32),host_process_id:process.pid,payload}))
-    const script=`import asyncio,json,server,chart_service
+    const script=`import faulthandler; faulthandler.dump_traceback_later(30, exit=True)
+import asyncio,json,server,chart_service
 from tools.chart_edits import ChartEdit
 r=asyncio.run(server.prepare_chart_edit('${published.context_ref}',${published.revision},'${'b'.repeat(32)}','TEST.X','bridge',ChartEdit(kind='horizontal_line',action='update',object_id='line_A',price=30)))
 print(json.dumps(r.structuredContent))
@@ -164,7 +165,7 @@ if chart_service._service:
  chart_service._service.httpd.shutdown()
  chart_service._service.httpd.server_close()
 `
-    const child=spawnSync(TEST_PYTHON,['-c',script],{encoding:'utf8',env:{...process.env,
+    const child=spawnSync(TEST_PYTHON,['-c',script],{encoding:'utf8',timeout:60_000,env:{...process.env,
       DSH_KLINE_RUNTIME_DIR:runtime,DSH_KLINE_HOST_PID:String(process.pid),DSH_KLINE_CHART_PORT:'0'}})
     assert.equal(child.status,0,child.stderr)
     const result=JSON.parse(child.stdout)
