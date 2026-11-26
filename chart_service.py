@@ -21,6 +21,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import unquote, urlparse
@@ -514,6 +515,14 @@ class ChartHTTPServer(ThreadingHTTPServer):
         self.auth_token = auth_token
         self.instance_id = secrets.token_hex(16)
         super().__init__(address, ChartRequestHandler)
+
+    def server_bind(self) -> None:
+        # This private loopback service has no use for a reverse-DNS name.
+        # HTTPServer.server_bind() otherwise calls getfqdn(), which can block
+        # startup for tens of seconds when the system resolver is unavailable.
+        TCPServer.server_bind(self)
+        self.server_name = self.server_address[0]
+        self.server_port = self.server_address[1]
 
 
 class ChartService:
